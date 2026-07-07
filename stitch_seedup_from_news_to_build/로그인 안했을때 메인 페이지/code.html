@@ -1,0 +1,474 @@
+<!DOCTYPE html><html lang="ko" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Seedup - 개발 뉴스, 읽고 끝내지 말고 만들어보세요.</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#636262",
+                "tertiary-fixed": "#c4e7ff",
+                "inverse-surface": "#2e3132",
+                "tertiary-container": "#007daa",
+                "on-surface": "#191c1d",
+                "tertiary": "#006387",
+                "inverse-on-surface": "#f0f1f2",
+                "on-secondary": "#ffffff",
+                "on-secondary-fixed-variant": "#474746",
+                "on-tertiary-container": "#fcfcff",
+                "primary-fixed": "#ffdad3",
+                "on-background": "#191c1d",
+                "on-secondary-fixed": "#1b1c1c",
+                "secondary-fixed-dim": "#c8c6c5",
+                "on-tertiary-fixed-variant": "#004c69",
+                "on-primary-container": "#fffbff",
+                "surface-bright": "#f8f9fa",
+                "surface-container-lowest": "#ffffff",
+                "outline": "#916f68",
+                "outline-variant": "#e6bdb5",
+                "error": "#ba1a1a",
+                "on-tertiary": "#ffffff",
+                "on-primary": "#ffffff",
+                "surface-container-low": "#f3f4f5",
+                "surface": "#f8f9fa",
+                "primary-container": "#ffdfda",
+                "on-surface-variant": "#5c403a",
+                "tertiary-fixed-dim": "#7cd0ff",
+                "on-tertiary-fixed": "#001e2c",
+                "secondary": "#5f5e5e",
+                "background": "#f8f9fa",
+                "on-error": "#ffffff",
+                "on-primary-fixed-variant": "#8f1100",
+                "error-container": "#ffdad6",
+                "inverse-primary": "#ffb4a6",
+                "surface-dim": "#d9dadb",
+                "on-error-container": "#93000a",
+                "on-primary-fixed": "#3f0300",
+                "primary-fixed-dim": "#ffb4a6",
+                "secondary-fixed": "#e5e2e1",
+                "surface-container-highest": "#e1e3e4",
+                "surface-container-high": "#e7e8e9",
+                "surface-variant": "#e1e3e4",
+                "surface-container": "#edeeef",
+                "surface-tint": "#bb1900",
+                "secondary-container": "#e2dfde",
+                "primary": "#FF4628"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xs": "8px",
+                "sm": "16px",
+                "container-max": "1280px",
+                "lg": "40px",
+                "md": "24px",
+                "base": "4px",
+                "xl": "64px",
+                "gutter": "24px",
+                "2xl": "48px",
+                "3xl": "64px"
+        },
+        "fontFamily": {
+                "display-lg": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ],
+                "body-sm": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "display-lg": [
+                        "48px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "1.4",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "14px",
+                        {
+                                "lineHeight": "1.4",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "1.25",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-sm": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        .dot-grid {
+            background-size: 20px 20px;
+            background-image: radial-gradient(circle, #E5E7EB 1px, transparent 1px);
+        }
+        .pipeline-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: #E5E7EB;
+            z-index: 0;
+        }
+        .pipeline-node {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-x-hidden selection:bg-primary-container/20 selection:text-primary">
+<!-- TopNavBar -->
+<nav class="bg-surface-container-lowest full-width top-0 border-b border-outline-variant z-50 sticky"><div class="flex justify-between items-center px-lg h-16 w-full max-w-container-max mx-auto">
+  <div class="flex items-center gap-md">
+    <a class="font-display-lg text-[32px] font-bold text-primary" href="#">Seedup</a>
+  </div>
+  <div class="hidden md:flex items-center gap-lg h-full">
+    <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors flex items-center h-full" href="#">뉴스</a>
+    <a class="text-primary font-label-md text-label-md font-bold border-b-2 border-primary hover:text-primary transition-colors flex items-center h-full" href="#">트렌드</a>
+    <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors flex items-center h-full" href="#">AI 제품랭크</a>
+    <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors flex items-center h-full" href="#">스크랩</a>
+    <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors flex items-center h-full" href="#">프로젝트</a>
+    <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors flex items-center h-full" href="#">아이디어 평가</a>
+  </div>
+  <div class="flex items-center gap-md">
+    <div class="relative hidden lg:block">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+      <input class="pl-10 pr-4 py-2 bg-surface-container-low rounded-full border border-outline-variant/50 focus:border-primary focus:ring-1 focus:ring-primary w-48 font-body-md text-on-surface placeholder:text-on-surface-variant outline-none transition-colors" placeholder="검색" type="text">
+    </div>
+    <button class="bg-primary text-on-primary hover:bg-primary/90 transition-colors px-6 py-2 rounded-lg font-label-md text-label-md font-medium">로그인</button>
+  </div>
+</div></nav>
+<main>
+<!-- Hero Section -->
+<section class="relative pt-3xl pb-2xl md:pt-3xl md:pb-3xl px-lg dot-grid min-h-[921px] flex items-center">
+<div class="max-w-container-max mx-auto grid grid-cols-1 lg:grid-cols-12 gap-xl items-center relative z-10 w-full">
+<!-- Left Content -->
+<div class="col-span-1 lg:col-span-6 flex flex-col gap-lg">
+<div class="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-full w-fit">
+<span class="material-symbols-outlined text-[16px]">psychiatry</span>
+<span class="font-label-sm text-label-sm">Seed to Code Pipeline</span>
+</div>
+<h1 class="font-display-lg text-display-lg md:text-[56px] md:leading-[64px] font-bold text-on-surface tracking-tight">
+                        개발 뉴스,<br>
+                        읽고 끝내지 말고<br>
+<span class="text-primary relative inline-block">
+                            만들어보세요.
+                            <svg class="absolute w-full h-3 -bottom-1 left-0 text-primary/30" preserveAspectRatio="none" viewBox="0 0 100 10">
+<path d="M0,5 Q50,10 100,5" fill="none" stroke="currentColor" stroke-width="2"></path>
+</svg>
+</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">
+                        신뢰할 수 있는 개발 뉴스와 제품 트렌드를 초보자 눈높이로 해석하고, 바로 만들 수 있는 프로젝트 아이디어와 7일 빌드 플랜으로 바꿔드립니다.
+                    </p>
+<div class="flex flex-col sm:flex-row gap-4 mt-4">
+<button class="bg-primary text-on-primary px-6 py-3 rounded-lg font-label-md text-label-md font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                            무료로 구독하기
+                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+<button class="bg-surface text-on-surface-variant border border-outline-variant px-6 py-3 rounded-lg font-label-md text-label-md font-medium hover:bg-surface-variant/50 transition-colors flex items-center justify-center">
+                            이번 주 아이디어 보기
+                        </button>
+</div>
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 pt-8 border-t border-outline-variant">
+<div class="flex flex-col gap-1">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">8개</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">트렌드 분석 중</span>
+</div>
+<div class="flex flex-col gap-1 border-l border-outline-variant pl-4">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">6개</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">프로젝트 아이디어</span>
+</div>
+<div class="flex flex-col gap-1 border-l border-outline-variant pl-4">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">3/7일</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">빌드 플랜 제공</span>
+</div>
+</div>
+</div>
+<!-- Right Content (Conversion Card Bento) -->
+<div class="col-span-1 lg:col-span-6 relative mt-xl lg:mt-0">
+<!-- Decorative background blur -->
+<div class="absolute inset-0 bg-primary/5 blur-3xl rounded-full transform -translate-y-1/4"></div>
+<div class="bg-surface border border-outline-variant rounded-xl p-lg md:p-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative z-10 flex flex-col gap-md">
+<!-- Header -->
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">psychology</span>
+<span class="font-label-md text-label-md font-semibold text-on-surface">News to Build</span>
+</div>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface-variant px-2 py-1 rounded-md">Live Example</span>
+</div>
+<!-- Step 1: Source -->
+<div class="flex gap-4 p-4 rounded-lg bg-surface-container-low border border-outline-variant/50 relative">
+<div class="flex-shrink-0 w-8 h-8 bg-surface border border-outline-variant rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">article</span>
+</div>
+<div>
+<h3 class="font-label-sm text-label-sm text-on-surface-variant mb-1">RAW SEED (NEWS)</h3>
+<p class="font-body-sm text-body-sm text-on-surface font-medium">AI 에이전트의 대중화 및 자율 행동 트렌드 확산</p>
+</div>
+<!-- Connector -->
+<div class="absolute left-8 bottom-[-16px] w-[1px] h-4 bg-outline-variant"></div>
+</div>
+<!-- Step 2: Translation -->
+<div class="flex gap-4 p-4 rounded-lg bg-surface border border-outline-variant relative ml-6">
+<div class="flex-shrink-0 w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-primary">translate</span>
+</div>
+<div>
+<h3 class="font-label-sm text-label-sm text-primary mb-1">BEGINNER TRANSLATION</h3>
+<p class="font-body-sm text-body-sm text-on-surface">"AI가 단순히 묻는 말에 대답하는 것을 넘어, 정해진 루틴에 따라 스스로 기록하고 정리하는 기능이 중요해지고 있어요."</p>
+</div>
+<!-- Connector -->
+<div class="absolute left-8 bottom-[-16px] w-[1px] h-4 bg-outline-variant"></div>
+</div>
+<!-- Step 3: Project -->
+<div class="flex gap-4 p-4 rounded-lg bg-surface border border-primary/30 relative ml-12 shadow-[0_4px_20px_rgba(255,70,40,0.05)]">
+<div class="flex-shrink-0 w-8 h-8 bg-primary text-on-primary rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">build</span>
+</div>
+<div class="w-full">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-label-sm text-label-sm text-primary">RECOMMENDED PROJECT</h3>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface-variant px-2 py-0.5 rounded text-[10px]">7-Day Plan</span>
+</div>
+<p class="font-body-md text-body-md font-semibold text-on-surface mb-2">AI Mood Diary (감정 일기 에이전트)</p>
+<div class="flex flex-wrap gap-2 mt-3">
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface px-2 py-1 rounded border border-outline-variant/50">Next.js</span>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface px-2 py-1 rounded border border-outline-variant/50">OpenAI API</span>
+<span class="font-label-sm text-label-sm bg-surface-container text-on-surface px-2 py-1 rounded border border-outline-variant/50">Supabase</span>
+</div>
+</div>
+</div>
+<!-- Step 4: Output -->
+<div class="flex gap-4 p-4 rounded-lg bg-surface-variant/30 border border-outline-variant/50 ml-12 mt-2">
+<div class="flex-shrink-0 w-8 h-8 bg-surface border border-outline-variant rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-tertiary">star</span>
+</div>
+<div>
+<h3 class="font-label-sm text-label-sm text-tertiary mb-1">PORTFOLIO POINTS</h3>
+<ul class="font-body-sm text-body-sm text-on-surface-variant list-disc list-inside">
+<li class="">외부 API(OpenAI) 연동 경험</li>
+<li class="">CRUD 및 프롬프트 엔지니어링 기초</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Pipeline Flow Section -->
+<section class="py-2xl md:py-3xl px-lg bg-surface border-t border-outline-variant">
+<div class="max-w-container-max mx-auto">
+<div class="text-center mb-xl">
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-surface mb-2">How it works</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">복잡한 기술 뉴스가 당신의 포트폴리오로 변하는 과정</p>
+</div>
+<!-- Desktop Pipeline -->
+<div class="hidden md:block relative py-lg overflow-x-auto">
+<div class="pipeline-line"></div>
+<div class="flex justify-between items-start min-w-[800px] relative z-10 px-4">
+<!-- Step 1 -->
+<div class="flex flex-col items-center w-48 bg-surface">
+<div class="w-12 h-12 bg-surface border border-outline-variant rounded-full flex items-center justify-center mb-4 z-10 shadow-sm transition-transform hover:scale-105 cursor-default group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">travel_explore</span>
+</div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface mb-1 text-center">News Collection</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">매일 최신 기술 및 제품 뉴스 수집</p>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center w-48 bg-surface">
+<div class="w-12 h-12 bg-surface border border-outline-variant rounded-full flex items-center justify-center mb-4 z-10 shadow-sm transition-transform hover:scale-105 cursor-default group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">translate</span>
+</div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface mb-1 text-center">Beginner Translation</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">초보자 눈높이로 쉬운 용어 해설</p>
+</div>
+<!-- Step 3 -->
+<div class="flex flex-col items-center w-48 bg-surface">
+<div class="w-12 h-12 bg-surface border border-outline-variant rounded-full flex items-center justify-center mb-4 z-10 shadow-sm transition-transform hover:scale-105 cursor-default group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">trending_up</span>
+</div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface mb-1 text-center">Trend Scoring</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">구현 가능성과 포트폴리오 가치 평가</p>
+</div>
+<!-- Step 4 -->
+<div class="flex flex-col items-center w-48 bg-surface">
+<div class="w-12 h-12 bg-surface border-2 border-primary rounded-full flex items-center justify-center mb-4 z-10 shadow-sm transition-transform hover:scale-105 cursor-default group bg-primary/5">
+<span class="material-symbols-outlined text-primary">lightbulb</span>
+</div>
+<h3 class="font-label-md text-label-md font-semibold text-primary mb-1 text-center">Project Ideas</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">수준별 맞춤 프로젝트 도출</p>
+</div>
+<!-- Step 5 -->
+<div class="flex flex-col items-center w-48 bg-surface">
+<div class="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center mb-4 z-10 shadow-md transition-transform hover:scale-105 cursor-default">
+<span class="material-symbols-outlined">event_note</span>
+</div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface mb-1 text-center">7-Day Build Plan</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">일차별 구체적 개발 마일스톤</p>
+</div>
+</div>
+</div>
+<!-- Mobile Pipeline (Vertical) -->
+<div class="md:hidden flex flex-col gap-6 relative pl-6">
+<div class="absolute left-[39px] top-4 bottom-4 w-[1px] bg-outline-variant"></div>
+<!-- Step 1 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-10 h-10 bg-surface border border-outline-variant rounded-full flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">travel_explore</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">News Collection</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">매일 최신 기술 및 제품 뉴스 수집</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-10 h-10 bg-surface border border-outline-variant rounded-full flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">translate</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">Beginner Translation</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">초보자 눈높이로 쉬운 용어 해설</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-10 h-10 bg-surface border border-outline-variant rounded-full flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">trending_up</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">Trend Scoring</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">구현 가능성과 포트폴리오 가치 평가</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-10 h-10 bg-surface border-2 border-primary bg-primary/5 rounded-full flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px] text-primary">lightbulb</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-semibold text-primary">Project Ideas</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">수준별 맞춤 프로젝트 도출</p>
+</div>
+</div>
+<!-- Step 5 -->
+<div class="flex gap-4 items-start relative z-10">
+<div class="w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center shrink-0 shadow-md">
+<span class="material-symbols-outlined text-[18px]">event_note</span>
+</div>
+<div>
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">7-Day Build Plan</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">일차별 구체적 개발 마일스톤</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest full-width border-t border-outline-variant flat no shadows">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-xl max-w-container-max mx-auto gap-md">
+<div class="flex flex-col items-center md:items-start gap-2">
+<span class="font-headline-md text-headline-md font-black text-on-surface">Seedup</span>
+<span class="font-body-sm text-body-sm text-secondary">© 2024 Seedup. Cultivating news into code.</span>
+</div>
+<div class="flex items-center gap-6">
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">About</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Contact</a>
+</div>
+</div>
+</footer>
+
+
+
+
+
+
+</body></html>

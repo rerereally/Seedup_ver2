@@ -1,0 +1,404 @@
+<!DOCTYPE html><html class="light" lang="ko" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>이번 주 만들 만한 프로젝트 - Seedup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#636262",
+                "tertiary-fixed": "#c4e7ff",
+                "inverse-surface": "#2e3132",
+                "tertiary-container": "#007daa",
+                "on-surface": "#191c1d",
+                "tertiary": "#006387",
+                "inverse-on-surface": "#f0f1f2",
+                "on-secondary": "#ffffff",
+                "on-secondary-fixed-variant": "#474746",
+                "on-tertiary-container": "#fcfcff",
+                "primary-fixed": "#ffdad3",
+                "on-background": "#191c1d",
+                "on-secondary-fixed": "#1b1c1c",
+                "secondary-fixed-dim": "#c8c6c5",
+                "on-tertiary-fixed-variant": "#004c69",
+                "on-primary-container": "#fffbff",
+                "surface-bright": "#f8f9fa",
+                "surface-container-lowest": "#ffffff",
+                "outline": "#916f68",
+                "outline-variant": "#e6bdb5",
+                "error": "#ba1a1a",
+                "on-tertiary": "#ffffff",
+                "on-primary": "#ffffff",
+                "surface-container-low": "#f3f4f5",
+                "surface": "#f8f9fa",
+                "primary-container": "#de2e12",
+                "on-surface-variant": "#5c403a",
+                "tertiary-fixed-dim": "#7cd0ff",
+                "on-tertiary-fixed": "#001e2c",
+                "secondary": "#5f5e5e",
+                "background": "#f8f9fa",
+                "on-error": "#ffffff",
+                "on-primary-fixed-variant": "#8f1100",
+                "error-container": "#ffdad6",
+                "inverse-primary": "#ffb4a6",
+                "surface-dim": "#d9dadb",
+                "on-error-container": "#93000a",
+                "on-primary-fixed": "#3f0300",
+                "primary-fixed-dim": "#ffb4a6",
+                "secondary-fixed": "#e5e2e1",
+                "surface-container-highest": "#e1e3e4",
+                "surface-container-high": "#e7e8e9",
+                "surface-variant": "#e1e3e4",
+                "surface-container": "#edeeef",
+                "surface-tint": "#bb1900",
+                "secondary-container": "#e2dfde",
+                "primary": "#b61800"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xs": "8px",
+                "sm": "16px",
+                "container-max": "1280px",
+                "lg": "40px",
+                "md": "24px",
+                "base": "4px",
+                "xl": "64px",
+                "gutter": "24px"
+        },
+        "fontFamily": {
+                "display-lg": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "display-lg": [
+                        "48px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "1.4",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "14px",
+                        {
+                                "lineHeight": "1.4",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "1.25",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        /* Blueprint grid background */
+        .bg-blueprint {
+            background-color: #F8F9FA;
+            background-image: radial-gradient(#E1E3E4 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        
+        /* Subtle transition for cards */
+        .project-card-hover {
+            transition: all 0.2s ease-in-out;
+        }
+        .project-card-hover:hover {
+            border-left: 2px solid #FF4628;
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased bg-blueprint min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<nav class="bg-surface-container-lowest docked full-width top-0 border-b z-50 border-outline-variant"><div class="flex justify-between items-center w-full px-lg h-16 max-w-container-max mx-auto">
+  <div class="flex items-center gap-lg">
+    <a class="font-display-lg text-display-lg font-bold text-primary" href="#">Seedup</a>
+    <div class="hidden md:flex gap-sm items-center">
+      <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors px-sm py-base" href="#">뉴스</a>
+      <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors px-sm py-base" href="#">트렌드</a>
+      <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors px-sm py-base" href="#">AI 제품랭크</a>
+      <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors px-sm py-base" href="#">스크랩</a>
+      <a class="text-primary font-bold border-b-2 border-primary pb-1 px-sm py-base" href="#">프로젝트</a>
+      <a class="text-secondary font-label-md text-label-md hover:text-primary transition-colors px-sm py-base" href="#">아이디어 평가</a>
+    </div>
+  </div>
+  <div class="flex items-center gap-sm">
+    <div class="flex items-center px-sm py-base border border-outline-variant rounded-full bg-surface-container-low hidden md:flex">
+      <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">search</span>
+      <input class="bg-transparent border-none focus:ring-0 text-body-md text-on-surface ml-xs w-48 outline-none" placeholder="검색" type="text">
+    </div>
+    <button class="bg-primary text-on-primary font-label-md text-label-md px-md py-xs rounded-full hover:opacity-90 transition-opacity">로그인</button>
+  </div>
+</div></nav>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-md md:px-lg py-xl flex flex-col gap-xl">
+<!-- Header Section -->
+<header class="flex flex-col gap-sm">
+<h1 class="font-display-lg text-display-lg text-on-surface">이번 주 만들 만한 프로젝트</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-3xl">개발 뉴스와 제품 트렌드를 기반으로 초보자가 바로 시작할 수 있는 프로젝트를 추천합니다.</p>
+</header>
+<!-- Filters Section (Bento-ish layout) -->
+<section class="bg-surface border border-outline-variant rounded-lg p-md flex flex-wrap gap-md items-center">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]" style="font-variation-settings: 'FILL' 0;">filter_list</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Filters:</span>
+</div>
+<!-- Difficulty Filter -->
+<div class="flex items-center gap-xs bg-surface-container-low rounded-DEFAULT px-sm py-base border border-outline-variant/50 cursor-pointer hover:border-primary/50 transition-colors">
+<span class="font-label-sm text-label-sm text-on-surface">Difficulty</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">expand_more</span>
+</div>
+<!-- Stack Filter -->
+<div class="flex items-center gap-xs bg-surface-container-low rounded-DEFAULT px-sm py-base border border-outline-variant/50 cursor-pointer hover:border-primary/50 transition-colors">
+<span class="font-label-sm text-label-sm text-on-surface">Stack</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">expand_more</span>
+</div>
+<!-- Period Filter -->
+<div class="flex items-center gap-xs bg-surface-container-low rounded-DEFAULT px-sm py-base border border-outline-variant/50 cursor-pointer hover:border-primary/50 transition-colors">
+<span class="font-label-sm text-label-sm text-on-surface">Period</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">expand_more</span>
+</div>
+<!-- Portfolio Value Filter -->
+<div class="flex items-center gap-xs bg-surface-container-low rounded-DEFAULT px-sm py-base border border-outline-variant/50 cursor-pointer hover:border-primary/50 transition-colors">
+<span class="font-label-sm text-label-sm text-on-surface">Portfolio Value</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">expand_more</span>
+</div>
+<div class="flex-grow"></div>
+<!-- Clear Filters -->
+<button class="font-label-sm text-label-sm text-secondary hover:text-secondary-container transition-colors">Clear All</button>
+</section>
+<!-- Projects Grid (Asymmetric / Dashboard Style) -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-lg">
+<!-- Featured Project Card (Spans 8 columns) -->
+<article class="md:col-span-8 bg-surface border border-outline-variant rounded-lg p-lg project-card-hover flex flex-col gap-md relative">
+<div class="absolute top-lg right-lg">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">bookmark</span>
+</button>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm mb-xs">
+<!-- Chips -->
+<span class="bg-primary-container/10 text-primary-container font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">Beginner Friendly</span>
+<span class="bg-secondary/10 text-secondary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">7 days</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface">AI Mood Diary &amp; Stress Analysis App</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">일기를 작성하면 AI가 감정을 분석하고 스트레스 지수를 시각화해주는 멘탈 케어 서비스.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md border-t border-outline-variant/50 pt-md mt-sm">
+<div class="flex flex-col gap-xs">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Tech Stack</h3>
+<div class="flex gap-xs">
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">Next.js</span>
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">Supabase</span>
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">OpenAI API</span>
+</div>
+</div>
+<div class="flex flex-col gap-xs">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Connected Trends</h3>
+<p class="font-body-md text-body-md text-on-surface">멘탈 헬스케어 앱의 급부상, 일상적 AI 활용 증가</p>
+</div>
+</div>
+<div class="bg-surface-container rounded-lg p-md mt-sm">
+<div class="flex items-start gap-sm">
+<span class="material-symbols-outlined text-primary mt-[2px]" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface font-bold mb-base">News to Build</h4>
+<p class="font-body-md text-body-md text-on-surface-variant">최근 애플의 '저널' 앱 출시로 개인 기록의 중요성이 대두됨. 단순 기록을 넘어 AI를 통한 감정 분석 기능은 포트폴리오 차별화 포인트로 유효함.</p>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-md flex justify-end">
+<button class="bg-primary-container text-on-primary font-label-md text-label-md px-lg py-sm rounded-DEFAULT hover:opacity-90 transition-opacity flex items-center gap-xs">
+                        빌드 플랜 보기
+                        <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 0;">arrow_forward</span>
+</button>
+</div>
+</article>
+<!-- Secondary Project Card 1 (Spans 4 columns) -->
+<article class="md:col-span-4 bg-surface border border-outline-variant rounded-lg p-md project-card-hover flex flex-col gap-md relative">
+<div class="absolute top-md right-md">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">bookmark_border</span>
+</button>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm mb-xs">
+<span class="bg-tertiary/10 text-tertiary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">Intermediate</span>
+<span class="bg-secondary/10 text-secondary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">14 days</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface font-semibold">개발자 뉴스 큐레이션 봇</h2>
+<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2">RSS 피드를 수집하여 핵심 요약본을 슬랙이나 디스코드로 전송하는 자동화 봇.</p>
+</div>
+<div class="flex flex-col gap-xs mt-auto border-t border-outline-variant/50 pt-md">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Tech Stack</h3>
+<div class="flex flex-wrap gap-xs">
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">Python</span>
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">AWS Lambda</span>
+</div>
+</div>
+<button class="w-full bg-surface border border-outline-variant text-on-surface-variant font-label-md text-label-md px-md py-sm rounded-DEFAULT hover:bg-surface-container-low transition-colors mt-sm">
+                    빌드 플랜 보기
+                </button>
+</article>
+<!-- Secondary Project Card 2 (Spans 4 columns) -->
+<article class="md:col-span-4 bg-surface border border-outline-variant rounded-lg p-md project-card-hover flex flex-col gap-md relative">
+<div class="absolute top-md right-md">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">bookmark_border</span>
+</button>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="flex items-center gap-sm mb-xs">
+<span class="bg-primary-container/10 text-primary-container font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">Beginner</span>
+<span class="bg-secondary/10 text-secondary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">3 days</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface font-semibold">GitHub Repo 요약기</h2>
+<p class="font-body-md text-body-md text-on-surface-variant line-clamp-2">리포지토리 URL을 입력하면 README와 주요 코드를 분석해 한 줄 요약을 제공.</p>
+</div>
+<div class="flex flex-col gap-xs mt-auto border-t border-outline-variant/50 pt-md">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Tech Stack</h3>
+<div class="flex flex-wrap gap-xs">
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">React</span>
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">Vite</span>
+</div>
+</div>
+<button class="w-full bg-surface border border-outline-variant text-on-surface-variant font-label-md text-label-md px-md py-sm rounded-DEFAULT hover:bg-surface-container-low transition-colors mt-sm">
+                    빌드 플랜 보기
+                </button>
+</article>
+<!-- Secondary Project Card 3 (Spans 8 columns) -->
+<article class="md:col-span-8 bg-surface border border-outline-variant rounded-lg p-md project-card-hover flex flex-row gap-lg relative items-center">
+<div class="absolute top-md right-md">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">bookmark_border</span>
+</button>
+</div>
+<div class="w-24 h-24 bg-surface-container-highest rounded flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[32px] text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">shopping_cart</span>
+</div>
+<div class="flex flex-col gap-xs flex-grow">
+<div class="flex items-center gap-sm mb-xs">
+<span class="bg-tertiary/10 text-tertiary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">Advanced</span>
+<span class="bg-secondary/10 text-secondary font-label-sm text-label-sm px-xs py-base rounded-DEFAULT">21 days</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface font-semibold">로컬 우선(Local-First) 영수증 관리자</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">오프라인에서도 작동하며, 나중에 서버와 동기화되는 로컬 퍼스트 아키텍처 기반 가계부.</p>
+<div class="flex gap-xs mt-xs">
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">React Native</span>
+<span class="font-label-sm text-label-sm text-on-surface border border-outline-variant rounded px-xs py-base">WatermelonDB</span>
+</div>
+</div>
+<div class="flex flex-col gap-sm self-end">
+<button class="bg-surface border border-outline-variant text-on-surface-variant font-label-md text-label-md px-md py-sm rounded-DEFAULT hover:bg-surface-container-low transition-colors whitespace-nowrap">
+                        빌드 플랜 보기
+                    </button>
+</div>
+</article>
+</section>
+<!-- Pagination / Load More -->
+<div class="flex justify-center mt-lg mb-xl">
+<button class="font-label-md text-label-md text-on-surface-variant border border-outline-variant bg-surface px-xl py-sm rounded-DEFAULT hover:bg-surface-container-low transition-colors">
+                Load More Projects
+            </button>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container dark:bg-surface-container-highest border-t border-outline-variant dark:border-on-surface-variant full-width mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-xl max-w-container-max mx-auto gap-md">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">Seedup</div>
+<div class="flex gap-lg">
+<a class="font-label-md text-label-md text-on-secondary-container dark:text-secondary-fixed-dim hover:underline hover:text-primary transition-colors" href="#">About</a>
+<a class="font-label-md text-label-md text-on-secondary-container dark:text-secondary-fixed-dim hover:underline hover:text-primary transition-colors" href="#">Terms</a>
+<a class="font-label-md text-label-md text-on-secondary-container dark:text-secondary-fixed-dim hover:underline hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="font-label-md text-label-md text-on-secondary-container dark:text-secondary-fixed-dim hover:underline hover:text-primary transition-colors" href="#">Contact</a>
+</div>
+<div class="font-body-md text-body-md text-on-secondary-container dark:text-secondary-fixed-dim">
+                © 2024 Seedup. All rights reserved.
+            </div>
+</div>
+</footer>
+
+
+
+
+
+
+</body></html>

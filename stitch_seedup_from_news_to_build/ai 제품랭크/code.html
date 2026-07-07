@@ -1,0 +1,336 @@
+<!DOCTYPE html><html class="light" lang="ko"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>AI 제품랭크 - Seedup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#e1e3e4",
+                        "primary-fixed": "#ffdad3",
+                        "on-primary-container": "#fffbff",
+                        "inverse-surface": "#2e3132",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-tertiary-fixed-variant": "#004c69",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "primary-container": "#de2e12",
+                        "surface-tint": "#bb1900",
+                        "on-secondary-fixed-variant": "#474746",
+                        "on-primary-fixed-variant": "#8f1100",
+                        "tertiary-container": "#007daa",
+                        "primary-fixed-dim": "#ffb4a6",
+                        "surface-dim": "#d9dadb",
+                        "inverse-primary": "#ffb4a6",
+                        "surface": "#f8f9fa",
+                        "on-tertiary-fixed": "#001e2c",
+                        "on-primary-fixed": "#3f0300",
+                        "on-surface": "#191c1d",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#006387",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "surface-container": "#edeeef",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed-dim": "#7cd0ff",
+                        "secondary": "#5f5e5e",
+                        "primary": "#b61800",
+                        "secondary-fixed": "#e5e2e1",
+                        "background": "#f8f9fa",
+                        "tertiary-fixed": "#c4e7ff",
+                        "on-background": "#191c1d",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface-variant": "#5c403a",
+                        "surface-container-high": "#e7e8e9",
+                        "outline-variant": "#e6bdb5",
+                        "surface-bright": "#f8f9fa",
+                        "secondary-container": "#e2dfde",
+                        "on-tertiary-container": "#fcfcff",
+                        "on-secondary-container": "#636262",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container-low": "#f3f4f5",
+                        "outline": "#916f68",
+                        "on-error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "1280px",
+                        "base": "4px",
+                        "md": "24px",
+                        "lg": "40px",
+                        "sm": "16px",
+                        "xl": "64px",
+                        "xs": "8px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.25", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .text-primary-orange { color: #FF4628; }
+        .bg-primary-orange { background-color: #FF4628; }
+        .border-primary-orange { border-color: #FF4628; }
+        .hover\:bg-primary-orange:hover { background-color: #FF4628; }
+        .hover\:text-primary-orange:hover { color: #FF4628; }
+        .ring-primary-orange:focus { --tw-ring-color: #FF4628; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar Component -->
+<header class="bg-white text-on-surface font-label-md text-label-md docked full-width top-0 border-b border-surface-variant sticky z-50">
+<div class="flex justify-between items-center w-full px-sm md:px-lg max-w-container-max mx-auto h-16">
+<!-- Brand -->
+<div class="flex items-center gap-xs">
+<a class="text-headline-md font-headline-md font-bold text-primary-orange tracking-tight" href="#">Seedup</a>
+</div>
+<!-- Navigation Links (Desktop) -->
+<nav class="hidden md:flex items-center gap-md"><a class="text-secondary hover:text-primary-orange transition-colors duration-200" href="#">뉴스</a><a class="text-secondary hover:text-primary-orange transition-colors duration-200" href="#">트렌드</a><a class="text-primary-orange font-bold border-b-2 border-primary-orange pb-1 transition-all" href="#">AI 제품랭크</a><a class="text-secondary hover:text-primary-orange transition-colors duration-200" href="#">스크랩</a><a class="text-secondary hover:text-primary-orange transition-colors duration-200" href="#">프로젝트</a><a class="text-secondary hover:text-primary-orange transition-colors duration-200" href="#">아이디어 평가</a></nav>
+<!-- Search & Actions -->
+<div class="flex items-center gap-sm">
+<!-- Search Bar -->
+<div class="hidden md:flex items-center bg-surface-container-low rounded-full px-3 py-1.5 border border-surface-variant focus-within:border-primary-orange focus-within:ring-1 focus-within:ring-primary-orange transition-all duration-200">
+<span class="material-symbols-outlined text-secondary mr-2" style="font-size: 18px;">search</span>
+<input class="bg-transparent border-none outline-none text-sm w-32 focus:w-48 transition-all duration-300 text-on-surface placeholder:text-secondary" placeholder="검색" type="text">
+</div>
+<button class="md:hidden text-secondary hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined">search</span>
+</button>
+<!-- Trailing Primary Action -->
+<a class="bg-primary-orange text-white px-4 py-2 rounded-full font-label-md text-label-md hover:bg-opacity-90 transition-opacity shadow-sm" href="#">로그인</a>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-sm md:px-lg py-lg md:py-xl">
+<!-- Header Section -->
+<section class="mb-lg">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-xs">AI 제품랭크 <span class="material-symbols-outlined text-primary-orange align-middle ml-1" style="font-variation-settings: 'FILL' 1;">local_fire_department</span></h1>
+<p class="font-body-lg text-body-lg text-secondary max-w-2xl">다음 프로젝트에 영감을 줄 최고 평점의 AI 제품들을 확인하세요. 실시간 트렌드와 사용자 평가를 기반으로 선정되었습니다.</p>
+</section>
+<!-- Filters Section -->
+<section class="mb-md flex flex-col md:flex-row gap-sm justify-between items-start md:items-center">
+<!-- Ranking Filter (Tabs) -->
+<div class="flex bg-surface-container-low p-1 rounded-lg border border-surface-variant w-full md:w-auto">
+<button class="flex-1 md:flex-none px-4 py-1.5 rounded-md bg-white shadow-sm border border-surface-variant text-primary-orange font-label-md text-label-md font-semibold transition-all">이번 주</button>
+<button class="flex-1 md:flex-none px-4 py-1.5 rounded-md text-secondary hover:text-on-surface font-label-md text-label-md transition-all">이번 달</button>
+<button class="flex-1 md:flex-none px-4 py-1.5 rounded-md text-secondary hover:text-on-surface font-label-md text-label-md transition-all">전체</button>
+</div>
+<!-- Category Filter -->
+<div class="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 hide-scrollbar">
+<button class="whitespace-nowrap px-3 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed border border-primary-fixed-dim font-label-sm text-label-sm transition-colors">전체보기</button>
+<button class="whitespace-nowrap px-3 py-1.5 rounded-full bg-surface text-secondary border border-surface-variant hover:border-primary-orange hover:text-primary-orange font-label-sm text-label-sm transition-colors">생산성</button>
+<button class="whitespace-nowrap px-3 py-1.5 rounded-full bg-surface text-secondary border border-surface-variant hover:border-primary-orange hover:text-primary-orange font-label-sm text-label-sm transition-colors">개발자 도구</button>
+<button class="whitespace-nowrap px-3 py-1.5 rounded-full bg-surface text-secondary border border-surface-variant hover:border-primary-orange hover:text-primary-orange font-label-sm text-label-sm transition-colors">이미지 생성</button>
+<button class="whitespace-nowrap px-3 py-1.5 rounded-full bg-surface text-secondary border border-surface-variant hover:border-primary-orange hover:text-primary-orange font-label-sm text-label-sm transition-colors">챗봇</button>
+</div>
+</section>
+<!-- Ranked List Section -->
+<section class="flex flex-col gap-sm">
+<!-- List Item 1 -->
+<div class="group bg-white border border-surface-variant rounded-xl p-sm md:p-md flex flex-col md:flex-row gap-sm md:gap-md items-start md:items-center hover:border-primary-orange hover:shadow-[0_4px_20px_-4px_rgba(255,70,40,0.1)] transition-all duration-300 relative overflow-hidden">
+<!-- Rank Badge -->
+<div class="absolute top-0 left-0 w-8 h-8 bg-primary-orange text-white flex items-center justify-center font-bold text-lg rounded-br-lg z-10 shadow-sm">1</div>
+<div class="flex items-center gap-sm md:w-1/3 pt-6 md:pt-0 pl-2 md:pl-8">
+<!-- Logo Placeholder -->
+<div class="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden shrink-0 border border-surface-container-high bg-surface-container flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="A modern, abstract digital logo featuring a sleek geometric 'N' shape in vibrant gradient hues of deep indigo and neon cyan, set against a pristine white background. The design is minimalist, clean, and highly professional, typical of an advanced AI SaaS product. High resolution, crisp edges, soft lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmAgAkHRXm27NHd4LJEkiKxXX5rjsQ9lYQ1lbYsyXMVaGZDk55AhPk5nF9KFC4ZeVxcqLsx2SDzPiEchGJPrd-Pg8EDQLsU35OzDarbR-RIrlnTpb7fiSQanwD-W7YLcIWbRJJ9nwWbc4G0w0mvy_H6WhdrWAnm2isJdj112kCf98JqCcRjVSYiuv7flvxnUm-jxEytG3xnMBAIh8b6LgcCIkpYhfONxBZs7fw-HohaTRaQ2qoOsUS">
+</div>
+<div>
+<h3 class="font-headline-md text-[20px] leading-tight font-semibold text-on-surface group-hover:text-primary-orange transition-colors">Nexus AI</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container-high text-secondary">생산성</span>
+<span class="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px] mr-0.5">trending_up</span> Hot
+                            </span>
+</div>
+</div>
+</div>
+<div class="flex-grow md:w-1/3">
+<p class="font-body-md text-sm text-secondary line-clamp-2">업무 자동화를 위한 올인원 AI 어시스턴트. 이메일 작성부터 데이터 분석까지 모든 것을 하나의 플랫폼에서 해결하세요.</p>
+</div>
+<div class="flex flex-row md:flex-col lg:flex-row gap-sm md:w-1/3 items-center justify-between md:justify-end w-full mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-surface-variant border-dashed">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-primary-orange" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-bold text-on-surface text-lg">9.8</span>
+<span class="text-xs text-secondary ml-1">(4.2k)</span>
+</div>
+<button class="bg-surface border border-surface-variant hover:border-primary-orange hover:text-primary-orange text-secondary font-label-sm text-label-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                        관련 프로젝트 보기 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="group bg-white border border-surface-variant rounded-xl p-sm md:p-md flex flex-col md:flex-row gap-sm md:gap-md items-start md:items-center hover:border-primary-orange hover:shadow-[0_4px_20px_-4px_rgba(255,70,40,0.1)] transition-all duration-300 relative overflow-hidden">
+<!-- Rank Badge -->
+<div class="absolute top-0 left-0 w-8 h-8 bg-surface-container-high text-on-surface flex items-center justify-center font-bold text-lg rounded-br-lg z-10 border-b border-r border-surface-variant">2</div>
+<div class="flex items-center gap-sm md:w-1/3 pt-6 md:pt-0 pl-2 md:pl-8">
+<!-- Logo Placeholder -->
+<div class="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden shrink-0 border border-surface-container-high bg-surface-container flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist logo featuring a stylized code bracket combining with a lightning bolt symbol. Designed in a sophisticated palette of deep charcoal and vivid electric blue on a stark white background. The aesthetic is corporate modern, crisp, and technological, suitable for a high-end developer tool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZm8nHx4wacwleUzxPDfmXDGQztEhdYNJU_rP1rb2o6-B0110PSmVotbWFRinsbpX8LZXp2nUi4mSeSDSvvEEjQmXc9RVcp_QyjrTMk1uilMktNs3pQJGrwVP2JIEQdmhSi3wL2lCwFO2Jif02z0WUPwA11sdkOzxgH1lRrRvSALM-qz5JyHTdGFBrBck1KV97nBOSCGkz_CWsLFwz2_Qz_9icz7q5lUOcNvwMwEqLZwWNqpXTVm46">
+</div>
+<div>
+<h3 class="font-headline-md text-[20px] leading-tight font-semibold text-on-surface group-hover:text-primary-orange transition-colors">CodeWhisper</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container-high text-secondary">개발자 도구</span>
+<span class="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px] mr-0.5">arrow_upward</span> +15%
+                            </span>
+</div>
+</div>
+</div>
+<div class="flex-grow md:w-1/3">
+<p class="font-body-md text-sm text-secondary line-clamp-2">개발자의 생산성을 극대화하는 실시간 AI 코드 리뷰 및 제안 도구. 복잡한 알고리즘 설계에 최적화.</p>
+</div>
+<div class="flex flex-row md:flex-col lg:flex-row gap-sm md:w-1/3 items-center justify-between md:justify-end w-full mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-surface-variant border-dashed">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-primary-orange" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-bold text-on-surface text-lg">9.5</span>
+<span class="text-xs text-secondary ml-1">(2.8k)</span>
+</div>
+<button class="bg-surface border border-surface-variant hover:border-primary-orange hover:text-primary-orange text-secondary font-label-sm text-label-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                        관련 프로젝트 보기 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- List Item 3 -->
+<div class="group bg-white border border-surface-variant rounded-xl p-sm md:p-md flex flex-col md:flex-row gap-sm md:gap-md items-start md:items-center hover:border-primary-orange hover:shadow-[0_4px_20px_-4px_rgba(255,70,40,0.1)] transition-all duration-300 relative overflow-hidden">
+<!-- Rank Badge -->
+<div class="absolute top-0 left-0 w-8 h-8 bg-surface-container-high text-on-surface flex items-center justify-center font-bold text-lg rounded-br-lg z-10 border-b border-r border-surface-variant">3</div>
+<div class="flex items-center gap-sm md:w-1/3 pt-6 md:pt-0 pl-2 md:pl-8">
+<!-- Logo Placeholder -->
+<div class="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden shrink-0 border border-surface-container-high bg-surface-container flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="An elegant, futuristic icon displaying an abstract eye intertwined with a camera lens. The colors are a smooth gradient of coral, magenta, and deep purple against a bright white background. The style is 3D glassmorphism, soft glowing highlights, sharp details, representing a cutting-edge image generation AI platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9ZOtxISwDwjhokf1A8CH4UzFDHmI6q7usxlD66yisi1DFaeNR7haNr9cryDcJJFVBqb2PmfxId2llZYMNGbaExn1i5qNQToe9EGiaPxjkxxa8-nU5ICZtHu0SqZrAouT0ylG8GVq1dqvYYWLL_7kVHJ14GKA8JqWIzDDwNuaFROlVxC0Km3oWz1yraUKn613hEafmYTmLeICBGo2dkdXQjOczZ4MKfFX6YAD96qs40uyDkmFaLVcK">
+</div>
+<div>
+<h3 class="font-headline-md text-[20px] leading-tight font-semibold text-on-surface group-hover:text-primary-orange transition-colors">Visionary</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container-high text-secondary">이미지 생성</span>
+<span class="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px] mr-0.5">rocket_launch</span> Rising
+                            </span>
+</div>
+</div>
+</div>
+<div class="flex-grow md:w-1/3">
+<p class="font-body-md text-sm text-secondary line-clamp-2">텍스트를 고해상도 상업용 이미지로 변환하는 가장 진보된 AI 모델. 디자이너와 마케터를 위한 필수 툴.</p>
+</div>
+<div class="flex flex-row md:flex-col lg:flex-row gap-sm md:w-1/3 items-center justify-between md:justify-end w-full mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-surface-variant border-dashed">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-primary-orange" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-bold text-on-surface text-lg">9.2</span>
+<span class="text-xs text-secondary ml-1">(5.1k)</span>
+</div>
+<button class="bg-surface border border-surface-variant hover:border-primary-orange hover:text-primary-orange text-secondary font-label-sm text-label-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                        관련 프로젝트 보기 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- List Item 4 -->
+<div class="group bg-white border border-surface-variant rounded-xl p-sm md:p-md flex flex-col md:flex-row gap-sm md:gap-md items-start md:items-center hover:border-primary-orange hover:shadow-[0_4px_20px_-4px_rgba(255,70,40,0.1)] transition-all duration-300 relative overflow-hidden">
+<!-- Rank Badge -->
+<div class="absolute top-0 left-0 w-8 h-8 bg-surface-container-low text-secondary flex items-center justify-center font-bold text-sm rounded-br-lg z-10 border-b border-r border-surface-variant">4</div>
+<div class="flex items-center gap-sm md:w-1/3 pt-6 md:pt-0 pl-2 md:pl-8">
+<!-- Logo Placeholder -->
+<div class="w-12 h-12 md:w-16 md:h-16 rounded-lg overflow-hidden shrink-0 border border-surface-container-high bg-surface-container flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="A sophisticated app icon featuring abstract chat bubbles formed by minimal, continuous wireframe lines. Colors utilize Seedup brand primary orange (#FF4628) and deep charcoal on a stark white canvas. The design is flat, crisp, vector-style, emphasizing communication and corporate modern reliability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjMxVvBVdCRjlPIAUFRaZPDvK63Ka-CYaVAYKtPBmkD7KOoX9KbtoUuGxk16AlDB0LF6WCoqkFJRJHB1qhYkMjumq6_mnqasqBKyKbuN6FtyoiIaWdxUnrHkicUhSYmXRw1wj8GesOuMw6TEhRTeFuCvzBAJFmtUPOyqmAIb16KEoepKRO74roepb75JSVT9Ll4UFVR_VLPPPiFtifxa6zSFTW1TvGZRbKpXFIJ6-pipdhhR0JC1Ky">
+</div>
+<div>
+<h3 class="font-headline-md text-[18px] leading-tight font-semibold text-on-surface group-hover:text-primary-orange transition-colors">Converse AI</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container-high text-secondary">챗봇</span>
+<span class="flex items-center text-xs font-medium text-secondary bg-surface-container px-1.5 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px] mr-0.5">horizontal_rule</span> -
+                            </span>
+</div>
+</div>
+</div>
+<div class="flex-grow md:w-1/3">
+<p class="font-body-md text-sm text-secondary line-clamp-2">고객 지원을 자동화하고 개인화된 경험을 제공하는 엔터프라이즈급 대화형 챗봇 솔루션.</p>
+</div>
+<div class="flex flex-row md:flex-col lg:flex-row gap-sm md:w-1/3 items-center justify-between md:justify-end w-full mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-surface-variant border-dashed">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-primary-orange" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-bold text-on-surface text-lg">8.9</span>
+<span class="text-xs text-secondary ml-1">(1.2k)</span>
+</div>
+<button class="bg-surface border border-surface-variant hover:border-primary-orange hover:text-primary-orange text-secondary font-label-sm text-label-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap">
+                        관련 프로젝트 보기 <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Load More Button -->
+<div class="flex justify-center mt-6">
+<button class="px-6 py-2.5 rounded-full border border-surface-variant text-secondary font-label-md text-label-md hover:bg-surface-container-low hover:text-on-surface transition-colors flex items-center gap-2">
+                    더보기 <span class="material-symbols-outlined" style="font-size: 18px;">expand_more</span>
+</button>
+</div>
+</section>
+</main>
+<!-- Footer Component -->
+<footer class="bg-surface-container dark:bg-inverse-surface text-primary dark:text-primary-fixed-dim font-label-sm text-label-sm full-width bottom border-t border-surface-variant dark:border-on-secondary-fixed-variant flat no shadows mt-auto">
+<div class="w-full py-md px-sm md:px-lg flex flex-col md:flex-row justify-between items-center max-w-container-max mx-auto gap-4 md:gap-0">
+<!-- Brand & Copyright -->
+<div class="flex flex-col items-center md:items-start gap-1">
+<span class="text-headline-sm font-headline-sm font-bold text-secondary dark:text-secondary-fixed-dim">Seedup</span>
+<span class="text-secondary dark:text-secondary-fixed-dim">© 2024 Seedup. All rights reserved.</span>
+</div>
+<!-- Links -->
+<div class="flex items-center gap-md"><a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary transition-colors" href="#">아이디어 평가</a>
+<a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary transition-colors" href="#">이용약관</a>
+<a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary transition-colors" href="#">개인정보처리방침</a>
+<a class="text-secondary dark:text-secondary-fixed-dim hover:text-primary transition-colors" href="#">고객센터</a>
+</div>
+</div>
+</footer>
+<style>
+        /* Utility to hide scrollbar for horizontal scrolling filter area */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+
+
+
+
+</body></html>

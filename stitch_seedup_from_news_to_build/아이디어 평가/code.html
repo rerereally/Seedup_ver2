@@ -1,0 +1,440 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Seedup - 아이디어 평가 리포트</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#636262",
+                "tertiary-fixed": "#c4e7ff",
+                "inverse-surface": "#2e3132",
+                "tertiary-container": "#007daa",
+                "on-surface": "#191c1d",
+                "tertiary": "#006387",
+                "inverse-on-surface": "#f0f1f2",
+                "on-secondary": "#ffffff",
+                "on-secondary-fixed-variant": "#474746",
+                "on-tertiary-container": "#fcfcff",
+                "primary-fixed": "#ffdad3",
+                "on-background": "#191c1d",
+                "on-secondary-fixed": "#1b1c1c",
+                "secondary-fixed-dim": "#c8c6c5",
+                "on-tertiary-fixed-variant": "#004c69",
+                "on-primary-container": "#fffbff",
+                "surface-bright": "#f8f9fa",
+                "surface-container-lowest": "#ffffff",
+                "outline": "#916f68",
+                "outline-variant": "#e6bdb5",
+                "error": "#ba1a1a",
+                "on-tertiary": "#ffffff",
+                "on-primary": "#ffffff",
+                "surface-container-low": "#f3f4f5",
+                "surface": "#f8f9fa",
+                "primary-container": "#de2e12",
+                "on-surface-variant": "#5c403a",
+                "tertiary-fixed-dim": "#7cd0ff",
+                "on-tertiary-fixed": "#001e2c",
+                "secondary": "#5f5e5e",
+                "background": "#f8f9fa",
+                "on-error": "#ffffff",
+                "on-primary-fixed-variant": "#8f1100",
+                "error-container": "#ffdad6",
+                "inverse-primary": "#ffb4a6",
+                "surface-dim": "#d9dadb",
+                "on-error-container": "#93000a",
+                "on-primary-fixed": "#3f0300",
+                "primary-fixed-dim": "#ffb4a6",
+                "secondary-fixed": "#e5e2e1",
+                "surface-container-highest": "#e1e3e4",
+                "surface-container-high": "#e7e8e9",
+                "surface-variant": "#e1e3e4",
+                "surface-container": "#edeeef",
+                "surface-tint": "#bb1900",
+                "secondary-container": "#e2dfde",
+                "primary": "#ff4628"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px",
+                "ROUND_EIGHT": "0.5rem"
+        },
+        "spacing": {
+                "xs": "8px",
+                "sm": "16px",
+                "container-max": "1280px",
+                "lg": "40px",
+                "md": "24px",
+                "base": "4px",
+                "xl": "64px",
+                "gutter": "24px"
+        },
+        "fontFamily": {
+                "display-lg": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "display-lg": [
+                        "48px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "1.4",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "14px",
+                        {
+                                "lineHeight": "1.4",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "1.25",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        /* Hide scrollbar for clean look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="bg-surface-container-low text-on-background h-screen flex flex-col antialiased overflow-hidden">
+<!-- Top Navbar -->
+<header class="h-16 bg-surface-container-lowest border-b border-outline-variant/30 px-xl flex items-center justify-between z-30 sticky top-0">
+  <div class="flex items-center gap-xl h-full">
+    <a class="font-display-lg text-[24px] font-bold text-primary tracking-tighter" href="#">Seedup</a>
+    <nav class="hidden md:flex items-center gap-md h-full">
+      <a class="h-full flex items-center font-label-md text-on-surface-variant hover:text-on-surface transition-colors px-1" href="#">뉴스</a>
+      <a class="h-full flex items-center font-label-md text-on-surface-variant hover:text-on-surface transition-colors px-1" href="#">트렌드</a>
+      <a class="h-full flex items-center font-label-md text-on-surface-variant hover:text-on-surface transition-colors px-1" href="#">AI 제품랭크</a>
+      <a class="h-full flex items-center font-label-md text-on-surface-variant hover:text-on-surface transition-colors px-1" href="#">스크랩</a>
+      <a class="h-full flex items-center font-label-md text-on-surface-variant hover:text-on-surface transition-colors px-1" href="#">프로젝트</a>
+      <a class="h-full flex items-center font-label-md text-primary font-bold border-b-2 border-primary px-1" href="#">아이디어 평가</a>
+    </nav>
+  </div>
+  <div class="flex items-center gap-md flex-grow max-w-md mx-md">
+    <div class="relative w-full">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+      <input type="text" placeholder="검색" class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-label-md focus:ring-0 focus:ring-1 focus:ring-primary/20 transition-all">
+    </div>
+  </div>
+  <div class="flex items-center">
+    <button class="bg-primary text-on-primary px-6 py-2 rounded-full font-label-md hover:opacity-90 transition-all shadow-sm">
+      로그인
+    </button>
+  </div>
+</header>
+<div class="flex flex-grow overflow-hidden">
+<!-- Sidebar -->
+<aside class="bg-surface border-r border-outline-variant flex flex-col h-full flex-shrink-0 z-20 hidden fixed inset-y-0 left-0 z-40 shadow-xl w-72">
+<div class="flex-grow overflow-y-auto no-scrollbar p-sm flex flex-col gap-sm mt-4">
+<button class="w-full text-left p-3 rounded-lg hover:bg-surface-container-low transition-colors flex items-center gap-2 group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-[20px]">add_circle</span>
+<span class="font-label-md text-label-md text-on-surface group-hover:text-primary transition-colors">새로운 아이디어 평가</span>
+</button>
+<div class="mt-md">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant mb-2 px-3">최근 기록</h3>
+<div class="flex flex-col gap-1">
+<button class="w-full text-left p-3 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors font-label-md text-label-md text-on-surface truncate">
+                    개발자 우선 GitHub 이슈 동기화...
+                </button>
+<button class="w-full text-left p-3 rounded-lg hover:bg-surface-container-low transition-colors font-label-md text-label-md text-on-surface-variant truncate">
+                    AI 기반 레시피 추천 앱
+                </button>
+<button class="w-full text-left p-3 rounded-lg hover:bg-surface-container-low transition-colors font-label-md text-label-md text-on-surface-variant truncate">
+                    노션 템플릿 마켓플레이스
+                </button>
+</div>
+</div>
+</div>
+<div class="p-md border-t border-outline-variant">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">설정</span>
+</button>
+</div>
+</aside>
+<!-- Main Chat Area -->
+<main class="flex-grow flex flex-col relative h-full">
+<!-- Top Nav (Minimal for Chat) -->
+<header class="bg-surface-container-low/80 backdrop-blur-md border-b border-outline-variant/50 flex justify-between items-center px-lg py-sm z-10">
+<div class="font-headline-md text-[18px] text-on-surface flex items-center gap-2">
+            Seedup AI <span class="bg-primary/10 text-primary px-2 py-0.5 rounded font-label-sm text-[10px] tracking-wide uppercase">Beta</span>
+</div>
+<div class="flex items-center gap-sm">
+<button class="bg-primary text-on-primary px-6 py-2 rounded-full font-label-md hover:opacity-90 transition-all shadow-sm">
+<span class="material-symbols-outlined">share</span>
+</button>
+</div>
+</header>
+<!-- Chat History -->
+<div class="flex-grow overflow-y-auto px-4 md:px-xl py-lg flex flex-col gap-lg pb-40">
+<!-- User Message -->
+<div class="flex gap-md max-w-4xl mx-auto w-full justify-end">
+<div class="bg-surface border border-outline-variant rounded-2xl rounded-tr-sm p-4 shadow-sm max-w-[80%]">
+<p class="font-body-md text-body-md text-on-surface">
+                    IDE와 브라우저 사이를 오가며 GitHub 이슈를 확인하는 게 너무 번거로워요. 개발 환경에 바로 붙여서 쓸 수 있는, 키보드 중심의 미니멀한 이슈 동기화 툴을 만들면 어떨까요? 속도가 아주 빨라야 하고 오프라인에서도 작동하면 좋겠습니다.
+                </p>
+</div>
+<div class="w-10 h-10 rounded-full bg-secondary-container flex-shrink-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">person</span>
+</div>
+</div>
+<!-- AI Reply -->
+<div class="flex gap-md max-w-4xl mx-auto w-full">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div class="flex flex-col gap-4 max-w-[90%]">
+<div class="bg-surface border border-outline-variant rounded-2xl rounded-tl-sm p-5 shadow-sm">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">
+                        개발자 우선 GitHub 이슈 동기화 도구
+                    </h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        흥미로운 아이디어입니다! 제안하신 내용은 <strong>미니멀한 데스크탑 CLI/GUI 하이브리드를 통해 이슈 관리를 개발 환경에 직접 통합하여 문맥 전환 문제를 해결하는 고성능 니치 유틸리티</strong>로 볼 수 있겠습니다. 이 프로젝트의 시장성과 타당성을 분석해 보았습니다.
+                    </p>
+</div>
+<!-- 4 Score Cards (Bento Grid in chat) -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-sm">
+<!-- Score 1 -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col shadow-sm">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant">아이디어 품질</span>
+<span class="material-symbols-outlined text-primary/70 text-[16px]">lightbulb</span>
+</div>
+<div class="flex items-baseline gap-1 mt-auto">
+<span class="font-display-lg text-[32px] text-on-surface font-bold tracking-tighter">85</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/100</span>
+</div>
+</div>
+<!-- Score 2 -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col shadow-sm">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant">초보자 적합도</span>
+<span class="material-symbols-outlined text-primary/70 text-[16px]">school</span>
+</div>
+<div class="flex items-baseline gap-1 mt-auto">
+<span class="font-display-lg text-[32px] text-on-surface font-bold tracking-tighter">70</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/100</span>
+</div>
+</div>
+<!-- Score 3 -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col shadow-sm border-l-4 border-l-primary">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant">포트폴리오 가치</span>
+<span class="material-symbols-outlined text-primary text-[16px]">work</span>
+</div>
+<div class="flex items-baseline gap-1 mt-auto">
+<span class="font-display-lg text-[32px] text-primary font-bold tracking-tighter">92</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/100</span>
+</div>
+</div>
+<!-- Score 4 -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col shadow-sm">
+<div class="flex justify-between items-start mb-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant">수익화 가능성</span>
+<span class="material-symbols-outlined text-primary/70 text-[16px]">attach_money</span>
+</div>
+<div class="flex items-baseline gap-1 mt-auto">
+<span class="font-display-lg text-[32px] text-on-surface font-bold tracking-tighter">65</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/100</span>
+</div>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant rounded-2xl p-5 shadow-sm">
+<p class="font-body-md text-body-md text-on-surface mb-4">이 도구가 왜 훌륭한 포트폴리오 프로젝트가 될 수 있는지, 구체적인 분석을 정리해 드립니다:</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- Target User & Differentiators -->
+<div class="flex flex-col gap-sm">
+<div class="bg-surface border border-outline-variant rounded-lg p-3">
+<h4 class="font-label-md text-label-md text-on-surface mb-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">group</span> 타겟 유저
+                                </h4>
+<p class="font-body-sm text-label-md text-on-surface-variant">
+                                    IDE와 브라우저 기반 프로젝트 관리 도구 사이의 문맥 전환에 불편함을 겪는 중급 및 시니어 개발자와 엔지니어링 매니저.
+                                </p>
+</div>
+<div class="bg-surface border border-outline-variant rounded-lg p-3">
+<h4 class="font-label-md text-label-md text-on-surface mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">hotel_class</span> 차별화 포인트
+                                </h4>
+<ul class="flex flex-col gap-1.5">
+<li class="flex items-start gap-1">
+<span class="material-symbols-outlined text-primary text-[14px] mt-[2px]">check</span>
+<span class="font-body-sm text-label-md text-on-surface-variant">지연 없는 로컬 캐싱.</span>
+</li>
+<li class="flex items-start gap-1">
+<span class="material-symbols-outlined text-primary text-[14px] mt-[2px]">check</span>
+<span class="font-body-sm text-label-md text-on-surface-variant">키보드 중심 네비게이션 (vim 바인딩).</span>
+</li>
+<li class="flex items-start gap-1">
+<span class="material-symbols-outlined text-primary text-[14px] mt-[2px]">check</span>
+<span class="font-body-sm text-label-md text-on-surface-variant">백그라운드 자동 동기화.</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- MVP & Tech Stack -->
+<div class="flex flex-col gap-sm">
+<div class="bg-surface border border-outline-variant rounded-lg p-3">
+<h4 class="font-label-md text-label-md text-on-surface mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">view_list</span> 핵심 MVP 기능
+                                </h4>
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-label-sm text-on-surface-variant">OAuth2 GitHub 로그인</span>
+<span class="bg-secondary-container text-on-surface-variant px-1.5 py-0.5 rounded text-[10px]">P0</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-label-sm text-on-surface-variant">양방향 이슈 동기화</span>
+<span class="bg-secondary-container text-on-surface-variant px-1.5 py-0.5 rounded text-[10px]">P0</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-label-sm text-on-surface-variant">CLI 커맨드 인터페이스</span>
+<span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px]">P1</span>
+</div>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant rounded-lg p-3">
+<h4 class="font-label-md text-label-md text-on-surface mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">code</span> 추천 기술 스택
+                                </h4>
+<div class="flex flex-wrap gap-1.5">
+<span class="bg-surface-container border border-outline-variant text-on-surface font-label-sm text-[11px] px-2 py-0.5 rounded">Next.js</span>
+<span class="bg-surface-container border border-outline-variant text-on-surface font-label-sm text-[11px] px-2 py-0.5 rounded">Tauri (Rust)</span>
+<span class="bg-surface-container border border-outline-variant text-on-surface font-label-sm text-[11px] px-2 py-0.5 rounded">TailwindCSS</span>
+<span class="bg-surface-container border border-outline-variant text-on-surface font-label-sm text-[11px] px-2 py-0.5 rounded">SQLite (Local)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant rounded-2xl p-5 shadow-sm">
+<h3 class="font-headline-md text-[18px] text-on-surface mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">calendar_month</span> 7일 빌드 플랜
+                    </h3>
+<div class="relative border-l border-outline-variant ml-3 space-y-4">
+<div class="relative pl-5">
+<div class="absolute w-2.5 h-2.5 bg-surface border-2 border-primary rounded-full -left-[5.5px] top-1.5"></div>
+<h4 class="font-label-md text-[13px] text-on-surface font-bold">1-2일차: 스캐폴딩 &amp; 인증</h4>
+<p class="font-body-sm text-[13px] text-on-surface-variant mt-0.5">Tauri + React 환경 설정. GitHub OAuth 구현 및 로컬 OS 키체인에 토큰 안전하게 저장.</p>
+</div>
+<div class="relative pl-5">
+<div class="absolute w-2.5 h-2.5 bg-surface border-2 border-outline-variant rounded-full -left-[5.5px] top-1.5"></div>
+<h4 class="font-label-md text-[13px] text-on-surface font-bold">3-4일차: API 연동 &amp; 로컬 DB</h4>
+<p class="font-body-sm text-[13px] text-on-surface-variant mt-0.5">GitHub REST API로 사용자 이슈 가져오기. 오프라인 접근과 빠른 읽기를 위해 Tauri 플러그인을 통한 로컬 SQLite DB 설정.</p>
+</div>
+<div class="relative pl-5">
+<div class="absolute w-2.5 h-2.5 bg-surface border-2 border-outline-variant rounded-full -left-[5.5px] top-1.5"></div>
+<h4 class="font-label-md text-[13px] text-on-surface font-bold">5-6일차: UI/UX &amp; CLI 파서</h4>
+<p class="font-body-sm text-[13px] text-on-surface-variant mt-0.5">미니멀한 UI 구축. 글로벌 키보드 단축키 및 커맨드 팔레트 로직 구현.</p>
+</div>
+<div class="relative pl-5">
+<div class="absolute w-2.5 h-2.5 bg-surface border-2 border-outline-variant rounded-full -left-[5.5px] top-1.5"></div>
+<h4 class="font-label-md text-[13px] text-on-surface font-bold">7일차: 폴리싱 &amp; 배포</h4>
+<p class="font-body-sm text-[13px] text-on-surface-variant mt-0.5">동기화 충돌 처리. Tauri 번들러를 사용한 Mac/Windows용 실행 파일 빌드.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Input Area -->
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-surface-container-low via-surface-container-low to-transparent pt-xl pb-lg px-4"><div class="max-w-5xl mx-auto mb-4">
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-full shadow-lg p-1.5 flex items-center gap-2 backdrop-blur-sm">
+<input class="flex-grow bg-transparent border-none focus:ring-0 font-body-md text-on-surface placeholder-on-surface-variant/50 px-6 py-3" placeholder="궁금한 점을 무엇이든 물어보세요." type="text">
+<button class="bg-primary text-on-primary h-12 px-8 rounded-full font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
+<span class="material-symbols-outlined text-[20px]">send</span>
+<span class="">물어보기</span>
+</button>
+</div>
+</div></div>
+</main>
+</div>
+
+
+
+
+</body></html>

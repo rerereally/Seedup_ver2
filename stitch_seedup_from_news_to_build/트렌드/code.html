@@ -1,0 +1,394 @@
+<!DOCTYPE html><html class="light" lang="ko" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>개발 트렌드 키워드 - Seedup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary": "#ffffff",
+                        "surface": "#f8f9fa",
+                        "surface-variant": "#e1e3e4",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#5f5e5e",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "on-tertiary-fixed-variant": "#004c69",
+                        "inverse-primary": "#ffb4a6",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#001e2c",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-surface": "#191c1d",
+                        "primary-fixed-dim": "#ffb4a6",
+                        "on-surface-variant": "#5c403a",
+                        "on-primary-container": "#fffbff",
+                        "inverse-surface": "#2e3132",
+                        "primary-container": "#de2e12",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#e2dfde",
+                        "outline-variant": "#e6bdb5",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "outline": "#916f68",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#ffdad3",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-secondary": "#ffffff",
+                        "tertiary-container": "#007daa",
+                        "surface-container": "#edeeef",
+                        "tertiary": "#006387",
+                        "on-secondary-fixed-variant": "#474746",
+                        "tertiary-fixed-dim": "#7cd0ff",
+                        "surface-tint": "#bb1900",
+                        "on-background": "#191c1d",
+                        "surface-bright": "#f8f9fa",
+                        "background": "#f8f9fa",
+                        "surface-dim": "#d9dadb",
+                        "surface-container-high": "#e7e8e9",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#c4e7ff",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#636262",
+                        "on-tertiary-container": "#fcfcff",
+                        "on-primary-fixed-variant": "#8f1100",
+                        "primary": "#b61800",
+                        "on-primary-fixed": "#3f0300",
+                        "brand-accent": "#FF4628"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "8px",
+                        "sm": "16px",
+                        "md": "24px",
+                        "xl": "64px",
+                        "lg": "40px",
+                        "container-max": "1280px",
+                        "base": "4px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.25", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #F9FAFB;
+            color: #191c1d;
+        }
+        .dot-grid {
+            background-size: 20px 20px;
+            background-image: radial-gradient(circle, #E5E7EB 1px, transparent 1px);
+        }
+        .bento-card {
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .bento-card:hover {
+            border-color: #FF4628;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+            opacity: 0;
+        }
+        .accordion-item.active .accordion-content {
+            max-height: 1000px; /* arbitrary large value */
+            opacity: 1;
+        }
+        .accordion-item.active .accordion-icon {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased overflow-x-hidden min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-50 w-full">
+  <div class="flex justify-between items-center px-lg h-16 w-full max-w-container-max mx-auto">
+    <div class="flex items-center gap-lg">
+      <a class="font-display-lg text-display-lg font-bold text-brand-accent" href="#">Seedup</a>
+      <nav class="hidden md:flex gap-md items-center h-full"><a class="text-secondary font-label-md text-label-md hover:text-brand-accent transition-colors" href="#">뉴스</a><a class="text-brand-accent font-bold border-b-2 border-brand-accent h-16 flex items-center font-label-md text-label-md" href="#">트렌드</a><a class="text-secondary font-label-md text-label-md hover:text-brand-accent transition-colors" href="#">AI 제품랭크</a><a class="text-secondary font-label-md text-label-md hover:text-brand-accent transition-colors" href="#">스크랩</a><a class="text-secondary font-label-md text-label-md hover:text-brand-accent transition-colors" href="#">프로젝트</a><a class="text-secondary font-label-md text-label-md hover:text-brand-accent transition-colors" href="#">아이디어 평가</a></nav>
+    </div>
+    <div class="flex items-center gap-sm">
+      <div class="relative hidden md:block">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-variation-settings: 'FILL' 0;">search</span>
+        <input class="pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant/50 rounded-full text-body-md focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/15 transition-all w-64" placeholder="검색" type="text">
+      </div>
+      <button class="bg-brand-accent text-white font-label-md text-label-md px-4 py-2 rounded-full hover:bg-brand-accent/90 transition-colors">로그인</button>
+    </div>
+  </div>
+</header>
+<main class="flex-grow w-full max-w-container-max mx-auto px-md md:px-lg py-xl flex flex-col gap-xl">
+<!-- Header Section -->
+<section class="flex flex-col gap-sm">
+<h1 class="font-display-lg text-display-lg text-on-surface">개발 트렌드 키워드</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-3xl">인기 있는 개발 트렌드 키워드를 순위별로 확인하고 상세 분석을 살펴보세요.</p>
+</section>
+<!-- Ranked List Section -->
+<section class="flex flex-col gap-sm">
+<div class="flex justify-between items-center mb-sm px-sm text-label-md text-on-surface-variant uppercase tracking-wider">
+<div class="flex items-center gap-md">
+<span class="w-8 text-center">순위</span>
+<span class="">키워드</span>
+</div>
+<div class="flex items-center gap-lg hidden md:flex">
+<span class="w-24 text-center">점수</span>
+<span class="w-24 text-center">상태</span>
+<span class="w-8"></span>
+</div>
+</div>
+<!-- Accordion Item 1 -->
+<div class="bento-card accordion-item group active">
+<button class="w-full px-lg py-md flex items-center justify-between text-left cursor-pointer focus:outline-none" onclick="this.parentElement.classList.toggle('active')">
+<div class="flex items-center gap-md">
+<span class="font-headline-lg text-headline-lg font-bold text-brand-accent w-8 text-center">1</span>
+<span class="font-headline-md text-headline-md text-on-surface">AI Agent</span>
+</div>
+<div class="flex items-center gap-lg">
+<div class="hidden md:flex flex-col items-center w-24">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">94</span>
+</div>
+<div class="hidden md:flex w-24 justify-center">
+<span class="font-label-sm text-label-sm px-3 py-1 bg-red-100 text-red-700 rounded-full font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">local_fire_department</span> Hot
+                        </span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant accordion-icon transition-transform duration-300">expand_more</span>
+</div>
+</button>
+<div class="accordion-content border-t border-outline-variant/30">
+<div class="p-lg">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Chart Sub-section -->
+<div class="dot-grid p-md rounded-lg border border-outline-variant/30 bg-surface-container-lowest">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">트렌드 흐름</h3>
+<div class="flex gap-2">
+<span class="font-label-sm text-label-sm px-2 py-1 bg-surface-container rounded-md text-on-surface-variant border border-outline-variant">1W</span>
+<span class="font-label-sm text-label-sm px-2 py-1 bg-brand-accent/10 rounded-md text-brand-accent font-bold border border-brand-accent/20">1M</span>
+<span class="font-label-sm text-label-sm px-2 py-1 bg-surface-container rounded-md text-on-surface-variant border border-outline-variant">3M</span>
+</div>
+</div>
+<div class="w-full h-48 relative flex items-end justify-between px-sm pb-sm border-b border-l border-outline-variant/50">
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+</div>
+<!-- Data Bars -->
+<div class="w-[12%] bg-brand-accent/20 hover:bg-brand-accent/40 transition-colors h-[30%] rounded-t-sm relative group cursor-pointer border-t-2 border-brand-accent">
+<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-sm text-label-sm px-2 py-1 rounded transition-opacity">45</div>
+</div>
+<div class="w-[12%] bg-brand-accent/20 hover:bg-brand-accent/40 transition-colors h-[45%] rounded-t-sm relative group cursor-pointer border-t-2 border-brand-accent">
+<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-sm text-label-sm px-2 py-1 rounded transition-opacity">62</div>
+</div>
+<div class="w-[12%] bg-brand-accent/20 hover:bg-brand-accent/40 transition-colors h-[40%] rounded-t-sm relative group cursor-pointer border-t-2 border-brand-accent">
+<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-sm text-label-sm px-2 py-1 rounded transition-opacity">58</div>
+</div>
+<div class="w-[12%] bg-brand-accent/20 hover:bg-brand-accent/40 transition-colors h-[60%] rounded-t-sm relative group cursor-pointer border-t-2 border-brand-accent">
+<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-sm text-label-sm px-2 py-1 rounded transition-opacity">78</div>
+</div>
+<div class="w-[12%] bg-brand-accent/20 hover:bg-brand-accent/40 transition-colors h-[85%] rounded-t-sm relative group cursor-pointer border-t-2 border-brand-accent">
+<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface font-label-sm text-label-sm px-2 py-1 rounded transition-opacity">94</div>
+</div>
+</div>
+<div class="flex justify-between mt-sm text-on-surface-variant font-label-sm text-label-sm px-sm">
+<span class="">1주</span><span class="">2주</span><span class="">3주</span><span class="">4주</span><span class="font-bold">이번 주</span>
+</div>
+</div>
+<!-- Details Sub-section -->
+<div class="flex flex-col gap-md">
+<div class="grid grid-cols-2 gap-sm">
+<div class="bg-surface-container-low p-sm rounded-lg">
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-1">Beginner Suitability</span>
+<div class="flex items-center justify-between">
+<div class="w-full bg-surface-variant rounded-full h-1.5 mr-2">
+<div class="bg-secondary h-1.5 rounded-full" style="width: 80%"></div>
+</div>
+<span class="font-label-md font-bold">8/10</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-sm rounded-lg">
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-1">Portfolio Value</span>
+<div class="flex items-center justify-between">
+<div class="w-full bg-surface-variant rounded-full h-1.5 mr-2">
+<div class="bg-tertiary h-1.5 rounded-full" style="width: 90%"></div>
+</div>
+<span class="font-label-md font-bold">9/10</span>
+</div>
+</div>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-2">Recommended Projects</span>
+<div class="flex flex-wrap gap-2">
+<span class="font-label-sm text-label-sm border border-outline-variant rounded-md px-3 py-1.5 bg-surface-container-lowest hover:border-brand-accent cursor-pointer transition-colors">AI Mood Diary</span>
+<span class="font-label-sm text-label-sm border border-outline-variant rounded-md px-3 py-1.5 bg-surface-container-lowest hover:border-brand-accent cursor-pointer transition-colors">Job Analyzer</span>
+<span class="font-label-sm text-label-sm border border-outline-variant rounded-md px-3 py-1.5 bg-surface-container-lowest hover:border-brand-accent cursor-pointer transition-colors">Automation Bot</span>
+</div>
+</div>
+<button class="mt-auto w-full bg-brand-accent/10 text-brand-accent hover:bg-brand-accent hover:text-white transition-colors py-2.5 rounded-lg font-label-md text-label-md flex justify-center items-center gap-2 group border border-brand-accent/20">
+                                프로젝트 보기
+                                <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform" style="font-variation-settings: 'FILL' 0;">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Accordion Item 2 -->
+<div class="bento-card accordion-item group">
+<button class="w-full px-lg py-md flex items-center justify-between text-left cursor-pointer focus:outline-none" onclick="this.parentElement.classList.toggle('active')">
+<div class="flex items-center gap-md">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface-variant w-8 text-center">2</span>
+<span class="font-headline-md text-headline-md text-on-surface">Local LLMs</span>
+</div>
+<div class="flex items-center gap-lg">
+<div class="hidden md:flex flex-col items-center w-24">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">88</span>
+</div>
+<div class="hidden md:flex w-24 justify-center">
+<span class="font-label-sm text-label-sm px-3 py-1 bg-green-100 text-green-700 rounded-full font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> Rising
+                        </span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant accordion-icon transition-transform duration-300">expand_more</span>
+</div>
+</button>
+<div class="accordion-content border-t border-outline-variant/30">
+<div class="p-lg">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Chart Sub-section (Simplified for example) -->
+<div class="dot-grid p-md rounded-lg border border-outline-variant/30 bg-surface-container-lowest">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-label-md text-label-md font-semibold text-on-surface">트렌드 흐름</h3>
+</div>
+<div class="w-full h-48 flex items-center justify-center border border-outline-variant/50 bg-surface-container-low/50 rounded">
+<span class="text-on-surface-variant text-label-sm">Chart Data Loading...</span>
+</div>
+</div>
+<!-- Details Sub-section -->
+<div class="flex flex-col gap-md">
+<div class="grid grid-cols-2 gap-sm">
+<div class="bg-surface-container-low p-sm rounded-lg">
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-1">Beginner Suitability</span>
+<div class="flex items-center justify-between">
+<div class="w-full bg-surface-variant rounded-full h-1.5 mr-2">
+<div class="bg-secondary h-1.5 rounded-full" style="width: 60%"></div>
+</div>
+<span class="font-label-md font-bold">6/10</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-sm rounded-lg">
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-1">Portfolio Value</span>
+<div class="flex items-center justify-between">
+<div class="w-full bg-surface-variant rounded-full h-1.5 mr-2">
+<div class="bg-tertiary h-1.5 rounded-full" style="width: 95%"></div>
+</div>
+<span class="font-label-md font-bold">9.5/10</span>
+</div>
+</div>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant block mb-2">Recommended Projects</span>
+<div class="flex flex-wrap gap-2">
+<span class="font-label-sm text-label-sm border border-outline-variant rounded-md px-3 py-1.5 bg-surface-container-lowest hover:border-brand-accent cursor-pointer transition-colors">Privacy Chatbot</span>
+<span class="font-label-sm text-label-sm border border-outline-variant rounded-md px-3 py-1.5 bg-surface-container-lowest hover:border-brand-accent cursor-pointer transition-colors">Offline Doc Search</span>
+</div>
+</div>
+<button class="mt-auto w-full bg-brand-accent/10 text-brand-accent hover:bg-brand-accent hover:text-white transition-colors py-2.5 rounded-lg font-label-md text-label-md flex justify-center items-center gap-2 group border border-brand-accent/20">
+                                프로젝트 보기
+                                <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform" style="font-variation-settings: 'FILL' 0;">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Accordion Item 3 -->
+<div class="bento-card accordion-item group">
+<button class="w-full px-lg py-md flex items-center justify-between text-left cursor-pointer focus:outline-none" onclick="this.parentElement.classList.toggle('active')">
+<div class="flex items-center gap-md">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface-variant w-8 text-center">3</span>
+<span class="font-headline-md text-headline-md text-on-surface">Web3 Tools</span>
+</div>
+<div class="flex items-center gap-lg">
+<div class="hidden md:flex flex-col items-center w-24">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">76</span>
+</div>
+<div class="hidden md:flex w-24 justify-center">
+<span class="font-label-sm text-label-sm px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">fiber_new</span> New
+                        </span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant accordion-icon transition-transform duration-300">expand_more</span>
+</div>
+</button>
+<div class="accordion-content border-t border-outline-variant/30">
+<div class="p-lg">
+<div class="text-center text-on-surface-variant py-md">상세 데이터 준비 중...</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest border-t border-outline-variant mt-xl">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-xl max-w-container-max mx-auto gap-md">
+<div class="flex flex-col gap-2 items-center md:items-start">
+<span class="font-headline-md text-headline-md font-black text-on-surface">Seedup</span>
+<span class="font-body-md text-body-md text-secondary">© 2024 Seedup. Cultivating news into code.</span>
+</div>
+<nav class="flex gap-lg">
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-brand-accent transition-colors" href="#">About</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-brand-accent transition-colors" href="#">Terms</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-brand-accent transition-colors" href="#">Privacy</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-brand-accent transition-colors" href="#">Contact</a>
+</nav>
+</div>
+</footer>
+<script>
+    // Optional JS if inline onclick is not preferred, but inline is fine for this demo.
+</script>
+
+
+
+
+
+
+</body></html>

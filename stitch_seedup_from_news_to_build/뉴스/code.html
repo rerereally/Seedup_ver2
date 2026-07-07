@@ -1,0 +1,328 @@
+<!DOCTYPE html><html lang="ko"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>뉴스 - Seedup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#007daa",
+                        "on-tertiary-fixed": "#001e2c",
+                        "inverse-on-surface": "#f0f1f2",
+                        "tertiary-fixed": "#c4e7ff",
+                        "secondary": "#5f5e5e",
+                        "on-tertiary-container": "#fcfcff",
+                        "background": "#f8f9fa",
+                        "surface-container-high": "#e7e8e9",
+                        "primary": "#b61800",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary": "#ffffff",
+                        "inverse-surface": "#2e3132",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#e2dfde",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#ffb4a6",
+                        "surface-tint": "#bb1900",
+                        "on-surface-variant": "#5c403a",
+                        "secondary-fixed": "#e5e2e1",
+                        "primary-fixed": "#ffdad3",
+                        "on-tertiary-fixed-variant": "#004c69",
+                        "on-primary-container": "#fffbff",
+                        "on-secondary-fixed-variant": "#474746",
+                        "outline-variant": "#e6bdb5",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f3f4f5",
+                        "primary-fixed-dim": "#ffb4a6",
+                        "tertiary": "#006387",
+                        "surface-container-highest": "#e1e3e4",
+                        "outline": "#916f68",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "on-primary-fixed": "#3f0300",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary-fixed-dim": "#7cd0ff",
+                        "on-background": "#191c1d",
+                        "surface": "#f8f9fa",
+                        "on-primary-fixed-variant": "#8f1100",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "primary-container": "#de2e12",
+                        "on-secondary-container": "#636262",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d9dadb",
+                        "brand-orange": "#FF4628",
+                        "brand-charcoal": "#191c1d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "16px",
+                        "xl": "64px",
+                        "base": "4px",
+                        "lg": "40px",
+                        "gutter": "24px",
+                        "md": "24px",
+                        "container-max": "1280px",
+                        "xs": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.25", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-surface-container-lowest full-width top-0 z-50 border-b border-outline-variant/50"><div class="flex justify-between items-center w-full h-16 px-lg max-w-container-max mx-auto">
+  <div class="flex items-center gap-lg">
+    <a class="font-headline-md text-headline-md font-bold text-[#FF4628] tracking-tight" href="#">Seedup</a>
+    <nav class="hidden lg:flex items-center gap-md"><a class="text-[#FF4628] font-bold border-b-2 border-[#FF4628] pb-1 font-label-md text-label-md px-2" href="#">뉴스</a><a class="text-on-surface-variant hover:text-[#FF4628] transition-colors font-label-md text-label-md px-2" href="#">트렌드</a><a class="text-on-surface-variant hover:text-[#FF4628] transition-colors font-label-md text-label-md px-2" href="#">AI 제품랭크</a><a class="text-on-surface-variant hover:text-[#FF4628] transition-colors font-label-md text-label-md px-2" href="#">스크랩</a><a class="text-on-surface-variant hover:text-[#FF4628] transition-colors font-label-md text-label-md px-2" href="#">프로젝트</a><a class="text-on-surface-variant hover:text-[#FF4628] transition-colors font-label-md text-label-md px-2" href="#">아이디어 평가</a></nav>
+  </div>
+  <div class="flex items-center gap-md flex-1 justify-end"><div class="hidden md:flex relative w-full max-w-xs"><span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span><input class="w-full bg-surface-container rounded-full py-1.5 pl-10 pr-4 border border-outline-variant focus:border-brand-orange focus:ring-1 focus:ring-brand-orange text-label-md font-label-md outline-none" placeholder="검색..." type="text"></div><button class="bg-[#FF4628] hover:bg-primary-container text-white font-label-md text-label-md px-6 py-2 rounded-full transition-colors font-medium">로그인</button><button class="lg:hidden p-2 text-on-surface-variant"><span class="material-symbols-outlined">menu</span></button></div>
+</div></header>
+<!-- Main Content -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-4 md:px-lg py-xl flex flex-col gap-xl">
+<!-- Page Title -->
+<div class="border-b border-outline-variant pb-xs">
+<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-brand-charcoal">News</h1>
+</div>
+<!-- Featured News Hero Section -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<div class="lg:col-span-8 group cursor-pointer">
+<div class="relative w-full h-64 md:h-96 rounded-xl overflow-hidden mb-sm border border-outline-variant">
+<img alt="Featured News Image" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A futuristic web development environment showing glowing code snippets and abstract server racks in a bright, modern light-mode setting. The color palette features clean whites, subtle cool grays, and striking, vibrant orange highlights. The mood is highly technical, clean, and fast-paced." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6AujzY-7JyVD7D4K5uSbGCaDitP4W6o1p3_ezFZU8cfMpbcxOncL985t_RAX7MbTjbYlodzKwb5kOvKAqDLW4Ns0ynDcu0YVE8P2MVsPQY-TANpSBngTwjs7NkWOufYdy_OyKo8cAyphKTyciqKX-_7cvfXWvpYfnunFY7ZL72TYzhqUVeJKtFo5SQjyTGigKfdb1kWKrEFaty0hcRQa8Wvjx9djiVWEISwD35Vu9a0Vj82uneEYC">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<span class="bg-[#FF4628] text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider mb-2 inline-block">AI &amp; ML</span>
+<h2 class="text-white font-headline-md text-headline-md mb-xs">Next.js 15 출시: 서버 컴포넌트의 진화와 성능 최적화</h2>
+<p class="text-white/80 font-body-sm line-clamp-2">React 생태계의 핵심 프레임워크인 Next.js의 새로운 버전이 공개되었습니다. 캐싱 메커니즘의 근본적인 변화와 더불어 개발자 경험을 향상시키는 다양한 기능들을 심층 분석합니다.</p>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 flex flex-col gap-md">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant pb-2">최신 트렌드 브리핑</h3>
+<!-- Side Featured Item 1 -->
+<div class="flex gap-sm group cursor-pointer">
+<div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Side News 1" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="A close up of a modern mechanical keyboard with bright orange keycaps illuminated by soft white desk lighting. The background is slightly blurred showing a sleek monitor setup. The aesthetic is clean, professional tech workspace." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAS3LtuZram6NG075JHshBv-FjZcHni6folvmlQFB-UnoI22fmnkYHz6517_VVaHtiUEU49o93lk_3Q50GY66z1yDpUWYGLw5YyIHcSrpwnBoiRP3OveBMlr5qVOzgW4IStsY78cxTET5T2Z3AMENwPgX5OfVwW7DBHfPQ0d6BTCJtRcZfPcTMK3zLKb6YKASPZq9E1IAz3JdVBqFaww9JX0a0U4OEgsVEI1x8hIrJY9TfZe5mDF__I">
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[#FF4628] text-[10px] font-bold uppercase tracking-wider mb-1">Backend</span>
+<h4 class="font-label-md text-label-md font-semibold text-brand-charcoal group-hover:text-[#FF4628] transition-colors line-clamp-2">Rust 기반의 새로운 데이터베이스 엔진, 성능 한계 돌파</h4>
+<span class="text-on-surface-variant text-[12px] mt-1">2시간 전</span>
+</div>
+</div>
+<!-- Side Featured Item 2 -->
+<div class="flex gap-sm group cursor-pointer">
+<div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Side News 2" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="Abstract 3d representation of a cloud computing network with interconnected nodes glowing in white and vibrant orange against a light gray grid background. The visual suggests high speed data transfer and modern infrastructure." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDS-dRwvThLQNnwlFEASS--CzzIyhAQ8kauqkPF-Xr54_qQrW3TowFjlPUNDBlg4H2gCbjwfrqz0GbMVzzgDR0ql41RxgiAcFQXDn-Y1H1r7eqq0Xx0NAsvBAjKPY_2Vyj7Nzc2uio14vswj_-80NpicQBu3lWGMtNarWTu-24zIToBISY--ynppvNbRdDvduXKq7iIcnv768yMXBJblrKCrplfp418Xxe0jn7XTQvBuQjV0gVE2ARU">
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[#FF4628] text-[10px] font-bold uppercase tracking-wider mb-1">Cloud</span>
+<h4 class="font-label-md text-label-md font-semibold text-brand-charcoal group-hover:text-[#FF4628] transition-colors line-clamp-2">AWS re:Invent 2024 핵심 요약: 서버리스 아키텍처의 미래</h4>
+<span class="text-on-surface-variant text-[12px] mt-1">5시간 전</span>
+</div>
+</div>
+<!-- Side Featured Item 3 -->
+<div class="flex gap-sm group cursor-pointer">
+<div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Side News 3" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="A stylized smartphone displaying a minimalist user interface design with vibrant orange accents on a stark white background. The composition is highly graphic and focuses on modern UI/UX trends." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5o5ocJlOXoktpYtJ2lttSDIT0xLsxUkr0ktlJArq2yh0U0o9cnOFRKfgDWgWsb4NDAsQdgpcnvvpM_dE81YgOMVos3uzDcEdwsTC6wcbZ1OTDiTiIkC_Yk5eG9xzJaxEGhaPWmy9S-DgPc2tofVAet5z2Vwg1O0mozmoMX6ImUM7MMAiFKkoEvJlUMX_dsr9fpx0DX2u9nJ5vDI1ImjhyVn60DSrIqlop7OcEs03Kiwo5cFFjsZC5">
+</div>
+<div class="flex flex-col justify-center">
+<span class="text-[#FF4628] text-[10px] font-bold uppercase tracking-wider mb-1">Web</span>
+<h4 class="font-label-md text-label-md font-semibold text-brand-charcoal group-hover:text-[#FF4628] transition-colors line-clamp-2">CSS Subgrid 완전 정복: 복잡한 레이아웃을 우아하게</h4>
+<span class="text-on-surface-variant text-[12px] mt-1">1일 전</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Content Area: Feed & Sidebar -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter mt-xl">
+<!-- News Feed List -->
+<div class="lg:col-span-8 flex flex-col gap-lg">
+<div class="flex justify-between items-center border-b border-outline-variant pb-sm">
+<h2 class="font-headline-md text-headline-md text-brand-charcoal">모든 뉴스</h2>
+<div class="flex gap-xs">
+<button class="px-3 py-1 bg-surface-container rounded-full text-[12px] font-medium text-brand-charcoal hover:bg-outline-variant transition-colors">최신순</button>
+<button class="px-3 py-1 bg-transparent border border-outline-variant rounded-full text-[12px] font-medium text-on-surface-variant hover:bg-surface-container transition-colors">인기순</button>
+</div>
+</div>
+<!-- Feed Item 1 -->
+<article class="flex flex-col md:flex-row gap-md pb-lg border-b border-outline-variant/50 group">
+<div class="flex-1 flex flex-col">
+<div class="flex items-center gap-xs mb-2">
+<span class="text-[#FF4628] text-[12px] font-bold uppercase tracking-wide">Architecture</span>
+<span class="text-on-surface-variant text-[12px]">•</span>
+<span class="text-on-surface-variant text-[12px]">2024. 11. 20</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-brand-charcoal mb-xs group-hover:text-[#FF4628] transition-colors cursor-pointer">마이크로서비스 아키텍처에서 모놀리스로의 회귀: 언제 필요한가?</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md line-clamp-2">무조건적인 MSA 도입이 가져오는 복잡성 증가와 비용 문제를 짚어보고, 최신 모놀리식 아키텍처 트렌드와 성공적인 전환 사례를 다룹니다.</p>
+<div class="mt-auto">
+<a class="inline-flex items-center gap-1 text-[12px] font-semibold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full hover:bg-tertiary/20 transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">lightbulb</span>
+                                프로젝트 아이디어: 경량화된 모놀리스 프레임워크 템플릿
+                            </a>
+</div>
+</div>
+<div class="w-full md:w-48 h-32 md:h-auto rounded-lg overflow-hidden border border-outline-variant flex-shrink-0 cursor-pointer">
+<img alt="Feed Image 1" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="A minimalist blueprint diagram showing architectural blocks transitioning from scattered small pieces to a unified solid block. Rendered in a clean tech style with light grey background, crisp white lines, and subtle orange accents to indicate flow." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCsGsrtiOhVa3TytIMDcAUPvxRYUXRnIH5YyLBWAamiSuYMMXQEtSy_sHhcu0HpjT-YItWLCUGzx12ozTwVOVy-XLfv0uPccDKQOIUw-aCtRL93OF1CobyfhmsYjWnHu__G0HWbd5pzHR1rd6TrD0HORMN0krubIBrSG59eMEAJT3DTPgOHSnRAolBnlbZbDwEmz2HKT5Fe-yAulTg4ysmf82-vYy0uMogg9HhbHPdAAWMezTG8qEu">
+</div>
+</article>
+<!-- Feed Item 2 -->
+<article class="flex flex-col md:flex-row gap-md pb-lg border-b border-outline-variant/50 group">
+<div class="flex-1 flex flex-col">
+<div class="flex items-center gap-xs mb-2">
+<span class="text-[#FF4628] text-[12px] font-bold uppercase tracking-wide">Web</span>
+<span class="text-on-surface-variant text-[12px]">•</span>
+<span class="text-on-surface-variant text-[12px]">2024. 11. 19</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-brand-charcoal mb-xs group-hover:text-[#FF4628] transition-colors cursor-pointer">WebAssembly와 결합된 브라우저 내장 AI 모델의 가능성</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md line-clamp-2">서버 통신 없이 브라우저 단에서 직접 실행되는 경량화된 AI 모델의 현 주소와 WebAssembly가 제공하는 성능 이점을 기술적으로 분석합니다.</p>
+<div class="mt-auto">
+<a class="inline-flex items-center gap-1 text-[12px] font-semibold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full hover:bg-tertiary/20 transition-colors" href="#">
+<span class="material-symbols-outlined text-[14px]">lightbulb</span>
+                                프로젝트 아이디어: 오프라인 지원 텍스트 요약 도구
+                            </a>
+</div>
+</div>
+<div class="w-full md:w-48 h-32 md:h-auto rounded-lg overflow-hidden border border-outline-variant flex-shrink-0 cursor-pointer">
+<img alt="Feed Image 2" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="A macro shot of a microchip embedded within a stylized web browser window interface. Bright, airy lighting with geometric shapes in pristine white and sharp orange outlines representing data processing on the edge." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcPN3Uay-f8P66VGfji3PfyddaGJziZzuRE6MZcj2SWmNnZ4ZX3Z-xosKQzfwGH0YIaGcqqEUnHxUVIM6rHfFfqlrJQezhfIfdXNgfqUZ56xyj6-W6GOVWVJ8ofByeZWPVpF6j13SKrM0rcyZOBGmM_YeYl0TYz_2gmljPMVCD25iBHZzoa6FwtN0JhfMWnhjXvstXbaN2Bp_ZGK7bPIcjcjqGphPfcBFBJD9dPTIcVa8URxqUgR9p">
+</div>
+</article>
+<!-- Feed Item 3 -->
+<article class="flex flex-col md:flex-row gap-md pb-lg border-b border-outline-variant/50 group">
+<div class="flex-1 flex flex-col">
+<div class="flex items-center gap-xs mb-2">
+<span class="text-[#FF4628] text-[12px] font-bold uppercase tracking-wide">Data</span>
+<span class="text-on-surface-variant text-[12px]">•</span>
+<span class="text-on-surface-variant text-[12px]">2024. 11. 18</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-brand-charcoal mb-xs group-hover:text-[#FF4628] transition-colors cursor-pointer">실시간 데이터 파이프라인 구축: Kafka vs Pulsar 비교 분석</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md line-clamp-2">대규모 스트리밍 데이터 처리를 위한 두 주요 플랫폼의 아키텍처 차이, 처리량, 지연 시간 관점에서의 벤치마크 결과를 공유합니다.</p>
+<div class="mt-auto">
+<!-- No project link for this one -->
+</div>
+</div>
+<div class="w-full md:w-48 h-32 md:h-auto rounded-lg overflow-hidden border border-outline-variant flex-shrink-0 cursor-pointer">
+<img alt="Feed Image 3" class="w-full h-full object-cover group-hover:scale-105 transition-transform" data-alt="Visual representation of data streams. Multiple bright orange lines flowing parallel through a clean white grid space, resembling fiber optic cables in a highly sterile, modern data center environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhhGoLqTGP2gDc7NVucgkPa9yQAPHSrRe1-g6AnhL4AolxPmXwFSImkb92m-7TVaCgywANCJhofOXHvfpwHYzZDECVFu0RVlBZvoNQYxJIhc-xsuoXED7EqgiyKMGp_hJXmPyc9ETpTiNMCIg5Ll41vVxnnSYjNxFZX_2cMcMRi2X5FsGHRyRr7A02WbMzJfyDm754MbU4bM-i3q_48Zaz8545jQWhpZ2Pp8lC_OIXesGnHC6By72Q">
+</div>
+</article>
+<div class="flex justify-center mt-md">
+<button class="px-6 py-2 border border-[#FF4628] text-[#FF4628] font-label-md text-label-md rounded-full hover:bg-[#FF4628]/10 transition-colors font-medium">더 보기</button>
+</div>
+</div>
+<!-- Right Sidebar -->
+<aside class="lg:col-span-4 flex flex-col gap-lg">
+<!-- Newsletter Signup Card -->
+<div class="bg-surface-container rounded-xl p-md border border-outline-variant">
+<div class="flex items-center gap-2 mb-sm">
+<span class="material-symbols-outlined text-[#FF4628]">mail</span>
+<h3 class="font-headline-md text-[18px] font-semibold text-brand-charcoal">주간 개발자 뉴스레터</h3>
+</div>
+<p class="text-[14px] text-on-surface-variant mb-md">놓치기 쉬운 핵심 기술 트렌드와 프로젝트 시드를 매주 월요일 아침 메일함으로 배달해 드립니다.</p>
+<form class="flex flex-col gap-xs">
+<input class="w-full bg-surface rounded-lg py-2 px-3 border border-outline-variant focus:border-brand-orange focus:ring-1 focus:ring-brand-orange text-[14px] outline-none" placeholder="이메일 주소 입력" type="email">
+<button class="w-full bg-brand-charcoal text-white font-medium text-[14px] py-2 rounded-lg hover:bg-brand-charcoal/90 transition-colors" type="submit">구독하기</button>
+</form>
+</div>
+<!-- Popular Project Seeds -->
+<div>
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant pb-2 mb-sm">인기 프로젝트 시드</h3>
+<div class="flex flex-col gap-3">
+<a class="block p-3 rounded-lg border border-outline-variant bg-surface hover:border-[#FF4628] transition-colors group" href="#">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-medium text-[14px] text-brand-charcoal group-hover:text-[#FF4628] transition-colors">Markdown 기반 블로그 생성기</h4>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_outward</span>
+</div>
+<div class="flex gap-1">
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">Next.js</span>
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">Tailwind</span>
+</div>
+</a>
+<a class="block p-3 rounded-lg border border-outline-variant bg-surface hover:border-[#FF4628] transition-colors group" href="#">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-medium text-[14px] text-brand-charcoal group-hover:text-[#FF4628] transition-colors">로컬 LLM 챗봇 인터페이스</h4>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_outward</span>
+</div>
+<div class="flex gap-1">
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">React</span>
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">Ollama</span>
+</div>
+</a>
+<a class="block p-3 rounded-lg border border-outline-variant bg-surface hover:border-[#FF4628] transition-colors group" href="#">
+<div class="flex justify-between items-start mb-1">
+<h4 class="font-medium text-[14px] text-brand-charcoal group-hover:text-[#FF4628] transition-colors">실시간 협업 화이트보드</h4>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_outward</span>
+</div>
+<div class="flex gap-1">
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">WebSockets</span>
+<span class="text-[10px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant">Canvas API</span>
+</div>
+</a>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest dark:bg-inverse-surface border-t border-outline-variant dark:border-outline mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-xl max-w-container-max mx-auto gap-md">
+<!-- Brand -->
+<div class="font-headline-md text-headline-md font-black text-on-surface dark:text-inverse-on-surface">
+                Seedup
+            </div>
+<!-- Links -->
+<nav class="flex gap-md">
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-label-sm text-label-sm" href="#">About</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-label-sm text-label-sm" href="#">Terms</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-label-sm text-label-sm" href="#">Privacy</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors font-label-sm text-label-sm" href="#">Contact</a>
+</nav>
+<!-- Copyright -->
+<div class="text-secondary dark:text-secondary-fixed-dim font-body-sm text-body-sm text-center md:text-left">
+                © 2024 Seedup. Cultivating news into code.
+            </div>
+</div>
+</footer>
+
+
+
+
+</body></html>

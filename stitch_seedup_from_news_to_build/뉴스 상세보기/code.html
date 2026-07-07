@@ -1,0 +1,233 @@
+<!DOCTYPE html><html lang="ko"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Seedup - 뉴스 상세</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#007daa",
+                        "on-tertiary-fixed": "#001e2c",
+                        "inverse-on-surface": "#f0f1f2",
+                        "tertiary-fixed": "#c4e7ff",
+                        "secondary": "#5f5e5e",
+                        "on-tertiary-container": "#fcfcff",
+                        "background": "#f8f9fa",
+                        "surface-container-high": "#e7e8e9",
+                        "primary": "#b61800",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary": "#ffffff",
+                        "inverse-surface": "#2e3132",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#e2dfde",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#ffb4a6",
+                        "surface-tint": "#bb1900",
+                        "on-surface-variant": "#5c403a",
+                        "secondary-fixed": "#e5e2e1",
+                        "primary-fixed": "#ffdad3",
+                        "on-tertiary-fixed-variant": "#004c69",
+                        "on-primary-container": "#fffbff",
+                        "on-secondary-fixed-variant": "#474746",
+                        "outline-variant": "#e6bdb5",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f3f4f5",
+                        "primary-fixed-dim": "#ffb4a6",
+                        "tertiary": "#006387",
+                        "surface-container-highest": "#e1e3e4",
+                        "outline": "#916f68",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "on-primary-fixed": "#3f0300",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary-fixed-dim": "#7cd0ff",
+                        "on-background": "#191c1d",
+                        "surface": "#f8f9fa",
+                        "on-primary-fixed-variant": "#8f1100",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "primary-container": "#de2e12",
+                        "on-secondary-container": "#636262",
+                        "on-surface": "#191c1d",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d9dadb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "16px",
+                        "xl": "64px",
+                        "base": "4px",
+                        "lg": "40px",
+                        "gutter": "24px",
+                        "md": "24px",
+                        "container-max": "1280px",
+                        "xs": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter", "sans-serif"],
+                        "display-lg": ["Inter", "sans-serif"],
+                        "label-md": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"],
+                        "label-sm": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "headline-lg-mobile": ["Inter", "sans-serif"],
+                        "headline-lg": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-md": ["14px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["12px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.25", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-50 w-full"><div class="flex justify-between items-center w-full px-lg h-16 max-w-container-max mx-auto">
+    <!-- Brand -->
+    <div class="flex items-center">
+        <a class="font-headline-md text-headline-md font-bold text-[#FF4628]" href="#">Seedup</a>
+    </div>
+    <!-- Navigation Links -->
+    <nav class="hidden md:flex items-center gap-md h-full">
+        <a class="font-label-md text-label-md text-on-surface font-bold border-b-2 border-[#FF4628] h-full flex items-center px-2" href="#">뉴스</a>
+        <a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2" href="#">트렌드</a>
+        <a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2" href="#">AI 제품랭크</a>
+        <a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2" href="#">스크랩</a>
+        <a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2" href="#">프로젝트</a>
+        <a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors px-2" href="#">아이디어 평가</a>
+    </nav>
+    <!-- Search & Action -->
+    <div class="flex items-center gap-md">
+        <div class="relative hidden md:block">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+            <input class="w-48 pl-10 pr-4 py-1.5 bg-surface-container rounded-full border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors text-label-md" placeholder="검색..." type="text">
+        </div>
+        <button class="bg-[#FF4628] text-white font-label-md text-label-md px-6 py-2 rounded-lg hover:opacity-90 transition-colors">로그인</button>
+    </div>
+</div></header>
+<!-- Main Content -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-lg py-xl flex flex-col lg:flex-row gap-xl relative">
+<!-- Article Canvas -->
+<article class="flex-1 lg:max-w-3xl lg:mr-xl w-full">
+
+<figure class="mb-lg rounded-xl overflow-hidden">
+<img class="w-full h-auto aspect-video object-cover" data-alt="A wide hero image illustrating the concept of AI prompt engineering. An abstract, futuristic digital environment featuring glowing code snippets, neural network nodes, and bright neon orange accents against a pristine white and light gray background. Corporate modern aesthetic, high contrast, clean lines, and a sense of technological momentum." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCyYwoMcXjUe4uxene456-9D4RLYwcm9tmQhovN1-Ye_C1CWYZT42gsUwjjM2uPKi0FJ0DbHL4uXkZvxL5YjjOqoahBKDI8W0TjW8X8T109kfv0sndAwKTYilv70w876uqc3wlhY4jfLwArUHhkllOK8BLG8_j4sEWXu5KIb_Rp4jOu22XoxIT1H6egALQkWLCN_Xe_5tZHxSfpf_C3G7omZuO9CglOV6oqnGVbvUBvB3ufms-pxgKR">
+<figcaption class="text-center font-label-sm text-label-sm text-on-surface-variant mt-2">AI 모델과 인간의 상호작용은 점점 더 정교해지고 있다.</figcaption>
+</figure>
+<div class="prose prose-lg max-w-none text-on-surface font-body-lg text-body-lg leading-relaxed space-y-6">
+<p class="">
+                    최근 몇 달 동안 대형 언어 모델(LLM)의 발전 속도는 경이로울 정도입니다. 단순한 텍스트 생성을 넘어, 복잡한 코드 작성, 데이터 분석, 심지어 논리적 추론까지 수행하는 AI의 등장은 소프트웨어 개발 생태계 전반에 지대한 영향을 미치고 있습니다. 이러한 흐름 속에서 '프롬프트 엔지니어링(Prompt Engineering)'은 더 이상 호기심을 끄는 신조어가 아니라, 현대 개발자가 반드시 갖춰야 할 핵심 역량으로 자리 잡고 있습니다.
+                </p>
+<h2 class="font-headline-md text-headline-md text-on-surface mt-xl mb-4">단순한 명령어 입력에서 맥락적 설계로</h2>
+<p class="">
+                    초기 AI 활용이 단순히 "이 코드를 작성해 줘" 수준의 단편적인 명령어 입력에 그쳤다면, 현재의 프롬프트 엔지니어링은 훨씬 더 시스템적이고 맥락 중심적인 접근을 요구합니다. 개발자는 AI에게 명확한 역할(Persona)을 부여하고, 구체적인 제약 조건과 출력 형식을 정의하며, 복잡한 문제를 단계별로 분해하여 사고하도록 유도(Chain-of-Thought)해야 합니다.
+                </p>
+<blockquote class="border-l-4 border-primary pl-4 italic text-on-surface-variant my-md">
+                    "AI는 강력한 엔진이지만, 그 엔진이 목적지를 향해 제대로 달리게 하려면 정교한 핸들링이 필요합니다. 그것이 바로 프롬프트 엔지니어링의 본질입니다." — 리드 AI 리서처, H사
+                </blockquote>
+<p class="">
+                    특히 기업 환경에서는 일관된 품질의 결과물을 얻기 위해 재사용 가능하고 체계화된 프롬프트 템플릿 구축이 필수적입니다. 이를 통해 팀 전체의 생산성을 상향 평준화하고, 코드 리뷰 및 버그 수정에 소요되는 시간을 기하급수적으로 줄일 수 있습니다.
+                </p>
+<h2 class="font-headline-md text-headline-md text-on-surface mt-xl mb-4">새로운 도구의 출현과 자동화</h2>
+<p class="">
+                    최근에는 프롬프트 최적화 자체를 자동화하는 도구들도 등장하고 있습니다. AI가 사용자의 의도를 분석하여 스스로 최적의 프롬프트를 제안하거나, 여러 모델을 테스트하여 가장 효율적인 프롬프트를 찾아내는 시스템 등은 프롬프트 엔지니어링의 문턱을 낮추는 동시에 그 중요성을 방증합니다.
+                </p>
+<p class="">
+                    결론적으로, AI가 개발자를 대체할 것이라는 막연한 두려움보다는, AI를 가장 잘 다루는 개발자가 살아남을 것이라는 현실적인 전망이 지배적입니다. 지금 당장 일상적인 작업에 프롬프트 엔지니어링 기법을 적용해 보는 것, 그것이 생성형 AI 시대에 경쟁력을 갖추는 첫걸음일 것입니다.
+                </p>
+</div>
+</article>
+<!-- Sidebar / Build This CTA -->
+<aside class="w-full lg:w-80 lg:sticky lg:top-32 h-fit mt-xl lg:mt-0">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm relative overflow-hidden group">
+<!-- Decorative top border accent -->
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="flex items-center gap-2 mb-sm text-primary">
+<span class="material-symbols-outlined text-[20px]">construction</span>
+<span class="font-label-md text-label-md font-bold uppercase tracking-wide">News to Build</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-2">프롬프트 최적화 도구 만들기</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md">
+                    기사에서 영감을 얻었나요? LLM API를 활용하여 개발자용 프롬프트를 저장하고 테스트하는 간단한 데스크톱 앱을 만들어 보세요.
+                </p>
+<div class="bg-surface-container rounded-lg p-3 mb-md flex flex-col gap-2">
+<div class="flex justify-between items-center text-label-sm">
+<span class="text-on-surface-variant">난이도</span>
+<span class="text-on-surface font-medium">중급 (Intermediate)</span>
+</div>
+<div class="flex justify-between items-center text-label-sm">
+<span class="text-on-surface-variant">예상 소요 시간</span>
+<span class="text-on-surface font-medium">주말 1-2일</span>
+</div>
+<div class="flex justify-between items-center text-label-sm">
+<span class="text-on-surface-variant">추천 스택</span>
+<span class="text-on-surface font-medium">React, Electron, OpenAI API</span>
+</div>
+</div>
+<button class="w-full bg-inverse-surface text-inverse-on-surface hover:bg-primary hover:text-on-primary font-label-md text-label-md py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    빌드 플랜 보기
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+<!-- More articles link -->
+<div class="mt-lg">
+<h4 class="font-label-md text-label-md font-bold text-on-surface mb-sm border-b border-outline-variant pb-2">관련 기사</h4>
+<ul class="space-y-4">
+<li class="">
+<a class="group block" href="#">
+<h5 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">2024년 주목해야 할 프론트엔드 프레임워크 동향</h5>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-1 block">3일 전</span>
+</a>
+</li>
+<li class="">
+<a class="group block" href="#">
+<h5 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">스타트업을 위한 클라우드 비용 최적화 가이드</h5>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-1 block">1주 전</span>
+</a>
+</li>
+</ul>
+</div>
+</aside>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest full-width border-t border-outline-variant flat no shadows mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-lg py-xl max-w-container-max mx-auto gap-md">
+<!-- Brand & Copyright -->
+<div class="flex flex-col md:items-start items-center gap-2">
+<div class="font-headline-md text-headline-md font-black text-on-surface">Seedup</div>
+<div class="text-secondary font-body-sm text-body-sm">© 2024 Seedup. Cultivating news into code.</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex gap-md">
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">About</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Contact</a>
+</nav>
+</div>
+</footer>
+
+
+
+
+</body></html>

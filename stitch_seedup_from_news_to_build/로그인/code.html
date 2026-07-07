@@ -1,0 +1,262 @@
+<!DOCTYPE html><html lang="ko"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Seedup - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-primary": "#ffffff",
+                "on-error": "#ffffff",
+                "inverse-on-surface": "#f0f1f2",
+                "secondary-fixed": "#ffdad4",
+                "secondary": "#775752",
+                "on-secondary-fixed": "#2c1512",
+                "on-background": "#201a19",
+                "on-primary-container": "#410001",
+                "inverse-surface": "#362f2e",
+                "surface-tint": "#c00100",
+                "secondary-fixed-dim": "#e7bdb6",
+                "on-surface-variant": "#534341",
+                "background": "#fff8f7",
+                "on-primary-fixed": "#410001",
+                "tertiary": "#705c2e",
+                "on-error-container": "#93000a",
+                "surface-container": "#f4eaea",
+                "surface-container-high": "#efe4e4",
+                "surface-variant": "#f5dfdb",
+                "surface-dim": "#e4d7d6",
+                "surface-container-lowest": "#ffffff",
+                "on-tertiary-fixed": "#261a00",
+                "secondary-container": "#ffdad4",
+                "on-tertiary-fixed-variant": "#574419",
+                "surface-bright": "#fff8f7",
+                "on-secondary": "#ffffff",
+                "tertiary-container": "#fcde9f",
+                "surface-container-low": "#faf0ef",
+                "on-secondary-container": "#2c1512",
+                "primary-fixed": "#ffdad5",
+                "on-tertiary-container": "#261a00",
+                "primary": "#ff4628",
+                "on-surface": "#201a19",
+                "on-primary-fixed-variant": "#930101",
+                "tertiary-fixed": "#fcde9f",
+                "on-tertiary": "#ffffff",
+                "outline": "#857370",
+                "surface-container-highest": "#e8dede",
+                "on-secondary-fixed-variant": "#5c3f3b",
+                "primary-fixed-dim": "#ffb4a9",
+                "outline-variant": "#d8c2be",
+                "tertiary-fixed-dim": "#dfc285",
+                "primary-container": "#ffdad5",
+                "inverse-primary": "#ffb4a9",
+                "surface": "#fff8f7",
+                "error": "#ba1a1a",
+                "error-container": "#ffdad6"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.5rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "lg": "40px",
+                "base": "4px",
+                "sm": "16px",
+                "gutter": "24px",
+                "md": "24px",
+                "container-max": "1280px",
+                "xl": "64px",
+                "xs": "8px"
+        },
+        "fontFamily": {
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ],
+                "display-lg": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "14px",
+                        {
+                                "lineHeight": "1.4",
+                                "fontWeight": "500"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "1.4",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "1.3",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "1.25",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "display-lg": [
+                        "48px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background min-h-screen flex text-on-surface">
+<!-- Split Layout Container -->
+<div class="flex w-full min-h-screen">
+<!-- Left Column: Branding / Marketing (Hidden on mobile) -->
+<div class="hidden md:flex flex-col justify-between w-1/2 bg-surface-container p-xl relative overflow-hidden">
+<!-- Background Image -->
+<div class="absolute inset-0 z-0 opacity-20 bg-cover bg-center" data-alt="A modern, abstract digital workspace background. High key lighting with pristine whites, soft off-whites, and striking accents of vibrant red-orange. Crisp geometric shapes and subtle data visualization elements create a professional, forward-thinking aesthetic typical of a corporate modern design system." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDoSpgmldupsEo0cPb4QOsafKwW0q2vgMLayWt6xnMeqarSQqPBH8m4EdUiMsobDpnP156w8PUUHZKBiAtBt0SXIX19692tN7lWSzt82nFGSSJsoHmseoigQ_rmIpqY6mLwtseYT4GPYbYeKYc6_bNaVqg2D9UjRvLx3b9MfdCeGHrBvkxAaXVnGC4zTeIDpdPKU-7Ej9bjUJOOyXGdWkFutuQz5hi_reULQ00DJVI1LCWfOw4-JonV')"></div>
+<div class="relative z-10">
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight">Seedup</h1>
+</div>
+<div class="relative z-10 max-w-md">
+<h2 class="font-display-lg text-display-lg text-on-surface mb-md">뉴스를 <br><span class="text-primary">프로젝트로</span><br>만들다</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-lg">트렌드를 분석하고, 아이디어를 검증하여, 실제 비즈니스 프로젝트로 발전시키는 가장 빠른 방법.</p>
+<!-- Bento style feature highlight -->
+<div class="grid grid-cols-2 gap-sm">
+<div class="bg-surface p-md rounded-lg border border-surface-variant flex flex-col gap-xs transition-shadow duration-200 hover:shadow-sm">
+<span class="material-symbols-outlined text-primary text-[24px]">trending_up</span>
+<span class="font-label-md text-label-md text-on-surface">데이터 기반 트렌드 분석</span>
+</div>
+<div class="bg-surface p-md rounded-lg border border-surface-variant flex flex-col gap-xs transition-shadow duration-200 hover:shadow-sm">
+<span class="material-symbols-outlined text-primary text-[24px]">lightbulb</span>
+<span class="font-label-md text-label-md text-on-surface">AI 아이디어 제안</span>
+</div>
+</div>
+</div>
+<div class="relative z-10 font-label-sm text-label-sm text-on-surface-variant">
+                © 2024 Seedup. All rights reserved.
+            </div>
+</div>
+<!-- Right Column: Login Form -->
+<div class="w-full md:w-1/2 bg-surface flex flex-col justify-center px-sm md:px-xl py-lg relative">
+<!-- Mobile Brand Header (Visible only on mobile) -->
+<div class="md:hidden absolute top-lg left-sm right-sm flex justify-center">
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight">Seedup</h1>
+</div>
+<div class="max-w-[400px] w-full mx-auto">
+<div class="text-center mb-xl">
+<h2 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-xs">환영합니다</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Seedup 계정으로 로그인하세요</p>
+</div>
+<!-- Primary Login Action: Google -->
+<button class="w-full h-[48px] bg-primary text-on-primary rounded-DEFAULT font-label-md text-label-md flex items-center justify-center gap-xs hover:bg-on-primary-fixed-variant transition-colors duration-200 mb-lg shadow-sm">
+<span class="material-symbols-outlined text-[20px]">account_circle</span>
+                    Google로 계속하기
+                </button>
+<div class="flex items-center gap-sm mb-lg">
+<div class="h-[1px] bg-surface-variant flex-1"></div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">또는 이메일로 로그인</span>
+<div class="h-[1px] bg-surface-variant flex-1"></div>
+</div>
+<!-- Email Form -->
+<form class="flex flex-col gap-md mb-lg">
+<div class="flex flex-col gap-base">
+<label class="font-label-sm text-label-sm text-on-surface" for="email">이메일 주소</label>
+<input class="h-[40px] px-sm rounded-DEFAULT border border-surface-variant bg-surface text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" id="email" placeholder="name@company.com" type="email">
+</div>
+<div class="flex flex-col gap-base">
+<div class="flex justify-between items-center">
+<label class="font-label-sm text-label-sm text-on-surface" for="password">비밀번호</label>
+<a class="font-label-sm text-label-sm text-primary hover:underline" href="#">비밀번호를 잊으셨나요?</a>
+</div>
+<input class="h-[40px] px-sm rounded-DEFAULT border border-surface-variant bg-surface text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors" id="password" placeholder="••••••••" type="password">
+</div>
+<button class="w-full h-[40px] bg-surface-container-high text-on-surface rounded-DEFAULT border border-surface-variant font-label-md text-label-md hover:bg-surface-variant transition-colors duration-200 mt-xs" type="submit">
+                        이메일로 로그인
+                    </button>
+</form>
+<div class="text-center font-body-md text-body-md text-on-surface-variant mb-xl">
+                    계정이 없으신가요? <a class="text-primary font-semibold hover:underline" href="#">회원가입</a>
+</div>
+</div>
+<!-- Mobile Footer Links -->
+<div class="absolute bottom-lg left-0 w-full flex justify-center gap-md font-label-sm text-label-sm text-on-surface-variant md:hidden">
+<a class="hover:text-primary transition-colors" href="#">이용약관</a>
+<a class="hover:text-primary transition-colors" href="#">개인정보처리방침</a>
+<a class="hover:text-primary transition-colors" href="#">고객센터</a>
+</div>
+<!-- Desktop Footer Links (absolute positioning to keep it at the bottom of the right pane) -->
+<div class="hidden md:flex absolute bottom-lg w-full max-w-[400px] left-1/2 -translate-x-1/2 justify-center gap-md font-label-sm text-label-sm text-on-surface-variant">
+<a class="hover:text-primary transition-colors" href="#">이용약관</a>
+<span class="text-surface-variant">•</span>
+<a class="hover:text-primary transition-colors" href="#">개인정보처리방침</a>
+<span class="text-surface-variant">•</span>
+<a class="hover:text-primary transition-colors" href="#">고객센터</a>
+</div>
+</div>
+</div>
+</body></html>

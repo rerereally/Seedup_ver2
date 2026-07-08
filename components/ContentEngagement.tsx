@@ -19,7 +19,7 @@ export default function ContentEngagement({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-      <span className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft bg-white px-3 font-semibold">
+      <span className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold">
         <Eye className="h-4 w-4" />
         {Number(views ?? 0)}
       </span>
@@ -28,7 +28,7 @@ export default function ContentEngagement({
         <input type="hidden" name="item_id" value={itemId} />
         <input type="hidden" name="reaction" value="like" />
         <input type="hidden" name="return_to" value={returnTo} />
-        <button type="submit" className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft bg-white px-3 font-semibold hover:border-brand-primary hover:text-brand-primary">
+        <button type="submit" className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold hover:border-ink hover:text-ink">
           <ThumbsUp className="h-4 w-4" />
           {Number(likes ?? 0)}
         </button>
@@ -38,7 +38,7 @@ export default function ContentEngagement({
         <input type="hidden" name="item_id" value={itemId} />
         <input type="hidden" name="reaction" value="dislike" />
         <input type="hidden" name="return_to" value={returnTo} />
-        <button type="submit" className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft bg-white px-3 font-semibold hover:border-brand-primary hover:text-brand-primary">
+        <button type="submit" className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold hover:border-ink hover:text-ink">
           <ThumbsDown className="h-4 w-4" />
           {Number(dislikes ?? 0)}
         </button>

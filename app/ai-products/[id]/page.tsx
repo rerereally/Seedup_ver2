@@ -1,248 +1,299 @@
+import { rateAIProduct, submitAIProductReview } from '@/app/actions/product-ratings';
 import { saveScrap } from '@/app/actions/scraps';
-import { rateAIProduct } from '@/app/actions/product-ratings';
 import ContentEngagement from '@/components/ContentEngagement';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import type { AIProduct } from '@/lib/data';
-import { getAIProduct, getExistingScrap } from '@/lib/data';
+import { getAIProduct, getAIProductReviews, getExistingScrap } from '@/lib/data';
 import { incrementContentView } from '@/lib/engagement';
-import { ArrowLeft, ArrowRight, Bookmark, Bot, CheckCircle2, ExternalLink, Lightbulb, Star, Target, TriangleAlert } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
+import { ArrowLeft, Bookmark, Bot, Code2, ExternalLink, ImageIcon, MessageSquare, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-function tags(product: AIProduct) {
+function normalizedScore(score: number | null) {
+  const raw = Number(score ?? 0);
+  if (!raw) return 0;
+  return Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
+}
+
+function displayRating(score: number | null) {
+  const normalized = normalizedScore(score);
+  return normalized ? normalized.toFixed(1) : '-';
+}
+
+function productTags(product: AIProduct) {
   return [product.category, product.pricing_type, product.target_user, ...(product.use_cases ?? [])]
     .filter(Boolean)
-    .slice(0, 8) as string[];
+    .slice(0, 6) as string[];
 }
 
-function reviewMetrics(product: AIProduct) {
-  const raw = Number(product.score ?? 0);
-  const score = Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
-  return [
-    { label: '초보자 활용성', value: Math.min(5, score + 0.3) },
-    { label: '프로젝트 영감', value: Math.min(5, score + 0.1) },
-    { label: '업무 자동화', value: score },
-    { label: '검증 필요도', value: Math.max(1, 5 - score + 1.2) },
-  ];
+function productGlyph(product: AIProduct) {
+  const text = `${product.name} ${product.category ?? ''}`.toLowerCase();
+  if (text.includes('image') || text.includes('midjourney') || text.includes('photo')) return <ImageIcon className="h-8 w-8" />;
+  if (text.includes('code') || text.includes('cursor') || text.includes('copilot')) return <Code2 className="h-8 w-8" />;
+  if (text.includes('chat') || text.includes('llm') || text.includes('gpt')) return <Bot className="h-8 w-8" />;
+  return <SquareTerminal className="h-8 w-8" />;
 }
 
-function cautionTags(product: AIProduct) {
-  const result = ['결과 검증 필요', '비용 구조 확인'];
-  if (product.pricing_type === 'Unknown') result.unshift('요금제 확인 필요');
-  if (!product.website_url) result.unshift('공식 사이트 확인 필요');
-  return result.slice(0, 4);
-}
-
-function StarRating({ score }: { score: number | null }) {
-  const raw = Number(score ?? 0);
-  const normalized = Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
-  const filled = Math.round(normalized);
-
+function RatingStars({ rating, size = 'h-4 w-4' }: { rating: number; size?: string }) {
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5" aria-label={`${rating}점`}>
       {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className={`h-6 w-6 ${index < filled ? 'fill-yellow-400 text-yellow-400' : 'fill-surface-high text-surface-high'}`} />
+        <Star key={index} className={`${size} ${index < rating ? 'fill-ink text-ink' : 'text-muted'}`} />
       ))}
     </div>
   );
 }
 
-function displayRating(score: number | null) {
-  const raw = Number(score ?? 0);
-  if (!raw) return '-';
-  return (raw > 10 ? raw / 20 : raw / 2).toFixed(2);
+function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-outline-soft py-3">
+      <dt className="text-xs font-bold uppercase text-muted">{label}</dt>
+      <dd className="max-w-xs text-right text-sm font-semibold text-ink">{value || '-'}</dd>
+    </div>
+  );
 }
 
 export default async function AIProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, existingScrap] = await Promise.all([
+  const supabase = await createClient();
+  const [{ data: userData }, product, existingScrap, reviews] = await Promise.all([
+    supabase ? supabase.auth.getUser() : Promise.resolve({ data: { user: null } }),
     getAIProduct(id),
     getExistingScrap('ai_product', id),
+    getAIProductReviews(id),
   ]);
 
   if (!product) notFound();
   await incrementContentView('ai_product', product.id);
 
-  const productTags = tags(product);
-  const metrics = reviewMetrics(product);
-  const cautions = cautionTags(product);
-  const displayScore = displayRating(product.score);
+  const isLoggedIn = Boolean(userData.user);
+  const homepage = product.website_url ?? product.product_hunt_url;
+  const tags = productTags(product);
+  const rating = displayRating(product.score);
+  const roundedRating = Math.round(normalizedScore(product.score));
 
   return (
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="mx-auto max-w-[1180px] px-4 py-10 md:px-10 md:py-14">
-          <Link href="/ai-products" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand-primary">
+        <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-12">
+          <Link href="/ai-products" className="mb-6 inline-flex items-center gap-2 text-xs font-bold uppercase text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />
-            AI 제품으로
+            AI 제품 목록
           </Link>
 
-          <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
-            <div className="grid gap-7 lg:grid-cols-[112px_1fr_auto]">
-              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-surface-high bg-surface-lowest text-3xl font-black text-ink shadow-sm">
-                {product.name.toLowerCase().includes('chatgpt') ? <Bot className="h-12 w-12 text-ink" /> : product.name.slice(0, 1)}
+          <section className="border border-outline-soft bg-white p-5 md:p-7">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex min-w-0 flex-col gap-5 md:flex-row">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center border border-outline-soft bg-surface text-ink">
+                  {productGlyph(product)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted">AI_PRODUCT</p>
+                  <h1 className="mt-2 break-words text-4xl font-black leading-tight text-ink md:text-6xl">{product.name}</h1>
+                  <p className="mt-4 max-w-3xl text-base leading-8 text-muted md:text-lg">
+                    {product.description ?? '제품 설명이 아직 수집되지 않았습니다.'}
+                  </p>
+                  {!!tags.length && (
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <span key={tag} className="border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <h1 className="text-4xl font-semibold leading-tight text-ink md:text-5xl">{product.name}</h1>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <StarRating score={product.score} />
-                  <span className="text-lg font-semibold text-muted">{displayScore} ({product.rating_count ?? 0})</span>
-                  {product.status && <span className="rounded-full bg-brand-primary/10 px-3 py-1 text-sm font-bold text-brand-primary">{product.status}</span>}
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <span className="mr-1 text-sm font-bold text-muted">내 평점</span>
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <form key={rating} action={rateAIProduct}>
-                      <input type="hidden" name="product_id" value={product.id} />
-                      <input type="hidden" name="rating" value={rating} />
-                      <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
-                      <button type="submit" className="rounded-lg border border-outline-soft bg-white px-3 py-1.5 text-sm font-bold text-muted hover:border-brand-primary hover:text-brand-primary">{rating}</button>
-                    </form>
-                  ))}
-                </div>
-                {!!productTags.length && (
-                  <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-lg font-semibold text-muted">
-                    {productTags.map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-2">
-                        <span className="text-xl">#</span>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+
+              <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                {isLoggedIn ? (
+                  <form action={saveScrap}>
+                    <input type="hidden" name="item_type" value="ai_product" />
+                    <input type="hidden" name="item_id" value={product.id} />
+                    <input type="hidden" name="title" value={product.name} />
+                    <input type="hidden" name="description" value={product.description ?? ''} />
+                    <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
+                    <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
+                    <button type="submit" className="inline-flex h-11 items-center gap-2 border border-outline-soft bg-white px-4 text-sm font-bold text-ink hover:border-ink">
+                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
+                      {existingScrap ? '저장됨' : '저장'}
+                    </button>
+                  </form>
+                ) : (
+                  <Link href="/login" className="inline-flex h-11 items-center gap-2 border border-outline-soft bg-white px-4 text-sm font-bold text-ink hover:border-ink">
+                    <Bookmark className="h-4 w-4" />
+                    로그인 후 저장
+                  </Link>
                 )}
-              </div>
-              <div className="flex flex-wrap items-start gap-3 lg:justify-end">
-                <form action={saveScrap}>
-                  <input type="hidden" name="item_type" value="ai_product" />
-                  <input type="hidden" name="item_id" value={product.id} />
-                  <input type="hidden" name="title" value={product.name} />
-                  <input type="hidden" name="description" value={product.description ?? ''} />
-                  <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
-                  <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-5 py-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${product.name} ${existingScrap ? '저장 해제' : '저장하기'}`}>
-                    <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                    {existingScrap ? '저장 해제' : '저장'}
-                  </button>
-                </form>
-                {(product.website_url || product.product_hunt_url) && (
-                  <Link href={product.website_url ?? product.product_hunt_url ?? '#'} target="_blank" className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-5 py-3 text-sm font-bold text-white hover:bg-brand-primary/90">
+                {homepage && (
+                  <Link href={homepage} target="_blank" className="inline-flex h-11 items-center gap-2 bg-ink px-4 text-sm font-bold text-white hover:bg-muted">
                     <ExternalLink className="h-4 w-4" />
                     사이트 방문
                   </Link>
                 )}
               </div>
             </div>
-            <div className="mt-6">
-              <ContentEngagement itemType="ai_product" itemId={product.id} returnTo={`/ai-products/${product.id}`} views={Number(product.view_count ?? 0) + 1} likes={product.like_count} dislikes={product.dislike_count} />
+
+            <div className="mt-7 grid gap-4 border-t border-outline-soft pt-5 md:grid-cols-4">
+              <div>
+                <p className="text-xs font-bold uppercase text-muted">평균 평점</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <p className="text-3xl font-black text-ink">{rating}</p>
+                  <RatingStars rating={roundedRating} />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase text-muted">리뷰</p>
+                <p className="mt-2 text-3xl font-black text-ink">{reviews.length}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase text-muted">평가 참여</p>
+                <p className="mt-2 text-3xl font-black text-ink">{product.rating_count ?? 0}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase text-muted">조회</p>
+                <p className="mt-2 text-3xl font-black text-ink">{Number(product.view_count ?? 0) + 1}</p>
+              </div>
             </div>
           </section>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
-            <div className="flex flex-col gap-8">
-              <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
-                <h2 className="text-2xl font-semibold text-ink">프로덕트 소개</h2>
-                <p className="mt-5 text-lg leading-9 text-muted">{product.description ?? '제품 설명이 아직 수집되지 않았습니다. 다음 수집 실행 후 소개 문장이 자동으로 채워집니다.'}</p>
+          <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start">
+            <div className="flex min-w-0 flex-1 flex-col gap-6">
+              <section className="border border-outline-soft bg-white p-5 md:p-7">
+                <div className="mb-5 flex items-center justify-between gap-4 border-b border-outline-soft pb-4">
+                  <div>
+                    <h2 className="text-xl font-black text-ink">평점 남기기</h2>
+                    <p className="mt-1 text-sm text-muted">써본 사람의 짧은 평가가 다른 개발자에게 제일 도움이 됩니다.</p>
+                  </div>
+                </div>
+                {isLoggedIn ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((score) => (
+                      <form key={score} action={rateAIProduct}>
+                        <input type="hidden" name="product_id" value={product.id} />
+                        <input type="hidden" name="rating" value={score} />
+                        <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
+                        <button type="submit" className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
+                          <Star className="h-4 w-4" />
+                          {score}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                ) : (
+                  <Link href="/login" className="inline-flex h-11 items-center border border-outline-soft bg-ink px-4 text-sm font-bold text-white">
+                    로그인하고 평점 남기기
+                  </Link>
+                )}
               </section>
 
-              <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
-                <div className="flex items-center gap-3">
-                  <Bot className="h-6 w-6 text-brand-primary" />
-                  <h2 className="text-2xl font-semibold text-ink">Seedup AI 리뷰 분석</h2>
+              <section className="border border-outline-soft bg-white p-5 md:p-7">
+                <div className="mb-5 flex items-center gap-3 border-b border-outline-soft pb-4">
+                  <MessageSquare className="h-5 w-5 text-ink" />
+                  <div>
+                    <h2 className="text-xl font-black text-ink">리뷰 작성</h2>
+                    <p className="mt-1 text-sm text-muted">장점, 아쉬운 점, 실제 사용처를 짧게 남겨주세요.</p>
+                  </div>
                 </div>
-                <p className="mt-5 text-lg leading-9 text-muted">
-                  이 제품은 {product.target_user ?? '초기 제품 빌더와 개발자'} 관점에서 {product.category ?? 'AI 제품'} 영역에 속합니다.
-                  {product.use_cases?.length ? ` 특히 ${product.use_cases.slice(0, 3).join(', ')} 같은 작업에 바로 적용해볼 만합니다.` : ' 구체적인 활용 사례는 추가 분석이 필요합니다.'}
-                </p>
-                <div className="mt-7 grid gap-4 sm:grid-cols-2">
-                  {metrics.map((metric) => (
-                    <div key={metric.label} className="rounded-lg border border-surface-high bg-surface p-4">
-                      <div className="mb-3 flex items-center justify-between text-sm font-semibold text-muted">
-                        <span>{metric.label}</span>
-                        <span>{metric.value.toFixed(1)}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-surface-high">
-                        <div className="h-full rounded-full bg-brand-primary" style={{ width: `${Math.max(8, (metric.value / 5) * 100)}%` }} />
-                      </div>
+                {isLoggedIn ? (
+                  <form action={submitAIProductReview} className="grid gap-3">
+                    <input type="hidden" name="product_id" value={product.id} />
+                    <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 2, 3, 4, 5].map((score) => (
+                        <label key={score} className="inline-flex h-10 cursor-pointer items-center gap-2 border border-outline-soft bg-surface px-3 text-sm font-bold text-ink">
+                          <input className="accent-black" type="radio" name="rating" value={score} required />
+                          {score}점
+                        </label>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                    <input
+                      name="title"
+                      maxLength={80}
+                      className="h-11 border border-outline-soft bg-white px-3 text-sm font-semibold text-ink outline-none focus:border-ink"
+                      placeholder="리뷰 제목"
+                    />
+                    <textarea
+                      name="body"
+                      minLength={5}
+                      maxLength={1200}
+                      required
+                      className="min-h-36 resize-y border border-outline-soft bg-white p-3 text-sm leading-7 text-ink outline-none focus:border-ink"
+                      placeholder="실제로 써보니 어떤 점이 좋았나요? 어떤 상황에서는 별로였나요?"
+                    />
+                    <div className="flex justify-end">
+                      <button type="submit" className="h-11 bg-ink px-5 text-sm font-bold text-white hover:bg-muted">
+                        리뷰 등록
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="border border-outline-soft bg-surface p-5">
+                    <p className="text-sm font-semibold leading-7 text-muted">리뷰를 남기려면 로그인이 필요합니다.</p>
+                    <Link href="/login" className="mt-4 inline-flex h-11 items-center bg-ink px-4 text-sm font-bold text-white">
+                      로그인하고 리뷰 작성
+                    </Link>
+                  </div>
+                )}
               </section>
 
-              <section className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-                  <div className="mb-4 flex items-center gap-2 text-lg font-bold text-emerald-900">
-                    <CheckCircle2 className="h-5 w-5" />
-                    프로덕트 장점
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(product.use_cases?.length ? product.use_cases : ['생산성 향상', '업무 자동화']).map((item) => (
-                      <span key={item} className="rounded-full border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-900">{item}</span>
-                    ))}
+              <section className="border border-outline-soft bg-white p-5 md:p-7">
+                <div className="mb-5 flex items-end justify-between gap-4 border-b border-outline-soft pb-4">
+                  <div>
+                    <h2 className="text-xl font-black text-ink">유저 리뷰</h2>
+                    <p className="mt-1 text-sm text-muted">{reviews.length}개의 의견이 등록되어 있습니다.</p>
                   </div>
                 </div>
-                <div className="rounded-xl border border-red-200 bg-red-50 p-6">
-                  <div className="mb-4 flex items-center gap-2 text-lg font-bold text-red-900">
-                    <TriangleAlert className="h-5 w-5" />
-                    확인할 점
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {cautions.map((item) => (
-                      <span key={item} className="rounded-full border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-900">{item}</span>
+                {reviews.length ? (
+                  <div className="grid gap-4">
+                    {reviews.map((review) => (
+                      <article key={review.id} className="border border-outline-soft bg-surface p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-ink">{review.author_name ?? 'Seedup user'}</p>
+                            <p className="mt-1 text-xs font-bold uppercase text-muted">{new Date(review.created_at).toLocaleDateString('ko-KR')}</p>
+                          </div>
+                          <RatingStars rating={review.rating} />
+                        </div>
+                        {review.title && <h3 className="mt-4 text-lg font-black text-ink">{review.title}</h3>}
+                        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted">{review.body}</p>
+                      </article>
                     ))}
                   </div>
-                </div>
+                ) : (
+                  <div className="border border-dashed border-outline-soft bg-surface p-8 text-center">
+                    <p className="text-sm font-bold text-ink">아직 등록된 리뷰가 없습니다.</p>
+                    <p className="mt-2 text-sm text-muted">첫 번째 사용 후기를 남겨주세요.</p>
+                  </div>
+                )}
               </section>
-
-              {!!product.related_project_ideas?.length && (
-                <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
-                  <div className="mb-5 flex items-center gap-3">
-                    <Lightbulb className="h-6 w-6 text-brand-primary" />
-                    <h2 className="text-2xl font-semibold text-ink">이 제품으로 만들 만한 프로젝트</h2>
-                  </div>
-                  <div className="grid gap-3">
-                    {product.related_project_ideas.map((idea) => (
-                      <div key={idea} className="rounded-lg border border-surface-high bg-surface p-4 text-base font-semibold leading-7 text-ink">{idea}</div>
-                    ))}
-                  </div>
-                </section>
-              )}
             </div>
 
-            <aside className="lg:sticky lg:top-24 lg:self-start">
-              <div className="rounded-xl border border-outline-soft bg-white p-6">
-                <h2 className="text-xl font-semibold text-ink">제품 정보</h2>
-                <dl className="mt-5 divide-y divide-outline-soft/70 text-sm">
-                  <div className="flex items-center justify-between py-3">
-                    <dt className="text-muted">카테고리</dt>
-                    <dd className="font-semibold text-ink">{product.category ?? '-'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between py-3">
-                    <dt className="text-muted">가격</dt>
-                    <dd className="font-semibold text-ink">{product.pricing_type ?? '-'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between py-3">
-                    <dt className="text-muted">추천 대상</dt>
-                    <dd className="max-w-[180px] text-right font-semibold text-ink">{product.target_user ?? '-'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between py-3">
-                    <dt className="text-muted">리뷰 수</dt>
-                    <dd className="font-semibold text-ink">{product.rating_count ?? 0}</dd>
-                  </div>
+            <aside className="w-full lg:sticky lg:top-24 lg:w-80 lg:shrink-0">
+              <section className="border border-outline-soft bg-white p-5">
+                <h2 className="mb-2 text-xl font-black text-ink">제품 정보</h2>
+                <dl>
+                  <InfoRow label="category" value={product.category} />
+                  <InfoRow label="pricing" value={product.pricing_type} />
+                  <InfoRow label="target" value={product.target_user} />
+                  <InfoRow label="status" value={product.status} />
                 </dl>
-                <Link href={`/projects?filter=${encodeURIComponent('트렌드 연동')}`} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-outline-soft bg-surface px-4 py-3 text-sm font-bold text-ink hover:border-brand-primary hover:text-brand-primary">
-                  관련 프로젝트 보기
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <div className="mt-5 rounded-lg border border-surface-high bg-surface p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold text-ink">
-                    <Target className="h-4 w-4 text-brand-primary" />
-                    Seedup 관점
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted">뉴스처럼 읽고 끝내기보다, 이 제품의 핵심 기능을 작은 프로젝트로 따라 만들어보는 것을 추천합니다.</p>
-                </div>
-              </div>
+              </section>
+
+              <section className="mt-5 border border-outline-soft bg-white p-5">
+                <h2 className="mb-4 text-xl font-black text-ink">반응</h2>
+                <ContentEngagement
+                  itemType="ai_product"
+                  itemId={product.id}
+                  returnTo={`/ai-products/${product.id}`}
+                  views={Number(product.view_count ?? 0) + 1}
+                  likes={product.like_count}
+                  dislikes={product.dislike_count}
+                />
+              </section>
             </aside>
           </div>
         </div>

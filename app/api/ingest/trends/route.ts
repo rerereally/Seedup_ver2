@@ -89,7 +89,7 @@ async function ingest(request: Request) {
   const ranked = [...map.values()]
     .filter((candidate) => candidate.keyword.length >= 2)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
+    .slice(0, 10);
 
   let rank = 1;
   let upserted = 0;

@@ -31,7 +31,7 @@ export default function ShareButton({ title, url }: ShareButtonProps) {
     <button
       type="button"
       onClick={handleShare}
-      className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary"
+      className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink"
     >
       <Share2 className="h-4 w-4" />
       {copied ? '복사됨' : '공유'}

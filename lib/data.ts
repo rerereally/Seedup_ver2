@@ -51,6 +51,11 @@ export type Trend = {
   rank: number | null;
   bars: number[] | null;
   project_ideas: string[] | null;
+  sources_count?: number | null;
+  news_count?: number | null;
+  product_count?: number | null;
+  github_repo_count?: number | null;
+  source_refs?: Array<{ type: string; id: string; title: string }> | null;
 };
 
 export type AIProduct = {
@@ -71,6 +76,18 @@ export type AIProduct = {
   view_count?: number | null;
   like_count?: number | null;
   dislike_count?: number | null;
+};
+
+export type AIProductReview = {
+  id: string;
+  product_id: string;
+  user_id: string;
+  author_name: string | null;
+  rating: number;
+  title: string | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ProjectIdea = {
@@ -375,6 +392,22 @@ export async function getAIProduct(id: string) {
     return null;
   }
   return data as AIProduct | null;
+}
+
+export async function getAIProductReviews(productId: string) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('ai_product_reviews')
+    .select('*')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    handleReadError(error);
+    return [];
+  }
+  return (data ?? []) as AIProductReview[];
 }
 
 export async function getProjectIdeas() {

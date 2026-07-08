@@ -8,7 +8,7 @@ import RelatedPapersToggle from '@/components/RelatedPapersToggle';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getNewsItem, getRelatedPapersForNews } from '@/lib/data';
 import { incrementContentView } from '@/lib/engagement';
-import { ArrowLeft, Bookmark, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, ExternalLink, Lightbulb } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -23,59 +23,107 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
 
   if (!item) notFound();
   await incrementContentView('news', item.id);
+  const publishedAt = item.published_at ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(item.published_at)) : null;
+  const projectPrompt = item.project_idea ?? `${item.title}를 바탕으로 만들 수 있는 프로젝트를 평가해줘.`;
+  const categoryQuery = item.category ? `/news?category=${encodeURIComponent(item.category)}` : '/news';
+  const readingPoints = [
+    item.why_it_matters,
+    item.project_idea ? `프로젝트 연결: ${item.project_idea}` : null,
+    item.related_skills?.length ? `관련 기술: ${item.related_skills.slice(0, 4).join(', ')}` : null,
+  ].filter(Boolean);
 
   return (
     <>
       <Header />
       <main className="grow bg-surface">
-        <article className="mx-auto max-w-[1180px] px-4 py-7 md:px-8 md:py-9">
-          <Link href="/news" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand-primary">
+        <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
+          <Link href="/news" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />
             아티클 목록으로
           </Link>
-          <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div>
-              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-primary">
-                {item.category}
-                <span className="text-muted">•</span>
-                <span className="text-muted">{item.source}</span>
+          <div className="flex flex-col gap-7 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1">
+              <div className="border border-outline-soft bg-white p-5 md:p-7">
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+                  <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.category ?? 'ARTICLE'}</span>
+                  <span>{item.source ?? 'Seedup'}</span>
+                  {publishedAt && <span>{publishedAt}</span>}
+                  {item.difficulty && <span>{item.difficulty}</span>}
+                </div>
+                <h1 className="max-w-4xl text-3xl font-black leading-tight text-ink md:text-5xl">{item.title}</h1>
+                {item.summary && <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">{item.summary}</p>}
               </div>
-              <h1 className="max-w-4xl text-3xl font-black leading-tight text-ink md:text-[42px]">{item.title}</h1>
-              {item.summary && <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">{item.summary}</p>}
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                <form action={saveScrap}>
-                  <input type="hidden" name="item_type" value="news" />
-                  <input type="hidden" name="item_id" value={item.id} />
-                  <input type="hidden" name="title" value={item.title} />
-                  <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
-                  <input type="hidden" name="tag" value={item.category ?? 'news'} />
-                  <input type="hidden" name="return_to" value={`/news/${item.id}`} />
-                  <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${item.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
-                    <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                    {existingScrap ? '저장 해제' : '저장'}
-                  </button>
-                </form>
-                {item.original_url && (
-                  <Link href={item.original_url} target="_blank" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
-                    <ExternalLink className="h-4 w-4" />
-                    원문
-                  </Link>
-                )}
-                <ShareButton title={item.title} url={item.original_url} />
-                <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={Number(item.view_count ?? 0) + 1} likes={item.like_count} dislikes={item.dislike_count} />
+              <div className="mt-4 border border-outline-soft bg-white">
+                <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
+                  <form action={saveScrap}>
+                    <input type="hidden" name="item_type" value="news" />
+                    <input type="hidden" name="item_id" value={item.id} />
+                    <input type="hidden" name="title" value={item.title} />
+                    <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
+                    <input type="hidden" name="tag" value={item.category ?? 'news'} />
+                    <input type="hidden" name="return_to" value={`/news/${item.id}`} />
+                    <button type="submit" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" aria-label={`${item.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
+                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
+                      {existingScrap ? '저장 해제' : '저장'}
+                    </button>
+                  </form>
+                  {item.original_url && (
+                    <Link href={item.original_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
+                      <ExternalLink className="h-4 w-4" />
+                      원문
+                    </Link>
+                  )}
+                  <ShareButton title={item.title} url={item.original_url} />
+                </div>
+                <div className="p-3">
+                  <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={Number(item.view_count ?? 0) + 1} likes={item.like_count} dislikes={item.dislike_count} />
+                </div>
               </div>
+
+              {!!readingPoints.length && (
+                <section className="mt-5 border border-outline-soft bg-white p-5">
+                  <div className="mb-4 text-sm font-black uppercase text-ink">Reading Points</div>
+                  <div className="grid gap-3">
+                    {readingPoints.map((point, index) => (
+                      <div key={String(point)} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
+                        <span className="font-black text-ink">#{index + 1}</span>
+                        <p>{point}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {item.image_url && (
-                <div className="relative my-7 h-64 overflow-hidden rounded-lg border border-outline-soft bg-[#191c1d] text-white">
+                <div className="relative my-5 h-56 overflow-hidden border border-outline-soft bg-ink text-white">
                   <Image src={item.image_url} alt={item.title} fill sizes="980px" className="object-cover" />
                 </div>
               )}
 
               {item.content && <MarkdownContent content={item.content} />}
+
+              <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
+                <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">
+                  <Lightbulb className="h-4 w-4" />
+                  Next Actions
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {[
+                    { label: item.project_idea ? '이 아이디어 평가하기' : '프로젝트 아이디어 만들기', href: `/ideas?idea=${encodeURIComponent(projectPrompt)}` },
+                    { label: item.related_skills?.[0] ? `${item.related_skills[0]} 프로젝트 보기` : '관련 프로젝트 보기', href: '/projects' },
+                    { label: item.category ? `${item.category} 더 읽기` : '아티클 더 보기', href: categoryQuery },
+                  ].map((action) => (
+                    <Link key={action.label} href={action.href} className="flex items-center justify-between gap-3 border border-outline-soft bg-surface p-3 text-sm font-bold text-ink hover:border-ink">
+                      {action.label}
+                      <ArrowRight className="h-4 w-4 shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+              </section>
             </div>
 
-            <aside className="lg:sticky lg:top-28 lg:self-start">
+            <aside className="w-full lg:sticky lg:top-24 lg:w-80 lg:shrink-0">
               <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} projectIdea={item.project_idea} />
               <RelatedPapersToggle links={relatedPapers} />
             </aside>

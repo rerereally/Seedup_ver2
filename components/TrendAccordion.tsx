@@ -1,118 +1,194 @@
 'use client';
 
 import type { Trend } from '@/lib/data';
-import { ChevronDown, Flame, Lightbulb, TrendingUp } from 'lucide-react';
+import { ArrowRight, BarChart3, Code2, FileText, PackageSearch, Radio } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function TrendAccordion({ trends }: { trends: Trend[] }) {
-  const [openIndex, setOpenIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+function numberValue(value: number | null | undefined) {
+  return Number(value ?? 0);
+}
 
-  useEffect(() => {
-    if (isPaused || trends.length < 2) return;
+function statusLabel(status: string | null) {
+  if (!status) return 'WATCH';
+  return status.toUpperCase();
+}
 
-    const timer = window.setInterval(() => {
-      setOpenIndex((current) => (current + 1) % trends.length);
-    }, 4500);
+function sourceLabel(type: string) {
+  if (type === 'news') return 'NEWS';
+  if (type === 'product') return 'AI PRODUCT';
+  if (type === 'github') return 'GITHUB';
+  return type.toUpperCase();
+}
 
-    return () => window.clearInterval(timer);
-  }, [isPaused, trends.length]);
+function signalHref(ref: { type: string; id: string }) {
+  if (ref.type === 'news') return `/news/${ref.id}`;
+  if (ref.type === 'product') return `/ai-products/${ref.id}`;
+  if (ref.type === 'github') return `/github-trends/${ref.id}`;
+  return '/trends';
+}
+
+function SourceIcon({ type }: { type: string }) {
+  if (type === 'news') return <FileText className="h-4 w-4" />;
+  if (type === 'product') return <PackageSearch className="h-4 w-4" />;
+  if (type === 'github') return <Code2 className="h-4 w-4" />;
+  return <Radio className="h-4 w-4" />;
+}
+
+function SignalBars({ bars }: { bars: number[] | null }) {
+  const values = bars?.length ? bars : [18, 32, 28, 44, 52, 48, 68, 74];
 
   return (
-    <section className="flex flex-col gap-4" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)}>
-      <div className="hidden items-center justify-between px-4 text-sm font-medium uppercase tracking-wider text-muted md:flex">
-        <div className="flex items-center gap-6">
-          <span className="w-8 text-center">순위</span>
-          <span>키워드</span>
+    <div className="border border-outline-soft bg-white p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase text-muted">
+          <BarChart3 className="h-4 w-4" />
+          Signal Flow
         </div>
-        <div className="flex items-center gap-10">
-          <span className="w-24 text-center">점수</span>
-          <span className="w-24 text-center">상태</span>
-          <span className="w-8" />
+        <span className="text-xs font-bold uppercase text-muted">30D</span>
+      </div>
+      <div className="flex h-44 items-end gap-2 border-b border-l border-outline-soft px-3 pb-3">
+        {values.map((bar, index) => (
+          <div key={`${bar}-${index}`} className="flex min-w-0 flex-1 items-end">
+            <div className="w-full bg-ink" style={{ height: `${Math.max(8, Math.min(100, bar))}%` }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function TrendAccordion({ trends }: { trends: Trend[] }) {
+  const [selectedId, setSelectedId] = useState(trends[0]?.id);
+  const selectedTrend = useMemo(() => trends.find((trend) => trend.id === selectedId) ?? trends[0], [selectedId, trends]);
+
+  if (!selectedTrend) return null;
+
+  const sourcesCount = numberValue(selectedTrend.sources_count) || numberValue(selectedTrend.news_count) + numberValue(selectedTrend.product_count) + numberValue(selectedTrend.github_repo_count);
+  const ideas = selectedTrend.project_ideas?.length ? selectedTrend.project_ideas : ['관련 신호를 바탕으로 미니 프로젝트 주제 만들기'];
+  const refs = selectedTrend.source_refs?.length ? selectedTrend.source_refs : [];
+
+  return (
+    <section className="grid gap-6 lg:grid-cols-3">
+      <div className="lg:col-span-1">
+        <div className="mb-3 flex items-center justify-between border-b border-outline-soft pb-3">
+          <h2 className="text-sm font-black uppercase text-ink">Trend Ranking</h2>
+          <span className="text-xs font-bold uppercase text-muted">{trends.length} signals</span>
+        </div>
+        <div className="grid gap-2">
+          {trends.map((trend, index) => {
+            const isSelected = trend.id === selectedTrend.id;
+
+            return (
+              <button
+                key={trend.id}
+                type="button"
+                onClick={() => setSelectedId(trend.id)}
+                className={`border p-4 text-left transition-colors ${isSelected ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-ink hover:border-ink'}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold uppercase ${isSelected ? 'text-white' : 'text-muted'}`}>#{trend.rank ?? index + 1}</p>
+                    <h3 className="mt-2 truncate text-xl font-black">{trend.keyword}</h3>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-2xl font-black">{trend.score ?? '-'}</p>
+                    <p className={`text-xs font-bold uppercase ${isSelected ? 'text-white' : 'text-muted'}`}>{statusLabel(trend.status)}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {trends.map((trend, index) => {
-        const isOpen = openIndex === index;
-        const bars = trend.bars?.length ? trend.bars : [];
-        const ideas = trend.project_ideas?.length ? trend.project_ideas : [];
-
-        return (
-          <article key={trend.id} className={`overflow-hidden rounded-xl border bg-white shadow-[0_4px_12px_rgba(0,0,0,0.02)] transition-all ${isOpen ? 'border-brand-primary' : 'border-gray-200 hover:border-brand-primary/60'}`}>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-5 py-5 text-left md:px-10"
-              onClick={() => {
-                setOpenIndex(index);
-                setIsPaused(true);
-              }}
-              aria-expanded={isOpen}
-            >
-              <div className="flex items-center gap-6">
-                <span className="w-8 text-center text-3xl font-bold text-brand-primary">{trend.rank ?? index + 1}</span>
-                <h2 className="text-2xl font-semibold text-ink">{trend.keyword}</h2>
+      <div className="lg:col-span-2">
+        <article className="border border-outline-soft bg-white">
+          <div className="border-b border-outline-soft p-5 md:p-6">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted">SELECTED_TREND</p>
+                <h2 className="mt-2 break-words text-4xl font-black leading-tight text-ink md:text-5xl">{selectedTrend.keyword}</h2>
+                <p className="mt-4 max-w-3xl text-base leading-8 text-muted">
+                  {selectedTrend.summary ?? '최근 수집된 뉴스, AI 제품, GitHub 저장소 신호를 바탕으로 감지된 개발 트렌드입니다.'}
+                </p>
               </div>
-              <div className="flex items-center gap-5 md:gap-10">
-                <div className="hidden w-24 text-center md:block">
-                  <span className="text-2xl font-bold text-ink">{trend.score ?? '-'}</span>
-                </div>
-                <div className="hidden w-24 justify-center md:flex">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
-                    <Flame className="h-3.5 w-3.5" />
-                    {trend.status ?? 'Watch'}
-                  </span>
-                </div>
-                <ChevronDown className={`h-5 w-5 text-muted transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-              </div>
-            </button>
-
-            <div className={`grid transition-[grid-template-rows] duration-500 ease-out ${isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-              <div className="overflow-hidden">
-                <div className="border-t border-outline-soft/30 p-5 md:p-10">
-                  <div className="grid gap-8 lg:grid-cols-2">
-                    <div className="dot-grid rounded-lg border border-outline-soft/40 bg-white p-5">
-                      <div className="mb-5 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-ink">트렌드 흐름</h3>
-                        <div className="flex gap-2 text-xs">
-                          <span className="rounded border border-outline-soft bg-surface px-2 py-1 text-muted">1W</span>
-                          <span className="rounded border border-brand-primary/20 bg-brand-primary/10 px-2 py-1 font-bold text-brand-primary">1M</span>
-                          <span className="rounded border border-outline-soft bg-surface px-2 py-1 text-muted">3M</span>
-                        </div>
-                      </div>
-                      <div className="relative flex h-48 items-end justify-between border-b border-l border-outline-soft/60 px-3 pb-3">
-                        {bars.map((bar, barIndex) => (
-                          <div key={barIndex} className="w-[12%] rounded-t-sm border-t-2 border-brand-primary bg-brand-primary/20" style={{ height: `${bar}%` }} />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex flex-col justify-between rounded-lg border border-outline-soft/40 bg-surface-lowest p-5">
-                      <div>
-                        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                          <TrendingUp className="h-3.5 w-3.5" />
-                          시장 해석
-                        </div>
-                        <p className="leading-7 text-muted">{trend.summary}</p>
-                      </div>
-                      <div className="mt-6">
-                        <h4 className="mb-3 text-sm font-semibold text-ink">바로 만들 수 있는 프로젝트</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {ideas.map((idea) => (
-                            <Link key={idea} href="/projects" className="inline-flex items-center gap-1 rounded-full bg-tertiary/10 px-3 py-1 text-xs font-semibold text-tertiary hover:bg-tertiary/20">
-                              <Lightbulb className="h-3.5 w-3.5" />
-                              {idea}
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+              <div className="grid grid-cols-3 gap-2 md:w-80">
+                {[
+                  ['SCORE', selectedTrend.score ?? '-'],
+                  ['STATUS', statusLabel(selectedTrend.status)],
+                  ['SOURCES', sourcesCount || '-'],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-outline-soft bg-surface p-3">
+                    <p className="text-xs font-bold uppercase text-muted">{label}</p>
+                    <p className="mt-2 text-xl font-black text-ink">{value}</p>
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 p-5 md:p-6 lg:grid-cols-2">
+            <SignalBars bars={selectedTrend.bars} />
+
+            <div className="grid gap-4">
+              <div className="border border-outline-soft bg-surface p-4">
+                <h3 className="text-sm font-black uppercase text-ink">Signal Mix</h3>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {[
+                    ['NEWS', numberValue(selectedTrend.news_count)],
+                    ['PRODUCTS', numberValue(selectedTrend.product_count)],
+                    ['GITHUB', numberValue(selectedTrend.github_repo_count)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="border border-outline-soft bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-muted">{label}</p>
+                      <p className="mt-2 text-2xl font-black text-ink">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border border-outline-soft bg-surface p-4">
+                <h3 className="text-sm font-black uppercase text-ink">Next Actions</h3>
+                <div className="mt-4 grid gap-2">
+                  {ideas.slice(0, 4).map((idea) => (
+                    <Link key={idea} href="/projects" className="flex items-center justify-between gap-3 border border-outline-soft bg-white p-3 text-sm font-bold text-ink hover:border-ink">
+                      <span>{idea}</span>
+                      <ArrowRight className="h-4 w-4 shrink-0" />
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
-          </article>
-        );
-      })}
+          </div>
+
+          <div className="border-t border-outline-soft p-5 md:p-6">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h3 className="text-sm font-black uppercase text-ink">Detected Sources</h3>
+              <span className="text-xs font-bold uppercase text-muted">{refs.length ? `${refs.length} refs` : 'No refs'}</span>
+            </div>
+            {refs.length ? (
+              <div className="grid gap-2 md:grid-cols-2">
+                {refs.slice(0, 8).map((ref) => (
+                  <Link key={`${ref.type}-${ref.id}`} href={signalHref(ref)} className="flex items-start gap-3 border border-outline-soft bg-surface p-3 hover:border-ink">
+                    <span className="mt-0.5 text-ink">
+                      <SourceIcon type={ref.type} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold uppercase text-muted">{sourceLabel(ref.type)}</span>
+                      <span className="mt-1 block line-clamp-2 text-sm font-semibold leading-6 text-ink">{ref.title}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-dashed border-outline-soft bg-surface p-6 text-sm font-semibold text-muted">
+                다음 트렌드 집계부터 출처 링크가 표시됩니다.
+              </div>
+            )}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }

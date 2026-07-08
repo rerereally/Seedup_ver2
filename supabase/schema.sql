@@ -245,6 +245,19 @@ create table if not exists public.ai_product_ratings (
   constraint ai_product_ratings_user_product_key unique (user_id, product_id)
 );
 
+create table if not exists public.ai_product_reviews (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  product_id uuid not null references public.ai_products(id) on delete cascade,
+  author_name text,
+  rating integer not null check (rating between 1 and 5),
+  title text,
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ai_product_reviews_user_product_key unique (user_id, product_id)
+);
+
 create table if not exists public.user_onboarding (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -301,6 +314,7 @@ alter table public.research_papers enable row level security;
 alter table public.news_paper_links enable row level security;
 alter table public.content_reactions enable row level security;
 alter table public.ai_product_ratings enable row level security;
+alter table public.ai_product_reviews enable row level security;
 
 alter table public.news_items add column if not exists original_url text;
 alter table public.news_items add column if not exists raw_title text;
@@ -396,6 +410,7 @@ grant select on public.research_papers to anon, authenticated;
 grant select on public.news_paper_links to anon, authenticated;
 grant select on public.content_reactions to authenticated;
 grant select on public.ai_product_ratings to authenticated;
+grant select on public.ai_product_reviews to anon, authenticated;
 
 grant select, insert, update, delete on public.news_items to service_role;
 grant select, insert, update, delete on public.trends to service_role;
@@ -413,10 +428,12 @@ grant select, insert, update, delete on public.profiles to service_role;
 grant select, insert, update, delete on public.scraps to service_role;
 grant select, insert, update, delete on public.content_reactions to service_role;
 grant select, insert, update, delete on public.ai_product_ratings to service_role;
+grant select, insert, update, delete on public.ai_product_reviews to service_role;
 
 grant select, insert, delete on public.scraps to authenticated;
 grant select, insert, update, delete on public.content_reactions to authenticated;
 grant select, insert, update on public.ai_product_ratings to authenticated;
+grant insert, update, delete on public.ai_product_reviews to authenticated;
 grant select, insert on public.idea_evaluations to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.user_onboarding to authenticated;
@@ -518,6 +535,27 @@ create policy "Users can update own AI product ratings"
   on public.ai_product_ratings for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+drop policy if exists "AI product reviews are publicly readable" on public.ai_product_reviews;
+create policy "AI product reviews are publicly readable"
+  on public.ai_product_reviews for select
+  using (true);
+
+drop policy if exists "Users can create own AI product reviews" on public.ai_product_reviews;
+create policy "Users can create own AI product reviews"
+  on public.ai_product_reviews for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own AI product reviews" on public.ai_product_reviews;
+create policy "Users can update own AI product reviews"
+  on public.ai_product_reviews for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own AI product reviews" on public.ai_product_reviews;
+create policy "Users can delete own AI product reviews"
+  on public.ai_product_reviews for delete
+  using (auth.uid() = user_id);
 
 drop policy if exists "Users can read own scraps" on public.scraps;
 create policy "Users can read own scraps"
@@ -662,6 +700,7 @@ create unique index if not exists scraps_user_item_key on public.scraps (user_id
 create index if not exists content_reactions_user_item_idx on public.content_reactions (user_id, item_type, item_id);
 create index if not exists content_reactions_item_idx on public.content_reactions (item_type, item_id);
 create index if not exists ai_product_ratings_product_idx on public.ai_product_ratings (product_id);
+create index if not exists ai_product_reviews_product_created_idx on public.ai_product_reviews (product_id, created_at desc);
 create index if not exists user_onboarding_user_idx on public.user_onboarding (user_id);
 create index if not exists github_trends_stars_idx on public.github_trends (stars desc);
 drop index if exists research_papers_paper_url_key;

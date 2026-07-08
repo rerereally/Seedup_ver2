@@ -31,6 +31,8 @@ export default function ArticleAssistant({
     },
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const lastQuestion = messages.filter((message) => message.role === 'user').at(-1)?.content;
+  const hasConversation = messages.some((message) => message.role === 'user');
 
   const ask = async (preset?: string) => {
     const nextQuestion = (preset ?? question).trim();
@@ -69,43 +71,49 @@ export default function ArticleAssistant({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-outline-soft bg-white shadow-sm">
-      <div className="border-b border-outline-soft bg-surface-lowest px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-bold text-ink">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary text-white">
+    <div className="overflow-hidden border border-outline-soft bg-white">
+      <div className="border-b border-outline-soft bg-surface px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-black uppercase text-ink">
+          <span className="flex h-8 w-8 items-center justify-center border border-outline-soft bg-white text-ink">
             <Bot className="h-4 w-4" />
           </span>
-          아티클 AI 질문
+          ARTICLE_ASSISTANT.TS
         </div>
       </div>
 
-      <div className="space-y-3 px-4 py-4">
-        {messages.slice(-4).map((message, index) => (
-          <div key={`${message.role}-${index}`} className={`rounded-lg p-3 text-sm leading-6 ${message.role === 'assistant' ? 'border border-outline-soft bg-surface text-muted' : 'bg-ink text-white'}`}>
-            {message.content}
-            {message.projectPrompt && (
-              <button
-                type="button"
-                onClick={() => goToIdeaEvaluation(message.projectPrompt)}
-                className="mt-3 inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-xs font-bold text-brand-primary"
-              >
-                프로젝트로 평가하기
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
+      {hasConversation ? (
+        <div className="space-y-3 px-4 py-4">
+          {messages.slice(-3).map((message, index) => (
+            <div key={`${message.role}-${index}`} className={`border p-3 text-sm leading-6 ${message.role === 'assistant' ? 'border-outline-soft bg-surface text-muted' : 'border-ink bg-ink text-white'}`}>
+              {message.content}
+              {message.projectPrompt && (
+                <button
+                  type="button"
+                  onClick={() => goToIdeaEvaluation(message.projectPrompt)}
+                  className="mt-3 inline-flex items-center gap-1 border border-outline-soft bg-white px-3 py-1.5 text-xs font-bold text-ink"
+                >
+                  프로젝트로 평가하기
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="border-b border-outline-soft px-4 py-4">
+          <p className="text-sm font-semibold leading-6 text-muted">본문을 읽다가 막히는 부분만 짧게 물어보세요.</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 px-4 pb-3">
         {['이 글 쉽게 설명해줘', '핵심 기술이 뭐야?', '프로젝트로 만들려면?'].map((preset) => (
-          <button key={preset} type="button" onClick={() => ask(preset)} className="rounded-full border border-outline-soft bg-surface px-3 py-1.5 text-xs font-semibold text-muted hover:border-brand-primary hover:text-brand-primary">
+          <button key={preset} type="button" onClick={() => ask(preset)} className="border border-outline-soft bg-surface px-3 py-1.5 text-xs font-bold text-muted hover:border-ink hover:text-ink">
             {preset}
           </button>
         ))}
       </div>
 
-      <div className="mx-4 mb-4 rounded-lg border border-outline-soft bg-surface-lowest p-2">
+      <div className="mx-4 mb-4 border border-outline-soft bg-surface p-2">
         <textarea
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
@@ -113,7 +121,7 @@ export default function ArticleAssistant({
           className="h-20 w-full resize-none bg-transparent p-2 text-sm leading-6 text-ink outline-none placeholder:text-muted/60"
         />
         <div className="flex items-center justify-between gap-2 border-t border-outline-soft/70 pt-2">
-          <button type="button" onClick={() => goToIdeaEvaluation()} className="inline-flex items-center gap-1 px-2 text-xs font-bold text-brand-primary">
+          <button type="button" onClick={() => goToIdeaEvaluation()} className="inline-flex items-center gap-1 px-2 text-xs font-bold text-ink">
             <Lightbulb className="h-3.5 w-3.5" />
             프로젝트 연계
           </button>
@@ -121,14 +129,23 @@ export default function ArticleAssistant({
             type="button"
             onClick={() => ask()}
             disabled={!question.trim() || status === 'loading'}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-primary px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex h-9 items-center gap-2 bg-ink px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
           >
             {status === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             질문
           </button>
         </div>
       </div>
-      {status === 'error' && <p className="mt-3 text-xs font-semibold text-red-600">답변 생성에 실패했습니다. 잠시 후 다시 시도해주세요.</p>}
+      {status === 'error' && (
+        <div className="border-t border-outline-soft px-4 py-3">
+          <p className="text-xs font-semibold text-muted">답변 생성에 실패했습니다.</p>
+          {lastQuestion && (
+            <button type="button" onClick={() => ask(lastQuestion)} className="mt-2 border border-outline-soft bg-white px-3 py-1.5 text-xs font-bold text-ink hover:border-ink">
+              다시 시도
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

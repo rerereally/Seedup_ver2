@@ -1,66 +1,89 @@
 import { saveScrap } from '@/app/actions/scraps';
-import { rateAIProduct } from '@/app/actions/product-ratings';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import PageIntro from '@/components/PageIntro';
 import type { AIProduct } from '@/lib/data';
 import { getAIProducts, getScrapKeySet } from '@/lib/data';
-import { Bookmark, Bot, ChevronRight, Flame, Search, Star, TrendingDown, TrendingUp } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
+import { ArrowRight, Bookmark, Bot, Code2, ImageIcon, Search, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
 
-const PAGE_SIZE = 10;
-
-function productTags(product: AIProduct) {
-  return [product.category, product.pricing_type, product.target_user, ...(product.use_cases ?? [])]
-    .filter(Boolean)
-    .slice(0, 6) as string[];
-}
-
-function riskTags(product: AIProduct) {
-  const tags = ['실사용 검증 필요', '가격 확인 필요'];
-  if (product.pricing_type === 'Unknown') tags.unshift('요금제 불명확');
-  if (!product.website_url) tags.unshift('공식 링크 확인 필요');
-  return tags.slice(0, 4);
-}
-
-function StarRating({ score }: { score: number | null }) {
-  const raw = Number(score ?? 0);
-  const normalized = Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
-  const filled = Math.round(normalized);
-
-  return (
-    <div className="flex items-center gap-0.5" aria-label={`평점 ${normalized.toFixed(1)}점`}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className={`h-5 w-5 ${index < filled ? 'fill-yellow-400 text-yellow-400' : 'fill-surface-high text-surface-high'}`} />
-      ))}
-    </div>
-  );
-}
+const PAGE_SIZE = 9;
 
 function displayRating(score: number | null) {
   const raw = Number(score ?? 0);
   if (!raw) return '-';
-  return (raw > 10 ? raw / 20 : raw / 2).toFixed(2);
+  return (raw > 10 ? raw / 20 : raw / 2).toFixed(1);
 }
 
-function buildHref(params: { q?: string; page?: number }) {
+function buildHref(params: { q?: string; category?: string; pricing?: string; page?: number }) {
   const query = new URLSearchParams();
   if (params.q) query.set('q', params.q);
+  if (params.category && params.category !== 'all') query.set('category', params.category);
+  if (params.pricing && params.pricing !== 'all') query.set('pricing', params.pricing);
   if (params.page && params.page > 1) query.set('page', String(params.page));
   const search = query.toString();
   return `/ai-products${search ? `?${search}` : ''}`;
 }
 
-export default async function AIProducts({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
+function normalized(value?: string | null) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function categoryLabel(category?: string | null) {
+  if (!category) return 'AI Tool';
+  if (category.toLowerCase().includes('llm')) return 'LLM';
+  if (category.toLowerCase().includes('image')) return 'Image Gen';
+  if (category.toLowerCase().includes('coding')) return 'Coding Assistant';
+  return category;
+}
+
+function ProductIcon({ product }: { product: AIProduct }) {
+  const text = `${product.name} ${product.category ?? ''}`.toLowerCase();
+  if (text.includes('chatgpt') || text.includes('llm')) return <Bot className="h-5 w-5" />;
+  if (text.includes('image') || text.includes('midjourney')) return <ImageIcon className="h-5 w-5" />;
+  if (text.includes('code') || text.includes('cursor') || text.includes('copilot')) return <Code2 className="h-5 w-5" />;
+  return <SquareTerminal className="h-5 w-5" />;
+}
+
+function FilterLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className="flex items-center gap-2 text-sm text-muted hover:text-ink">
+      <span className={`flex h-4 w-4 items-center justify-center border ${active ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white'}`}>
+        {active ? '✓' : ''}
+      </span>
+      <span className={active ? 'font-black text-ink' : ''}>{children}</span>
+    </Link>
+  );
+}
+
+export default async function AIProducts({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; category?: string; pricing?: string }> }) {
   const params = await searchParams;
-  const query = params.q?.trim().toLowerCase() ?? '';
+  const query = params.q?.trim() ?? '';
+  const category = params.category ?? 'all';
+  const pricing = params.pricing ?? 'all';
   const page = Math.max(1, Number(params.page ?? 1) || 1);
+  const supabase = await createClient();
+  const { data: userData } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  const isLoggedIn = Boolean(userData.user);
   const [products, scrapKeys] = await Promise.all([getAIProducts(), getScrapKeySet()]);
+  const categories = Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).slice(0, 6);
+  const pricingTypes = Array.from(new Set(products.map((product) => product.pricing_type).filter(Boolean) as string[])).slice(0, 5);
   const filteredProducts = products.filter((product) => {
-    if (!query) return true;
-    return [product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? [])]
-      .some((value) => value?.toLowerCase().includes(query));
+    const q = query.toLowerCase();
+    const matchesQuery = !q || [product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? [])]
+      .some((value) => value?.toLowerCase().includes(q));
+    const matchesCategory = category === 'all' || normalized(product.category) === normalized(category);
+    const matchesPricing = pricing === 'all' || normalized(product.pricing_type) === normalized(pricing);
+    return matchesQuery && matchesCategory && matchesPricing;
   });
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -70,165 +93,143 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="page-shell">
-          <PageIntro
-            eyebrow="AI Products"
-            title="AI 제품"
-            description="다음 프로젝트에 영감을 줄 AI 제품을 평가하고, 초보 개발자가 어디에 활용할 수 있는지 빠르게 확인하세요."
-            icon={Flame}
-            meta={`총 ${products.length}개 제품`}
-          />
+        <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+          <section className="border-b border-outline-soft pb-7">
+            <div className="mb-4 text-xs font-black uppercase text-muted">directory</div>
+            <h1 className="text-4xl font-black leading-tight text-ink md:text-5xl">AI Tools Directory</h1>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-muted">
+              개발자를 위한 생산성 향상 AI 도구 모음. 카테고리별로 필터링하여 프로젝트에 필요한 도구를 빠르게 찾아보세요.
+            </p>
+            <form action="/ai-products" className="mt-6 flex max-w-xl items-center gap-2 border border-outline-soft bg-white px-4 py-3">
+              <Search className="h-4 w-4 text-muted" />
+              <input name="q" defaultValue={query} placeholder="Search AI tools..." className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted" />
+              {category !== 'all' && <input type="hidden" name="category" value={category} />}
+              {pricing !== 'all' && <input type="hidden" name="pricing" value={pricing} />}
+            </form>
+          </section>
 
-          <form action="/ai-products" className="mb-6 mt-9 flex max-w-xl items-center gap-2 rounded-xl border border-outline-soft bg-white px-4 py-3">
-            <Search className="h-4 w-4 text-muted" />
-            <input name="q" defaultValue={params.q ?? ''} placeholder="AI 제품 검색" className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted" />
-          </form>
+          <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start">
+            <aside className="w-full space-y-4 lg:sticky lg:top-20 lg:w-60 lg:shrink-0">
+              <div className="border border-outline-soft bg-white p-4">
+                <div className="mb-3 border-b border-outline-soft pb-3 text-xs font-black uppercase text-ink">Category</div>
+                <div className="space-y-3">
+                  <FilterLink href={buildHref({ q: query, pricing })} active={category === 'all'}>All Tools</FilterLink>
+                  {categories.map((item) => (
+                    <FilterLink key={item} href={buildHref({ q: query, category: item, pricing })} active={normalized(category) === normalized(item)}>
+                      {item}
+                    </FilterLink>
+                  ))}
+                </div>
+              </div>
+              <div className="border border-outline-soft bg-white p-4">
+                <div className="mb-3 border-b border-outline-soft pb-3 text-xs font-black uppercase text-ink">Pricing</div>
+                <div className="space-y-3">
+                  <FilterLink href={buildHref({ q: query, category })} active={pricing === 'all'}>All Pricing</FilterLink>
+                  {pricingTypes.map((item) => (
+                    <FilterLink key={item} href={buildHref({ q: query, category, pricing: item })} active={normalized(pricing) === normalized(item)}>
+                      {item}
+                    </FilterLink>
+                  ))}
+                </div>
+              </div>
+            </aside>
 
-          {!filteredProducts.length ? (
-            <EmptyState
-              title={products.length ? '검색 결과가 없습니다' : '아직 등록된 AI 제품이 없습니다'}
-              description={products.length ? '다른 제품명이나 카테고리로 다시 검색해보세요.' : '곧 추천할 만한 AI 제품을 정리해 보여드릴게요.'}
-              actionHref={products.length ? '/ai-products' : undefined}
-              actionLabel={products.length ? '전체 제품 보기' : undefined}
-            />
-          ) : (
-            <section className="flex flex-col gap-4">
-              {paginatedProducts.map((product, index) => {
-                const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
-                const tags = productTags(product);
-                const risks = riskTags(product).slice(0, 2);
-                const ratingCount = product.rating_count ?? 0;
-                const displayScore = displayRating(product.score);
+            <section className="min-w-0 flex-1">
+              {!filteredProducts.length ? (
+                <EmptyState
+                  title={products.length ? '검색 결과가 없습니다' : '아직 등록된 AI 제품이 없습니다'}
+                  description={products.length ? '다른 제품명이나 카테고리로 다시 검색해보세요.' : '곧 추천할 만한 AI 제품을 정리해 보여드릴게요.'}
+                  actionHref={products.length ? '/ai-products' : undefined}
+                  actionLabel={products.length ? '전체 제품 보기' : undefined}
+                />
+              ) : (
+                <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs font-bold uppercase text-muted">
+                  <span>{filteredProducts.length} tools indexed</span>
+                  <span>Updated weekly</span>
+                </div>
+                <div className="grid min-w-0 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {paginatedProducts.map((product, index) => {
+                    const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
+                    const rating = displayRating(product.score);
+                    const ratingCount = product.rating_count ?? 0;
+                    const globalIndex = (currentPage - 1) * PAGE_SIZE + index + 1;
 
-                return (
-                  <article key={product.id} className="group rounded-xl border border-outline-soft bg-white p-5 shadow-sm transition-all hover:border-brand-primary/60 hover:shadow-md">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-                      <div className="flex items-center gap-3 lg:w-24 lg:flex-col lg:items-start">
-                        <span className="inline-flex h-7 items-center rounded-md border border-outline-soft bg-surface px-2 text-xs font-black text-muted">
-                          #{(currentPage - 1) * PAGE_SIZE + index + 1}
-                        </span>
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-outline-soft bg-white text-2xl font-black text-ink">
-                          {product.name.toLowerCase().includes('chatgpt') ? <Bot className="h-8 w-8 text-ink" /> : product.name.slice(0, 1)}
+                    return (
+                      <article key={product.id} className="group flex min-h-[268px] flex-col border border-outline-soft bg-white p-4 transition-colors hover:border-ink">
+                        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center border border-outline-soft bg-surface text-ink">
+                            <ProductIcon product={product} />
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">
+                              #{globalIndex}
+                            </span>
+                            <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">
+                              {product.pricing_type ?? product.status ?? 'Tool'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h2 className="text-2xl font-bold leading-tight text-ink transition-colors group-hover:text-brand-primary">{product.name}</h2>
-                              {product.status && (
-                                <span className="inline-flex items-center gap-1 rounded-md border border-brand-primary/20 bg-brand-primary/10 px-2 py-1 text-xs font-bold text-brand-primary">
-                                  <Flame className="h-3.5 w-3.5" />
-                                  {product.status}
-                                </span>
-                              )}
+                        <Link href={`/ai-products/${product.id}`} className="block">
+                          <h2 className="line-clamp-2 text-2xl font-black leading-tight text-ink group-hover:underline">{product.name}</h2>
+                          <div className="mt-2 inline-flex border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">
+                            {categoryLabel(product.category)}
+                          </div>
+                          <p className="mt-4 line-clamp-3 text-sm leading-6 text-muted">
+                            {product.description ?? product.target_user ?? '개발 워크플로우에 붙여볼 만한 AI 제품입니다.'}
+                          </p>
+                        </Link>
+
+                        <div className="mt-auto border-t border-outline-soft pt-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-1 text-xs font-black text-ink">
+                              <Star className="h-3.5 w-3.5" />
+                              {rating} <span className="font-bold text-muted">({ratingCount.toLocaleString()})</span>
                             </div>
-                            {ratingCount > 0 ? (
-                              <div className="mt-2 flex items-center gap-2">
-                                <StarRating score={product.score} />
-                                <span className="text-sm font-semibold text-muted">{displayScore} / 5 · {ratingCount}명 평가</span>
-                              </div>
-                            ) : (
-                              <div className="mt-2 text-sm font-semibold text-muted">아직 평가 없음</div>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            <form action={saveScrap}>
-                              <input type="hidden" name="item_type" value="ai_product" />
-                              <input type="hidden" name="item_id" value={product.id} />
-                              <input type="hidden" name="title" value={product.name} />
-                              <input type="hidden" name="description" value={product.description ?? ''} />
-                              <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
-                              <input type="hidden" name="return_to" value="/ai-products" />
-                              <button type="submit" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-outline-soft bg-white text-muted transition-colors hover:border-brand-primary hover:text-brand-primary" aria-label={`${product.name} ${isScrapped ? '저장 해제' : '저장하기'}`}>
-                                <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                              </button>
-                            </form>
-                            <Link href={`/ai-products/${product.id}`} className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-ink px-4 text-sm font-bold text-white transition-opacity hover:opacity-90">
-                              상세
-                              <ChevronRight className="h-4 w-4" />
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              {isLoggedIn ? (
+                                <form action={saveScrap}>
+                                  <input type="hidden" name="item_type" value="ai_product" />
+                                  <input type="hidden" name="item_id" value={product.id} />
+                                  <input type="hidden" name="title" value={product.name} />
+                                  <input type="hidden" name="description" value={product.description ?? ''} />
+                                  <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
+                                  <input type="hidden" name="return_to" value={buildHref({ q: query, category, pricing, page: currentPage })} />
+                                  <button type="submit" className="inline-flex h-8 w-8 items-center justify-center border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink" aria-label={`${product.name} ${isScrapped ? '저장 해제' : '저장하기'}`}>
+                                    <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-ink text-ink' : ''}`} />
+                                  </button>
+                                </form>
+                              ) : (
+                                <Link href="/login" className="text-xs font-bold uppercase text-muted hover:text-ink">Login</Link>
+                              )}
+                              <Link href={`/ai-products/${product.id}`} className="text-muted transition-colors group-hover:text-ink" aria-label={`${product.name} 상세 보기`}>
+                                <ArrowRight className="h-5 w-5" />
+                              </Link>
+                            </div>
                           </div>
                         </div>
+                      </article>
+                    );
+                  })}
+                </div>
 
-                        {product.description && <p className="mt-4 line-clamp-2 max-w-3xl text-sm leading-6 text-muted">{product.description}</p>}
-
-                        <div className="mt-4 grid gap-3 rounded-lg border border-outline-soft bg-surface-lowest p-4 text-sm leading-6 md:grid-cols-2">
-                          <div>
-                            <div className="text-xs font-bold text-brand-primary">누가 쓰면 좋은가</div>
-                            <p className="mt-1 line-clamp-2 text-muted">{product.target_user ?? 'AI 도구를 실제 개발 워크플로우에 붙여보고 싶은 개발자'}</p>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-brand-primary">검증 상태</div>
-                            <p className="mt-1 line-clamp-2 text-muted">{product.status ?? risks[0] ?? '실사용 검증 필요'}</p>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-brand-primary">개발자 관점 활용법</div>
-                            <p className="mt-1 line-clamp-2 text-muted">{(product.use_cases ?? [])[0] ?? '기존 개발 과정의 반복 작업을 줄이거나 새 제품 아이디어를 검증하는 데 활용할 수 있습니다.'}</p>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-brand-primary">관련 프로젝트 아이디어</div>
-                            <p className="mt-1 line-clamp-2 text-muted">{(product.related_project_ideas ?? [])[0] ?? '비슷한 문제를 해결하는 미니 AI 도구 만들기'}</p>
-                          </div>
-                        </div>
-
-                        {!!tags.length && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {tags.map((tag) => (
-                              <span key={tag} className="rounded-md border border-outline-soft bg-surface px-2.5 py-1 text-xs font-semibold text-muted">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="mt-4 grid gap-3 border-t border-outline-soft pt-4 md:grid-cols-[1fr_auto] md:items-center">
-                          <div className="flex flex-wrap gap-2">
-                            {(product.use_cases ?? []).slice(0, 3).map((useCase) => (
-                              <span key={useCase} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                                <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-                                {useCase}
-                              </span>
-                            ))}
-                            {risks.slice(0, 1).map((risk) => (
-                              <span key={risk} className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
-                                <TrendingDown className="h-3.5 w-3.5 text-red-500" />
-                                {risk}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="mr-1 text-xs font-bold text-muted">내 평점</span>
-                            {[1, 2, 3, 4, 5].map((rating) => (
-                              <form key={rating} action={rateAIProduct}>
-                                <input type="hidden" name="product_id" value={product.id} />
-                                <input type="hidden" name="rating" value={rating} />
-                                <input type="hidden" name="return_to" value={buildHref({ q: params.q?.trim(), page: currentPage })} />
-                                <button type="submit" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-outline-soft bg-white text-xs font-black text-muted hover:border-brand-primary hover:text-brand-primary">{rating}</button>
-                              </form>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+                {filteredProducts.length > PAGE_SIZE && (
+                  <nav className="mt-8 flex justify-center gap-2">
+                    {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => {
+                      const pageNumber = index + 1;
+                      return (
+                        <Link key={pageNumber} href={buildHref({ q: query, category, pricing, page: pageNumber })} className={`inline-flex h-10 w-10 items-center justify-center text-sm font-bold ${currentPage === pageNumber ? 'bg-ink text-white' : 'border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}>
+                          {pageNumber}
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                )}
+                </>
+              )}
             </section>
-          )}
-          {filteredProducts.length > PAGE_SIZE && (
-            <nav className="mt-8 flex justify-center gap-2">
-              {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <Link key={pageNumber} href={buildHref({ q: params.q?.trim(), page: pageNumber })} className={`inline-flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${currentPage === pageNumber ? 'bg-brand-primary text-white' : 'border border-outline-soft bg-white text-muted hover:border-brand-primary hover:text-brand-primary'}`}>
-                    {pageNumber}
-                  </Link>
-                );
-              })}
-            </nav>
-          )}
+          </div>
         </div>
       </main>
       <Footer />

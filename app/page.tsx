@@ -1,11 +1,13 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
-import { ArrowRight, Bookmark, Calendar, Code2, FileText, Languages, Lightbulb, Search, Sparkles, TrendingUp } from 'lucide-react';
-import { getNewsItems, getProjectIdeas, getResearchPapers, getScraps, getTrends } from '@/lib/data';
+import { ArrowRight, Bookmark, Calendar, Code2, FileText, Languages, Lightbulb, Search, Sparkles, TerminalSquare, TrendingUp } from 'lucide-react';
+import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ScrapItem } from '@/lib/data';
+import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers, getScraps, getTrends } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import OnboardingModal from '@/components/OnboardingModal';
 import { cleanProjectTitle } from '@/lib/utils';
+import { DevCard, DevSectionHeader, DevTag } from '@/components/ui/DevCard';
 
 const STEPS = [
   { icon: Search, title: 'Article Collection', desc: '매일 최신 기술 뉴스와 글 수집' },
@@ -45,382 +47,465 @@ const SAVED_TYPE_LABELS: Record<string, string> = {
   idea: '아이디어',
 };
 
+function scoreLabel(score: number | null | undefined) {
+  if (!score) return '검증 중';
+  return `${Math.round(score)}점`;
+}
+
+function articleSignal(item?: NewsItem) {
+  const score = item?.relevance_score ? `${Math.round(item.relevance_score)} signal` : 'live signal';
+  const views = item?.view_count ? `${item.view_count.toLocaleString()} views` : 'curated';
+  return [score, views, item?.source].filter(Boolean).join(' / ');
+}
+
+function LoggedInHome({
+  userName,
+  popularNews,
+  recommendedNews,
+  githubRepos,
+  projects,
+  aiProducts,
+  userScraps,
+}: {
+  userName: string;
+  popularNews: NewsItem[];
+  recommendedNews: NewsItem[];
+  githubRepos: GitHubTrend[];
+  projects: ProjectIdea[];
+  aiProducts: AIProduct[];
+  userScraps: ScrapItem[];
+}) {
+  const heroItem = popularNews[0] ?? recommendedNews[0];
+  const topRepos = githubRepos.slice(0, 3);
+  const todayProjects = projects.slice(0, 3);
+  const topProducts = aiProducts.slice(0, 4);
+
+  return (
+    <main className="grow bg-surface">
+      <section className="border-b border-ink bg-white">
+        <div className="mx-auto max-w-[1180px] px-4 py-10 md:px-8 md:py-12">
+          <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
+                <TerminalSquare className="h-3.5 w-3.5" />
+                daily_dashboard.ts
+              </div>
+              <h1 className="text-3xl font-black leading-tight text-ink md:text-[44px]">
+                {userName}님, 오늘 개발자들이 보는 신호만 골랐어요.
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-muted">
+                인기 글, 추천 아티클, 뜨는 오픈소스, 오늘 도전할 프로젝트와 AI 제품 랭킹을 한 화면에 모았습니다.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <DevTag active>Live Briefing</DevTag>
+              <DevTag>{recommendedNews.length} 추천</DevTag>
+              <DevTag>{userScraps.length} 저장</DevTag>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <Link href={heroItem ? `/news/${heroItem.id}` : '/news'} className="group border border-ink bg-ink p-6 text-white transition-opacity hover:opacity-95">
+              <div className="mb-6 flex items-center justify-between gap-3 text-xs font-bold uppercase text-white/70">
+                <span>지금 인기 있는 글</span>
+                <span>{heroItem?.category ?? 'Article'}</span>
+              </div>
+              <h2 className="max-w-3xl text-2xl font-black leading-tight md:text-4xl">
+                {heroItem?.title ?? '오늘 읽을 추천 글을 준비 중입니다.'}
+              </h2>
+              <p className="mt-4 line-clamp-2 max-w-2xl text-sm leading-6 text-white/70">
+                {heroItem?.summary ?? '뉴스 수집이 완료되면 가장 반응이 좋은 아티클이 이 배너에 표시됩니다.'}
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/20 pt-4">
+                <span className="text-xs font-bold uppercase text-white/60">{articleSignal(heroItem)}</span>
+                <span className="inline-flex items-center gap-2 text-sm font-bold">
+                  지금 읽기
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </span>
+              </div>
+            </Link>
+
+            <div className="grid gap-3 border border-outline-soft bg-white p-4">
+              {[
+                [`${popularNews.length}`, '실시간 인기'],
+                [`${recommendedNews.length}`, '맞춤 추천'],
+                [`${userScraps.length}`, '이어볼 저장'],
+              ].map(([value, label]) => (
+                <div key={label} className="flex items-center justify-between border border-outline-soft bg-surface px-4 py-3">
+                  <span className="text-sm font-bold text-muted">{label}</span>
+                  <span className="text-2xl font-black text-ink">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-outline-soft bg-surface py-12">
+        <div className="mx-auto grid max-w-[1180px] gap-5 px-4 md:px-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="border border-outline-soft bg-white p-5">
+            <DevSectionHeader
+              eyebrow="recommended_articles"
+              title="오늘의 추천 아티클"
+              action={<Link href="/news" className="text-xs font-bold uppercase text-ink hover:underline">전체 보기</Link>}
+            />
+            <div className="space-y-3">
+              {recommendedNews.slice(0, 4).map((item) => (
+                <Link key={item.id} href={`/news/${item.id}`} className="group grid gap-3 border border-outline-soft bg-surface-lowest p-4 hover:border-ink md:grid-cols-[120px_1fr]">
+                  <div className="text-xs font-bold uppercase text-muted">{item.category ?? 'Article'}</div>
+                  <div>
+                    <h3 className="line-clamp-2 text-base font-black leading-snug text-ink group-hover:underline">{item.title}</h3>
+                    {item.summary && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{item.summary}</p>}
+                  </div>
+                </Link>
+              ))}
+              {!recommendedNews.length && <div className="border border-outline-soft bg-surface p-4 text-sm text-muted">추천 아티클을 준비 중입니다.</div>}
+            </div>
+          </div>
+
+          <div className="border border-outline-soft bg-white p-5">
+            <DevSectionHeader
+              eyebrow="github_radar"
+              title="뜨고 있는 GitHub 오픈소스"
+              action={<Link href="/github-trends" className="text-xs font-bold uppercase text-ink hover:underline">전체 보기</Link>}
+            />
+            <div className="space-y-3">
+              {topRepos.map((repo, index) => (
+                <Link key={repo.id} href={`/github-trends/${repo.id}`} className="block border border-outline-soft bg-surface-lowest p-4 hover:border-ink">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <DevTag active>#{index + 1}</DevTag>
+                    <span className="text-xs font-bold text-muted">{repo.stars?.toLocaleString() ?? 0} stars</span>
+                  </div>
+                  <h3 className="line-clamp-1 text-base font-black text-ink">{repo.repo_full_name}</h3>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{repo.beginner_summary ?? repo.description ?? '학습과 프로젝트 참고 가치가 있는 저장소입니다.'}</p>
+                </Link>
+              ))}
+              {!topRepos.length && <div className="border border-outline-soft bg-surface p-4 text-sm text-muted">오픈소스 데이터를 준비 중입니다.</div>}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-outline-soft bg-white py-12">
+        <div className="mx-auto grid max-w-[1180px] gap-5 px-4 md:px-8 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="border border-outline-soft bg-surface p-5">
+            <DevSectionHeader
+              eyebrow="today_build"
+              title="오늘 도전해볼 프로젝트"
+              action={<Link href="/projects" className="text-xs font-bold uppercase text-ink hover:underline">프로젝트 보기</Link>}
+            />
+            <div className="space-y-3">
+              {todayProjects.map((project) => (
+                <Link key={project.id} href={`/projects/${project.id}`} className="block border border-outline-soft bg-white p-4 hover:border-ink">
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <DevTag active>{project.level ?? '추천'}</DevTag>
+                    {project.duration_days && <DevTag>{project.duration_days}일</DevTag>}
+                  </div>
+                  <h3 className="text-base font-black leading-snug text-ink">{cleanProjectTitle(project.title)}</h3>
+                  {project.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{project.description}</p>}
+                </Link>
+              ))}
+              {!todayProjects.length && <div className="border border-outline-soft bg-white p-4 text-sm text-muted">프로젝트 추천을 준비 중입니다.</div>}
+            </div>
+          </div>
+
+          <div className="border border-outline-soft bg-surface p-5">
+            <DevSectionHeader
+              eyebrow="ai_tools_rank"
+              title="요즘 많이 보는 AI 제품"
+              action={<Link href="/ai-products" className="text-xs font-bold uppercase text-ink hover:underline">AI 제품 보기</Link>}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {topProducts.map((product, index) => (
+                <Link key={product.id} href={`/ai-products/${product.id}`} className="border border-outline-soft bg-white p-4 hover:border-ink">
+                  <div className="mb-3 flex items-center justify-between">
+                    <DevTag active>#{index + 1}</DevTag>
+                    <span className="text-xs font-bold uppercase text-muted">{scoreLabel(product.score)}</span>
+                  </div>
+                  <h3 className="line-clamp-1 text-base font-black text-ink">{product.name}</h3>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{product.description ?? product.target_user ?? '개발 워크플로우에 붙여볼 만한 AI 제품입니다.'}</p>
+                </Link>
+              ))}
+              {!topProducts.length && <div className="border border-outline-soft bg-white p-4 text-sm text-muted sm:col-span-2">AI 제품 랭킹을 준비 중입니다.</div>}
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default async function Home() {
   const supabase = await createClient();
-  const [news, trends, projects, researchPapers, userResult] = await Promise.all([
+  const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  const user = userResult.data.user;
+
+  if (user) {
+    const [news, projects, githubRepos, aiProducts, userScraps] = await Promise.all([
+      getNewsItems(),
+      getProjectIdeas(),
+      getGitHubTrends(),
+      getAIProducts(),
+      getScraps(),
+    ]);
+    const popularNews = [...news].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 4);
+    const userName = user.email?.split('@')[0] ?? '개발자';
+    let recommendedNews = popularNews;
+    let shouldShowOnboarding = false;
+
+    if (supabase) {
+      const { data } = await supabase
+        .from('user_onboarding')
+        .select('id,answers')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      shouldShowOnboarding = !data;
+      const answerValues = Object.values((data?.answers ?? {}) as Record<string, string | string[]>).flat().map((value) => String(value).toLowerCase());
+      const personalized = news
+        .map((item) => {
+          const text = [item.title, item.summary, item.category, item.beginner_summary, ...(item.related_skills ?? [])].join(' ').toLowerCase();
+          const score = answerValues.filter((value) => value && text.includes(value)).length + Number(item.relevance_score ?? 0) / 100;
+          return { item, score };
+        })
+        .filter(({ score }) => score > 0.4)
+        .sort((a, b) => b.score - a.score)
+        .map(({ item }) => item)
+        .slice(0, 4);
+      recommendedNews = personalized.length ? personalized : popularNews;
+    }
+
+    return (
+      <>
+        {shouldShowOnboarding && <OnboardingModal userId={user.id} email={user.email ?? null} />}
+        <Header />
+        <LoggedInHome
+          userName={userName}
+          popularNews={popularNews}
+          recommendedNews={recommendedNews}
+          githubRepos={githubRepos}
+          projects={projects}
+          aiProducts={aiProducts}
+          userScraps={userScraps}
+        />
+        <Footer />
+      </>
+    );
+  }
+
+  const [news, trends, projects, researchPapers] = await Promise.all([
     getNewsItems(),
     getTrends(),
     getProjectIdeas(),
     getResearchPapers(6),
-    supabase ? supabase.auth.getUser() : Promise.resolve({ data: { user: null } }),
   ]);
   const latestNews = news[0];
   const topTrend = trends[0];
   const latestProject = projects[0];
-  const user = userResult.data.user;
   const popularNews = [...news].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 4);
-  const userScraps = user ? await getScraps() : [];
-  const userName = user?.email?.split('@')[0] ?? '개발자';
-  const savedCounts = userScraps.reduce<Record<string, number>>((acc, item) => {
-    acc[item.item_type] = (acc[item.item_type] ?? 0) + 1;
-    return acc;
-  }, {});
-  let recommendedNews = popularNews;
-  let shouldShowOnboarding = false;
-
-  if (supabase && user) {
-    const { data } = await supabase
-      .from('user_onboarding')
-      .select('id,answers')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    shouldShowOnboarding = !data;
-    const answerValues = Object.values((data?.answers ?? {}) as Record<string, string | string[]>).flat().map((value) => String(value).toLowerCase());
-    const personalized = news
-      .map((item) => {
-        const text = [item.title, item.summary, item.category, item.beginner_summary, ...(item.related_skills ?? [])].join(' ').toLowerCase();
-        const score = answerValues.filter((value) => value && text.includes(value)).length + Number(item.relevance_score ?? 0) / 100;
-        return { item, score };
-      })
-      .filter(({ score }) => score > 0.4)
-      .sort((a, b) => b.score - a.score)
-      .map(({ item }) => item)
-      .slice(0, 4);
-    recommendedNews = personalized.length ? personalized : popularNews;
-  }
 
   return (
     <>
-      {shouldShowOnboarding && user && <OnboardingModal userId={user.id} email={user.email ?? null} />}
       <Header />
       <main className="grow overflow-hidden">
-        <section className="dot-grid relative border-b border-outline-soft/60 bg-surface">
-          <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 py-10 md:px-10 md:py-14 lg:grid-cols-12 lg:py-16">
-            <div className="lg:col-span-6">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-outline-soft bg-white px-3 py-1 text-xs font-semibold text-brand-primary">
-                <Sparkles className="h-3.5 w-3.5" />
-                {user ? 'Personal Dashboard' : 'Developer Growth Platform'}
+        <section className="relative border-b border-ink bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-14 lg:py-16">
+            <div className="mb-9 flex flex-col gap-3 border-b border-outline-soft pb-5 md:flex-row md:items-center md:justify-between">
+              <div className="inline-flex w-fit items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
+                <TerminalSquare className="h-3.5 w-3.5" />
+                what_is_seedup.ts
               </div>
-              {user ? (
-                <h1 className="text-balance text-5xl font-bold leading-tight text-ink md:text-[64px]">
-                  {userName}님,
-                  <br />
-                  오늘 이어서
-                  <br />
-                  <span className="text-brand-primary">읽고 만들 것부터 볼까요?</span>
-                </h1>
-              ) : (
-                <h1 className="text-balance text-5xl font-bold leading-tight text-ink md:text-[64px]">
-                  개발 트렌드,
-                  <br />
-                  그냥 읽지 말고
-                  <br />
-                  <span className="text-brand-primary">내 성장으로 연결하세요.</span>
-                </h1>
-              )}
-              <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
-                {user
-                  ? '관심사, 저장한 콘텐츠, 최신 개발 흐름을 기준으로 오늘 이어서 볼 아티클과 프로젝트 후보를 정리했습니다.'
-                  : 'Seedup은 개발 뉴스, 논문, GitHub 오픈소스, AI 제품 흐름을 분석해 당신에게 맞는 아티클, 논문, 프로젝트를 추천합니다.'}
+              <div className="flex flex-wrap gap-2">
+                <DevTag active>Developer Newsletter</DevTag>
+                <DevTag>AI / OSS / Papers</DevTag>
+              </div>
+            </div>
+
+            <div className="grid items-center gap-10 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+              <h1 className="max-w-2xl text-balance text-4xl font-black leading-tight text-ink md:text-6xl">
+                개발자가 매일 봐야 할 기술 흐름을 한 번에 정리합니다
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
+                Seedup은 AI 뉴스, 오픈소스 저장소, 논문, 개발 트렌드를 한국어로 요약하고 “읽고 끝”이 아니라 프로젝트 아이디어까지 연결해주는 개발자용 뉴스레터 서비스입니다.
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
-                <Link href={user ? '/news' : '/login'} className="inline-flex h-12 items-center gap-2 rounded-lg bg-brand-primary px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-                  {user ? '오늘 추천 보기' : '내 맞춤 추천 시작하기'}
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/login" className="inline-flex h-12 items-center gap-2 bg-ink px-6 text-sm font-bold text-white transition-opacity hover:opacity-90">
+                  무료로 시작하기
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link href={user ? '/scrap' : '/trends'} className="inline-flex h-12 items-center rounded-lg border border-outline-soft bg-white px-6 text-sm font-semibold text-ink transition-colors hover:border-brand-primary hover:text-brand-primary">
-                  {user ? '저장한 것 이어보기' : '오늘의 트렌드 둘러보기'}
+                <Link href="/trends" className="inline-flex h-12 items-center border border-outline-soft bg-white px-6 text-sm font-bold text-ink transition-colors hover:border-ink">
+                  서비스 둘러보기
                 </Link>
               </div>
-              <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
-                {(user
-                  ? [
-                    { icon: FileText, title: `${recommendedNews.length}개 추천`, desc: '내 관심사 기반 오늘 읽기', href: '/news' },
-                    { icon: Bookmark, title: `${userScraps.length}개 저장`, desc: '내 보관함에서 이어보기', href: '/scrap' },
-                    { icon: Code2, title: `${projects.length}개 후보`, desc: '프로젝트로 만들기', href: '/projects' },
-                  ]
-                  : START_CARDS
-                ).map((card) => (
-                  <Link key={card.href} href={card.href} className="group rounded-lg border border-outline-soft bg-white p-4 transition-colors hover:border-brand-primary">
-                    <card.icon className="mb-4 h-5 w-5 text-brand-primary" />
-                    <h2 className="text-sm font-bold leading-5 text-ink">{card.title}</h2>
-                    <p className="mt-2 text-xs font-semibold leading-5 text-muted group-hover:text-brand-primary">{card.desc}</p>
-                  </Link>
+
+              <div className="mt-9 grid max-w-2xl gap-3 sm:grid-cols-3">
+                {START_CARDS.map((card) => (
+                  <DevCard key={card.href} as={Link} href={card.href} className="p-4">
+                    <card.icon className="mb-4 h-5 w-5 text-ink" />
+                    <h2 className="text-sm font-black leading-5 text-ink">{card.title}</h2>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-muted">{card.desc}</p>
+                  </DevCard>
                 ))}
               </div>
-              <div className="mt-8 grid max-w-xl grid-cols-3 border-y border-outline-soft/70 py-5">
+
+              <div className="mt-9 grid max-w-2xl grid-cols-3 border-y border-outline-soft py-5">
                 {[
                   [`${trends.length}개`, '트렌드 분석 중'],
                   [`${projects.length}개`, '프로젝트 아이디어'],
                   [`${news.length}개`, '아티클 수집됨'],
                 ].map(([value, label], index) => (
                   <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft/70 pl-5'}>
-                    <div className="text-3xl font-bold text-ink">{value}</div>
-                    <div className="mt-1 text-xs font-medium text-muted">{label}</div>
+                    <div className="text-3xl font-black text-ink">{value}</div>
+                    <div className="mt-1 text-xs font-bold uppercase text-muted">{label}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="lg:col-span-6">
-              <div className="rounded-xl border border-outline-soft bg-white/90 p-5 shadow-[0_16px_60px_rgba(25,28,29,0.06)] backdrop-blur">
-                <div className="mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-semibold text-ink">
-                    <Code2 className="h-5 w-5 text-brand-primary" />
-                    {user ? '나의 오늘 흐름' : '읽을거리에서 프로젝트까지'}
+            <div className="mx-auto w-full max-w-sm lg:mx-0">
+              <div className="border border-outline-soft bg-surface p-4">
+                <div className="relative border border-ink bg-white p-4 shadow-[7px_7px_0_#0a0a0a]">
+                  <div className="mb-4 flex items-center justify-between border-b border-outline-soft pb-3 text-[10px] font-bold uppercase text-muted">
+                    <span>DATA_STREAM</span>
+                    <span>V.1.0.4</span>
                   </div>
-                  <span className="rounded-md bg-surface-low px-3 py-1 text-xs font-medium text-muted">{user ? '개인화' : '오늘의 흐름'}</span>
-                </div>
-                <div className="space-y-4 border-l border-outline-soft pl-6">
-                  {[
-                    { icon: FileText, label: user ? '오늘 읽기' : '추천 아티클', title: (user ? recommendedNews[0]?.title : latestNews?.title) ?? 'Supabase에 news_items 데이터를 넣으면 최신 아티클이 표시됩니다.', tone: 'muted' },
-                    { icon: Languages, label: user ? '저장한 맥락' : '초보자용 이해', title: user ? (userScraps[0]?.title ?? '아직 저장한 콘텐츠가 없습니다. 마음에 드는 글을 저장하면 이어보기 흐름이 생깁니다.') : (topTrend?.summary ?? 'Supabase에 trends 데이터를 넣으면 트렌드 해석이 표시됩니다.'), tone: 'active' },
-                    { icon: Code2, label: '연결 프로젝트', title: latestProject ? cleanProjectTitle(latestProject.title) : 'Supabase에 project_ideas 데이터를 넣으면 추천 프로젝트가 표시됩니다.', tone: 'project' },
-                    { icon: Sparkles, label: '포트폴리오 포인트', title: latestProject?.description ?? '데이터가 연결되면 프로젝트 설명과 빌드 포인트가 이 영역에 표시됩니다.', tone: 'muted' },
-                  ].map((item) => (
-                    <div key={item.label} className="relative">
-                      <span className={`absolute -left-[29px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border-2 border-white ${item.tone === 'project' ? 'bg-brand-primary' : 'bg-outline-soft'}`} />
-                      <div className={`rounded-lg border p-4 ${item.tone === 'project' ? 'border-brand-primary/30 bg-white shadow-sm' : 'border-surface-high bg-surface-lowest'}`}>
-                        <div className="flex gap-4">
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${item.tone === 'project' ? 'bg-brand-primary text-white' : 'border border-surface-high bg-white text-muted'}`}>
-                            <item.icon className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <div className="mb-1 text-xs font-bold text-brand-primary">{item.label}</div>
-                            <div className="text-sm font-medium leading-6 text-ink">{item.title}</div>
-                            {item.tone === 'project' && (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {(latestProject?.stack ?? []).map((stack) => (
-                                  <span key={stack} className="rounded border border-surface-high bg-surface px-2 py-1 text-xs text-muted">{stack}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="space-y-2">
+                    <div className="stream-bar h-2 w-[74%] bg-surface-high" />
+                    <div className="stream-bar stream-bar-delay-1 h-2 w-[50%] bg-surface-high" />
+                    <div className="stream-bar stream-bar-delay-2 h-2 w-[82%] bg-ink" />
+                    <div className="stream-bar stream-bar-delay-3 h-2 w-full bg-surface-high" />
+                  </div>
+                  <div className="mt-16 min-h-[160px] border-l border-outline-soft pl-4 text-sm leading-7 text-ink md:min-h-[220px]">
+                    <div className="typing-line">collecting_ai_news()</div>
+                    <div className="mt-3 text-muted">summarize.kr()</div>
+                    <div className="text-muted">rank_open_source()</div>
+                    <div className="text-muted">generate_project_idea()</div>
+                  </div>
+                  <div className="mt-8 inline-flex bg-ink px-3 py-2 text-xs font-bold uppercase text-white">
+                    PROCESSING...
+                  </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </section>
 
-        {user && (
-          <section className="border-b border-outline-soft/60 bg-surface py-16">
-            <div className="mx-auto max-w-[1280px] px-4 md:px-10">
-              <div className="mb-6 flex items-end justify-between gap-4">
-                <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                    <Sparkles className="h-4 w-4" />
-                    오늘 할 일
-                  </div>
-                  <h2 className="text-3xl font-bold text-ink">맞춤 추천으로 이어보기</h2>
-                  <p className="mt-2 text-muted">관심사와 저장한 흐름을 기준으로 오늘 읽고 만들어볼 항목을 먼저 보여드립니다.</p>
-                </div>
-                <Link href="/news" className="text-sm font-bold text-brand-primary hover:underline">전체 아티클</Link>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
-                <div className="rounded-xl border border-outline-soft bg-white p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h3 className="font-bold text-ink">오늘 읽기</h3>
-                    <span className="rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-brand-primary">{recommendedNews.length}개</span>
-                  </div>
-                  <div className="space-y-3">
-                    {recommendedNews.slice(0, 3).map((item) => (
-                      <Link key={item.id} href={`/news/${item.id}`} className="group block rounded-lg border border-outline-soft bg-surface-lowest p-4 hover:border-brand-primary">
-                        <div className="mb-1 text-xs font-bold text-brand-primary">{item.category ?? '아티클'}</div>
-                        <h4 className="line-clamp-2 text-sm font-bold leading-5 text-ink group-hover:text-brand-primary">{item.title}</h4>
-                        {item.summary && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{item.summary}</p>}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-outline-soft bg-white p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h3 className="font-bold text-ink">저장한 것</h3>
-                    <span className="rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-brand-primary">{userScraps.length}개</span>
-                  </div>
-                  <div className="space-y-3">
-                    {userScraps.slice(0, 3).map((item) => (
-                      <Link key={item.id} href={`/scrap/${item.id}`} className="block rounded-lg border border-outline-soft bg-surface-lowest p-4 transition-colors hover:border-brand-primary">
-                        <div className="mb-1 text-xs font-bold text-brand-primary">{SAVED_TYPE_LABELS[item.item_type] ?? item.item_type}</div>
-                        <h4 className="line-clamp-2 text-sm font-bold leading-5 text-ink">{item.title}</h4>
-                      </Link>
-                    ))}
-                    {!userScraps.length && (
-                      <Link href="/news" className="block rounded-lg border border-dashed border-outline-soft bg-surface-lowest p-4 text-sm leading-6 text-muted hover:border-brand-primary">
-                        읽다가 중요한 콘텐츠를 저장하면 이 칸에서 바로 이어볼 수 있습니다.
-                      </Link>
-                    )}
-                  </div>
-                  {!!Object.keys(savedCounts).length && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {Object.entries(savedCounts).slice(0, 4).map(([type, count]) => (
-                        <span key={type} className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-muted">
-                          {SAVED_TYPE_LABELS[type] ?? type} {count}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-outline-soft bg-white p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h3 className="font-bold text-ink">바로 만들기</h3>
-                    <span className="rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-brand-primary">프로젝트</span>
-                  </div>
-                  {latestProject ? (
-                    <Link href={`/projects/${latestProject.id}`} className="group block rounded-lg border border-outline-soft bg-surface-lowest p-4 hover:border-brand-primary">
-                      <div className="mb-2 text-xs font-bold text-brand-primary">{latestProject.level ?? '추천'}</div>
-                      <h4 className="text-base font-bold leading-6 text-ink group-hover:text-brand-primary">{cleanProjectTitle(latestProject.title)}</h4>
-                      {latestProject.description && <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{latestProject.description}</p>}
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {(latestProject.stack ?? []).slice(0, 4).map((stack) => (
-                          <span key={stack} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-muted">{stack}</span>
-                        ))}
-                      </div>
-                    </Link>
-                  ) : (
-                    <Link href="/projects" className="block rounded-lg border border-dashed border-outline-soft bg-surface-lowest p-4 text-sm leading-6 text-muted hover:border-brand-primary">
-                      프로젝트 데이터를 넣으면 오늘 바로 만들 후보가 표시됩니다.
-                    </Link>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="border-b border-outline-soft/60 bg-white py-16">
-          <div className="mx-auto grid max-w-[1280px] gap-6 px-4 md:px-10 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-xl border border-outline-soft bg-surface p-5 md:p-6">
-              <div className="mb-5 flex items-end justify-between gap-4 border-b border-outline-soft pb-4">
-                <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                    <TrendingUp className="h-4 w-4" />
-                    Weekly Popular
-                  </div>
-                  <h2 className="text-2xl font-bold text-ink">이번 주 인기 글</h2>
-                </div>
-                <Link href="/news?tab=popular" className="text-sm font-bold text-brand-primary hover:underline">전체 보기</Link>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
+        <section className="border-b border-outline-soft bg-white py-16">
+          <div className="mx-auto grid max-w-6xl gap-6 px-4 md:px-8 lg:grid-cols-5">
+            <div className="border border-outline-soft bg-surface p-5 md:p-6 lg:col-span-3">
+              <DevSectionHeader
+                eyebrow="weekly_popular"
+                title="이번 주 인기 글"
+                action={<Link href="/news?tab=popular" className="text-xs font-bold uppercase text-ink hover:underline">전체 보기</Link>}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
                 {popularNews.map((item, index) => (
-                  <Link key={item.id} href={`/news/${item.id}`} className="group rounded-lg border border-outline-soft bg-white p-4 transition-all hover:border-brand-primary/50 hover:shadow-[0_10px_30px_rgba(25,28,29,0.06)]">
+                  <Link key={item.id} href={`/news/${item.id}`} className="group border border-outline-soft bg-white p-4 transition-colors hover:border-ink">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <span className="rounded-full bg-brand-primary px-2.5 py-1 text-xs font-bold text-white">#{index + 1}</span>
-                      <span className="text-xs font-bold text-muted">{item.category ?? 'Article'}</span>
+                      <DevTag active>#{index + 1}</DevTag>
+                      <span className="text-xs font-bold uppercase text-muted">{item.category ?? 'Article'}</span>
                     </div>
-                    <h3 className="line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-brand-primary">{item.title}</h3>
+                    <h3 className="line-clamp-2 text-lg font-black leading-snug text-ink group-hover:underline">{item.title}</h3>
                     {item.summary && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{item.summary}</p>}
                   </Link>
                 ))}
                 {!popularNews.length && (
-                  <div className="rounded-lg border border-outline-soft bg-white p-4 text-sm leading-6 text-muted md:col-span-2">
+                  <div className="border border-outline-soft bg-white p-4 text-sm leading-6 text-muted md:col-span-2">
                     RSS 수집을 실행하면 이번 주 인기 글이 표시됩니다.
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-xl border border-outline-soft bg-surface p-5 md:p-6">
-              <div className="mb-5 flex items-end justify-between gap-4 border-b border-outline-soft pb-4">
-                <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                    <Bookmark className="h-4 w-4" />
-                    내 보관함
-                  </div>
-                  <h2 className="text-2xl font-bold text-ink">최근 저장한 콘텐츠</h2>
-                </div>
-                <Link href="/scrap" className="text-sm font-bold text-brand-primary hover:underline">내 보관함</Link>
-              </div>
-              {user ? (
-                <div className="space-y-3">
-                  {userScraps.slice(0, 4).map((item) => (
-                    <Link key={item.id} href={`/scrap/${item.id}`} className="block rounded-lg border border-outline-soft bg-white p-4 transition-colors hover:border-brand-primary">
-                      <div className="mb-1 text-xs font-bold text-brand-primary">{item.tag ?? item.item_type}</div>
-                      <h3 className="line-clamp-2 text-sm font-bold leading-5 text-ink">{item.title}</h3>
-                    </Link>
-                  ))}
-                  {!userScraps.length && (
-                    <div className="rounded-lg border border-outline-soft bg-white p-4 text-sm leading-6 text-muted">
-                      마음에 드는 아티클이나 프로젝트를 저장하면 여기에 표시됩니다.
+            <div className="border border-outline-soft bg-surface p-5 md:p-6 lg:col-span-2">
+              <DevSectionHeader
+                eyebrow="service_overview"
+                title="Seedup은 이런 서비스입니다"
+                description="개발자가 매일 쏟아지는 기술 정보를 놓치지 않도록 수집, 요약, 해석, 실행 아이디어까지 이어줍니다."
+              />
+              <div className="space-y-3">
+                {[
+                  ['01', '기술 정보 수집', 'AI, 오픈소스, 논문, 개발 트렌드를 한 곳에 모읍니다.'],
+                  ['02', '한국어 요약', '초보자도 맥락을 이해할 수 있게 쉬운 설명으로 바꿉니다.'],
+                  ['03', '실행으로 연결', '읽은 내용을 만들 수 있는 프로젝트 아이디어와 학습 방향으로 정리합니다.'],
+                ].map(([step, title, desc]) => (
+                      <div key={step} className="grid grid-cols-[2.75rem_1fr] gap-4 border border-outline-soft bg-white p-4">
+                    <div className="flex h-9 w-9 items-center justify-center bg-ink text-xs font-black text-white">{step}</div>
+                    <div>
+                      <h3 className="text-sm font-black text-ink">{title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-muted">{desc}</p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-outline-soft bg-white p-4 text-sm leading-6 text-muted">
-                  로그인하면 관심 있는 글과 프로젝트를 저장해서 이어서 볼 수 있습니다.
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="border-b border-outline-soft/60 bg-surface py-16">
-          <div className="mx-auto grid max-w-[1280px] gap-6 px-4 md:px-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <section className="border-b border-outline-soft bg-surface py-16">
+          <div className="mx-auto grid max-w-6xl gap-6 px-4 md:px-8 lg:grid-cols-2 lg:items-center">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
+              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase text-muted">
                 <Lightbulb className="h-4 w-4" />
-                Idea Evaluation
+                idea_evaluation
               </div>
-              <h2 className="text-3xl font-bold leading-tight text-ink">만들고 싶은 아이디어가 있나요?</h2>
+              <h2 className="text-3xl font-black leading-tight text-ink">만들고 싶은 아이디어가 있나요?</h2>
               <p className="mt-3 max-w-xl leading-7 text-muted">
                 한 문장으로 적으면 타깃 사용자, 핵심 기능, 난이도, 추천 기술 스택, 7일 실행 방향으로 이어서 정리해드립니다.
               </p>
             </div>
-            <div className="rounded-xl border border-outline-soft bg-white p-5 shadow-sm">
-              <form action="/ideas" className="space-y-4">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold text-ink">아이디어 입력</span>
-                  <textarea
-                    name="idea"
-                    rows={4}
-                    placeholder="예: AI로 개발 뉴스를 요약해서 슬랙으로 보내주는 봇을 만들고 싶어요."
-                    className="w-full resize-none rounded-lg border border-outline-soft bg-surface-lowest px-4 py-3 text-sm leading-7 text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-brand-primary focus:bg-white"
-                  />
-                </label>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2 text-xs font-semibold text-muted">
-                    <span className="rounded-full bg-surface px-2.5 py-1">포트폴리오 가치</span>
-                    <span className="rounded-full bg-surface px-2.5 py-1">추천 스택</span>
-                    <span className="rounded-full bg-surface px-2.5 py-1">7일 플랜</span>
-                  </div>
-                  <button type="submit" className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-                    아이디어 평가받기
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
+            <div className="border border-outline-soft bg-white p-5">
+              <div className="border border-outline-soft bg-surface-lowest p-4">
+                <div className="mb-3 text-xs font-bold uppercase text-muted">input_preview</div>
+                <div className="min-h-24 border border-outline-soft bg-white p-4 text-sm leading-7 text-ink">
+                  <span className="typing-line">AI로 개발 뉴스를 요약해서 슬랙으로 보내주는 봇</span>
                 </div>
-              </form>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                {[
+                  ['가치', '팀 지식 공유 자동화'],
+                  ['스택', 'Next.js / Slack API'],
+                  ['플랜', '7일 MVP 빌드'],
+                ].map(([label, value]) => (
+                  <div key={label} className="border border-outline-soft bg-surface p-3">
+                    <div className="text-xs font-bold uppercase text-muted">{label}</div>
+                    <div className="mt-2 text-sm font-black leading-5 text-ink">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-outline-soft pt-4">
+                <div className="flex flex-wrap gap-2">
+                  <DevTag>Demo Output</DevTag>
+                  <DevTag>Login Required</DevTag>
+                </div>
+                <Link href="/login" className="inline-flex h-11 items-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90">
+                  로그인하고 평가받기
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
             </div>
           </div>
         </section>
 
         {!!researchPapers.length && (
-          <section className="border-b border-outline-soft/60 bg-surface py-16">
-            <div className="mx-auto max-w-[1280px] px-4 md:px-10">
-              <div className="mb-8 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                    <FileText className="h-4 w-4" />
-                    Research Brief
-                  </div>
-                  <h2 className="text-3xl font-bold text-ink">이번 주 집중해야 할 논문</h2>
-                  <p className="mt-2 text-muted">원문 대신 한국어 요약과 구현 아이디어를 먼저 확인하세요.</p>
-                </div>
-                <Link href="/news" className="text-sm font-bold text-brand-primary hover:underline">아티클에서 보기</Link>
-              </div>
+          <section className="border-b border-outline-soft bg-surface py-16">
+            <div className="mx-auto max-w-6xl px-4 md:px-8">
+              <DevSectionHeader
+                eyebrow="research_brief"
+                title="이번 주 집중해야 할 논문"
+                description="원문 대신 한국어 요약과 구현 아이디어를 먼저 확인하세요."
+                action={<Link href="/news" className="text-xs font-bold uppercase text-ink hover:underline">아티클에서 보기</Link>}
+              />
               <div className="grid gap-4 md:grid-cols-3">
                 {researchPapers.slice(0, 3).map((paper) => (
-                  <article key={paper.id} className="rounded-xl border border-outline-soft bg-white p-5">
-                    <div className="mb-3 inline-flex rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-brand-primary">{paper.review_type ?? '논문 리뷰'}</div>
-                    <h3 className="line-clamp-2 text-lg font-bold leading-snug text-ink">{paper.title}</h3>
+                  <article key={paper.id} className="border border-outline-soft bg-white p-5">
+                    <div className="mb-3"><DevTag>{paper.review_type ?? '논문 리뷰'}</DevTag></div>
+                    <h3 className="line-clamp-2 text-lg font-black leading-snug text-ink">{paper.title}</h3>
                     {paper.beginner_summary && <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{paper.beginner_summary}</p>}
                     {paper.paper_url && (
-                      <Link href={paper.paper_url} target="_blank" className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-brand-primary">
+                      <Link href={paper.paper_url} target="_blank" className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-ink hover:underline">
                         원문 보기
                         <ArrowRight className="h-4 w-4" />
                       </Link>
@@ -432,19 +517,20 @@ export default async function Home() {
           </section>
         )}
 
-        <section className="border-b border-outline-soft/60 bg-white py-20">
-          <div className="mx-auto max-w-[1280px] px-4 md:px-10">
-            <div className="mb-12">
-              <h2 className="text-3xl font-semibold text-ink">How it works</h2>
-              <p className="mt-2 text-muted">복잡한 기술 뉴스가 당신의 포트폴리오로 변하는 과정</p>
-            </div>
+        <section className="border-b border-outline-soft bg-white py-20">
+          <div className="mx-auto max-w-6xl px-4 md:px-8">
+            <DevSectionHeader
+              eyebrow="pipeline"
+              title="How it works"
+              description="복잡한 기술 뉴스가 당신의 포트폴리오로 변하는 과정"
+            />
             <div className="grid gap-4 md:grid-cols-5">
               {STEPS.map((step, index) => (
-                <div key={step.title} className="rounded-lg border border-outline-soft/70 bg-surface p-5">
-                  <div className={`mb-6 flex h-14 w-14 items-center justify-center rounded-full ${index === STEPS.length - 1 ? 'bg-brand-primary text-white' : 'border border-outline-soft bg-white text-ink'}`}>
+                <div key={step.title} className="border border-outline-soft bg-surface p-5">
+                  <div className={`mb-6 flex h-12 w-12 items-center justify-center border ${index === STEPS.length - 1 ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-ink'}`}>
                     <step.icon className="h-6 w-6" />
                   </div>
-                  <h3 className="font-semibold text-ink">{step.title}</h3>
+                  <h3 className="font-black text-ink">{step.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-muted">{step.desc}</p>
                 </div>
               ))}

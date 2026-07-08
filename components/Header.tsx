@@ -2,12 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Menu, X, UserCircle } from 'lucide-react';
+import { Search, Menu, X, UserCircle, TerminalSquare } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const NAV_LINKS = [
+const GUEST_NAV_LINKS = [
+  { name: '아티클', href: '/news' },
+  { name: '오픈소스', href: '/github-trends' },
+  { name: 'AI 제품', href: '/ai-products' },
+  { name: '트렌드', href: '/trends' },
+];
+
+const MEMBER_NAV_LINKS = [
   { name: '트렌드', href: '/trends' },
   { name: '아티클', href: '/news' },
   { name: '오픈소스', href: '/github-trends' },
@@ -65,30 +72,32 @@ export default function Header() {
     router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
     setIsMobileMenuOpen(false);
   };
+  const navLinks = isLoggedIn ? MEMBER_NAV_LINKS : GUEST_NAV_LINKS;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-outline-soft/70 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-4 md:px-8">
+    <header className="sticky top-0 z-50 border-b border-ink bg-white/95 backdrop-blur">
+      <div className="mx-auto flex h-14 w-full max-w-[1480px] items-center justify-between px-4 md:px-10">
         <div className="flex h-full items-center gap-7 lg:gap-9">
-          <Link href="/" className="text-xl font-black tracking-tight text-brand-primary">
+          <Link href="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-ink">
+            <TerminalSquare className="h-5 w-5" />
             Seedup
           </Link>
           
           <nav className="hidden h-full items-center gap-5 lg:flex">
-            {NAV_LINKS.map((link) => {
+            {navLinks.map((link) => {
               const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
               
               return (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`relative inline-flex h-full items-center px-1 text-sm font-semibold transition-colors ${
-                    isActuallyActive ? 'text-brand-primary' : 'text-[#5f5e5e] hover:text-brand-primary'
+                  className={`relative inline-flex h-full items-center px-1 text-xs font-bold uppercase transition-colors ${
+                    isActuallyActive ? 'text-ink' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {link.name}
                   {isActuallyActive && (
-                    <span className="absolute bottom-0 left-0 h-[2px] w-full bg-brand-primary" />
+                    <span className="absolute bottom-0 left-0 h-[2px] w-full bg-ink" />
                   )}
                 </Link>
               );
@@ -99,30 +108,30 @@ export default function Header() {
         <div className="hidden items-center gap-3 md:flex">
           <form onSubmit={handleSearch} className="relative">
             <label htmlFor={desktopSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
               id={desktopSearchId}
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="검색"
-              className="w-40 rounded-full border border-outline-soft/50 bg-surface-low py-2 pl-9 pr-4 text-sm outline-none transition-all placeholder:text-muted/70 focus:w-52 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
+              className="w-40 border border-outline-soft bg-white py-2 pl-9 pr-4 text-xs font-bold outline-none transition-all placeholder:text-muted/70 focus:w-52 focus:border-ink"
             />
           </form>
           {isLoggedIn ? (
             <>
               {isAdmin && (
-                <Link href="/admin/ingest" className="rounded-full border border-outline-soft px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-brand-primary hover:text-brand-primary">
+                <Link href="/admin/ingest" className="border border-outline-soft px-4 py-2 text-xs font-bold uppercase text-ink transition-colors hover:border-ink">
                   관리
                 </Link>
               )}
-              <Link href="/profile" className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
+              <Link href="/profile" className="inline-flex items-center gap-2 bg-ink px-4 py-2 text-xs font-bold uppercase text-white transition-opacity hover:opacity-90">
                 <UserCircle className="h-4 w-4" />
                 프로필
               </Link>
             </>
           ) : (
-            <Link href="/login" className="rounded-full bg-brand-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
+            <Link href="/login" className="bg-ink px-4 py-2 text-xs font-bold uppercase text-white transition-opacity hover:opacity-90">
               로그인
             </Link>
           )}
@@ -130,7 +139,7 @@ export default function Header() {
 
         <button 
           type="button"
-          className="text-muted lg:hidden"
+          className="text-ink lg:hidden"
           aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
           aria-controls={mobileMenuId}
           aria-expanded={isMobileMenuOpen}
@@ -141,21 +150,21 @@ export default function Header() {
       </div>
 
       {isMobileMenuOpen && (
-        <div id={mobileMenuId} className="absolute left-0 top-14 flex w-full flex-col gap-4 border-b border-outline-soft/70 bg-white p-4 shadow-lg lg:hidden">
+        <div id={mobileMenuId} className="absolute left-0 top-14 flex w-full flex-col gap-4 border-b border-ink bg-white p-4 shadow-lg lg:hidden">
           <form onSubmit={handleSearch} className="relative w-full">
             <label htmlFor={mobileSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
               id={mobileSearchId}
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="검색"
-              className="w-full rounded-full border border-outline-soft/60 bg-surface-low py-2 pl-9 pr-4 text-sm outline-none focus:border-brand-primary"
+              className="w-full border border-outline-soft bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-ink"
             />
           </form>
           <nav className="flex flex-col gap-1" aria-label="모바일 주요 메뉴">
-            {NAV_LINKS.map((link) => {
+            {navLinks.map((link) => {
               const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
               
               return (
@@ -163,8 +172,8 @@ export default function Header() {
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`block rounded-lg p-3 text-sm font-medium ${
-                    isActuallyActive ? 'bg-brand-primary/10 text-brand-primary' : 'text-muted'
+                  className={`block border p-3 text-sm font-bold ${
+                    isActuallyActive ? 'border-ink bg-ink text-white' : 'border-outline-soft text-muted'
                   }`}
                 >
                   {link.name}
@@ -175,16 +184,16 @@ export default function Header() {
           {isLoggedIn ? (
             <>
               {isAdmin && (
-                <Link href="/admin/ingest" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 w-full rounded-full border border-outline-soft py-2 text-center text-sm font-medium text-ink">
+                <Link href="/admin/ingest" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 w-full border border-outline-soft py-2 text-center text-sm font-bold text-ink">
                   관리
                 </Link>
               )}
-              <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="w-full rounded-full bg-ink py-2 text-center text-sm font-medium text-white">
+              <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="w-full bg-ink py-2 text-center text-sm font-bold text-white">
                 프로필
               </Link>
             </>
           ) : (
-            <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 w-full rounded-full bg-brand-primary py-2 text-center text-sm font-medium text-white">
+            <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 w-full bg-ink py-2 text-center text-sm font-bold text-white">
               로그인
             </Link>
           )}

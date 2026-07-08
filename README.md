@@ -264,3 +264,62 @@ For production, add scheduled ingestion after hosting. The recommended order is:
 5. Project idea generation
 
 On Vercel, this can be done with Vercel Cron Jobs calling the protected ingestion URLs with `INGEST_SECRET`.
+
+## Cloudflare Workers Deployment
+
+This project is configured for Cloudflare Workers using the Cloudflare OpenNext adapter.
+
+Cloudflare files:
+
+- `wrangler.jsonc`
+- `open-next.config.ts`
+
+Useful commands:
+
+```bash
+npm run preview
+npm run deploy
+```
+
+Before deploying, log in to Cloudflare:
+
+```bash
+npx wrangler login
+npx wrangler whoami
+```
+
+If login is difficult in a non-interactive terminal, create a Cloudflare API token and set it locally:
+
+```bash
+export CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
+npm run deploy
+```
+
+Set these variables in Cloudflare Workers `Settings > Variables and Secrets`:
+
+```txt
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+OPENROUTER_API_KEY
+OPENROUTER_MODEL
+NEXT_PUBLIC_SITE_URL
+GITHUB_TOKEN
+INGEST_SECRET
+ADMIN_EMAILS
+NEXT_PUBLIC_ADMIN_EMAILS
+RESEND_API_KEY
+NEWSLETTER_FROM_EMAIL
+```
+
+After deployment, update:
+
+```txt
+NEXT_PUBLIC_SITE_URL=https://your-worker-or-custom-domain
+```
+
+Also add the deployed callback URL in Supabase Google Auth settings:
+
+```txt
+https://your-worker-or-custom-domain/auth/callback
+```

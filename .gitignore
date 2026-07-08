@@ -3,6 +3,7 @@ node_modules/
 
 # Next.js
 .next/
+.open-next/
 out/
 
 # production
@@ -13,6 +14,10 @@ dist/
 .env
 .env.*
 !.env.example
+
+# deploy tool output
+.vercel/
+cloudflare-env.d.ts
 
 # system files
 .DS_Store

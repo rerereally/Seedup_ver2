@@ -40,7 +40,7 @@ function detailSummary(detail: Record<string, unknown> | null) {
   return pairs.length ? pairs.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
 }
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string }> }) {
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   if (!data.user) redirect('/login');
@@ -78,7 +78,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                   ? `뉴스레터 발송을 완료했습니다. 발송 대상: ${params.sent ?? 0}명`
                   : params.newsletter === 'no-recipients'
                     ? '뉴스레터 구독자가 없습니다.'
-                    : '뉴스레터 발송에 실패했습니다. RESEND_API_KEY, NEWSLETTER_FROM_EMAIL, SUPABASE_SERVICE_ROLE_KEY를 확인하세요.'
+                    : `뉴스레터 발송에 실패했습니다.${params.reason ? ` 사유: ${params.reason}` : ' RESEND_API_KEY, NEWSLETTER_FROM_EMAIL, SUPABASE_SERVICE_ROLE_KEY를 확인하세요.'}`
                 : params.status === 'success'
                   ? `${params.target ?? '수집'} 실행을 요청했습니다. 최근 실행 로그를 확인하세요.`
                   : '수집 실행 요청에 실패했습니다. 환경 변수와 서버 로그를 확인하세요.'}

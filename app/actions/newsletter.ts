@@ -13,6 +13,10 @@ type Recipient = {
   newsletter_subscribed: boolean | null;
 };
 
+function errorParam(message: string) {
+  return encodeURIComponent(message.replace(/\s+/g, ' ').slice(0, 180));
+}
+
 export async function sendManualNewsletter() {
   const supabase = await createClient();
   if (!supabase) redirect('/login');
@@ -75,6 +79,21 @@ export async function sendManualNewsletter() {
     cache: 'no-store',
   });
 
+  if (!response.ok) {
+    const raw = await response.text();
+    let message = raw;
+
+    try {
+      const json = JSON.parse(raw) as { message?: string; error?: string; name?: string };
+      message = json.message ?? json.error ?? json.name ?? raw;
+    } catch {
+      // Resend normally returns JSON, but keep the raw text if it does not.
+    }
+
+    revalidatePath('/admin/ingest');
+    redirect(`/admin/ingest?newsletter=failed&sent=${to.length}&reason=${errorParam(message || `Resend ${response.status}`)}`);
+  }
+
   revalidatePath('/admin/ingest');
-  redirect(`/admin/ingest?newsletter=${response.ok ? 'success' : 'failed'}&sent=${to.length}`);
+  redirect(`/admin/ingest?newsletter=success&sent=${to.length}`);
 }

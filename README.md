@@ -85,6 +85,8 @@ Main tables:
 - `news_items`
 - `ai_products`
 - `github_trends`
+- `research_papers`
+- `news_paper_links`
 - `project_ideas`
 - `trends`
 - `keyword_signals`
@@ -139,6 +141,7 @@ Run these in order. Replace `BootCamp` with your `INGEST_SECRET` value and use `
 http://localhost:3000/api/ingest/rss?secret=BootCamp&limit=5
 http://localhost:3000/api/ingest/products?secret=BootCamp&limit=10
 http://localhost:3000/api/ingest/github?secret=BootCamp&limit=5
+http://localhost:3000/api/ingest/research?secret=BootCamp&limit=12
 http://localhost:3000/api/ingest/trends?secret=BootCamp
 http://localhost:3000/api/ingest/project-ideas?secret=BootCamp&limit=10
 ```
@@ -148,8 +151,9 @@ Expected order:
 1. `rss`: fills `news_items`
 2. `products`: fills `ai_products`
 3. `github`: fills `github_trends`
-4. `trends`: writes `keyword_signals`, `trend_snapshots`, and updates `trends`
-5. `project-ideas`: fills `project_ideas`
+4. `research`: fills `research_papers` and `news_paper_links`
+5. `trends`: writes `keyword_signals`, `trend_snapshots`, and updates `trends`
+6. `project-ideas`: fills `project_ideas`
 
 A successful trend response looks like:
 
@@ -260,10 +264,38 @@ For production, add scheduled ingestion after hosting. The recommended order is:
 1. RSS ingestion
 2. Product ingestion
 3. GitHub ingestion
-4. Trend aggregation
-5. Project idea generation
+4. Research paper reviews
+5. Trend aggregation
+6. Project idea generation
 
 On Vercel, this can be done with Vercel Cron Jobs calling the protected ingestion URLs with `INGEST_SECRET`.
+
+## Research Paper Reviews
+
+Seedup can collect AI/developer research papers and turn them into news-like internal content.
+
+Current sources:
+
+```txt
+arXiv API: https://export.arxiv.org/api/query
+Papers with Code API: https://paperswithcode.com/api/v1/papers/
+Hugging Face Papers: https://huggingface.co/papers
+```
+
+Manual run:
+
+```bash
+curl -X POST "http://localhost:3001/api/ingest/research?secret=YOUR_INGEST_SECRET&limit=12"
+```
+
+What it fills:
+
+```txt
+research_papers
+news_paper_links
+```
+
+The news page shows a `Seedup 논문 리뷰` section, and each news detail page can show related paper reviews in the right sidebar.
 
 ## Cloudflare Workers Deployment
 

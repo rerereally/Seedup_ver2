@@ -10,6 +10,7 @@ const INGEST_PATHS = {
   rss: '/api/ingest/rss?limit=5',
   products: '/api/ingest/products?limit=10',
   github: '/api/ingest/github?limit=5',
+  research: '/api/ingest/research?limit=12',
   trends: '/api/ingest/trends',
   'project-ideas': '/api/ingest/project-ideas?limit=10',
 } as const;
@@ -52,7 +53,7 @@ export async function runFullIngest() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const order: IngestKey[] = ['rss', 'products', 'github', 'trends', 'project-ideas'];
+  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'trends', 'project-ideas'];
 
   for (const target of order) {
     const formData = new FormData();

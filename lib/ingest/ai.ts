@@ -54,6 +54,25 @@ export type IdeaEvaluation = {
   next_steps: string[];
 };
 
+export type PaperAnalysis = {
+  relevance_score: number;
+  review_type: string;
+  beginner_summary: string;
+  expert_summary: string;
+  why_it_matters: string;
+  key_points: string[];
+  related_skills: string[];
+  implementation_idea: string;
+  service_idea: string;
+  difficulty: string;
+  target_reader: string;
+  trend_score: number;
+  buildability_score: number;
+  beginner_score: number;
+  business_score: number;
+  research_depth_score: number;
+};
+
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 export async function analyzeNews(input: { title: string; content: string; source: string }) {
@@ -181,6 +200,62 @@ content: ${truncate(input.content, 2500)}`,
     return { analysis: { ...fallback, ...result }, model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
   } catch (error) {
     console.error('OpenRouter product analysis failed', error);
+    return { analysis: fallback, model: null };
+  }
+}
+
+export async function analyzePaper(input: {
+  title: string;
+  abstract: string;
+  authors: string[];
+  categories: string[];
+  source: string;
+  hasCode: boolean;
+}) {
+  const fallback = buildFallbackPaperAnalysis(input);
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) return { analysis: fallback, model: null };
+
+  try {
+    const result = await callOpenRouter<PaperAnalysis>(apiKey, [
+      { role: 'system', content: '너는 초보 개발자와 제품 빌더를 위한 AI/개발 논문 리뷰어다. 논문을 만들 수 있는 프로젝트와 서비스 아이디어로 바꾼다. 반드시 JSON만 반환한다.' },
+      {
+        role: 'user',
+        content: `아래 논문을 Seedup 자체 콘텐츠로 리뷰하라.
+
+출력 JSON:
+{
+  "relevance_score": 0,
+  "review_type": "오늘 볼만한 논문 | 이번 주 집중해야 할 논문 | 코드가 공개된 논문 | 서비스 아이디어로 연결 가능한 논문 | 초보 개발자도 이해할 만한 논문 | 연구자용 고난도 논문",
+  "beginner_summary": "초보자용 쉬운 설명",
+  "expert_summary": "연구자/실무자용 요약",
+  "why_it_matters": "왜 지금 봐야 하는지",
+  "key_points": ["핵심 1", "핵심 2", "핵심 3"],
+  "related_skills": ["기술"],
+  "implementation_idea": "작게 구현할 수 있는 프로젝트",
+  "service_idea": "서비스 아이디어",
+  "difficulty": "초급 | 중급 | 고급 | 연구자",
+  "target_reader": "추천 독자",
+  "trend_score": 0,
+  "buildability_score": 0,
+  "beginner_score": 0,
+  "business_score": 0,
+  "research_depth_score": 0
+}
+
+source: ${input.source}
+title: ${input.title}
+authors: ${input.authors.join(', ')}
+categories: ${input.categories.join(', ')}
+has_code: ${input.hasCode}
+abstract: ${truncate(input.abstract, 5000)}`,
+      },
+    ]);
+
+    return { analysis: normalizePaperAnalysis(result, fallback), model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+  } catch (error) {
+    console.error('OpenRouter paper analysis failed', error);
     return { analysis: fallback, model: null };
   }
 }
@@ -370,4 +445,64 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
     risks: Array.isArray(result.risks) ? result.risks : fallback.risks,
     next_steps: Array.isArray(result.next_steps) ? result.next_steps : fallback.next_steps,
   };
+}
+
+function buildFallbackPaperAnalysis(input: { title: string; abstract: string; categories: string[]; hasCode: boolean }): PaperAnalysis {
+  const beginnerScore = input.abstract.length < 1200 ? 72 : 54;
+  const buildabilityScore = input.hasCode ? 82 : 62;
+  const businessScore = /agent|rag|retrieval|tool|workflow|code|ui|app|search|automation/i.test(`${input.title} ${input.abstract}`) ? 78 : 56;
+  const researchDepthScore = /theorem|proof|optimization|benchmark|architecture|training|loss/i.test(input.abstract) ? 82 : 60;
+  const reviewType = input.hasCode
+    ? '코드가 공개된 논문'
+    : beginnerScore >= 70
+      ? '초보 개발자도 이해할 만한 논문'
+      : businessScore >= 70
+        ? '서비스 아이디어로 연결 가능한 논문'
+        : researchDepthScore >= 80
+          ? '연구자용 고난도 논문'
+          : '오늘 볼만한 논문';
+
+  return {
+    relevance_score: 65,
+    review_type: reviewType,
+    beginner_summary: fallbackSummary(input.title, input.abstract),
+    expert_summary: fallbackSummary(input.title, input.abstract),
+    why_it_matters: 'AI와 개발 트렌드를 이해하고 작은 구현 프로젝트로 연결할 수 있는 연구입니다.',
+    key_points: [input.title, fallbackSummary(input.title, input.abstract), input.categories.join(', ') || 'AI/CS research'],
+    related_skills: ['Paper Reading', 'AI', 'Prototype'],
+    implementation_idea: `${input.title.slice(0, 48)} 기반 미니 데모 만들기`,
+    service_idea: '논문 아이디어를 활용한 개발자 생산성 도구 만들기',
+    difficulty: beginnerScore >= 70 ? '중급' : '고급',
+    target_reader: beginnerScore >= 70 ? '초보 개발자와 제품 빌더' : 'AI 구현 경험이 있는 개발자',
+    trend_score: 65,
+    buildability_score: buildabilityScore,
+    beginner_score: beginnerScore,
+    business_score: businessScore,
+    research_depth_score: researchDepthScore,
+  };
+}
+
+function normalizePaperAnalysis(result: Partial<PaperAnalysis>, fallback: PaperAnalysis): PaperAnalysis {
+  return {
+    relevance_score: clampScore(result.relevance_score ?? fallback.relevance_score),
+    review_type: result.review_type ?? fallback.review_type,
+    beginner_summary: result.beginner_summary ?? fallback.beginner_summary,
+    expert_summary: result.expert_summary ?? fallback.expert_summary,
+    why_it_matters: result.why_it_matters ?? fallback.why_it_matters,
+    key_points: Array.isArray(result.key_points) ? result.key_points : fallback.key_points,
+    related_skills: Array.isArray(result.related_skills) ? result.related_skills : fallback.related_skills,
+    implementation_idea: result.implementation_idea ?? fallback.implementation_idea,
+    service_idea: result.service_idea ?? fallback.service_idea,
+    difficulty: result.difficulty ?? fallback.difficulty,
+    target_reader: result.target_reader ?? fallback.target_reader,
+    trend_score: clampScore(result.trend_score ?? fallback.trend_score),
+    buildability_score: clampScore(result.buildability_score ?? fallback.buildability_score),
+    beginner_score: clampScore(result.beginner_score ?? fallback.beginner_score),
+    business_score: clampScore(result.business_score ?? fallback.business_score),
+    research_depth_score: clampScore(result.research_depth_score ?? fallback.research_depth_score),
+  };
+}
+
+function clampScore(value: unknown) {
+  return Math.max(0, Math.min(100, Number(value ?? 0)));
 }

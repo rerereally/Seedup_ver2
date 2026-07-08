@@ -2,8 +2,8 @@ import { saveScrap } from '@/app/actions/scraps';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import { getNewsItems, getScrapKeySet } from '@/lib/data';
-import { ArrowRight, Bookmark, Lightbulb, Newspaper } from 'lucide-react';
+import { getNewsItems, getResearchPapers, getScrapKeySet } from '@/lib/data';
+import { ArrowRight, Bookmark, BookOpenText, Code2, Lightbulb, Newspaper } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -14,7 +14,7 @@ function formatDate(value: string | null) {
 
 export default async function News({ searchParams }: { searchParams: Promise<{ q?: string; category?: string }> }) {
   const params = await searchParams;
-  const [news, scrapKeys] = await Promise.all([getNewsItems(), getScrapKeySet()]);
+  const [news, researchPapers, scrapKeys] = await Promise.all([getNewsItems(), getResearchPapers(6), getScrapKeySet()]);
   const query = params.q?.trim().toLowerCase() ?? '';
   const selectedCategory = params.category?.trim() ?? '';
   const categories = Array.from(new Set(news.map((item) => item.category).filter(Boolean))) as string[];
@@ -74,6 +74,52 @@ export default async function News({ searchParams }: { searchParams: Promise<{ q
                   ))}
                 </aside>
               </section>
+
+              {!!researchPapers.length && (
+                <section className="rounded-xl border border-outline-soft bg-white p-5 md:p-6">
+                  <div className="mb-5 flex flex-col gap-2 border-b border-outline-soft pb-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
+                        <BookOpenText className="h-4 w-4" />
+                        Seedup 논문 리뷰
+                      </div>
+                      <h2 className="text-2xl font-semibold text-ink">오늘 읽고 만들 거리로 바꿀 논문</h2>
+                    </div>
+                    <Link href="/admin/ingest" className="text-sm font-semibold text-brand-primary hover:underline">논문 수집 관리</Link>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {researchPapers.map((paper) => (
+                      <article key={paper.id} className="flex min-h-[260px] flex-col rounded-lg border border-surface-high bg-surface p-5">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-brand-primary px-2.5 py-1 text-xs font-bold text-white">{paper.review_type ?? '오늘 볼만한 논문'}</span>
+                          {paper.has_code && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                              <Code2 className="h-3.5 w-3.5" />
+                              코드 공개
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="line-clamp-2 text-xl font-semibold leading-snug text-ink">{paper.title}</h3>
+                        {paper.beginner_summary && <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-muted">{paper.beginner_summary}</p>}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {(paper.related_skills ?? paper.categories ?? []).slice(0, 3).map((tag) => (
+                            <span key={tag} className="rounded border border-outline-soft bg-white px-2 py-1 text-xs font-semibold text-muted">{tag}</span>
+                          ))}
+                        </div>
+                        <div className="mt-5 flex items-center justify-between border-t border-outline-soft pt-4">
+                          <span className="text-xs font-bold text-muted">빌드 가능성 {paper.buildability_score ?? '-'}</span>
+                          {paper.paper_url && (
+                            <Link href={paper.paper_url} target="_blank" className="inline-flex items-center gap-1 text-sm font-bold text-brand-primary">
+                              논문 보기
+                              <ArrowRight className="h-4 w-4" />
+                            </Link>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section className="grid gap-8 lg:grid-cols-12">
                 <div className="flex flex-col gap-6 lg:col-span-8">

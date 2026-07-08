@@ -3,17 +3,18 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import MarkdownContent from '@/components/MarkdownContent';
 import ShareButton from '@/components/ShareButton';
-import { getExistingScrap, getNewsItem } from '@/lib/data';
-import { ArrowLeft, Bookmark, CheckCircle2, ExternalLink, GraduationCap, Lightbulb } from 'lucide-react';
+import { getExistingScrap, getNewsItem, getRelatedPapersForNews } from '@/lib/data';
+import { ArrowLeft, Bookmark, BookOpenText, CheckCircle2, ExternalLink, GraduationCap, Lightbulb } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 export default async function NewsDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [item, existingScrap] = await Promise.all([
+  const [item, existingScrap, relatedPapers] = await Promise.all([
     getNewsItem(id),
     getExistingScrap('news', id),
+    getRelatedPapersForNews(id),
   ]);
 
   if (!item) notFound();
@@ -130,6 +131,39 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                   </div>
                 </div>
               </div>
+
+              {!!relatedPapers.length && (
+                <div className="mt-5 rounded-xl border border-outline-soft bg-white p-5 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2 text-sm font-bold text-brand-primary">
+                    <BookOpenText className="h-5 w-5" />
+                    관련 논문 리뷰
+                  </div>
+                  <div className="space-y-4">
+                    {relatedPapers.map((link) => {
+                      const paper = link.research_papers;
+                      if (!paper) return null;
+
+                      return (
+                        <article key={link.id} className="rounded-lg border border-surface-high bg-surface p-4">
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-brand-primary/10 px-2.5 py-1 text-xs font-bold text-brand-primary">{paper.review_type ?? '논문 리뷰'}</span>
+                            {paper.difficulty && <span className="rounded-full border border-outline-soft bg-white px-2.5 py-1 text-xs font-bold text-muted">{paper.difficulty}</span>}
+                          </div>
+                          <h3 className="line-clamp-2 text-sm font-bold leading-6 text-ink">{paper.title}</h3>
+                          {paper.beginner_summary && <p className="mt-2 line-clamp-3 text-xs leading-6 text-muted">{paper.beginner_summary}</p>}
+                          {link.relevance_reason && <p className="mt-3 border-l-2 border-brand-primary pl-3 text-xs leading-5 text-muted">{link.relevance_reason}</p>}
+                          {paper.paper_url && (
+                            <Link href={paper.paper_url} target="_blank" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-brand-primary">
+                              논문 보기
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </aside>
           </div>
         </article>

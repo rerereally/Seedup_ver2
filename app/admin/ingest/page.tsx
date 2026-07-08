@@ -14,6 +14,7 @@ const TASKS = [
   { key: 'rss', label: '뉴스 RSS 수집', description: '개발 뉴스 RSS를 파싱하고 AI 요약 후 news_items에 저장합니다.' },
   { key: 'products', label: 'AI 제품 수집', description: 'Product Hunt 피드를 분석해 ai_products에 저장합니다.' },
   { key: 'github', label: 'GitHub 트렌드 수집', description: '인기 저장소를 가져와 초보자용 리뷰와 프로젝트 아이디어를 만듭니다.' },
+  { key: 'research', label: '논문 리뷰 수집', description: 'arXiv 논문을 가져오고 Papers with Code/Hugging Face 신호를 보강해 자체 논문 리뷰를 만듭니다.' },
   { key: 'trends', label: '트렌드 집계', description: '누적 키워드 신호를 기반으로 trends와 trend_snapshots를 갱신합니다.' },
   { key: 'project-ideas', label: '프로젝트 아이디어 생성', description: '뉴스/제품/GitHub 신호를 포트폴리오 프로젝트로 변환합니다.' },
 ] as const;
@@ -85,7 +86,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
             </div>
           )}
 
-          <section className="grid gap-4 lg:grid-cols-5">
+          <section className="grid gap-4 lg:grid-cols-6">
             {TASKS.map((task) => (
               <form key={task.key} action={runManualIngest} className="rounded-xl border border-outline-soft bg-white p-5">
                 <input type="hidden" name="target" value={task.key} />

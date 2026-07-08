@@ -170,6 +170,52 @@ create table if not exists public.github_trends (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.research_papers (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  abstract text,
+  authors text[] default '{}',
+  source text,
+  source_url text,
+  paper_url text not null,
+  pdf_url text,
+  code_url text,
+  categories text[] default '{}',
+  review_type text,
+  beginner_summary text,
+  expert_summary text,
+  why_it_matters text,
+  key_points text[] default '{}',
+  related_skills text[] default '{}',
+  implementation_idea text,
+  service_idea text,
+  difficulty text,
+  target_reader text,
+  relevance_score integer,
+  trend_score integer,
+  buildability_score integer,
+  beginner_score integer,
+  business_score integer,
+  research_depth_score integer,
+  has_code boolean not null default false,
+  is_huggingface_trending boolean not null default false,
+  ai_model text,
+  processed_at timestamptz,
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.news_paper_links (
+  id uuid primary key default gen_random_uuid(),
+  news_id uuid not null references public.news_items(id) on delete cascade,
+  paper_id uuid not null references public.research_papers(id) on delete cascade,
+  relevance_reason text,
+  relevance_score integer,
+  created_at timestamptz not null default now(),
+  constraint news_paper_links_news_id_paper_id_key unique (news_id, paper_id)
+);
+
 create table if not exists public.user_onboarding (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -222,6 +268,8 @@ alter table public.scraps enable row level security;
 alter table public.idea_evaluations enable row level security;
 alter table public.user_onboarding enable row level security;
 alter table public.github_trends enable row level security;
+alter table public.research_papers enable row level security;
+alter table public.news_paper_links enable row level security;
 
 alter table public.news_items add column if not exists original_url text;
 alter table public.news_items add column if not exists raw_title text;
@@ -251,6 +299,26 @@ alter table public.ai_products add column if not exists use_cases text[] default
 alter table public.ai_products add column if not exists pricing_type text;
 alter table public.ai_products add column if not exists target_user text;
 alter table public.ai_products add column if not exists related_project_ideas text[] default '{}';
+alter table public.research_papers add column if not exists code_url text;
+alter table public.research_papers add column if not exists review_type text;
+alter table public.research_papers add column if not exists beginner_summary text;
+alter table public.research_papers add column if not exists expert_summary text;
+alter table public.research_papers add column if not exists why_it_matters text;
+alter table public.research_papers add column if not exists key_points text[] default '{}';
+alter table public.research_papers add column if not exists related_skills text[] default '{}';
+alter table public.research_papers add column if not exists implementation_idea text;
+alter table public.research_papers add column if not exists service_idea text;
+alter table public.research_papers add column if not exists difficulty text;
+alter table public.research_papers add column if not exists target_reader text;
+alter table public.research_papers add column if not exists trend_score integer;
+alter table public.research_papers add column if not exists buildability_score integer;
+alter table public.research_papers add column if not exists beginner_score integer;
+alter table public.research_papers add column if not exists business_score integer;
+alter table public.research_papers add column if not exists research_depth_score integer;
+alter table public.research_papers add column if not exists has_code boolean not null default false;
+alter table public.research_papers add column if not exists is_huggingface_trending boolean not null default false;
+alter table public.research_papers add column if not exists ai_model text;
+alter table public.research_papers add column if not exists processed_at timestamptz;
 alter table public.project_ideas add column if not exists source_type text;
 alter table public.project_ideas add column if not exists source_id uuid;
 alter table public.project_ideas add column if not exists target_user_level text;
@@ -269,6 +337,8 @@ grant select on public.ingest_runs to authenticated;
 grant select on public.ai_products to anon, authenticated;
 grant select on public.project_ideas to anon, authenticated;
 grant select on public.github_trends to anon, authenticated;
+grant select on public.research_papers to anon, authenticated;
+grant select on public.news_paper_links to anon, authenticated;
 
 grant select, insert, update, delete on public.news_items to service_role;
 grant select, insert, update, delete on public.trends to service_role;
@@ -278,6 +348,8 @@ grant select, insert, update, delete on public.ingest_runs to service_role;
 grant select, insert, update, delete on public.ai_products to service_role;
 grant select, insert, update, delete on public.project_ideas to service_role;
 grant select, insert, update, delete on public.github_trends to service_role;
+grant select, insert, update, delete on public.research_papers to service_role;
+grant select, insert, update, delete on public.news_paper_links to service_role;
 grant select, insert, update, delete on public.idea_evaluations to service_role;
 grant select, insert, update, delete on public.user_onboarding to service_role;
 grant select, insert, update, delete on public.profiles to service_role;
@@ -337,6 +409,16 @@ create policy "Project ideas are publicly readable"
 drop policy if exists "GitHub trends are publicly readable" on public.github_trends;
 create policy "GitHub trends are publicly readable"
   on public.github_trends for select
+  using (true);
+
+drop policy if exists "Research papers are publicly readable" on public.research_papers;
+create policy "Research papers are publicly readable"
+  on public.research_papers for select
+  using (true);
+
+drop policy if exists "News paper links are publicly readable" on public.news_paper_links;
+create policy "News paper links are publicly readable"
+  on public.news_paper_links for select
   using (true);
 
 drop policy if exists "Users can read own scraps" on public.scraps;
@@ -481,3 +563,8 @@ create index if not exists scraps_user_created_idx on public.scraps (user_id, cr
 create unique index if not exists scraps_user_item_key on public.scraps (user_id, item_type, item_id) where item_id is not null;
 create index if not exists user_onboarding_user_idx on public.user_onboarding (user_id);
 create index if not exists github_trends_stars_idx on public.github_trends (stars desc);
+drop index if exists research_papers_paper_url_key;
+create unique index research_papers_paper_url_key on public.research_papers (paper_url);
+create index if not exists research_papers_relevance_idx on public.research_papers (relevance_score desc, published_at desc);
+create index if not exists research_papers_review_type_idx on public.research_papers (review_type, relevance_score desc);
+create index if not exists news_paper_links_news_idx on public.news_paper_links (news_id, relevance_score desc);

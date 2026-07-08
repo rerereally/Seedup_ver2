@@ -98,6 +98,48 @@ export type GitHubTrend = {
   relevance_score: number | null;
 };
 
+export type ResearchPaper = {
+  id: string;
+  title: string;
+  abstract: string | null;
+  authors: string[] | null;
+  source: string | null;
+  source_url: string | null;
+  paper_url: string | null;
+  pdf_url: string | null;
+  code_url: string | null;
+  categories: string[] | null;
+  review_type: string | null;
+  beginner_summary: string | null;
+  expert_summary: string | null;
+  why_it_matters: string | null;
+  key_points: string[] | null;
+  related_skills: string[] | null;
+  implementation_idea: string | null;
+  service_idea: string | null;
+  difficulty: string | null;
+  target_reader: string | null;
+  relevance_score: number | null;
+  trend_score: number | null;
+  buildability_score: number | null;
+  beginner_score: number | null;
+  business_score: number | null;
+  research_depth_score: number | null;
+  has_code: boolean | null;
+  is_huggingface_trending: boolean | null;
+  published_at: string | null;
+  created_at: string;
+};
+
+export type NewsPaperLink = {
+  id: string;
+  news_id: string;
+  paper_id: string;
+  relevance_reason: string | null;
+  relevance_score: number | null;
+  research_papers: ResearchPaper | null;
+};
+
 export type IngestRun = {
   id: string;
   source: string;
@@ -135,6 +177,40 @@ export async function getNewsItem(id: string) {
     return null;
   }
   return data as NewsItem | null;
+}
+
+export async function getResearchPapers(limit = 8) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('research_papers')
+    .select('*')
+    .order('relevance_score', { ascending: false })
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    handleReadError(error);
+    return [];
+  }
+  return (data ?? []) as ResearchPaper[];
+}
+
+export async function getRelatedPapersForNews(newsId: string) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('news_paper_links')
+    .select('*, research_papers(*)')
+    .eq('news_id', newsId)
+    .order('relevance_score', { ascending: false })
+    .limit(3);
+
+  if (error) {
+    handleReadError(error);
+    return [];
+  }
+  return (data ?? []) as NewsPaperLink[];
 }
 
 export async function getTrends() {

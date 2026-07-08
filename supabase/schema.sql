@@ -35,6 +35,10 @@ create table if not exists public.news_items (
   ai_model text,
   processed_at timestamptz,
   source_language text,
+  target_levels text[] default '{}',
+  target_goals text[] default '{}',
+  target_interests text[] default '{}',
+  content_depth text,
   published_at timestamptz default now(),
   created_at timestamptz not null default now()
 );
@@ -134,7 +138,7 @@ create table if not exists public.project_ideas (
 create table if not exists public.scraps (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  item_type text not null check (item_type in ('news', 'project', 'idea', 'trend', 'ai_product', 'github')),
+  item_type text not null check (item_type in ('news', 'paper', 'project', 'idea', 'trend', 'ai_product', 'github')),
   item_id uuid,
   title text not null,
   description text,
@@ -197,6 +201,10 @@ create table if not exists public.research_papers (
   beginner_score integer,
   business_score integer,
   research_depth_score integer,
+  target_levels text[] default '{}',
+  target_goals text[] default '{}',
+  target_interests text[] default '{}',
+  content_depth text,
   has_code boolean not null default false,
   is_huggingface_trending boolean not null default false,
   ai_model text,
@@ -214,6 +222,27 @@ create table if not exists public.news_paper_links (
   relevance_score integer,
   created_at timestamptz not null default now(),
   constraint news_paper_links_news_id_paper_id_key unique (news_id, paper_id)
+);
+
+create table if not exists public.content_reactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_type text not null check (item_type in ('news', 'paper', 'github', 'project', 'ai_product')),
+  item_id uuid not null,
+  reaction text not null check (reaction in ('like', 'dislike')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint content_reactions_user_item_key unique (user_id, item_type, item_id)
+);
+
+create table if not exists public.ai_product_ratings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  product_id uuid not null references public.ai_products(id) on delete cascade,
+  rating integer not null check (rating between 1 and 5),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ai_product_ratings_user_product_key unique (user_id, product_id)
 );
 
 create table if not exists public.user_onboarding (
@@ -270,6 +299,8 @@ alter table public.user_onboarding enable row level security;
 alter table public.github_trends enable row level security;
 alter table public.research_papers enable row level security;
 alter table public.news_paper_links enable row level security;
+alter table public.content_reactions enable row level security;
+alter table public.ai_product_ratings enable row level security;
 
 alter table public.news_items add column if not exists original_url text;
 alter table public.news_items add column if not exists raw_title text;
@@ -284,6 +315,13 @@ alter table public.news_items add column if not exists relevance_score integer;
 alter table public.news_items add column if not exists ai_model text;
 alter table public.news_items add column if not exists processed_at timestamptz;
 alter table public.news_items add column if not exists source_language text;
+alter table public.news_items add column if not exists target_levels text[] default '{}';
+alter table public.news_items add column if not exists target_goals text[] default '{}';
+alter table public.news_items add column if not exists target_interests text[] default '{}';
+alter table public.news_items add column if not exists content_depth text;
+alter table public.news_items add column if not exists view_count integer not null default 0;
+alter table public.news_items add column if not exists like_count integer not null default 0;
+alter table public.news_items add column if not exists dislike_count integer not null default 0;
 alter table public.trends add column if not exists sources_count integer default 0;
 alter table public.trends add column if not exists news_count integer default 0;
 alter table public.trends add column if not exists github_repo_count integer default 0;
@@ -299,6 +337,10 @@ alter table public.ai_products add column if not exists use_cases text[] default
 alter table public.ai_products add column if not exists pricing_type text;
 alter table public.ai_products add column if not exists target_user text;
 alter table public.ai_products add column if not exists related_project_ideas text[] default '{}';
+alter table public.ai_products add column if not exists view_count integer not null default 0;
+alter table public.ai_products add column if not exists like_count integer not null default 0;
+alter table public.ai_products add column if not exists dislike_count integer not null default 0;
+alter table public.ai_products add column if not exists user_score_sum integer not null default 0;
 alter table public.research_papers add column if not exists code_url text;
 alter table public.research_papers add column if not exists review_type text;
 alter table public.research_papers add column if not exists beginner_summary text;
@@ -315,17 +357,30 @@ alter table public.research_papers add column if not exists buildability_score i
 alter table public.research_papers add column if not exists beginner_score integer;
 alter table public.research_papers add column if not exists business_score integer;
 alter table public.research_papers add column if not exists research_depth_score integer;
+alter table public.research_papers add column if not exists target_levels text[] default '{}';
+alter table public.research_papers add column if not exists target_goals text[] default '{}';
+alter table public.research_papers add column if not exists target_interests text[] default '{}';
+alter table public.research_papers add column if not exists content_depth text;
 alter table public.research_papers add column if not exists has_code boolean not null default false;
 alter table public.research_papers add column if not exists is_huggingface_trending boolean not null default false;
 alter table public.research_papers add column if not exists ai_model text;
 alter table public.research_papers add column if not exists processed_at timestamptz;
+alter table public.research_papers add column if not exists view_count integer not null default 0;
+alter table public.research_papers add column if not exists like_count integer not null default 0;
+alter table public.research_papers add column if not exists dislike_count integer not null default 0;
 alter table public.project_ideas add column if not exists source_type text;
 alter table public.project_ideas add column if not exists source_id uuid;
 alter table public.project_ideas add column if not exists target_user_level text;
 alter table public.project_ideas add column if not exists recommended_for text[] default '{}';
 alter table public.project_ideas add column if not exists portfolio_value text;
+alter table public.project_ideas add column if not exists view_count integer not null default 0;
+alter table public.project_ideas add column if not exists like_count integer not null default 0;
+alter table public.project_ideas add column if not exists dislike_count integer not null default 0;
 alter table public.scraps drop constraint if exists scraps_item_type_check;
-alter table public.scraps add constraint scraps_item_type_check check (item_type in ('news', 'project', 'idea', 'trend', 'ai_product', 'github'));
+alter table public.scraps add constraint scraps_item_type_check check (item_type in ('news', 'paper', 'project', 'idea', 'trend', 'ai_product', 'github'));
+alter table public.github_trends add column if not exists view_count integer not null default 0;
+alter table public.github_trends add column if not exists like_count integer not null default 0;
+alter table public.github_trends add column if not exists dislike_count integer not null default 0;
 
 grant usage on schema public to anon, authenticated, service_role;
 
@@ -339,6 +394,8 @@ grant select on public.project_ideas to anon, authenticated;
 grant select on public.github_trends to anon, authenticated;
 grant select on public.research_papers to anon, authenticated;
 grant select on public.news_paper_links to anon, authenticated;
+grant select on public.content_reactions to authenticated;
+grant select on public.ai_product_ratings to authenticated;
 
 grant select, insert, update, delete on public.news_items to service_role;
 grant select, insert, update, delete on public.trends to service_role;
@@ -354,8 +411,12 @@ grant select, insert, update, delete on public.idea_evaluations to service_role;
 grant select, insert, update, delete on public.user_onboarding to service_role;
 grant select, insert, update, delete on public.profiles to service_role;
 grant select, insert, update, delete on public.scraps to service_role;
+grant select, insert, update, delete on public.content_reactions to service_role;
+grant select, insert, update, delete on public.ai_product_ratings to service_role;
 
 grant select, insert, delete on public.scraps to authenticated;
+grant select, insert, update, delete on public.content_reactions to authenticated;
+grant select, insert, update on public.ai_product_ratings to authenticated;
 grant select, insert on public.idea_evaluations to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.user_onboarding to authenticated;
@@ -420,6 +481,43 @@ drop policy if exists "News paper links are publicly readable" on public.news_pa
 create policy "News paper links are publicly readable"
   on public.news_paper_links for select
   using (true);
+
+drop policy if exists "Users can read own content reactions" on public.content_reactions;
+create policy "Users can read own content reactions"
+  on public.content_reactions for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can create own content reactions" on public.content_reactions;
+create policy "Users can create own content reactions"
+  on public.content_reactions for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own content reactions" on public.content_reactions;
+create policy "Users can update own content reactions"
+  on public.content_reactions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own content reactions" on public.content_reactions;
+create policy "Users can delete own content reactions"
+  on public.content_reactions for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can read own AI product ratings" on public.ai_product_ratings;
+create policy "Users can read own AI product ratings"
+  on public.ai_product_ratings for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can create own AI product ratings" on public.ai_product_ratings;
+create policy "Users can create own AI product ratings"
+  on public.ai_product_ratings for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own AI product ratings" on public.ai_product_ratings;
+create policy "Users can update own AI product ratings"
+  on public.ai_product_ratings for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 drop policy if exists "Users can read own scraps" on public.scraps;
 create policy "Users can read own scraps"
@@ -561,6 +659,9 @@ drop index if exists project_ideas_source_key;
 create unique index project_ideas_source_key on public.project_ideas (source_type, source_id, title);
 create index if not exists scraps_user_created_idx on public.scraps (user_id, created_at desc);
 create unique index if not exists scraps_user_item_key on public.scraps (user_id, item_type, item_id) where item_id is not null;
+create index if not exists content_reactions_user_item_idx on public.content_reactions (user_id, item_type, item_id);
+create index if not exists content_reactions_item_idx on public.content_reactions (item_type, item_id);
+create index if not exists ai_product_ratings_product_idx on public.ai_product_ratings (product_id);
 create index if not exists user_onboarding_user_idx on public.user_onboarding (user_id);
 create index if not exists github_trends_stars_idx on public.github_trends (stars desc);
 drop index if exists research_papers_paper_url_key;

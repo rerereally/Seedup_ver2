@@ -36,13 +36,10 @@ export async function runManualIngest(formData: FormData) {
   const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
   const separator = INGEST_PATHS[target].includes('?') ? '&' : '?';
-  const response = await fetch(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`, {
-    method: 'POST',
-    cache: 'no-store',
-  });
+  const { ok, reason } = await requestIngest(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`);
 
   revalidatePath('/admin/ingest');
-  redirect(`/admin/ingest?status=${response.ok ? 'success' : 'failed'}&target=${target}`);
+  redirect(`/admin/ingest?status=${ok ? 'success' : 'failed'}&target=${target}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`);
 }
 
 export async function runFullIngest() {
@@ -78,8 +75,45 @@ async function runManualIngestNoRedirect(formData: FormData) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
   const separator = INGEST_PATHS[target].includes('?') ? '&' : '?';
 
-  await fetch(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`, {
-    method: 'POST',
-    cache: 'no-store',
-  });
+  await requestIngest(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`);
+}
+
+async function getFailureReason(response: Response) {
+  try {
+    const text = await response.text();
+    if (!text) return `HTTP ${response.status}`;
+
+    try {
+      const json = JSON.parse(text) as Record<string, unknown>;
+      const message = json.error ?? json.message ?? json.detail ?? json.status;
+      return truncateReason(typeof message === 'string' ? message : text);
+    } catch {
+      return truncateReason(text);
+    }
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+function truncateReason(value: string) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+async function requestIngest(url: string) {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      cache: 'no-store',
+    });
+    return {
+      ok: response.ok,
+      reason: response.ok ? '' : await getFailureReason(response),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      reason: truncateReason(message),
+    };
+  }
 }

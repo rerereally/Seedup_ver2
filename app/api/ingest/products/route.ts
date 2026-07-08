@@ -53,14 +53,20 @@ async function ingest(request: Request) {
 
         const content = stripHtml(getItemField(item, 'content:encoded') || item.content || item.contentSnippet || item.summary || name);
         const { analysis } = await analyzeProduct({ name, content, url: productUrl });
+        const { data: existing } = await supabase
+          .from('ai_products')
+          .select('score,rating_count,user_score_sum')
+          .eq('product_hunt_url', productUrl)
+          .maybeSingle();
 
         const { error } = await supabase.from('ai_products').upsert(
           {
             name,
             category: analysis.category,
             description: analysis.description,
-            score: analysis.score,
-            rating_count: 0,
+            score: existing?.score ?? null,
+            rating_count: existing?.rating_count ?? 0,
+            user_score_sum: existing?.user_score_sum ?? 0,
             status: analysis.status,
             website_url: productUrl,
             source: source.name,

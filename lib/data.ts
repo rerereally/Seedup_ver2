@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 
 function handleReadError(error: { code?: string; message?: string }) {
-  if (error.code === '42501') {
-    console.warn(`Supabase permission error: ${error.message}`);
+  if (error.code === '42501' || error.code === 'PGRST205') {
+    console.warn(`Supabase read error: ${error.message}`);
     return;
   }
 
@@ -27,6 +27,13 @@ export type NewsItem = {
   related_skills?: string[] | null;
   difficulty?: string | null;
   relevance_score?: number | null;
+  view_count?: number | null;
+  like_count?: number | null;
+  dislike_count?: number | null;
+  target_levels?: string[] | null;
+  target_goals?: string[] | null;
+  target_interests?: string[] | null;
+  content_depth?: string | null;
   ai_model?: string | null;
   processed_at?: string | null;
   source_language?: string | null;
@@ -53,6 +60,7 @@ export type AIProduct = {
   description: string | null;
   score: number | null;
   rating_count: number | null;
+  user_score_sum?: number | null;
   status: string | null;
   website_url: string | null;
   product_hunt_url?: string | null;
@@ -60,6 +68,9 @@ export type AIProduct = {
   pricing_type?: string | null;
   target_user?: string | null;
   related_project_ideas?: string[] | null;
+  view_count?: number | null;
+  like_count?: number | null;
+  dislike_count?: number | null;
 };
 
 export type ProjectIdea = {
@@ -70,12 +81,17 @@ export type ProjectIdea = {
   duration_days: number | null;
   stack: string[] | null;
   related_trend: string | null;
+  portfolio_value?: string | null;
   plan: string[] | null;
+  view_count?: number | null;
+  like_count?: number | null;
+  dislike_count?: number | null;
 };
 
 export type ScrapItem = {
   id: string;
   item_type: string;
+  item_id: string | null;
   title: string;
   description: string | null;
   tag: string | null;
@@ -96,6 +112,9 @@ export type GitHubTrend = {
   beginner_summary: string | null;
   project_idea: string | null;
   relevance_score: number | null;
+  view_count?: number | null;
+  like_count?: number | null;
+  dislike_count?: number | null;
 };
 
 export type ResearchPaper = {
@@ -120,6 +139,13 @@ export type ResearchPaper = {
   difficulty: string | null;
   target_reader: string | null;
   relevance_score: number | null;
+  view_count?: number | null;
+  like_count?: number | null;
+  dislike_count?: number | null;
+  target_levels?: string[] | null;
+  target_goals?: string[] | null;
+  target_interests?: string[] | null;
+  content_depth?: string | null;
   trend_score: number | null;
   buildability_score: number | null;
   beginner_score: number | null;
@@ -150,6 +176,35 @@ export type IngestRun = {
   duration_ms: number;
   detail: Record<string, unknown> | null;
   created_at: string;
+};
+
+export type ArticleFeedItem = {
+  id: string;
+  type: 'news' | 'paper';
+  title: string;
+  summary: string | null;
+  content: string | null;
+  category: string | null;
+  source: string | null;
+  source_url: string | null;
+  original_url: string | null;
+  image_url: string | null;
+  project_idea: string | null;
+  beginner_summary: string | null;
+  why_it_matters: string | null;
+  key_points: string[] | null;
+  related_skills: string[] | null;
+  difficulty: string | null;
+  relevance_score: number | null;
+  target_levels: string[] | null;
+  target_goals: string[] | null;
+  target_interests: string[] | null;
+  content_depth: string | null;
+  view_count: number;
+  like_count: number;
+  dislike_count: number;
+  published_at: string | null;
+  created_at?: string | null;
 };
 
 export async function getNewsItems() {
@@ -194,6 +249,79 @@ export async function getResearchPapers(limit = 8) {
     return [];
   }
   return (data ?? []) as ResearchPaper[];
+}
+
+export async function getResearchPaper(id: string) {
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase.from('research_papers').select('*').eq('id', id).maybeSingle();
+
+  if (error) {
+    handleReadError(error);
+    return null;
+  }
+  return data as ResearchPaper | null;
+}
+
+export async function getArticleFeedItems() {
+  const [news, papers] = await Promise.all([getNewsItems(), getResearchPapers(80)]);
+  const newsArticles: ArticleFeedItem[] = news.map((item) => ({
+    id: item.id,
+    type: 'news',
+    title: item.title,
+    summary: item.summary,
+    content: item.content,
+    category: item.category ?? '뉴스',
+    source: item.source,
+    source_url: item.source_url ?? null,
+    original_url: item.original_url ?? null,
+    image_url: item.image_url,
+    project_idea: item.project_idea,
+    beginner_summary: item.beginner_summary ?? null,
+    why_it_matters: item.why_it_matters ?? null,
+    key_points: item.key_points ?? null,
+    related_skills: item.related_skills ?? null,
+    difficulty: item.difficulty ?? null,
+    relevance_score: item.relevance_score ?? null,
+    target_levels: item.target_levels ?? null,
+    target_goals: item.target_goals ?? null,
+    target_interests: item.target_interests ?? null,
+    content_depth: item.content_depth ?? null,
+    view_count: Number(item.view_count ?? 0),
+    like_count: Number(item.like_count ?? 0),
+    dislike_count: Number(item.dislike_count ?? 0),
+    published_at: item.published_at,
+  }));
+  const paperArticles: ArticleFeedItem[] = papers.map((paper) => ({
+    id: paper.id,
+    type: 'paper',
+    title: paper.title,
+    summary: paper.beginner_summary ?? paper.expert_summary ?? paper.abstract,
+    content: paper.expert_summary ?? paper.beginner_summary ?? paper.abstract,
+    category: paper.review_type ?? '논문',
+    source: paper.source ?? 'Research',
+    source_url: paper.source_url,
+    original_url: paper.paper_url,
+    image_url: null,
+    project_idea: paper.implementation_idea ?? paper.service_idea,
+    beginner_summary: paper.beginner_summary,
+    why_it_matters: paper.why_it_matters,
+    key_points: paper.key_points,
+    related_skills: paper.related_skills ?? paper.categories,
+    difficulty: paper.difficulty,
+    relevance_score: paper.relevance_score,
+    target_levels: paper.target_levels ?? null,
+    target_goals: paper.target_goals ?? null,
+    target_interests: paper.target_interests ?? null,
+    content_depth: paper.content_depth ?? null,
+    view_count: Number(paper.view_count ?? 0),
+    like_count: Number(paper.like_count ?? 0),
+    dislike_count: Number(paper.dislike_count ?? 0),
+    published_at: paper.published_at,
+    created_at: paper.created_at,
+  }));
+
+  return [...newsArticles, ...paperArticles].sort((a, b) => new Date(b.published_at ?? b.created_at ?? 0).getTime() - new Date(a.published_at ?? a.created_at ?? 0).getTime());
 }
 
 export async function getRelatedPapersForNews(newsId: string) {
@@ -343,13 +471,25 @@ export async function getScrapKeySet() {
 export async function getGitHubTrends() {
   const supabase = await createClient();
   if (!supabase) return [];
-  const { data, error } = await supabase.from('github_trends').select('*').order('stars', { ascending: false }).limit(20);
+  const { data, error } = await supabase.from('github_trends').select('*').order('stars', { ascending: false }).limit(100);
 
   if (error) {
     handleReadError(error);
     return [];
   }
   return (data ?? []) as GitHubTrend[];
+}
+
+export async function getGitHubTrend(id: string) {
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase.from('github_trends').select('*').eq('id', id).maybeSingle();
+
+  if (error) {
+    handleReadError(error);
+    return null;
+  }
+  return data as GitHubTrend | null;
 }
 
 export async function getIngestRuns() {

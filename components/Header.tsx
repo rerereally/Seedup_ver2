@@ -8,12 +8,12 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const NAV_LINKS = [
-  { name: '뉴스', href: '/news' },
   { name: '트렌드', href: '/trends' },
+  { name: '아티클', href: '/news' },
   { name: 'GitHub', href: '/github-trends' },
-  { name: 'AI 제품랭크', href: '/ai-products' },
-  { name: '스크랩', href: '/scrap' },
   { name: '프로젝트', href: '/projects' },
+  { name: 'AI 랭킹', href: '/ai-products' },
+  { name: '스크랩', href: '/scrap' },
   { name: '아이디어 평가', href: '/ideas' },
 ];
 
@@ -48,19 +48,19 @@ export default function Header() {
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = query.trim();
-    router.push(trimmed ? `/news?q=${encodeURIComponent(trimmed)}` : '/news');
+    router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
     setIsMobileMenuOpen(false);
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-outline-soft/70 bg-white">
-      <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center justify-between px-4 md:px-10">
-        <div className="flex h-full items-center gap-8 lg:gap-10">
-          <Link href="/" className="text-2xl font-bold tracking-tight text-brand-primary">
+    <header className="sticky top-0 z-50 border-b border-outline-soft/70 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-4 md:px-8">
+        <div className="flex h-full items-center gap-7 lg:gap-9">
+          <Link href="/" className="text-xl font-black tracking-tight text-brand-primary">
             Seedup
           </Link>
           
-          <nav className="hidden h-full items-center gap-6 lg:flex">
+          <nav className="hidden h-full items-center gap-5 lg:flex">
             {NAV_LINKS.map((link) => {
               const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
               
@@ -68,7 +68,7 @@ export default function Header() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`relative inline-flex h-full items-center px-1 text-sm font-medium transition-colors ${
+                  className={`relative inline-flex h-full items-center px-1 text-sm font-semibold transition-colors ${
                     isActuallyActive ? 'text-brand-primary' : 'text-[#5f5e5e] hover:text-brand-primary'
                   }`}
                 >
@@ -82,7 +82,7 @@ export default function Header() {
           </nav>
         </div>
 
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden items-center gap-3 md:flex">
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
             <input
@@ -90,7 +90,7 @@ export default function Header() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="검색"
-              className="w-40 rounded-full border border-outline-soft/50 bg-surface-low py-2 pl-9 pr-4 text-sm outline-none transition-all placeholder:text-muted/70 focus:w-56 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
+              className="w-40 rounded-full border border-outline-soft/50 bg-surface-low py-2 pl-9 pr-4 text-sm outline-none transition-all placeholder:text-muted/70 focus:w-52 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"
             />
           </form>
           {isLoggedIn ? (
@@ -100,13 +100,13 @@ export default function Header() {
                   관리
                 </Link>
               )}
-              <Link href="/profile" className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
+              <Link href="/profile" className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
                 <UserCircle className="h-4 w-4" />
                 프로필
               </Link>
             </>
           ) : (
-            <Link href="/login" className="rounded-full bg-brand-primary px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
+            <Link href="/login" className="rounded-full bg-brand-primary px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90">
               로그인
             </Link>
           )}
@@ -123,7 +123,7 @@ export default function Header() {
       </div>
 
       {isMobileMenuOpen && (
-        <div className="absolute left-0 top-16 flex w-full flex-col gap-4 border-b border-outline-soft/70 bg-white p-4 shadow-lg lg:hidden">
+        <div className="absolute left-0 top-14 flex w-full flex-col gap-4 border-b border-outline-soft/70 bg-white p-4 shadow-lg lg:hidden">
           <form onSubmit={handleSearch} className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
             <input

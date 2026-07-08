@@ -2,15 +2,26 @@ import { saveScrap } from '@/app/actions/scraps';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import PageIntro from '@/components/PageIntro';
 import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
 import { ArrowRight, Bookmark, Calendar, Filter, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 const FILTERS = ['전체', '초급', '중급', '7일 플랜', '트렌드 연동'];
+const PAGE_SIZE = 9;
 
-export default async function Projects({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+function buildHref(filter: string, page?: number) {
+  const query = new URLSearchParams();
+  if (filter !== '전체') query.set('filter', filter);
+  if (page && page > 1) query.set('page', String(page));
+  const search = query.toString();
+  return `/projects${search ? `?${search}` : ''}`;
+}
+
+export default async function Projects({ searchParams }: { searchParams: Promise<{ filter?: string; page?: string }> }) {
   const params = await searchParams;
   const activeFilter = params.filter ?? '전체';
+  const page = Math.max(1, Number(params.page ?? 1) || 1);
   const [projects, scrapKeys] = await Promise.all([getProjectIdeas(), getScrapKeySet()]);
   const filteredProjects = projects.filter((project) => {
     if (activeFilter === '전체') return true;
@@ -19,16 +30,21 @@ export default async function Projects({ searchParams }: { searchParams: Promise
     if (activeFilter === '트렌드 연동') return Boolean(project.related_trend);
     return true;
   });
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedProjects = filteredProjects.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <>
       <Header />
-      <main className="blueprint-grid grow">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-10 px-4 py-12 md:px-10 md:py-16">
-          <section>
-            <h1 className="text-5xl font-bold leading-tight text-ink">이번 주 만들 만한 프로젝트</h1>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">개발 뉴스와 제품 트렌드를 기반으로 초보자가 바로 시작할 수 있는 프로젝트를 추천합니다.</p>
-          </section>
+      <main className="grow bg-surface">
+        <div className="page-shell page-stack">
+          <PageIntro
+            eyebrow="Projects"
+            title="이번 주 만들 만한 프로젝트"
+            description="개발 뉴스와 제품 트렌드를 기반으로 초보자가 바로 시작할 수 있는 프로젝트를 추천합니다."
+            icon={Sparkles}
+          />
 
           <section className="flex flex-wrap items-center gap-4 rounded-lg border border-outline-soft bg-surface p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-muted">
@@ -36,7 +52,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               필터
             </div>
             {FILTERS.map((filter) => (
-              <Link key={filter} href={filter === '전체' ? '/projects' : `/projects?filter=${encodeURIComponent(filter)}`} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activeFilter === filter ? 'border-brand-primary bg-brand-primary text-white' : 'border-outline-soft bg-white text-muted hover:border-brand-primary hover:text-brand-primary'}`}>
+              <Link key={filter} href={buildHref(filter)} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activeFilter === filter ? 'border-brand-primary bg-brand-primary text-white' : 'border-outline-soft bg-white text-muted hover:border-brand-primary hover:text-brand-primary'}`}>
                 {filter}
               </Link>
             ))}
@@ -46,7 +62,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
             <EmptyState title={projects.length ? '조건에 맞는 프로젝트가 없습니다' : '아직 등록된 프로젝트가 없습니다'} description={projects.length ? '필터를 바꾸거나 전체 프로젝트를 확인해보세요.' : 'Supabase의 project_ideas 테이블에 데이터를 넣으면 프로젝트 카드가 자동으로 표시됩니다.'} />
           ) : (
             <section className="grid gap-5 lg:grid-cols-3">
-              {filteredProjects.map((project) => {
+              {paginatedProjects.map((project) => {
                 const isScrapped = scrapKeys.has(`project:${project.id}`);
 
                 return (
@@ -96,6 +112,25 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                 </article>
               )})}
             </section>
+          )}
+
+          {filteredProjects.length > PAGE_SIZE && (
+            <nav className="flex justify-center gap-2">
+              <Link href={buildHref(activeFilter, Math.max(1, currentPage - 1))} className={`inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft px-3 text-sm font-semibold ${currentPage === 1 ? 'pointer-events-none opacity-40' : 'hover:border-brand-primary hover:text-brand-primary'}`}>
+                이전
+              </Link>
+              {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => {
+                const pageNumber = index + 1;
+                return (
+                  <Link key={pageNumber} href={buildHref(activeFilter, pageNumber)} className={`inline-flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold ${currentPage === pageNumber ? 'bg-brand-primary text-white' : 'border border-outline-soft bg-white text-muted hover:border-brand-primary hover:text-brand-primary'}`}>
+                    {pageNumber}
+                  </Link>
+                );
+              })}
+              <Link href={buildHref(activeFilter, Math.min(totalPages, currentPage + 1))} className={`inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft px-3 text-sm font-semibold ${currentPage === totalPages ? 'pointer-events-none opacity-40' : 'hover:border-brand-primary hover:text-brand-primary'}`}>
+                다음
+              </Link>
+            </nav>
           )}
 
           <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">

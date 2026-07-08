@@ -1,7 +1,8 @@
-import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea } from '@/lib/data';
+import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper } from '@/lib/data';
 
 type NewsletterData = {
   news: NewsItem[];
+  papers: ResearchPaper[];
   products: AIProduct[];
   repos: GitHubTrend[];
   projects: ProjectIdea[];
@@ -35,11 +36,13 @@ function pill(value: string) {
 
 export function buildNewsletterHtml(data: NewsletterData) {
   const featuredNews = data.news[0];
+  const featuredPaper = data.papers[0];
   const topProduct = data.products[0];
   const topRepo = data.repos[0];
   const topProject = data.projects[0];
   const previewTags = [
     featuredNews?.category,
+    featuredPaper?.review_type,
     topProduct?.category,
     topRepo?.language,
     topProject?.level,
@@ -69,9 +72,12 @@ export function buildNewsletterHtml(data: NewsletterData) {
             <tr>
               <td style="padding:26px 32px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                  ${featuredNews ? card(featuredNews.title, featuredNews.beginner_summary ?? featuredNews.summary, `${data.siteUrl}/news/${featuredNews.id}`, 'Top News') : ''}
+                  <tr><td style="padding:0 0 8px;font-size:14px;font-weight:900;color:#191c1d;">성향 맞춤 아티클 5</td></tr>
+                  ${data.news.slice(0, 5).map((item, index) => card(item.title, item.beginner_summary ?? item.summary, `${data.siteUrl}/news/${item.id}`, `맞춤 글 ${index + 1}`)).join('')}
+                  <tr><td style="padding:24px 0 8px;font-size:14px;font-weight:900;color:#191c1d;">오늘 추천 논문 3</td></tr>
+                  ${data.papers.slice(0, 3).map((item, index) => card(item.title, item.beginner_summary ?? item.expert_summary, `${data.siteUrl}/papers/${item.id}`, `추천 논문 ${index + 1}`)).join('')}
                   ${topProduct ? card(topProduct.name, topProduct.description, `${data.siteUrl}/ai-products/${topProduct.id}`, 'AI Product') : ''}
-                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends`, 'GitHub Trend') : ''}
+                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends/${topRepo.id}`, 'GitHub Trend') : ''}
                   ${topProject ? card(topProject.title, topProject.description, `${data.siteUrl}/projects/${topProject.id}`, 'Build Idea') : ''}
                 </table>
                 <div style="padding-top:24px;text-align:center;">
@@ -94,9 +100,13 @@ export function buildNewsletterHtml(data: NewsletterData) {
 
 export function buildNewsletterText(data: NewsletterData) {
   const lines = ['Seedup Weekly', '이번 주 개발 트렌드 브리핑', ''];
-  if (data.news[0]) lines.push(`Top News: ${data.news[0].title}`, `${data.siteUrl}/news/${data.news[0].id}`, '');
+  lines.push('성향 맞춤 아티클 5');
+  data.news.slice(0, 5).forEach((item, index) => lines.push(`${index + 1}. ${item.title}`, `${data.siteUrl}/news/${item.id}`));
+  lines.push('', '오늘 추천 논문 3');
+  data.papers.slice(0, 3).forEach((item, index) => lines.push(`${index + 1}. ${item.title}`, `${data.siteUrl}/papers/${item.id}`));
+  lines.push('');
   if (data.products[0]) lines.push(`AI Product: ${data.products[0].name}`, `${data.siteUrl}/ai-products/${data.products[0].id}`, '');
-  if (data.repos[0]) lines.push(`GitHub Trend: ${data.repos[0].repo_full_name}`, `${data.siteUrl}/github-trends`, '');
+  if (data.repos[0]) lines.push(`GitHub Trend: ${data.repos[0].repo_full_name}`, `${data.siteUrl}/github-trends/${data.repos[0].id}`, '');
   if (data.projects[0]) lines.push(`Build Idea: ${data.projects[0].title}`, `${data.siteUrl}/projects/${data.projects[0].id}`, '');
   lines.push(`전체 보기: ${data.siteUrl}`);
   return lines.join('\n');

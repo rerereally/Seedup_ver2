@@ -12,7 +12,10 @@ Seedup is a developer trend and project idea platform. It collects developer new
 - Login onboarding survey with newsletter preference
 - Trend ranking based on accumulated keyword signals
 - Manual ingestion console with run history
-- News/detail pages, trend accordion, AI product pages, GitHub trend pages, scraps, and project pages
+- Article feed with fixed hero banner, Popular Top 5, news/paper filters, and article detail pages
+- Article detail AI question panel for short article Q&A and project handoff to idea evaluation
+- Chat-style idea evaluation with in-chat progress and analysis results
+- Trend accordion, AI product ranking, GitHub trend pages, scraps, and project pages
 
 ## Tech Stack
 
@@ -47,6 +50,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 OPENROUTER_API_KEY=your-openrouter-api-key
 OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+OPENROUTER_FALLBACK_MODELS=google/gemini-2.0-flash-exp:free,meta-llama/llama-3.3-70b-instruct:free
 NEXT_PUBLIC_SITE_URL=http://localhost:3001
 
 GITHUB_TOKEN=your-github-token
@@ -217,12 +221,27 @@ The `trends` table is used as the current ranking cache for the UI.
 OpenRouter is used for:
 
 - News relevance analysis
-- Beginner-friendly summaries
+- Korean article rewriting and beginner-friendly long-form summaries
 - Product analysis
 - GitHub repository reviews
 - Project idea generation
+- Article Q&A in the detail sidebar
+- Idea evaluation chat responses
+
+News ingestion first parses source data into structured fields such as title, source, original URL, published date, and cleaned content. Long content is compressed with paragraph sampling before it is sent to AI. The AI returns analysis JSON only: Korean title, category, relevance score, long-form Markdown summary article, beginner explanation, target audience tags, related skills, and project ideas.
+
+The displayed article body is not the copied original article. It is a Korean summary and explanation article generated for Seedup, with a source link preserved separately. Current prompt rules ask for enough detail for beginners, including what happened, why it matters, concepts to understand, project ideas, and cautions.
 
 If OpenRouter returns an empty or invalid response, the app falls back to a local summary so ingestion can continue.
+
+## UI Notes
+
+- Shared page headers use `components/PageIntro.tsx` and `.page-intro-*` styles in `app/globals.css`.
+- The article page keeps the hero banner fixed height and places Popular Top 5 beside it.
+- Category cards were removed from the article page; global search lives in the header.
+- Related paper reviews on article details are collapsed by default.
+- The idea evaluation page is a chat interface. While AI is running, it shows `답변을 생각중입니다.` and then renders the analysis inside the chat.
+- Page backgrounds use the same `bg-surface` base for visual consistency.
 
 ## Common Issues
 
@@ -335,6 +354,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 OPENROUTER_API_KEY
 OPENROUTER_MODEL
+OPENROUTER_FALLBACK_MODELS
 NEXT_PUBLIC_SITE_URL
 GITHUB_TOKEN
 INGEST_SECRET

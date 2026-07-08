@@ -1,8 +1,11 @@
 import { saveScrap } from '@/app/actions/scraps';
+import { rateAIProduct } from '@/app/actions/product-ratings';
+import ContentEngagement from '@/components/ContentEngagement';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import type { AIProduct } from '@/lib/data';
 import { getAIProduct, getExistingScrap } from '@/lib/data';
+import { incrementContentView } from '@/lib/engagement';
 import { ArrowLeft, ArrowRight, Bookmark, Bot, CheckCircle2, ExternalLink, Lightbulb, Star, Target, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -59,6 +62,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
   ]);
 
   if (!product) notFound();
+  await incrementContentView('ai_product', product.id);
 
   const productTags = tags(product);
   const metrics = reviewMetrics(product);
@@ -86,6 +90,17 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                   <StarRating score={product.score} />
                   <span className="text-lg font-semibold text-muted">{displayScore} ({product.rating_count ?? 0})</span>
                   {product.status && <span className="rounded-full bg-brand-primary/10 px-3 py-1 text-sm font-bold text-brand-primary">{product.status}</span>}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="mr-1 text-sm font-bold text-muted">내 평점</span>
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <form key={rating} action={rateAIProduct}>
+                      <input type="hidden" name="product_id" value={product.id} />
+                      <input type="hidden" name="rating" value={rating} />
+                      <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
+                      <button type="submit" className="rounded-lg border border-outline-soft bg-white px-3 py-1.5 text-sm font-bold text-muted hover:border-brand-primary hover:text-brand-primary">{rating}</button>
+                    </form>
+                  ))}
                 </div>
                 {!!productTags.length && (
                   <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-lg font-semibold text-muted">
@@ -118,6 +133,9 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                   </Link>
                 )}
               </div>
+            </div>
+            <div className="mt-6">
+              <ContentEngagement itemType="ai_product" itemId={product.id} returnTo={`/ai-products/${product.id}`} views={Number(product.view_count ?? 0) + 1} likes={product.like_count} dislikes={product.dislike_count} />
             </div>
           </section>
 

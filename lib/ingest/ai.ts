@@ -1,15 +1,21 @@
 import { fallbackSummary, truncate } from './text';
 
 export type NewsAnalysis = {
+  translated_title: string;
   category: string;
   relevance_score: number;
   ai_summary: string;
+  article_markdown: string;
   beginner_summary: string;
   why_it_matters: string;
   key_points: string[];
   related_skills: string[];
   project_idea: string;
   difficulty: string;
+  target_levels: string[];
+  target_goals: string[];
+  target_interests: string[];
+  content_depth: string;
 };
 
 export type RepoAnalysis = {
@@ -54,6 +60,11 @@ export type IdeaEvaluation = {
   next_steps: string[];
 };
 
+export type ArticleQuestionAnswer = {
+  answer: string;
+  project_prompt?: string;
+};
+
 export type PaperAnalysis = {
   relevance_score: number;
   review_type: string;
@@ -71,9 +82,14 @@ export type PaperAnalysis = {
   beginner_score: number;
   business_score: number;
   research_depth_score: number;
+  target_levels: string[];
+  target_goals: string[];
+  target_interests: string[];
+  content_depth: string;
 };
 
 const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const OPENROUTER_TIMEOUT_MS = 45_000;
 
 export async function analyzeNews(input: { title: string; content: string; source: string }) {
   const fallback = buildFallbackNewsAnalysis(input.title, input.content);
@@ -82,35 +98,52 @@ export async function analyzeNews(input: { title: string; content: string; sourc
   if (!apiKey) return { analysis: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<NewsAnalysis>(apiKey, [
+    const { result, model } = await callOpenRouter<NewsAnalysis>(apiKey, [
       {
         role: 'system',
-        content: '너는 초보 개발자를 위한 기술 뉴스 큐레이터다. 반드시 JSON만 반환한다.',
+        content: '너는 초보 개발자를 위한 기술 뉴스 큐레이터다. 영어/한국어 원문을 모두 자연스러운 한국어 콘텐츠로 재작성한다. 반드시 JSON만 반환한다. 원문에 없는 수치, 인용, 사실은 만들지 않는다.',
       },
       {
         role: 'user',
-        content: `아래 뉴스가 개발, 코딩, AI 제품, 개발 트렌드, 개발자 도구와 관련 있는지 판단하고 JSON으로 분석하라.
+        content: `아래 뉴스가 개발, 코딩, AI 제품, 개발 트렌드, 개발자 도구와 관련 있는지 판단하고 한국어 JSON으로 분석하라.
+
+규칙:
+- 원문 언어가 영어여도 제목과 모든 설명은 한국어로 작성한다.
+- article_markdown은 원문 전체 번역이 아니라 Seedup 뉴스 상세페이지에 들어갈 요약 기사다.
+- article_markdown은 Markdown으로 작성하고 ## 소제목 4~6개, bullet list, 짧은 문단을 섞는다.
+- 초보 개발자가 이해할 수 있도록 용어를 풀어쓴다.
+- 확실하지 않은 내용은 단정하지 말고 "원문 기준으로는"처럼 표현한다.
+- 본문은 1800~2600자 안에서 충분히 설명한다. 너무 짧은 요약으로 끝내지 않는다.
+- 반드시 "무슨 내용인가", "왜 중요한가", "초보 개발자가 알아야 할 개념", "직접 해볼 만한 프로젝트", "주의할 점"을 포함한다.
+- 기술 용어는 처음 보는 사람도 이해할 수 있게 쉬운 비유나 예시를 붙인다.
+- 광고 문구, 구독 유도 문구, 저작권 문구, 메뉴 텍스트는 요약에 포함하지 않는다.
 
 출력 JSON 스키마:
 {
+  "translated_title": "한국어 기사 제목",
   "category": "AI Agent | Frontend | Backend | DevTools | Product | Trend | Other",
   "relevance_score": 0,
   "ai_summary": "전문가용 3문장 요약",
+  "article_markdown": "한국어 마크다운 요약 기사",
   "beginner_summary": "초보자용 쉬운 설명",
   "why_it_matters": "왜 중요한지",
   "key_points": ["핵심 1", "핵심 2", "핵심 3"],
   "related_skills": ["기술 1", "기술 2"],
   "project_idea": "작게 만들 수 있는 프로젝트",
-  "difficulty": "초급 | 중급 | 고급"
+  "difficulty": "초급 | 중급 | 고급",
+  "target_levels": ["완전 처음 | 입문자 | 초보자 | 중급자 | 실무 경험 있음"],
+  "target_goals": ["포트폴리오 만들기 | 취업/이직 준비 | 사이드 프로젝트 | 창업 아이디어 검증 | 최신 기술 공부 | 팀 프로젝트 주제 찾기"],
+  "target_interests": ["프론트엔드 | 백엔드 | 풀스택 | AI/API 연동 | 데이터/DB | 모바일 | 디자인/UI | DevOps/배포 | 오픈소스 | 논문 쉽게 읽기"],
+  "content_depth": "짧고 쉽게 | 핵심과 예시 중심 | 기술 배경까지 자세히 | 실무 적용 관점으로 깊게"
 }
 
 source: ${input.source}
 title: ${input.title}
-content: ${truncate(input.content, 6000)}`,
+content: ${truncate(input.content, 5200)}`,
       },
     ]);
 
-    return { analysis: normalizeNewsAnalysis(result, fallback), model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { analysis: normalizeNewsAnalysis(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter news analysis failed', error);
     return { analysis: fallback, model: null };
@@ -129,7 +162,7 @@ export async function analyzeRepo(input: { fullName: string; description: string
   if (!apiKey) return { analysis: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<RepoAnalysis>(apiKey, [
+    const { result, model } = await callOpenRouter<RepoAnalysis>(apiKey, [
       { role: 'system', content: '너는 초보 개발자를 위한 GitHub 오픈소스 리뷰어다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
@@ -150,7 +183,7 @@ topics: ${input.topics.join(', ')}`,
       },
     ]);
 
-    return { analysis: { ...fallback, ...result }, model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { analysis: { ...fallback, ...result }, model };
   } catch (error) {
     console.error('OpenRouter repo analysis failed', error);
     return { analysis: fallback, model: null };
@@ -173,7 +206,7 @@ export async function analyzeProduct(input: { name: string; content: string; url
   if (!apiKey) return { analysis: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<ProductAnalysis>(apiKey, [
+    const { result, model } = await callOpenRouter<ProductAnalysis>(apiKey, [
       { role: 'system', content: '너는 AI 제품 분석가다. Product Hunt 제품을 초보 개발자와 제품 빌더 관점에서 분석한다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
@@ -197,7 +230,7 @@ content: ${truncate(input.content, 2500)}`,
       },
     ]);
 
-    return { analysis: { ...fallback, ...result }, model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { analysis: { ...fallback, ...result }, model };
   } catch (error) {
     console.error('OpenRouter product analysis failed', error);
     return { analysis: fallback, model: null };
@@ -218,7 +251,7 @@ export async function analyzePaper(input: {
   if (!apiKey) return { analysis: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<PaperAnalysis>(apiKey, [
+    const { result, model } = await callOpenRouter<PaperAnalysis>(apiKey, [
       { role: 'system', content: '너는 초보 개발자와 제품 빌더를 위한 AI/개발 논문 리뷰어다. 논문을 만들 수 있는 프로젝트와 서비스 아이디어로 바꾼다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
@@ -241,7 +274,11 @@ export async function analyzePaper(input: {
   "buildability_score": 0,
   "beginner_score": 0,
   "business_score": 0,
-  "research_depth_score": 0
+  "research_depth_score": 0,
+  "target_levels": ["입문자 | 초보자 | 중급자 | 실무 경험 있음"],
+  "target_goals": ["최신 기술 공부 | 포트폴리오 만들기 | 창업 아이디어 검증 | 사이드 프로젝트"],
+  "target_interests": ["AI/API 연동 | 논문 쉽게 읽기 | 오픈소스 | 데이터/DB | 개발자 도구"],
+  "content_depth": "핵심과 예시 중심 | 기술 배경까지 자세히 | 실무 적용 관점으로 깊게"
 }
 
 source: ${input.source}
@@ -253,7 +290,7 @@ abstract: ${truncate(input.abstract, 5000)}`,
       },
     ]);
 
-    return { analysis: normalizePaperAnalysis(result, fallback), model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { analysis: normalizePaperAnalysis(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter paper analysis failed', error);
     return { analysis: fallback, model: null };
@@ -284,7 +321,7 @@ export async function generateProjectIdea(input: {
   if (!apiKey) return { idea: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<GeneratedProjectIdea>(apiKey, [
+    const { result, model } = await callOpenRouter<GeneratedProjectIdea>(apiKey, [
       { role: 'system', content: '너는 초보 개발자를 위한 프로젝트 코치다. 뉴스/제품/오픈소스 신호를 포트폴리오 프로젝트로 바꾼다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
@@ -312,7 +349,7 @@ summary: ${truncate(input.summary, 2500)}`,
       },
     ]);
 
-    return { idea: { ...fallback, ...result }, model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { idea: { ...fallback, ...result }, model };
   } catch (error) {
     console.error('OpenRouter project idea generation failed', error);
     return { idea: fallback, model: null };
@@ -335,7 +372,7 @@ export async function evaluateIdea(input: { idea: string }) {
   if (!apiKey) return { evaluation: fallback, model: null };
 
   try {
-    const result = await callOpenRouter<IdeaEvaluation>(apiKey, [
+    const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
       { role: 'system', content: '너는 초보 개발자를 위한 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
@@ -357,39 +394,117 @@ idea: ${truncate(input.idea, 2500)}`,
       },
     ]);
 
-    return { evaluation: normalizeIdeaEvaluation(result, fallback), model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL };
+    return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter idea evaluation failed', error);
     return { evaluation: fallback, model: null };
   }
 }
 
-async function callOpenRouter<T>(apiKey: string, messages: Array<{ role: 'system' | 'user'; content: string }>) {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`,
-      'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001',
-      'x-title': 'Seedup',
-    },
-    body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL,
-      messages,
-      temperature: 0.2,
-    }),
-  });
+export async function answerArticleQuestion(input: {
+  title: string;
+  summary: string;
+  content: string;
+  question: string;
+}) {
+  const fallback: ArticleQuestionAnswer = {
+    answer: `이 글의 핵심은 "${input.title}"와 관련된 흐름을 이해하고, 작은 프로젝트로 실험해보는 것입니다. 질문을 조금 더 구체적으로 적으면 기술 선택이나 구현 순서까지 좁혀볼 수 있어요.`,
+    project_prompt: `${input.title}를 참고해서 초보자도 만들 수 있는 7일짜리 미니 프로젝트를 평가해줘.`,
+  };
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenRouter request failed: ${response.status} ${body}`);
+  if (!apiKey) return { result: fallback, model: null };
+
+  try {
+    const { result, model } = await callOpenRouter<ArticleQuestionAnswer>(apiKey, [
+      { role: 'system', content: '너는 Seedup 아티클을 읽는 초보 개발자를 돕는 짧은 Q&A 튜터다. 반드시 JSON만 반환한다. 원문에 없는 사실은 만들지 않는다.' },
+      {
+        role: 'user',
+        content: `아래 아티클 내용만 근거로 사용자의 질문에 한국어로 짧게 답하라.
+
+규칙:
+- 답변은 3~6문장으로 간결하게 작성한다.
+- 글에 없는 사실은 추측하지 않는다.
+- 프로젝트 관련 질문이면 idea evaluation 페이지로 넘길 수 있는 project_prompt를 함께 작성한다.
+
+출력 JSON:
+{
+  "answer": "질문에 대한 답변",
+  "project_prompt": "프로젝트 평가에 넘길 질문. 프로젝트 질문이 아니면 빈 문자열"
+}
+
+title: ${input.title}
+summary: ${truncate(input.summary, 700)}
+content: ${truncate(input.content, 2200)}
+question: ${truncate(input.question, 500)}`,
+      },
+    ]);
+
+    return { result: { ...fallback, ...result }, model };
+  } catch (error) {
+    console.error('OpenRouter article question failed', error);
+    return { result: fallback, model: null };
+  }
+}
+
+async function callOpenRouter<T>(apiKey: string, messages: Array<{ role: 'system' | 'user'; content: string }>) {
+  const models = getOpenRouterModels();
+  const errors: string[] = [];
+
+  for (const model of models) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001',
+          'x-title': 'Seedup',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.2,
+          max_tokens: 2400,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`OpenRouter request failed: ${response.status} ${body}`);
+      }
+
+      const json = await response.json();
+      const content = json.choices?.[0]?.message?.content;
+      if (!content) throw new Error('OpenRouter returned empty content');
+
+      return { result: parseJsonResponse<T>(content), model };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${model}: ${message}`);
+      console.warn('OpenRouter model failed, trying fallback if available', { model, message });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter returned empty content');
+  throw new Error(`All OpenRouter models failed. ${errors.join(' | ')}`);
+}
 
-  return parseJsonResponse<T>(content);
+function getOpenRouterModels() {
+  return [
+    process.env.OPENROUTER_MODEL,
+    ...(process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(','),
+    DEFAULT_MODEL,
+  ]
+    .map((model) => model?.trim())
+    .filter((model): model is string => Boolean(model))
+    .filter((model, index, models) => models.indexOf(model) === index);
 }
 
 function parseJsonResponse<T>(content: string) {
@@ -407,30 +522,44 @@ function parseJsonResponse<T>(content: string) {
 }
 
 function buildFallbackNewsAnalysis(title: string, content: string): NewsAnalysis {
+  const summary = fallbackSummary(title, content);
+
   return {
+    translated_title: title,
     category: 'Trend',
     relevance_score: 60,
-    ai_summary: fallbackSummary(title, content),
-    beginner_summary: fallbackSummary(title, content),
+    ai_summary: summary,
+    article_markdown: `## 한눈에 보기\n\n${summary}\n\n## 초보 개발자가 볼 포인트\n\n- 이 소식이 어떤 기술 흐름과 연결되는지 확인해보세요.\n- 기사에 등장한 도구나 개념을 작은 실습 프로젝트로 바꿔볼 수 있습니다.\n\n## 만들어볼 만한 것\n\n뉴스 요약과 학습 노트를 저장하는 작은 웹앱으로 시작해볼 수 있습니다.`,
+    beginner_summary: summary,
     why_it_matters: '개발자가 최신 동향을 이해하고 작은 프로젝트 아이디어로 연결할 수 있는 내용입니다.',
-    key_points: [title, fallbackSummary(title, content), '상세 내용을 읽고 관련 기술을 실습해볼 수 있습니다.'],
+    key_points: [title, summary, '상세 내용을 읽고 관련 기술을 실습해볼 수 있습니다.'],
     related_skills: ['Research', 'Web', 'API'],
     project_idea: '뉴스 요약 및 학습 노트 앱',
     difficulty: '초급',
+    target_levels: ['입문자', '초보자'],
+    target_goals: ['최신 기술 공부', '포트폴리오 만들기'],
+    target_interests: ['뉴스/콘텐츠 서비스', 'AI/API 연동'],
+    content_depth: '핵심과 예시 중심',
   };
 }
 
 function normalizeNewsAnalysis(result: Partial<NewsAnalysis>, fallback: NewsAnalysis): NewsAnalysis {
   return {
+    translated_title: result.translated_title ?? fallback.translated_title,
     category: result.category ?? fallback.category,
     relevance_score: Number(result.relevance_score ?? fallback.relevance_score),
     ai_summary: result.ai_summary ?? fallback.ai_summary,
+    article_markdown: result.article_markdown ?? fallback.article_markdown,
     beginner_summary: result.beginner_summary ?? fallback.beginner_summary,
     why_it_matters: result.why_it_matters ?? fallback.why_it_matters,
     key_points: Array.isArray(result.key_points) ? result.key_points : fallback.key_points,
     related_skills: Array.isArray(result.related_skills) ? result.related_skills : fallback.related_skills,
     project_idea: result.project_idea ?? fallback.project_idea,
     difficulty: result.difficulty ?? fallback.difficulty,
+    target_levels: Array.isArray(result.target_levels) ? result.target_levels : fallback.target_levels,
+    target_goals: Array.isArray(result.target_goals) ? result.target_goals : fallback.target_goals,
+    target_interests: Array.isArray(result.target_interests) ? result.target_interests : fallback.target_interests,
+    content_depth: result.content_depth ?? fallback.content_depth,
   };
 }
 
@@ -479,6 +608,10 @@ function buildFallbackPaperAnalysis(input: { title: string; abstract: string; ca
     beginner_score: beginnerScore,
     business_score: businessScore,
     research_depth_score: researchDepthScore,
+    target_levels: beginnerScore >= 70 ? ['입문자', '초보자'] : ['중급자', '실무 경험 있음'],
+    target_goals: ['최신 기술 공부', input.hasCode ? '포트폴리오 만들기' : '사이드 프로젝트'],
+    target_interests: ['논문 쉽게 읽기', 'AI/API 연동', input.hasCode ? '오픈소스' : '데이터/DB'],
+    content_depth: beginnerScore >= 70 ? '핵심과 예시 중심' : '기술 배경까지 자세히',
   };
 }
 
@@ -500,6 +633,10 @@ function normalizePaperAnalysis(result: Partial<PaperAnalysis>, fallback: PaperA
     beginner_score: clampScore(result.beginner_score ?? fallback.beginner_score),
     business_score: clampScore(result.business_score ?? fallback.business_score),
     research_depth_score: clampScore(result.research_depth_score ?? fallback.research_depth_score),
+    target_levels: Array.isArray(result.target_levels) ? result.target_levels : fallback.target_levels,
+    target_goals: Array.isArray(result.target_goals) ? result.target_goals : fallback.target_goals,
+    target_interests: Array.isArray(result.target_interests) ? result.target_interests : fallback.target_interests,
+    content_depth: result.content_depth ?? fallback.content_depth,
   };
 }
 

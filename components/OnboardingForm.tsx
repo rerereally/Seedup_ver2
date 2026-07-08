@@ -15,6 +15,7 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
   const totalSteps = onboardingQuestions.length + 1;
   const isNewsletterStep = step === onboardingQuestions.length;
   const currentQuestion = onboardingQuestions[step];
+  const followUp = currentQuestion && 'followUp' in currentQuestion ? currentQuestion.followUp : null;
 
   const isComplete = useMemo(
     () =>
@@ -35,6 +36,10 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
       const next = previous.includes(value) ? previous.filter((item) => item !== value) : [...previous, value];
       return { ...current, [id]: next };
     });
+  };
+
+  const setText = (id: string, value: string) => {
+    setAnswers((current) => ({ ...current, [id]: value }));
   };
 
   const currentAnswered = useMemo(() => {
@@ -118,6 +123,17 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
               );
             })}
           </div>
+          {followUp && (
+            <label className="mt-5 block">
+              <span className="mb-2 block text-sm font-semibold text-ink">직접 입력</span>
+              <textarea
+                value={typeof answers[followUp.id] === 'string' ? answers[followUp.id] : ''}
+                onChange={(event) => setText(followUp.id, event.target.value)}
+                placeholder={followUp.placeholder}
+                className="min-h-24 w-full resize-none rounded-lg border border-outline-soft bg-surface px-4 py-3 text-sm leading-6 text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-brand-primary focus:bg-white"
+              />
+            </label>
+          )}
         </section>
       )}
 

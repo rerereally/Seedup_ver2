@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-const ALLOWED_TYPES = new Set(['news', 'project', 'idea', 'trend', 'ai_product', 'github']);
+const ALLOWED_TYPES = new Set(['news', 'paper', 'project', 'idea', 'trend', 'ai_product', 'github']);
 
 export async function saveScrap(formData: FormData) {
   const supabase = await createClient();

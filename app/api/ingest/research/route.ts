@@ -13,9 +13,9 @@ export const maxDuration = 90;
 type ArxivItem = Parser.Item & {
   id?: string;
   isoDate?: string;
-  categories?: string[];
-  author?: string;
-  creator?: string;
+  categories?: unknown[];
+  author?: unknown;
+  creator?: unknown;
 };
 
 const parser = new Parser({
@@ -57,8 +57,20 @@ async function ingest(request: Request) {
   let skipped = 0;
   let errors = 0;
 
-  const candidates = await fetchArxivPapers(limit);
-  const hfTitles = await fetchHuggingFacePaperTitles();
+  let candidates: Awaited<ReturnType<typeof fetchArxivPapers>> = [];
+  let hfTitles: string[] = [];
+
+  try {
+    candidates = await fetchArxivPapers(limit);
+    hfTitles = await fetchHuggingFacePaperTitles();
+  } catch (error) {
+    errors += 1;
+    console.error('Research source fetch failed', error);
+  }
+
+  if (!candidates.length) {
+    errors += 1;
+  }
 
   for (const paper of candidates) {
     try {
@@ -88,7 +100,7 @@ async function ingest(request: Request) {
       const { error } = await supabase.from('research_papers').upsert(
         {
           title: paper.title,
-          abstract: paper.abstract,
+          abstract: analysis.expert_summary || analysis.beginner_summary || paper.abstract,
           authors: paper.authors,
           source: paper.source,
           source_url: RESEARCH_SOURCE_INFO.arxiv.url,
@@ -112,6 +124,10 @@ async function ingest(request: Request) {
           beginner_score: analysis.beginner_score,
           business_score: analysis.business_score,
           research_depth_score: analysis.research_depth_score,
+          target_levels: analysis.target_levels,
+          target_goals: analysis.target_goals,
+          target_interests: analysis.target_interests,
+          content_depth: analysis.content_depth,
           has_code: hasCode,
           is_huggingface_trending: isHuggingFaceTrending,
           ai_model: model,
@@ -133,11 +149,18 @@ async function ingest(request: Request) {
     }
   }
 
-  await linkPapersToNews(supabase);
+  try {
+    await linkPapersToNews(supabase);
+  } catch (error) {
+    errors += 1;
+    console.error('Research news link failed', error);
+  }
+
+  const status = getRunStatus(errors, inserted);
 
   await recordIngestRun(supabase, {
     source: 'research',
-    status: getRunStatus(errors, inserted),
+    status,
     inserted,
     skipped,
     errors,
@@ -145,7 +168,18 @@ async function ingest(request: Request) {
     detail: { limit, minScore, candidates: candidates.length },
   });
 
-  return NextResponse.json({ ok: true, inserted, skipped, errors, candidates: candidates.length });
+  return NextResponse.json(
+    {
+      ok: status !== 'failed',
+      status,
+      error: status === 'failed' ? '논문 후보를 가져오지 못했거나 저장 중 오류가 발생했습니다. arXiv 접근, Supabase 테이블, service role key를 확인하세요.' : null,
+      inserted,
+      skipped,
+      errors,
+      candidates: candidates.length,
+    },
+    { status: status === 'failed' ? 500 : 200 },
+  );
 }
 
 async function fetchArxivPapers(limit: number) {
@@ -266,14 +300,14 @@ async function linkPapersToNews(supabase: NonNullable<ReturnType<typeof createAd
 }
 
 function parseAuthors(item: ArxivItem) {
-  const creators = [item.creator, item.author].filter(Boolean) as string[];
+  const creators = [item.creator, item.author].flatMap(normalizeUnknownText).filter(Boolean);
   if (creators.length) return creators.flatMap((value) => value.split(',').map((name) => name.trim())).filter(Boolean);
   return [];
 }
 
 function parseCategories(item: ArxivItem) {
   const raw = item.categories ?? [];
-  return raw.map((value) => cleanText(String(value))).filter(Boolean);
+  return raw.flatMap(normalizeUnknownText).filter(Boolean);
 }
 
 function getItemField(item: Parser.Item, key: string) {
@@ -284,6 +318,25 @@ function getItemField(item: Parser.Item, key: string) {
 
 function cleanText(value: string) {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeUnknownText(value: unknown): string[] {
+  if (typeof value === 'string') return [cleanText(value)].filter(Boolean);
+  if (Array.isArray(value)) return value.flatMap(normalizeUnknownText);
+  if (!value || typeof value !== 'object') return [];
+
+  const record = value as Record<string, unknown>;
+  const candidates = [
+    record.term,
+    record.label,
+    record.name,
+    record._,
+    record['#'],
+    record['$'] && typeof record['$'] === 'object' ? (record['$'] as Record<string, unknown>).term : null,
+    record['$'] && typeof record['$'] === 'object' ? (record['$'] as Record<string, unknown>).label : null,
+  ];
+
+  return candidates.flatMap(normalizeUnknownText);
 }
 
 function similarTitle(a: string, b: string) {

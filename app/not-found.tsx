@@ -14,7 +14,7 @@ export default function NotFoundPage() {
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link href="/news" className="inline-flex items-center justify-center rounded-lg bg-brand-primary px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-            뉴스 목록으로
+            아티클 목록으로
           </Link>
           <Link href="/" className="inline-flex items-center justify-center rounded-lg border border-outline-soft bg-surface px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-brand-primary hover:text-brand-primary">
             홈으로 이동

@@ -82,7 +82,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                     : `뉴스레터 발송에 실패했습니다.${params.reason ? ` 사유: ${params.reason}` : ' RESEND_API_KEY, NEWSLETTER_FROM_EMAIL, SUPABASE_SERVICE_ROLE_KEY를 확인하세요.'}`
                 : params.status === 'success'
                   ? `${params.target ?? '수집'} 실행을 요청했습니다. 최근 실행 로그를 확인하세요.`
-                  : '수집 실행 요청에 실패했습니다. 환경 변수와 서버 로그를 확인하세요.'}
+                  : `수집 실행 요청에 실패했습니다.${params.reason ? ` 사유: ${params.reason}` : ' 환경 변수와 서버 로그를 확인하세요.'}`}
             </div>
           )}
 

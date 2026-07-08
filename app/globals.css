@@ -83,20 +83,48 @@ textarea {
   letter-spacing: 0;
 }
 
+.page-shell {
+  @apply mx-auto max-w-[1280px] px-4 py-8 md:px-10 md:py-10;
+}
+
+.page-stack {
+  @apply flex flex-col gap-9;
+}
+
+.page-intro {
+  @apply border-b border-outline-soft pb-7;
+}
+
+.page-intro-eyebrow {
+  @apply mb-3 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary;
+}
+
+.page-intro-title {
+  @apply text-3xl font-black leading-tight text-ink md:text-[40px];
+}
+
+.page-intro-description {
+  @apply mt-3 max-w-3xl text-base leading-7 text-muted;
+}
+
+.page-intro-meta {
+  @apply mt-3 text-sm font-bold text-muted;
+}
+
 .article-markdown {
-  @apply rounded-xl border border-outline-soft bg-white px-5 py-6 text-ink shadow-sm md:px-8 md:py-8;
+  @apply rounded-xl border border-outline-soft bg-white px-5 py-5 text-ink shadow-sm md:px-7 md:py-7;
 }
 
 .article-markdown h2 {
-  @apply mt-10 border-l-4 border-brand-primary pl-4 text-2xl font-bold leading-snug text-ink first:mt-0;
+  @apply mt-8 border-l-4 border-brand-primary pl-4 text-[22px] font-black leading-snug text-ink first:mt-0;
 }
 
 .article-markdown h3 {
-  @apply mt-8 text-xl font-bold leading-snug text-ink;
+  @apply mt-6 text-lg font-bold leading-snug text-ink;
 }
 
 .article-markdown p {
-  @apply mt-5 text-[17px] leading-9 text-ink;
+  @apply mt-4 text-[16px] leading-8 text-ink;
 }
 
 .article-markdown p:first-child {
@@ -112,11 +140,11 @@ textarea {
 }
 
 .article-markdown ul {
-  @apply mt-5 space-y-3 rounded-lg border border-outline-soft bg-surface-lowest p-5;
+  @apply mt-4 space-y-2 rounded-lg border border-outline-soft bg-surface-lowest p-4;
 }
 
 .article-markdown li {
-  @apply relative pl-5 text-[16px] leading-8 text-ink;
+  @apply relative pl-5 text-[15px] leading-7 text-ink;
 }
 
 .article-markdown li::before {
@@ -125,11 +153,11 @@ textarea {
 }
 
 .article-markdown blockquote {
-  @apply mt-6 rounded-lg border-l-4 border-tertiary bg-surface p-5 text-[16px] leading-8 text-muted;
+  @apply mt-5 rounded-lg border-l-4 border-tertiary bg-surface p-4 text-[15px] leading-7 text-muted;
 }
 
 .article-markdown pre {
-  @apply mt-6 overflow-x-auto rounded-lg bg-[#191c1d] p-5 text-sm leading-7 text-white;
+  @apply mt-5 max-h-[360px] overflow-auto rounded-lg bg-[#191c1d] p-5 text-sm leading-7 text-white;
 }
 
 .article-markdown code {

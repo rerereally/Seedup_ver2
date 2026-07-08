@@ -1,6 +1,7 @@
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import PageIntro from '@/components/PageIntro';
 import { getScraps } from '@/lib/data';
 import { Bookmark, Code2, FileText, Github, Lightbulb, Search } from 'lucide-react';
 import Link from 'next/link';
@@ -36,19 +37,15 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="mx-auto max-w-[1280px] px-4 py-12 md:px-10 md:py-16">
-          <section className="mb-10 flex flex-col gap-4 border-b border-outline-soft pb-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                <Bookmark className="h-3.5 w-3.5 fill-brand-primary" />
-                Saved
-              </div>
-              <h1 className="text-3xl font-semibold text-ink md:text-[32px]">스크랩북</h1>
-              <p className="mt-2 text-muted">뉴스, 트렌드, 프로젝트 아이디어를 한 곳에 모아 다음 빌드를 준비하세요.</p>
-            </div>
-          </section>
+        <div className="page-shell">
+          <PageIntro
+            eyebrow="Saved"
+            title="스크랩북"
+            description="뉴스, 트렌드, 프로젝트 아이디어를 한 곳에 모아 다음 빌드를 준비하세요."
+            icon={Bookmark}
+          />
 
-          <section className="mb-8 rounded-xl border border-outline-soft bg-white p-4">
+          <section className="mb-8 mt-9 rounded-xl border border-outline-soft bg-white p-4">
             <form action="/scrap" className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="relative md:w-80">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />

@@ -14,7 +14,7 @@ export default function Footer() {
         </div>
         
         <nav className="flex flex-wrap items-center gap-5 text-sm text-white/60">
-          <Link href="/news" className="transition-colors hover:text-white">뉴스</Link>
+          <Link href="/news" className="transition-colors hover:text-white">아티클</Link>
           <Link href="/trends" className="transition-colors hover:text-white">트렌드</Link>
           <Link href="/projects" className="transition-colors hover:text-white">프로젝트</Link>
           <Link href="/ideas" className="transition-colors hover:text-white">아이디어 평가</Link>

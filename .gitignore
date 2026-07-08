@@ -17,6 +17,7 @@ dist/
 
 # deploy tool output
 .vercel/
+.wrangler/
 cloudflare-env.d.ts
 
 # system files

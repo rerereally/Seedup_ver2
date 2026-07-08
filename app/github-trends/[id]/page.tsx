@@ -4,6 +4,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getExistingScrap, getGitHubTrend } from '@/lib/data';
 import { incrementContentView } from '@/lib/engagement';
+import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, Bookmark, ExternalLink, GitFork, Github, Lightbulb, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -17,6 +18,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
 
   if (!repo) notFound();
   await incrementContentView('github', repo.id);
+  const projectTitle = repo.project_idea ? cleanProjectTitle(repo.project_idea) : null;
 
   return (
     <>
@@ -25,7 +27,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
         <article className="mx-auto max-w-[980px] px-4 py-12 md:px-10 md:py-16">
           <Link href="/github-trends" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand-primary">
             <ArrowLeft className="h-4 w-4" />
-            GitHub 목록으로
+            오픈소스 목록으로
           </Link>
 
           <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
@@ -50,14 +52,14 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
                 <input type="hidden" name="description" value={repo.beginner_summary ?? repo.description ?? ''} />
                 <input type="hidden" name="tag" value={repo.language ?? 'github'} />
                 <input type="hidden" name="return_to" value={`/github-trends/${repo.id}`} />
-                <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${repo.repo_full_name} ${existingScrap ? '저장 해제' : '저장하기'}`}>
                   <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                  {existingScrap ? '스크랩 해제' : '스크랩'}
+                  {existingScrap ? '저장 해제' : '저장'}
                 </button>
               </form>
               <ContentEngagement itemType="github" itemId={repo.id} returnTo={`/github-trends/${repo.id}`} views={Number(repo.view_count ?? 0) + 1} likes={repo.like_count} dislikes={repo.dislike_count} />
               <Link href={repo.repo_url} target="_blank" className="inline-flex h-10 items-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white">
-                GitHub 보기
+                원본 저장소 보기
                 <ExternalLink className="h-4 w-4" />
               </Link>
             </div>
@@ -75,13 +77,13 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
                   <p className="mt-3 leading-8 text-muted">{repo.ai_review}</p>
                 </section>
               )}
-              {repo.project_idea && (
+              {projectTitle && (
                 <section className="rounded-xl border border-tertiary/20 bg-tertiary/10 p-5">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-tertiary">
                     <Lightbulb className="h-5 w-5" />
                     따라 만들어볼 프로젝트
                   </div>
-                  <p className="text-lg font-bold leading-8 text-ink">{repo.project_idea}</p>
+                  <p className="text-lg font-bold leading-8 text-ink">{projectTitle}</p>
                 </section>
               )}
             </div>

@@ -76,7 +76,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
         <div className="mx-auto max-w-[1180px] px-4 py-10 md:px-10 md:py-14">
           <Link href="/ai-products" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand-primary">
             <ArrowLeft className="h-4 w-4" />
-            AI 제품랭크로
+            AI 제품으로
           </Link>
 
           <section className="rounded-xl border border-outline-soft bg-white p-6 md:p-8">
@@ -121,9 +121,9 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                   <input type="hidden" name="description" value={product.description ?? ''} />
                   <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
                   <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-5 py-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-5 py-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${product.name} ${existingScrap ? '저장 해제' : '저장하기'}`}>
                     <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                    {existingScrap ? '스크랩됨' : '스크랩'}
+                    {existingScrap ? '저장 해제' : '저장'}
                   </button>
                 </form>
                 {(product.website_url || product.product_hunt_url) && (

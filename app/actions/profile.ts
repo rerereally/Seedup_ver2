@@ -13,7 +13,6 @@ export async function updateProfileSettings(formData: FormData) {
   if (!user) redirect('/login');
 
   const fullName = String(formData.get('full_name') ?? '').trim();
-  const newsletterSubscribed = formData.get('newsletter_subscribed') === 'on';
 
   await supabase
     .from('profiles')
@@ -22,23 +21,6 @@ export async function updateProfileSettings(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', user.id);
-
-  const { data: existingOnboarding } = await supabase
-    .from('user_onboarding')
-    .select('answers')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  await supabase.from('user_onboarding').upsert(
-    {
-      user_id: user.id,
-      email: user.email ?? null,
-      answers: existingOnboarding?.answers ?? {},
-      newsletter_subscribed: newsletterSubscribed,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id' },
-  );
 
   revalidatePath('/profile');
   redirect('/profile?status=saved');

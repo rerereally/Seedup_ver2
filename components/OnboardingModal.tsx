@@ -40,7 +40,7 @@ export default function OnboardingModal({ userId, email }: { userId: string; ema
           <div>
             <div className="mb-2 inline-flex rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">Onboarding</div>
             <h1 className="text-xl font-bold text-ink">맞춤 추천 설정</h1>
-            <p className="mt-1 text-sm leading-6 text-muted">짧은 설문으로 더 잘 맞는 프로젝트를 추천해드릴게요.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">5문항으로 관심 분야와 목표에 맞는 콘텐츠 흐름을 맞춰드릴게요.</p>
           </div>
           <button
             type="button"

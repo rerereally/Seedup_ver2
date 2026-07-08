@@ -1,4 +1,5 @@
 import OnboardingForm from '@/components/OnboardingForm';
+import type { OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -17,6 +18,12 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
+  const { data: onboarding } = await supabase
+    .from('user_onboarding')
+    .select('answers,newsletter_subscribed')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
   return (
     <main className="min-h-screen bg-surface px-4 py-10 md:px-10">
       <div className="mx-auto max-w-[960px]">
@@ -28,13 +35,18 @@ export default async function OnboardingPage() {
         </div>
 
         <section className="mb-8 rounded-xl border border-outline-soft bg-white p-6 md:p-8">
-          <h1 className="text-3xl font-bold text-ink md:text-4xl">맞춤 프로젝트 추천을 위한 간단한 설문</h1>
+          <h1 className="text-3xl font-bold text-ink md:text-4xl">맞춤 추천을 위한 5문항 설정</h1>
           <p className="mt-3 max-w-2xl leading-7 text-muted">
-            개발 수준, 관심 분야, 목표를 알려주시면 Seedup이 더 잘 맞는 뉴스와 프로젝트 아이디어를 추천할 수 있습니다.
+            개발 수준, 관심 분야, 목표를 알려주시면 Seedup이 더 잘 맞는 아티클, 오픈소스, AI 제품, 프로젝트 아이디어를 추천할 수 있습니다.
           </p>
         </section>
 
-        <OnboardingForm userId={user.id} email={user.email ?? null} />
+        <OnboardingForm
+          userId={user.id}
+          email={user.email ?? null}
+          initialAnswers={(onboarding?.answers ?? {}) as OnboardingAnswers}
+          initialNewsletterSubscribed={onboarding?.newsletter_subscribed ?? true}
+        />
       </div>
     </main>
   );

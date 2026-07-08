@@ -2,6 +2,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getGitHubTrends, getProjectIdeas } from '@/lib/data';
 import { getContentHref } from '@/lib/content-targets';
+import { cleanProjectTitle } from '@/lib/utils';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -45,7 +46,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               ))}
             </ResultSection>
 
-            <ResultSection title="GitHub" count={repoResults.length}>
+            <ResultSection title="오픈소스" count={repoResults.length}>
               {repoResults.map((repo) => (
                 <Link key={repo.id} href={getContentHref('github', repo.id)} className="group rounded-xl border border-outline-soft bg-white p-5 hover:border-brand-primary">
                   <div className="mb-2 text-xs font-bold text-brand-primary">{repo.language ?? 'Open Source'}</div>
@@ -56,13 +57,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             </ResultSection>
 
             <ResultSection title="프로젝트" count={projectResults.length}>
-              {projectResults.map((project) => (
-                <Link key={project.id} href={getContentHref('project', project.id)} className="group rounded-xl border border-outline-soft bg-white p-5 hover:border-brand-primary">
-                  <div className="mb-2 text-xs font-bold text-brand-primary">{project.level ?? 'Project'}</div>
-                  <h2 className="line-clamp-2 text-xl font-bold text-ink group-hover:text-brand-primary">{project.title}</h2>
-                  {project.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{project.description}</p>}
-                </Link>
-              ))}
+              {projectResults.map((project) => {
+                const displayTitle = cleanProjectTitle(project.title);
+
+                return (
+                  <Link key={project.id} href={getContentHref('project', project.id)} className="group rounded-xl border border-outline-soft bg-white p-5 hover:border-brand-primary">
+                    <div className="mb-2 text-xs font-bold text-brand-primary">{project.level ?? 'Project'}</div>
+                    <h2 className="line-clamp-2 text-xl font-bold text-ink group-hover:text-brand-primary">{displayTitle}</h2>
+                    {project.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{project.description}</p>}
+                  </Link>
+                );
+              })}
             </ResultSection>
           </div>
         </div>

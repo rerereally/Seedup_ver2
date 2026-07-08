@@ -94,10 +94,11 @@ export default function Ideas() {
 
     const json = await response.json();
     const evaluation = json.evaluation as IdeaEvaluationResult;
+    const saved = Boolean(json.saved);
     setMessages((current) => current.map((message) => message.id.startsWith('thinking-') ? {
       id: `assistant-${Date.now()}`,
       role: 'assistant',
-      content: '아이디어 분석이 완료되었습니다.',
+      content: saved ? '아이디어 분석이 완료되었습니다. 결과가 최근 기록에 저장되었습니다.' : '아이디어 분석이 완료되었습니다. 로그인하면 결과를 최근 기록에 저장할 수 있습니다.',
       evaluation,
     } : message));
     setStatus('saved');
@@ -142,7 +143,7 @@ export default function Ideas() {
                 {item.score !== null && <span className="mt-1 block text-xs text-brand-primary">{item.score}점</span>}
               </button>
             )) : (
-              <p className="px-3 py-2 text-xs leading-5 text-muted">로그인 후 아이디어를 저장하면 최근 기록이 표시됩니다.</p>
+              <p className="px-3 py-2 text-xs leading-5 text-muted">로그인하면 평가 결과가 최근 기록에 저장됩니다.</p>
             )}
           </aside>
 
@@ -153,7 +154,7 @@ export default function Ideas() {
                 Idea Chat
               </div>
               <h1 className="text-3xl font-black text-ink md:text-[36px]">내 아이디어 평가받기</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">채팅하듯 아이디어를 입력하면 분석 결과를 바로 대화창에 정리합니다.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">채팅하듯 아이디어를 입력하면 포트폴리오 가치, 추천 스택, 다음 단계를 바로 정리합니다.</p>
             </div>
 
             <div className="flex min-h-[560px] flex-1 flex-col">
@@ -175,6 +176,7 @@ export default function Ideas() {
                   <textarea
                     value={idea}
                     onChange={(event) => setIdea(event.target.value)}
+                    aria-label="평가받을 프로젝트 아이디어"
                     placeholder="예: 매일 뉴스레터를 요약해서 슬랙으로 보내주는 봇을 만들고 싶어요."
                     className="min-h-24 w-full resize-none bg-transparent px-3 py-2 text-sm leading-7 text-ink outline-none placeholder:text-muted/60"
                     onKeyDown={(event) => {

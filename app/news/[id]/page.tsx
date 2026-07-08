@@ -51,9 +51,9 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                   <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
                   <input type="hidden" name="tag" value={item.category ?? 'news'} />
                   <input type="hidden" name="return_to" value={`/news/${item.id}`} />
-                  <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                  <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-3 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${item.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
                     <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                    {existingScrap ? '스크랩 해제' : '스크랩'}
+                    {existingScrap ? '저장 해제' : '저장'}
                   </button>
                 </form>
                 {item.original_url && (

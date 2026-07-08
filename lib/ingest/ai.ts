@@ -155,7 +155,7 @@ export async function analyzeRepo(input: { fullName: string; description: string
     relevance_score: 70,
     ai_review: `${input.fullName}은 ${input.language ?? '여러 기술'} 기반의 GitHub 프로젝트입니다.`,
     beginner_summary: input.description ?? '프로젝트 설명이 제공되지 않았습니다.',
-    project_idea: `${input.fullName}을 참고한 미니 클론 만들기`,
+    project_idea: `${input.fullName}처럼 핵심 기능 만들어보기`,
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -305,7 +305,7 @@ export async function generateProjectIdea(input: {
   skills?: string[];
 }) {
   const fallback: GeneratedProjectIdea = {
-    title: `${input.title} 기반 미니 프로젝트`,
+    title: `${input.title}로 시작하는 실전 미니 프로젝트`,
     description: truncate(input.summary, 240),
     level: '초급',
     duration_days: 7,

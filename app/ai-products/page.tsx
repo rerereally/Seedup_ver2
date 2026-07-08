@@ -72,8 +72,8 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
       <main className="grow bg-surface">
         <div className="page-shell">
           <PageIntro
-            eyebrow="AI Ranking"
-            title="AI 제품랭크"
+            eyebrow="AI Products"
+            title="AI 제품"
             description="다음 프로젝트에 영감을 줄 AI 제품을 평가하고, 초보 개발자가 어디에 활용할 수 있는지 빠르게 확인하세요."
             icon={Flame}
             meta={`총 ${products.length}개 제품`}
@@ -97,6 +97,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                 const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
                 const tags = productTags(product);
                 const risks = riskTags(product).slice(0, 2);
+                const ratingCount = product.rating_count ?? 0;
                 const displayScore = displayRating(product.score);
 
                 return (
@@ -123,10 +124,14 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                                 </span>
                               )}
                             </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <StarRating score={product.score} />
-                              <span className="text-sm font-semibold text-muted">{displayScore} / 5 · {product.rating_count ?? 0}명 평가</span>
-                            </div>
+                            {ratingCount > 0 ? (
+                              <div className="mt-2 flex items-center gap-2">
+                                <StarRating score={product.score} />
+                                <span className="text-sm font-semibold text-muted">{displayScore} / 5 · {ratingCount}명 평가</span>
+                              </div>
+                            ) : (
+                              <div className="mt-2 text-sm font-semibold text-muted">아직 평가 없음</div>
+                            )}
                           </div>
                           <div className="flex shrink-0 gap-2">
                             <form action={saveScrap}>
@@ -136,7 +141,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                               <input type="hidden" name="description" value={product.description ?? ''} />
                               <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
                               <input type="hidden" name="return_to" value="/ai-products" />
-                              <button type="submit" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-outline-soft bg-white text-muted transition-colors hover:border-brand-primary hover:text-brand-primary" aria-label={`${product.name} 스크랩`}>
+                              <button type="submit" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-outline-soft bg-white text-muted transition-colors hover:border-brand-primary hover:text-brand-primary" aria-label={`${product.name} ${isScrapped ? '저장 해제' : '저장하기'}`}>
                                 <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-brand-primary text-brand-primary' : ''}`} />
                               </button>
                             </form>
@@ -148,6 +153,25 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                         </div>
 
                         {product.description && <p className="mt-4 line-clamp-2 max-w-3xl text-sm leading-6 text-muted">{product.description}</p>}
+
+                        <div className="mt-4 grid gap-3 rounded-lg border border-outline-soft bg-surface-lowest p-4 text-sm leading-6 md:grid-cols-2">
+                          <div>
+                            <div className="text-xs font-bold text-brand-primary">누가 쓰면 좋은가</div>
+                            <p className="mt-1 line-clamp-2 text-muted">{product.target_user ?? 'AI 도구를 실제 개발 워크플로우에 붙여보고 싶은 개발자'}</p>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-brand-primary">검증 상태</div>
+                            <p className="mt-1 line-clamp-2 text-muted">{product.status ?? risks[0] ?? '실사용 검증 필요'}</p>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-brand-primary">개발자 관점 활용법</div>
+                            <p className="mt-1 line-clamp-2 text-muted">{(product.use_cases ?? [])[0] ?? '기존 개발 과정의 반복 작업을 줄이거나 새 제품 아이디어를 검증하는 데 활용할 수 있습니다.'}</p>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-brand-primary">관련 프로젝트 아이디어</div>
+                            <p className="mt-1 line-clamp-2 text-muted">{(product.related_project_ideas ?? [])[0] ?? '비슷한 문제를 해결하는 미니 AI 도구 만들기'}</p>
+                          </div>
+                        </div>
 
                         {!!tags.length && (
                           <div className="mt-4 flex flex-wrap gap-2">

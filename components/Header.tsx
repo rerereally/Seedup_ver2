@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search, Menu, X, UserCircle } from 'lucide-react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const NAV_LINKS = [
   { name: '트렌드', href: '/trends' },
   { name: '아티클', href: '/news' },
-  { name: 'GitHub', href: '/github-trends' },
+  { name: '오픈소스', href: '/github-trends' },
   { name: '프로젝트', href: '/projects' },
-  { name: 'AI 랭킹', href: '/ai-products' },
-  { name: '스크랩', href: '/scrap' },
+  { name: 'AI 제품', href: '/ai-products' },
   { name: '아이디어 평가', href: '/ideas' },
+  { name: '내 보관함', href: '/scrap' },
 ];
 
 export default function Header() {
@@ -24,6 +24,9 @@ export default function Header() {
   const [query, setQuery] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const desktopSearchId = useId();
+  const mobileSearchId = useId();
+  const mobileMenuId = useId();
 
   useEffect(() => {
     const supabase = createClient();
@@ -44,6 +47,17 @@ export default function Header() {
 
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,8 +98,10 @@ export default function Header() {
 
         <div className="hidden items-center gap-3 md:flex">
           <form onSubmit={handleSearch} className="relative">
+            <label htmlFor={desktopSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
             <input
+              id={desktopSearchId}
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -115,7 +131,9 @@ export default function Header() {
         <button 
           type="button"
           className="text-muted lg:hidden"
-          aria-label="메뉴 열기"
+          aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
+          aria-controls={mobileMenuId}
+          aria-expanded={isMobileMenuOpen}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -123,10 +141,12 @@ export default function Header() {
       </div>
 
       {isMobileMenuOpen && (
-        <div className="absolute left-0 top-14 flex w-full flex-col gap-4 border-b border-outline-soft/70 bg-white p-4 shadow-lg lg:hidden">
+        <div id={mobileMenuId} className="absolute left-0 top-14 flex w-full flex-col gap-4 border-b border-outline-soft/70 bg-white p-4 shadow-lg lg:hidden">
           <form onSubmit={handleSearch} className="relative w-full">
+            <label htmlFor={mobileSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
             <input
+              id={mobileSearchId}
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -134,7 +154,7 @@ export default function Header() {
               className="w-full rounded-full border border-outline-soft/60 bg-surface-low py-2 pl-9 pr-4 text-sm outline-none focus:border-brand-primary"
             />
           </form>
-          <nav className="flex flex-col gap-1">
+          <nav className="flex flex-col gap-1" aria-label="모바일 주요 메뉴">
             {NAV_LINKS.map((link) => {
               const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
               

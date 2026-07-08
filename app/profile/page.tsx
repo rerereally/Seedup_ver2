@@ -2,9 +2,11 @@ import { signOut, updateNewsletterSubscription, updateProfileSettings } from '@/
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
+import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/server';
-import { Bell, CheckCircle2, LogOut, Mail, Settings, UserCircle } from 'lucide-react';
+import { Bell, CheckCircle2, LogOut, Mail, Settings, SlidersHorizontal, UserCircle } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 function notice(status?: string) {
@@ -12,6 +14,11 @@ function notice(status?: string) {
   if (status === 'subscribed') return '뉴스레터 구독을 신청했습니다.';
   if (status === 'unsubscribed') return '뉴스레터 구독을 해지했습니다.';
   return null;
+}
+
+function formatAnswer(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '미설정';
+  return value || '미설정';
 }
 
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -31,6 +38,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const fullName = profile?.full_name ?? user.user_metadata?.full_name ?? '';
   const avatarUrl = profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null;
   const newsletterSubscribed = onboarding?.newsletter_subscribed ?? true;
+  const onboardingAnswers = (onboarding?.answers ?? {}) as OnboardingAnswers;
   const statusNotice = notice(params.status);
 
   return (
@@ -101,6 +109,36 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             </section>
 
             <aside className="flex flex-col gap-5">
+              <section className="rounded-lg border border-outline-soft bg-white">
+                <div className="border-b border-outline-soft px-5 py-4">
+                  <h2 className="text-lg font-semibold text-ink">맞춤 추천 설정</h2>
+                </div>
+                <div className="p-5">
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
+                      <SlidersHorizontal className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-ink">{onboarding ? '설정 완료' : '설정 필요'}</div>
+                      <p className="mt-1 text-sm leading-6 text-muted">관심 분야와 목표를 기준으로 홈 추천과 뉴스레터를 맞춥니다.</p>
+                    </div>
+                  </div>
+
+                  <dl className="space-y-3 text-sm">
+                    {onboardingQuestions.map((question) => (
+                      <div key={question.id} className="rounded-lg bg-surface-lowest p-3">
+                        <dt className="font-semibold text-ink">{question.title}</dt>
+                        <dd className="mt-1 leading-6 text-muted">{formatAnswer(onboardingAnswers[question.id])}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  <Link href="/onboarding" className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-outline-soft bg-white px-4 py-2.5 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                    맞춤 설정 다시 하기
+                  </Link>
+                </div>
+              </section>
+
               <section className="rounded-lg border border-outline-soft bg-white">
                 <div className="border-b border-outline-soft px-5 py-4">
                   <h2 className="text-lg font-semibold text-ink">뉴스레터</h2>

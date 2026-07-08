@@ -64,9 +64,9 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                   <input type="hidden" name="description" value={paper.beginner_summary ?? paper.expert_summary ?? ''} />
                   <input type="hidden" name="tag" value={paper.review_type ?? 'paper'} />
                   <input type="hidden" name="return_to" value={`/papers/${paper.id}`} />
-                  <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                  <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${paper.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
                     <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                    {existingScrap ? '스크랩 해제' : '스크랩'}
+                    {existingScrap ? '저장 해제' : '저장'}
                   </button>
                 </form>
                 <ContentEngagement itemType="paper" itemId={paper.id} returnTo={`/papers/${paper.id}`} views={Number(paper.view_count ?? 0) + 1} likes={paper.like_count} dislikes={paper.dislike_count} />

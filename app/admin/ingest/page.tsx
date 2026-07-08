@@ -13,10 +13,10 @@ import { redirect } from 'next/navigation';
 const TASKS = [
   { key: 'rss', label: '뉴스 RSS 수집', description: '개발 뉴스 RSS를 파싱하고 AI 요약 후 news_items에 저장합니다.' },
   { key: 'products', label: 'AI 제품 수집', description: 'Product Hunt 피드를 분석해 ai_products에 저장합니다.' },
-  { key: 'github', label: 'GitHub 트렌드 수집', description: '인기 저장소를 가져와 초보자용 리뷰와 프로젝트 아이디어를 만듭니다.' },
+  { key: 'github', label: '오픈소스 수집', description: '인기 저장소를 가져와 초보자용 리뷰와 프로젝트 아이디어를 만듭니다.' },
   { key: 'research', label: '논문 리뷰 수집', description: 'arXiv 논문을 가져오고 Papers with Code/Hugging Face 신호를 보강해 자체 논문 리뷰를 만듭니다.' },
   { key: 'trends', label: '트렌드 집계', description: '누적 키워드 신호를 기반으로 trends와 trend_snapshots를 갱신합니다.' },
-  { key: 'project-ideas', label: '프로젝트 아이디어 생성', description: '뉴스/제품/GitHub 신호를 포트폴리오 프로젝트로 변환합니다.' },
+  { key: 'project-ideas', label: '프로젝트 아이디어 생성', description: '뉴스/제품/오픈소스 신호를 포트폴리오 프로젝트로 변환합니다.' },
 ] as const;
 
 function formatDate(value: string) {
@@ -62,7 +62,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 Ingestion Console
               </div>
               <h1 className="text-4xl font-bold text-ink">데이터 수집 관리</h1>
-              <p className="mt-3 max-w-2xl leading-7 text-muted">로컬 개발과 초기 운영 단계에서 뉴스, 제품, GitHub, 트렌드, 프로젝트 아이디어 수집을 수동으로 실행하고 결과를 확인합니다.</p>
+              <p className="mt-3 max-w-2xl leading-7 text-muted">로컬 개발과 초기 운영 단계에서 뉴스, 제품, 오픈소스, 트렌드, 프로젝트 아이디어 수집을 수동으로 실행하고 결과를 확인합니다.</p>
             </div>
             <form action={runFullIngest}>
               <SubmitButton pendingText="전체 실행 중" className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-primary px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90">
@@ -108,7 +108,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                   Manual Newsletter
                 </div>
                 <h2 className="text-2xl font-semibold text-ink">뉴스레터 수동 발송</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">뉴스, AI 제품, GitHub 트렌드, 프로젝트 아이디어의 최신 데이터를 조합해 구독자에게 Seedup Weekly 이메일을 보냅니다.</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">뉴스, AI 제품, 오픈소스, 프로젝트 아이디어의 최신 데이터를 조합해 구독자에게 Seedup Weekly 이메일을 보냅니다.</p>
               </div>
               <form action={sendManualNewsletter}>
                 <SubmitButton pendingText="발송 중" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-primary px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 md:w-auto">

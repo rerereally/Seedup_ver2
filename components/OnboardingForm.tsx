@@ -6,16 +6,27 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
-export default function OnboardingForm({ userId, email, onCompleted }: { userId: string; email: string | null; onCompleted?: () => void }) {
+export default function OnboardingForm({
+  userId,
+  email,
+  onCompleted,
+  initialAnswers,
+  initialNewsletterSubscribed = true,
+}: {
+  userId: string;
+  email: string | null;
+  onCompleted?: () => void;
+  initialAnswers?: OnboardingAnswers;
+  initialNewsletterSubscribed?: boolean;
+}) {
   const router = useRouter();
-  const [answers, setAnswers] = useState<OnboardingAnswers>({});
-  const [newsletterSubscribed, setNewsletterSubscribed] = useState(true);
+  const [answers, setAnswers] = useState<OnboardingAnswers>(initialAnswers ?? {});
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(initialNewsletterSubscribed);
   const [status, setStatus] = useState<'idle' | 'saving' | 'error'>('idle');
   const [step, setStep] = useState(0);
   const totalSteps = onboardingQuestions.length + 1;
   const isNewsletterStep = step === onboardingQuestions.length;
   const currentQuestion = onboardingQuestions[step];
-  const followUp = currentQuestion && 'followUp' in currentQuestion ? currentQuestion.followUp : null;
 
   const isComplete = useMemo(
     () =>
@@ -36,10 +47,6 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
       const next = previous.includes(value) ? previous.filter((item) => item !== value) : [...previous, value];
       return { ...current, [id]: next };
     });
-  };
-
-  const setText = (id: string, value: string) => {
-    setAnswers((current) => ({ ...current, [id]: value }));
   };
 
   const currentAnswered = useMemo(() => {
@@ -123,17 +130,6 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
               );
             })}
           </div>
-          {followUp && (
-            <label className="mt-5 block">
-              <span className="mb-2 block text-sm font-semibold text-ink">직접 입력</span>
-              <textarea
-                value={typeof answers[followUp.id] === 'string' ? answers[followUp.id] : ''}
-                onChange={(event) => setText(followUp.id, event.target.value)}
-                placeholder={followUp.placeholder}
-                className="min-h-24 w-full resize-none rounded-lg border border-outline-soft bg-surface px-4 py-3 text-sm leading-6 text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-brand-primary focus:bg-white"
-              />
-            </label>
-          )}
         </section>
       )}
 
@@ -144,11 +140,11 @@ export default function OnboardingForm({ userId, email, onCompleted }: { userId:
               <Mail className="h-4 w-4" />
             </span>
             <h2 className="text-xl font-bold leading-snug text-ink">뉴스레터를 받아볼까요?</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">매주 개발 뉴스, 트렌드, 추천 프로젝트를 이메일로 보내드립니다.</p>
+            <p className="mt-2 text-sm leading-6 text-muted">개발 트렌드, 추천 아티클, 많이 본 논문, 오픈소스, AI 제품, 해볼 만한 프로젝트를 이메일로 보내드립니다.</p>
           </div>
           <div className="grid gap-3">
           {[
-            { value: true, label: '네, 받아볼게요', desc: '개인화된 뉴스와 프로젝트 추천을 이메일로 받습니다.' },
+            { value: true, label: '네, 받아볼게요', desc: '개인화된 콘텐츠와 프로젝트 후보를 이메일로 받습니다.' },
             { value: false, label: '아니요, 앱에서만 볼게요', desc: '이메일 수신 없이 서비스 안에서만 추천을 확인합니다.' },
           ].map((option) => (
             <button

@@ -4,6 +4,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
+import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowRight, Bookmark, Calendar, Filter, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +65,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
             <section className="grid gap-5 lg:grid-cols-3">
               {paginatedProjects.map((project) => {
                 const isScrapped = scrapKeys.has(`project:${project.id}`);
+                const displayTitle = cleanProjectTitle(project.title);
 
                 return (
                 <article key={project.id} className="group flex min-h-[360px] flex-col rounded-lg border border-outline-soft bg-white p-6 transition-all hover:border-l-2 hover:border-l-brand-primary hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
@@ -76,8 +78,24 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                       </span>
                     )}
                   </div>
-                  <h2 className="text-2xl font-semibold leading-snug text-ink transition-colors group-hover:text-brand-primary">{project.title}</h2>
+                  <h2 className="text-2xl font-semibold leading-snug text-ink transition-colors group-hover:text-brand-primary">{displayTitle}</h2>
                   {project.description && <p className="mt-3 flex-1 text-sm leading-6 text-muted">{project.description}</p>}
+                  <div className="mt-5 grid gap-3 rounded-lg border border-outline-soft bg-surface-lowest p-4 text-sm leading-6">
+                    <div>
+                      <div className="text-xs font-bold text-brand-primary">결과물</div>
+                      <p className="mt-1 line-clamp-2 text-muted">{project.description ?? '작게 배포 가능한 MVP와 README를 완성합니다.'}</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="text-xs font-bold text-brand-primary">추천 대상</div>
+                        <p className="mt-1 line-clamp-1 text-muted">{project.level ?? '초급'} 개발자</p>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-brand-primary">포트폴리오 포인트</div>
+                        <p className="mt-1 line-clamp-1 text-muted">{project.portfolio_value ?? '트렌드를 실제 결과물로 바꾸는 실행력'}</p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-6">
                     <div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted/70">Technology Stack</div>
                     <div className="flex flex-wrap gap-2">
@@ -95,11 +113,11 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                       <form action={saveScrap}>
                         <input type="hidden" name="item_type" value="project" />
                         <input type="hidden" name="item_id" value={project.id} />
-                        <input type="hidden" name="title" value={project.title} />
+                        <input type="hidden" name="title" value={displayTitle} />
                         <input type="hidden" name="description" value={project.description ?? ''} />
                         <input type="hidden" name="tag" value={project.related_trend ?? project.level ?? 'project'} />
                         <input type="hidden" name="return_to" value="/projects" />
-                        <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-outline-soft px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-brand-primary hover:text-brand-primary" aria-label={`${project.title} 스크랩`}>
+                        <button type="submit" className="inline-flex items-center gap-1 rounded-lg border border-outline-soft px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-brand-primary hover:text-brand-primary" aria-label={`${displayTitle} ${isScrapped ? '저장 해제' : '내 프로젝트 후보에 저장하기'}`}>
                           <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-brand-primary text-brand-primary' : ''}`} />
                         </button>
                       </form>

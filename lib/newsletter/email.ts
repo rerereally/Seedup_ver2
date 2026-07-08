@@ -56,7 +56,7 @@ export function buildNewsletterHtml(data: NewsletterData) {
     <title>Seedup Weekly</title>
   </head>
   <body style="margin:0;background:#f8f9fa;font-family:Pretendard,Apple SD Gothic Neo,Malgun Gothic,Arial,sans-serif;color:#191c1d;">
-    <div style="display:none;max-height:0;overflow:hidden;">이번 주 개발 뉴스, AI 제품, GitHub 트렌드, 만들 만한 프로젝트를 모았습니다.</div>
+    <div style="display:none;max-height:0;overflow:hidden;">이번 주 개발 뉴스, AI 제품, 오픈소스, 만들 만한 프로젝트를 모았습니다.</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f9fa;">
       <tr>
         <td align="center" style="padding:32px 16px;">
@@ -76,9 +76,9 @@ export function buildNewsletterHtml(data: NewsletterData) {
                   ${data.news.slice(0, 5).map((item, index) => card(item.title, item.beginner_summary ?? item.summary, `${data.siteUrl}/news/${item.id}`, `맞춤 글 ${index + 1}`)).join('')}
                   <tr><td style="padding:24px 0 8px;font-size:14px;font-weight:900;color:#191c1d;">오늘 추천 논문 3</td></tr>
                   ${data.papers.slice(0, 3).map((item, index) => card(item.title, item.beginner_summary ?? item.expert_summary, `${data.siteUrl}/papers/${item.id}`, `추천 논문 ${index + 1}`)).join('')}
-                  ${topProduct ? card(topProduct.name, topProduct.description, `${data.siteUrl}/ai-products/${topProduct.id}`, 'AI Product') : ''}
-                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends/${topRepo.id}`, 'GitHub Trend') : ''}
-                  ${topProject ? card(topProject.title, topProject.description, `${data.siteUrl}/projects/${topProject.id}`, 'Build Idea') : ''}
+                  ${topProduct ? card(topProduct.name, topProduct.description, `${data.siteUrl}/ai-products/${topProduct.id}`, 'AI 제품') : ''}
+                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends/${topRepo.id}`, '오픈소스') : ''}
+                  ${topProject ? card(topProject.title, topProject.description, `${data.siteUrl}/projects/${topProject.id}`, '프로젝트 아이디어') : ''}
                 </table>
                 <div style="padding-top:24px;text-align:center;">
                   <a href="${data.siteUrl}" style="display:inline-block;padding:14px 22px;border-radius:12px;background:#ff4628;color:#ffffff;font-size:15px;font-weight:900;text-decoration:none;">Seedup에서 전체 보기</a>
@@ -105,9 +105,9 @@ export function buildNewsletterText(data: NewsletterData) {
   lines.push('', '오늘 추천 논문 3');
   data.papers.slice(0, 3).forEach((item, index) => lines.push(`${index + 1}. ${item.title}`, `${data.siteUrl}/papers/${item.id}`));
   lines.push('');
-  if (data.products[0]) lines.push(`AI Product: ${data.products[0].name}`, `${data.siteUrl}/ai-products/${data.products[0].id}`, '');
-  if (data.repos[0]) lines.push(`GitHub Trend: ${data.repos[0].repo_full_name}`, `${data.siteUrl}/github-trends/${data.repos[0].id}`, '');
-  if (data.projects[0]) lines.push(`Build Idea: ${data.projects[0].title}`, `${data.siteUrl}/projects/${data.projects[0].id}`, '');
+  if (data.products[0]) lines.push(`AI 제품: ${data.products[0].name}`, `${data.siteUrl}/ai-products/${data.products[0].id}`, '');
+  if (data.repos[0]) lines.push(`오픈소스: ${data.repos[0].repo_full_name}`, `${data.siteUrl}/github-trends/${data.repos[0].id}`, '');
+  if (data.projects[0]) lines.push(`프로젝트 아이디어: ${data.projects[0].title}`, `${data.siteUrl}/projects/${data.projects[0].id}`, '');
   lines.push(`전체 보기: ${data.siteUrl}`);
   return lines.join('\n');
 }

@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
-import { ArrowLeft, ArrowRight, Bookmark, Flame, Newspaper } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Flame, Lightbulb, Newspaper } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 10;
@@ -50,6 +50,10 @@ function buildHref(params: { tab: string; page?: number; category?: string; q?: 
 }
 
 function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string }) {
+  const itemType = item.type === 'paper' ? 'paper' : 'news';
+  const recommendedFor = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
+  const trustLabel = item.published_at ? `수집 기준 ${formatDate(item.published_at)}` : item.source ? `출처 ${item.source}` : 'Seedup 검토';
+
   return (
     <article className="group rounded-xl border border-outline-soft bg-white p-5 transition-all hover:border-brand-primary/50 hover:shadow-[0_12px_36px_rgba(25,28,29,0.06)]">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
@@ -63,26 +67,47 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
       {(item.summary || item.beginner_summary) && (
         <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{item.summary ?? item.beginner_summary}</p>
       )}
+      <div className="mt-4 grid gap-3 rounded-lg border border-outline-soft bg-surface-lowest p-4 text-sm leading-6">
+        <div>
+          <div className="text-xs font-bold text-brand-primary">왜 중요한가</div>
+          <p className="mt-1 line-clamp-2 text-muted">{item.why_it_matters ?? '개발 흐름을 이해하고 다음 프로젝트 주제를 고르는 데 참고할 수 있습니다.'}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <div className="text-xs font-bold text-brand-primary">추천 대상</div>
+            <p className="mt-1 line-clamp-1 text-muted">{recommendedFor || (item.type === 'paper' ? '논문을 프로젝트로 연결하고 싶은 개발자' : '트렌드를 빠르게 파악하고 싶은 개발자')}</p>
+          </div>
+          <div>
+            <div className="text-xs font-bold text-brand-primary">만들 수 있는 것</div>
+            <p className="mt-1 line-clamp-1 text-muted">{item.project_idea ?? '관련 미니 프로젝트 아이디어 탐색'}</p>
+          </div>
+        </div>
+      </div>
       <div className="mt-5 flex flex-wrap gap-2">
         {(item.related_skills ?? []).slice(0, 3).map((skill) => (
           <span key={skill} className="rounded border border-outline-soft bg-surface-lowest px-2 py-1 text-xs font-semibold text-muted">{skill}</span>
         ))}
+        <span className="rounded border border-outline-soft bg-surface-lowest px-2 py-1 text-xs font-semibold text-muted">{trustLabel}</span>
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-outline-soft pt-4">
-        <ContentEngagement itemType={item.type === 'paper' ? 'paper' : 'news'} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
+        <ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
         <div className="flex gap-2">
           <form action={saveScrap}>
-            <input type="hidden" name="item_type" value={item.type === 'paper' ? 'paper' : 'news'} />
+            <input type="hidden" name="item_type" value={itemType} />
             <input type="hidden" name="item_id" value={item.id} />
             <input type="hidden" name="title" value={item.title} />
             <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
             <input type="hidden" name="tag" value={item.category ?? 'article'} />
             <input type="hidden" name="return_to" value={returnTo} />
-            <button type="submit" className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft px-3 text-xs font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+            <button type="submit" className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft px-3 text-xs font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${item.title} ${isScrapped ? '저장 해제' : '저장하기'}`}>
               <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-brand-primary text-brand-primary' : ''}`} />
-              {isScrapped ? '해제' : '스크랩'}
+              {isScrapped ? '저장 해제' : '저장'}
             </button>
           </form>
+          <Link href="/projects" className="inline-flex h-10 items-center gap-1 rounded-lg border border-outline-soft px-3 text-xs font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${item.title} 프로젝트로 만들기`}>
+            <Lightbulb className="h-4 w-4" />
+            프로젝트로 만들기
+          </Link>
           <Link href={itemHref(item)} className="inline-flex h-10 items-center gap-1 rounded-lg bg-ink px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90">
             읽기
             <ArrowRight className="h-4 w-4" />
@@ -183,9 +208,13 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
 
               {paginatedArticles.length ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {paginatedArticles.map((item) => (
-                    <ArticleCard key={item.id} item={item} isScrapped={scrapKeys.has(`news:${item.id}`)} returnTo={currentHref} />
-                  ))}
+                  {paginatedArticles.map((item) => {
+                    const itemType = item.type === 'paper' ? 'paper' : 'news';
+
+                    return (
+                      <ArticleCard key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} />
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState

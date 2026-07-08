@@ -4,6 +4,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getExistingScrap, getProjectIdea } from '@/lib/data';
 import { incrementContentView } from '@/lib/engagement';
+import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, Bookmark, Calendar, CheckCircle2, Code2, Lightbulb, Rocket, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -17,6 +18,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   if (!project) notFound();
   await incrementContentView('project', project.id);
+  const displayTitle = cleanProjectTitle(project.title);
   const tools = [
     ...(project.stack ?? []),
     'Supabase',
@@ -42,17 +44,17 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <form action={saveScrap}>
                 <input type="hidden" name="item_type" value="project" />
                 <input type="hidden" name="item_id" value={project.id} />
-                <input type="hidden" name="title" value={project.title} />
+                <input type="hidden" name="title" value={displayTitle} />
                 <input type="hidden" name="description" value={project.description ?? ''} />
                 <input type="hidden" name="tag" value={project.related_trend ?? project.level ?? 'project'} />
                 <input type="hidden" name="return_to" value={`/projects/${project.id}`} />
-                <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary">
+                <button type="submit" className="inline-flex items-center gap-2 rounded-lg border border-outline-soft bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-brand-primary hover:text-brand-primary" aria-label={`${displayTitle} ${existingScrap ? '저장 해제' : '내 프로젝트 후보에 저장하기'}`}>
                   <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-brand-primary text-brand-primary' : ''}`} />
-                  {existingScrap ? '스크랩 해제' : '스크랩'}
+                  {existingScrap ? '저장 해제' : '내 프로젝트 후보에 저장'}
                 </button>
               </form>
             </div>
-            <h1 className="text-4xl font-bold leading-tight text-ink">{project.title}</h1>
+            <h1 className="text-4xl font-bold leading-tight text-ink">{displayTitle}</h1>
             {project.description && <p className="mt-4 text-lg leading-8 text-muted">{project.description}</p>}
             <div className="mt-6">
               <ContentEngagement itemType="project" itemId={project.id} returnTo={`/projects/${project.id}`} views={Number(project.view_count ?? 0) + 1} likes={project.like_count} dislikes={project.dislike_count} />

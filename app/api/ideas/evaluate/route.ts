@@ -17,12 +17,14 @@ export async function POST(request: Request) {
   const { evaluation, model } = await evaluateIdea({ idea });
   const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   const user = userResult.data.user;
+  let saved = false;
+  let saveError: string | null = null;
 
-  if (supabase) {
+  if (supabase && user) {
     const { error } = await supabase
       .from('idea_evaluations')
       .insert({
-        user_id: user?.id ?? null,
+        user_id: user.id,
         idea_text: idea,
         status: 'completed',
         score: evaluation.score,
@@ -33,7 +35,10 @@ export async function POST(request: Request) {
       });
 
     if (error) {
-      return NextResponse.json({ error: 'Failed to save evaluation', detail: error.message }, { status: 500 });
+      console.error('Failed to save idea evaluation', error);
+      saveError = error.message;
+    } else {
+      saved = true;
     }
   }
 
@@ -41,5 +46,7 @@ export async function POST(request: Request) {
     ok: true,
     evaluation,
     model,
+    saved,
+    saveError,
   });
 }

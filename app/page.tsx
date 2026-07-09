@@ -12,11 +12,11 @@ import DashboardRecommendationBanner from '@/components/DashboardRecommendationB
 import { buildRecommendationProfile, recommendAIProducts, recommendGitHubRepos, recommendNewsItems, recommendProjectIdeas, scrapTokens, type RecommendedItem } from '@/lib/recommendations';
 
 const STEPS = [
-  { icon: Search, title: 'Article Collection', desc: '매일 최신 기술 뉴스와 글 수집' },
-  { icon: Languages, title: 'Beginner Translation', desc: '초보자 눈높이로 쉬운 용어 해설' },
-  { icon: TrendingUp, title: 'Trend Scoring', desc: '구현 가능성과 포트폴리오 가치 평가' },
-  { icon: Lightbulb, title: 'Project Ideas', desc: '수준별 맞춤 프로젝트 도출' },
-  { icon: Calendar, title: '7-Day Build Plan', desc: '작게 완성하는 실행 플랜 제공' },
+  { icon: Search, title: 'Data Collection', desc: '뉴스, 제품, GitHub, 논문 신호 수집' },
+  { icon: Languages, title: 'Metadata Preprocess', desc: '태그, 직무, 난이도, 목표 분석' },
+  { icon: TrendingUp, title: 'Personal Match', desc: '프로필과 콘텐츠 점수 매칭' },
+  { icon: Lightbulb, title: 'Newsletter Assembly', desc: '섹션별 맞춤 브리핑 구성' },
+  { icon: Calendar, title: 'Writing On Demand', desc: '필요한 항목만 긴 글과 빌드 아이디어 생성' },
 ];
 
 const START_CARDS = [
@@ -80,17 +80,18 @@ function LoggedInHome({
   return (
     <main className="grow bg-surface">
       <section className="border-b border-ink bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
-          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-4 md:px-8 md:py-6">
+          {/* 상단: 타이틀 + 배지 */}
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
+              <div className="mb-2 inline-flex items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
                 <TerminalSquare className="h-3.5 w-3.5" />
                 daily_dashboard.ts
               </div>
               <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">
                 {userName}님, 오늘 볼 기술 신호입니다.
               </h1>
-              <p className="mt-3 max-w-3xl text-base leading-7 text-muted">
+              <p className="mt-1.5 max-w-3xl text-base leading-7 text-muted">
                 인기 아티클, 오픈소스, 프로젝트 후보, AI 제품을 빠르게 훑고 바로 이어갈 수 있게 정리했습니다.
               </p>
             </div>
@@ -101,6 +102,7 @@ function LoggedInHome({
             </div>
           </div>
 
+          {/* 하단: 배너 — 내용 크기에 맞게 자연스럽게 높이 결정 */}
           <DashboardRecommendationBanner recommendedNews={recommendedNews} latestNews={latestNews} latestPapers={latestPapers} />
         </div>
       </section>
@@ -196,10 +198,22 @@ export default async function Home() {
       getScraps(),
       getResearchPapers(2),
     ]);
-    const latestNews = [...news]
+    const publishedNews = news.filter((item) => Boolean(item.content?.trim()));
+    const latestNews = [...publishedNews]
       .sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime())
       .slice(0, 2);
-    const userName = user.email?.split('@')[0] ?? '개발자';
+
+    // profiles.full_name → user_metadata.full_name → 이메일 앞자리 순서로 표시 이름 결정
+    let userName = user.email?.split('@')[0] ?? '개발자';
+    if (supabase) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      const fullName = profileData?.full_name ?? (user.user_metadata?.full_name as string | undefined);
+      if (fullName?.trim()) userName = fullName.trim();
+    }
     let onboardingAnswers: Record<string, unknown> | null = null;
     let shouldShowOnboarding = false;
 
@@ -214,7 +228,7 @@ export default async function Home() {
       onboardingAnswers = (data?.answers ?? null) as Record<string, unknown> | null;
     }
     const profile = buildRecommendationProfile(onboardingAnswers, scrapTokens(userScraps));
-    const recommendedNews = recommendNewsItems(news, profile, 5);
+    const recommendedNews = recommendNewsItems(publishedNews, profile, 5);
     const recommendedRepos = recommendGitHubRepos(githubRepos, profile, 3);
     const recommendedProjects = recommendProjectIdeas(projects, profile, 3);
     const recommendedProducts = recommendAIProducts(aiProducts, profile, 4);
@@ -244,10 +258,10 @@ export default async function Home() {
     getProjectIdeas(),
     getResearchPapers(6),
   ]);
-  const latestNews = news[0];
+  const publishedNews = news.filter((item) => Boolean(item.content?.trim()));
   const topTrend = trends[0];
   const latestProject = projects[0];
-  const popularNews = [...news].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 4);
+  const popularNews = [...publishedNews].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 4);
 
   return (
     <>
@@ -269,10 +283,10 @@ export default async function Home() {
             <div className="grid items-center gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2">
               <h1 className="max-w-2xl text-balance text-4xl font-black leading-tight text-ink md:text-5xl">
-                개발자가 매일 봐야 할 기술 흐름을 한 번에 정리합니다
+                흩어진 AI·개발 트렌드를 당신의 커리어에 맞게 정리해드립니다
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg">
-                Seedup은 AI 뉴스, 오픈소스 저장소, 논문, 개발 트렌드를 한국어로 요약하고 “읽고 끝”이 아니라 프로젝트 아이디어까지 연결해주는 개발자용 뉴스레터 서비스입니다.
+                Seedup은 뉴스, 오픈소스, 논문, AI 제품을 수집하고 전처리한 뒤 관심사·직무·수준·목표에 맞춰 개인화된 개발 뉴스레터로 조립합니다.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link href="/login" className="inline-flex h-12 items-center gap-2 bg-ink px-6 text-sm font-bold text-white transition-opacity hover:opacity-90">
@@ -288,7 +302,7 @@ export default async function Home() {
                 {[
                   [`${trends.length}개`, '트렌드 분석 중'],
                   [`${projects.length}개`, '프로젝트 아이디어'],
-                  [`${news.length}개`, '아티클 수집됨'],
+                  [`${publishedNews.length}개`, '발행된 아티클'],
                 ].map(([value, label], index) => (
                   <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft pl-4'}>
                     <div className="text-3xl font-black leading-none text-ink md:text-4xl">{value}</div>

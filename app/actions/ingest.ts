@@ -7,12 +7,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 const INGEST_PATHS = {
-  rss: '/api/ingest/rss?limit=5',
-  products: '/api/ingest/products?limit=10',
-  github: '/api/ingest/github?limit=5',
+  rss: '/api/ingest/rss?limit=8&minScore=50',
+  products: '/api/ingest/products?limit=12',
+  github: '/api/ingest/github?limit=8',
   research: '/api/ingest/research?limit=12',
   trends: '/api/ingest/trends',
   'project-ideas': '/api/ingest/project-ideas?limit=10',
+  'article-drafts': '/api/ingest/article-drafts?limit=6',
 } as const;
 
 type IngestKey = keyof typeof INGEST_PATHS;
@@ -50,7 +51,7 @@ export async function runFullIngest() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'trends', 'project-ideas'];
+  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'trends', 'project-ideas', 'article-drafts'];
 
   for (const target of order) {
     const formData = new FormData();

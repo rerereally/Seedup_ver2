@@ -17,6 +17,10 @@ create table if not exists public.news_items (
   title text not null,
   summary text,
   content text,
+  content_type text,
+  newsletter_section text,
+  newsletter_priority integer,
+  short_summary text,
   category text,
   source text,
   source_url text,
@@ -35,10 +39,29 @@ create table if not exists public.news_items (
   ai_model text,
   processed_at timestamptz,
   source_language text,
+  canonical_key text,
+  duplicate_group_key text,
+  duplicate_count integer not null default 1,
+  quality_notes text[] default '{}',
   target_levels text[] default '{}',
   target_goals text[] default '{}',
   target_interests text[] default '{}',
   content_depth text,
+  topic_tags text[] default '{}',
+  skill_tags text[] default '{}',
+  intent_tags text[] default '{}',
+  audience_tags text[] default '{}',
+  related_roles text[] default '{}',
+  learning_topics text[] default '{}',
+  project_convertible boolean default false,
+  personalization_hooks text[] default '{}',
+  source_quality_score integer,
+  novelty_score integer,
+  buildability_score integer,
+  project_connect_score integer,
+  daily_rank_score integer,
+  recommendation_reasons text[] default '{}',
+  ranked_at timestamptz,
   published_at timestamptz default now(),
   created_at timestamptz not null default now()
 );
@@ -99,11 +122,43 @@ create table if not exists public.ingest_runs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.ingest_rejections (
+  id uuid primary key default gen_random_uuid(),
+  source text not null,
+  source_url text,
+  original_url text,
+  title text not null,
+  reason text not null,
+  keyword_score integer,
+  ai_score integer,
+  daily_rank_score integer,
+  matched_keywords text[] default '{}',
+  soft_excluded text[] default '{}',
+  hard_excluded text[] default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.recommendation_feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  item_type text not null check (item_type in ('news', 'paper', 'project', 'ai_product', 'github')),
+  item_id uuid not null,
+  feedback text not null check (feedback in ('useful', 'not_relevant', 'show_less')),
+  reason text,
+  surface text,
+  created_at timestamptz not null default now(),
+  unique (user_id, item_type, item_id, surface)
+);
+
 create table if not exists public.ai_products (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   category text,
   description text,
+  content_type text,
+  newsletter_section text,
+  newsletter_priority integer,
+  short_summary text,
   score numeric(3, 1),
   rating_count integer default 0,
   status text,
@@ -112,6 +167,19 @@ create table if not exists public.ai_products (
   product_hunt_url text,
   launch_date timestamptz,
   use_cases text[] default '{}',
+  topic_tags text[] default '{}',
+  skill_tags text[] default '{}',
+  intent_tags text[] default '{}',
+  audience_tags text[] default '{}',
+  related_roles text[] default '{}',
+  learning_topics text[] default '{}',
+  project_convertible boolean default false,
+  personalization_hooks text[] default '{}',
+  source_quality_score integer,
+  novelty_score integer,
+  buildability_score integer,
+  project_connect_score integer,
+  recommendation_reasons text[] default '{}',
   pricing_type text,
   target_user text,
   related_project_ideas text[] default '{}',
@@ -166,10 +234,27 @@ create table if not exists public.github_trends (
   language text,
   topics text[] default '{}',
   pushed_at timestamptz,
+  content_type text,
+  newsletter_section text,
+  newsletter_priority integer,
+  short_summary text,
   ai_review text,
   beginner_summary text,
   project_idea text,
   relevance_score integer,
+  topic_tags text[] default '{}',
+  skill_tags text[] default '{}',
+  intent_tags text[] default '{}',
+  audience_tags text[] default '{}',
+  related_roles text[] default '{}',
+  learning_topics text[] default '{}',
+  project_convertible boolean default false,
+  personalization_hooks text[] default '{}',
+  source_quality_score integer,
+  novelty_score integer,
+  buildability_score integer,
+  project_connect_score integer,
+  recommendation_reasons text[] default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -304,6 +389,7 @@ alter table public.trends enable row level security;
 alter table public.keyword_signals enable row level security;
 alter table public.trend_snapshots enable row level security;
 alter table public.ingest_runs enable row level security;
+alter table public.ingest_rejections enable row level security;
 alter table public.ai_products enable row level security;
 alter table public.project_ideas enable row level security;
 alter table public.scraps enable row level security;
@@ -315,10 +401,15 @@ alter table public.news_paper_links enable row level security;
 alter table public.content_reactions enable row level security;
 alter table public.ai_product_ratings enable row level security;
 alter table public.ai_product_reviews enable row level security;
+alter table public.recommendation_feedback enable row level security;
 
 alter table public.news_items add column if not exists original_url text;
 alter table public.news_items add column if not exists raw_title text;
 alter table public.news_items add column if not exists raw_content text;
+alter table public.news_items add column if not exists content_type text;
+alter table public.news_items add column if not exists newsletter_section text;
+alter table public.news_items add column if not exists newsletter_priority integer;
+alter table public.news_items add column if not exists short_summary text;
 alter table public.news_items add column if not exists ai_summary text;
 alter table public.news_items add column if not exists beginner_summary text;
 alter table public.news_items add column if not exists why_it_matters text;
@@ -329,10 +420,29 @@ alter table public.news_items add column if not exists relevance_score integer;
 alter table public.news_items add column if not exists ai_model text;
 alter table public.news_items add column if not exists processed_at timestamptz;
 alter table public.news_items add column if not exists source_language text;
+alter table public.news_items add column if not exists canonical_key text;
+alter table public.news_items add column if not exists duplicate_group_key text;
+alter table public.news_items add column if not exists duplicate_count integer not null default 1;
+alter table public.news_items add column if not exists quality_notes text[] default '{}';
 alter table public.news_items add column if not exists target_levels text[] default '{}';
 alter table public.news_items add column if not exists target_goals text[] default '{}';
 alter table public.news_items add column if not exists target_interests text[] default '{}';
 alter table public.news_items add column if not exists content_depth text;
+alter table public.news_items add column if not exists topic_tags text[] default '{}';
+alter table public.news_items add column if not exists skill_tags text[] default '{}';
+alter table public.news_items add column if not exists intent_tags text[] default '{}';
+alter table public.news_items add column if not exists audience_tags text[] default '{}';
+alter table public.news_items add column if not exists related_roles text[] default '{}';
+alter table public.news_items add column if not exists learning_topics text[] default '{}';
+alter table public.news_items add column if not exists project_convertible boolean default false;
+alter table public.news_items add column if not exists personalization_hooks text[] default '{}';
+alter table public.news_items add column if not exists source_quality_score integer;
+alter table public.news_items add column if not exists novelty_score integer;
+alter table public.news_items add column if not exists buildability_score integer;
+alter table public.news_items add column if not exists project_connect_score integer;
+alter table public.news_items add column if not exists daily_rank_score integer;
+alter table public.news_items add column if not exists recommendation_reasons text[] default '{}';
+alter table public.news_items add column if not exists ranked_at timestamptz;
 alter table public.news_items add column if not exists view_count integer not null default 0;
 alter table public.news_items add column if not exists like_count integer not null default 0;
 alter table public.news_items add column if not exists dislike_count integer not null default 0;
@@ -347,7 +457,24 @@ alter table public.keyword_signals add column if not exists metadata jsonb not n
 alter table public.ai_products add column if not exists source text;
 alter table public.ai_products add column if not exists product_hunt_url text;
 alter table public.ai_products add column if not exists launch_date timestamptz;
+alter table public.ai_products add column if not exists content_type text;
+alter table public.ai_products add column if not exists newsletter_section text;
+alter table public.ai_products add column if not exists newsletter_priority integer;
+alter table public.ai_products add column if not exists short_summary text;
 alter table public.ai_products add column if not exists use_cases text[] default '{}';
+alter table public.ai_products add column if not exists topic_tags text[] default '{}';
+alter table public.ai_products add column if not exists skill_tags text[] default '{}';
+alter table public.ai_products add column if not exists intent_tags text[] default '{}';
+alter table public.ai_products add column if not exists audience_tags text[] default '{}';
+alter table public.ai_products add column if not exists related_roles text[] default '{}';
+alter table public.ai_products add column if not exists learning_topics text[] default '{}';
+alter table public.ai_products add column if not exists project_convertible boolean default false;
+alter table public.ai_products add column if not exists personalization_hooks text[] default '{}';
+alter table public.ai_products add column if not exists source_quality_score integer;
+alter table public.ai_products add column if not exists novelty_score integer;
+alter table public.ai_products add column if not exists buildability_score integer;
+alter table public.ai_products add column if not exists project_connect_score integer;
+alter table public.ai_products add column if not exists recommendation_reasons text[] default '{}';
 alter table public.ai_products add column if not exists pricing_type text;
 alter table public.ai_products add column if not exists target_user text;
 alter table public.ai_products add column if not exists related_project_ideas text[] default '{}';
@@ -395,6 +522,23 @@ alter table public.scraps add constraint scraps_item_type_check check (item_type
 alter table public.github_trends add column if not exists view_count integer not null default 0;
 alter table public.github_trends add column if not exists like_count integer not null default 0;
 alter table public.github_trends add column if not exists dislike_count integer not null default 0;
+alter table public.github_trends add column if not exists content_type text;
+alter table public.github_trends add column if not exists newsletter_section text;
+alter table public.github_trends add column if not exists newsletter_priority integer;
+alter table public.github_trends add column if not exists short_summary text;
+alter table public.github_trends add column if not exists topic_tags text[] default '{}';
+alter table public.github_trends add column if not exists skill_tags text[] default '{}';
+alter table public.github_trends add column if not exists intent_tags text[] default '{}';
+alter table public.github_trends add column if not exists audience_tags text[] default '{}';
+alter table public.github_trends add column if not exists related_roles text[] default '{}';
+alter table public.github_trends add column if not exists learning_topics text[] default '{}';
+alter table public.github_trends add column if not exists project_convertible boolean default false;
+alter table public.github_trends add column if not exists personalization_hooks text[] default '{}';
+alter table public.github_trends add column if not exists source_quality_score integer;
+alter table public.github_trends add column if not exists novelty_score integer;
+alter table public.github_trends add column if not exists buildability_score integer;
+alter table public.github_trends add column if not exists project_connect_score integer;
+alter table public.github_trends add column if not exists recommendation_reasons text[] default '{}';
 
 grant usage on schema public to anon, authenticated, service_role;
 
@@ -403,6 +547,7 @@ grant select on public.trends to anon, authenticated;
 grant select on public.keyword_signals to anon, authenticated;
 grant select on public.trend_snapshots to anon, authenticated;
 grant select on public.ingest_runs to authenticated;
+grant select on public.ingest_rejections to authenticated;
 grant select on public.ai_products to anon, authenticated;
 grant select on public.project_ideas to anon, authenticated;
 grant select on public.github_trends to anon, authenticated;
@@ -417,6 +562,7 @@ grant select, insert, update, delete on public.trends to service_role;
 grant select, insert, update, delete on public.keyword_signals to service_role;
 grant select, insert, update, delete on public.trend_snapshots to service_role;
 grant select, insert, update, delete on public.ingest_runs to service_role;
+grant select, insert, update, delete on public.ingest_rejections to service_role;
 grant select, insert, update, delete on public.ai_products to service_role;
 grant select, insert, update, delete on public.project_ideas to service_role;
 grant select, insert, update, delete on public.github_trends to service_role;
@@ -429,11 +575,13 @@ grant select, insert, update, delete on public.scraps to service_role;
 grant select, insert, update, delete on public.content_reactions to service_role;
 grant select, insert, update, delete on public.ai_product_ratings to service_role;
 grant select, insert, update, delete on public.ai_product_reviews to service_role;
+grant select, insert, update, delete on public.recommendation_feedback to service_role;
 
 grant select, insert, delete on public.scraps to authenticated;
 grant select, insert, update, delete on public.content_reactions to authenticated;
 grant select, insert, update on public.ai_product_ratings to authenticated;
 grant insert, update, delete on public.ai_product_reviews to authenticated;
+grant select, insert, update on public.recommendation_feedback to authenticated;
 grant select, insert on public.idea_evaluations to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.user_onboarding to authenticated;
@@ -472,6 +620,11 @@ create policy "Trend snapshots are publicly readable"
 drop policy if exists "Authenticated users can read ingest runs" on public.ingest_runs;
 create policy "Authenticated users can read ingest runs"
   on public.ingest_runs for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists "Authenticated users can read ingest rejections" on public.ingest_rejections;
+create policy "Authenticated users can read ingest rejections"
+  on public.ingest_rejections for select
   using (auth.role() = 'authenticated');
 
 drop policy if exists "AI products are publicly readable" on public.ai_products;
@@ -533,6 +686,22 @@ create policy "Users can create own AI product ratings"
 drop policy if exists "Users can update own AI product ratings" on public.ai_product_ratings;
 create policy "Users can update own AI product ratings"
   on public.ai_product_ratings for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can read own recommendation feedback" on public.recommendation_feedback;
+create policy "Users can read own recommendation feedback"
+  on public.recommendation_feedback for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can create own recommendation feedback" on public.recommendation_feedback;
+create policy "Users can create own recommendation feedback"
+  on public.recommendation_feedback for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own recommendation feedback" on public.recommendation_feedback;
+create policy "Users can update own recommendation feedback"
+  on public.recommendation_feedback for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
@@ -679,6 +848,11 @@ where id in (
 );
 
 create index if not exists news_items_published_at_idx on public.news_items (published_at desc);
+create index if not exists news_items_daily_rank_idx on public.news_items (daily_rank_score desc, published_at desc);
+create index if not exists news_items_canonical_key_idx on public.news_items (canonical_key);
+create index if not exists news_items_duplicate_group_idx on public.news_items (duplicate_group_key);
+create index if not exists news_items_topic_tags_idx on public.news_items using gin (topic_tags);
+create index if not exists news_items_skill_tags_idx on public.news_items using gin (skill_tags);
 drop index if exists news_items_original_url_key;
 create unique index news_items_original_url_key on public.news_items (original_url);
 create unique index if not exists trends_keyword_key on public.trends (keyword);
@@ -690,6 +864,8 @@ create unique index if not exists trend_snapshots_keyword_date_key on public.tre
 create index if not exists trend_snapshots_date_score_idx on public.trend_snapshots (snapshot_date desc, score desc);
 create index if not exists ingest_runs_created_idx on public.ingest_runs (created_at desc);
 create index if not exists ingest_runs_source_created_idx on public.ingest_runs (source, created_at desc);
+create index if not exists ingest_rejections_created_idx on public.ingest_rejections (created_at desc);
+create index if not exists ingest_rejections_source_reason_idx on public.ingest_rejections (source, reason, created_at desc);
 create index if not exists ai_products_score_idx on public.ai_products (score desc);
 drop index if exists ai_products_product_hunt_url_key;
 create unique index ai_products_product_hunt_url_key on public.ai_products (product_hunt_url);
@@ -701,6 +877,8 @@ create index if not exists content_reactions_user_item_idx on public.content_rea
 create index if not exists content_reactions_item_idx on public.content_reactions (item_type, item_id);
 create index if not exists ai_product_ratings_product_idx on public.ai_product_ratings (product_id);
 create index if not exists ai_product_reviews_product_created_idx on public.ai_product_reviews (product_id, created_at desc);
+create index if not exists recommendation_feedback_item_idx on public.recommendation_feedback (item_type, item_id, feedback);
+create unique index if not exists recommendation_feedback_user_item_surface_key on public.recommendation_feedback (user_id, item_type, item_id, surface);
 create index if not exists user_onboarding_user_idx on public.user_onboarding (user_id);
 create index if not exists github_trends_stars_idx on public.github_trends (stars desc);
 drop index if exists research_papers_paper_url_key;

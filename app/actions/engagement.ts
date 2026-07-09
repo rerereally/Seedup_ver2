@@ -54,3 +54,38 @@ export async function reactToContent(formData: FormData) {
   revalidatePath(returnTo);
   redirect(returnTo);
 }
+
+export async function submitRecommendationFeedback(formData: FormData) {
+  const supabase = await createClient();
+  if (!supabase) redirect('/login');
+
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+  if (!user) redirect('/login');
+
+  const itemType = String(formData.get('item_type') ?? '') as ContentTarget;
+  const itemId = String(formData.get('item_id') ?? '');
+  const feedback = String(formData.get('feedback') ?? '');
+  const surface = String(formData.get('surface') ?? 'unknown');
+  const returnTo = String(formData.get('return_to') ?? '/');
+
+  if (!ALLOWED_TYPES.has(itemType) || !itemId || !['useful', 'not_relevant', 'show_less'].includes(feedback)) {
+    redirect(returnTo);
+  }
+
+  await supabase
+    .from('recommendation_feedback')
+    .upsert(
+      {
+        user_id: user.id,
+        item_type: itemType,
+        item_id: itemId,
+        feedback,
+        surface,
+      },
+      { onConflict: 'user_id,item_type,item_id,surface' },
+    );
+
+  revalidatePath(returnTo);
+  redirect(returnTo);
+}

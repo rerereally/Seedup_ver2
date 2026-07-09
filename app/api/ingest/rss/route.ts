@@ -1,8 +1,10 @@
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { analyzeNews } from '@/lib/ingest/ai';
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
-import { RSS_SOURCES } from '@/lib/ingest/sources';
+import { evaluateArticleKeywordPolicy } from '@/lib/ingest/keyword-policy';
+import { MAX_ITEMS_PER_SOURCE, RSS_SOURCES } from '@/lib/ingest/sources';
 import { buildArticleContext, stripHtml, truncate } from '@/lib/ingest/text';
+import { shouldGenerateArticleDraft, shouldGenerateBuildIdea } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import Parser from 'rss-parser';
 import { NextResponse } from 'next/server';
@@ -18,6 +20,7 @@ const parser = new Parser({
 });
 
 const ITEM_CONCURRENCY = 3;
+const RECENT_WINDOW_DAYS = 7;
 
 export async function POST(request: Request) {
   return ingest(request);
@@ -38,7 +41,7 @@ async function ingest(request: Request) {
   }
 
   const url = new URL(request.url);
-  const limitPerSource = Number(url.searchParams.get('limit') ?? 5);
+  const limitPerSource = Number(url.searchParams.get('limit') ?? MAX_ITEMS_PER_SOURCE);
   const minScore = Number(url.searchParams.get('minScore') ?? 45);
   const results: Array<{ source: string; inserted: number; skipped: number; errors: number }> = [];
 
@@ -49,7 +52,9 @@ async function ingest(request: Request) {
 
     try {
       const feed = await parser.parseURL(source.url);
-      const items = feed.items.slice(0, limitPerSource);
+      const items = feed.items
+        .filter((item) => isRecentEnough(item.isoDate ?? item.pubDate))
+        .slice(0, limitPerSource);
 
       const outcomes = await mapWithConcurrency(items, ITEM_CONCURRENCY, (item) => ingestItem({ item, minScore, source, supabase }));
       for (const outcome of outcomes) {
@@ -110,6 +115,22 @@ async function ingestItem({
       '',
     );
     const content = rawContent || item.title;
+    const keywordPolicy = evaluateArticleKeywordPolicy({ title: item.title, content, source: source.name });
+    if (!keywordPolicy.shouldAnalyze) {
+      await recordRejection(supabase, {
+        source: source.name,
+        sourceUrl: source.url,
+        originalUrl,
+        title: item.title,
+        reason: keywordPolicy.hardExcluded.length ? 'hard_excluded_keyword' : 'keyword_score_too_low',
+        keywordScore: keywordPolicy.score,
+        matchedKeywords: keywordPolicy.matched,
+        softExcluded: keywordPolicy.softExcluded,
+        hardExcluded: keywordPolicy.hardExcluded,
+      });
+      return 'skipped';
+    }
+
     const sourceJson = {
       title: item.title,
       content: buildArticleContext(content, 5200),
@@ -118,26 +139,84 @@ async function ingestItem({
       originalUrl,
       publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
     };
-    const { analysis, model } = await analyzeNews({ title: sourceJson.title, content: sourceJson.content, source: sourceJson.source });
+    const { analysis, model } = await analyzeNews({
+      title: sourceJson.title,
+      content: sourceJson.content,
+      source: sourceJson.source,
+      sourceLanguage: source.language,
+    });
 
-    if (analysis.relevance_score < minScore) return 'skipped';
+    const dailyRankScore = calculateDailyRankScore({
+      publishedAt: sourceJson.publishedAt,
+      relevanceScore: analysis.relevance_score,
+      sourceQualityScore: analysis.source_quality_score,
+      noveltyScore: analysis.novelty_score,
+      buildabilityScore: analysis.buildability_score,
+      projectConnectScore: analysis.project_connect_score,
+      keywordScore: keywordPolicy.score,
+      sourceDefaultQuality: source.quality ?? 60,
+    });
+
+    if (analysis.relevance_score < minScore && dailyRankScore < minScore) {
+      await recordRejection(supabase, {
+        source: source.name,
+        sourceUrl: source.url,
+        originalUrl,
+        title: item.title,
+        reason: 'rank_score_too_low',
+        keywordScore: keywordPolicy.score,
+        matchedKeywords: keywordPolicy.matched,
+        softExcluded: keywordPolicy.softExcluded,
+        hardExcluded: keywordPolicy.hardExcluded,
+        aiScore: analysis.relevance_score,
+        dailyRankScore,
+      });
+      return 'skipped';
+    }
 
     const koreanTitle = truncate(analysis.translated_title || item.title, 180);
-    const articleContent = analysis.article_markdown || analysis.ai_summary || analysis.beginner_summary;
+    const shouldDraftArticle = shouldGenerateArticleDraft(analysis);
+    const shouldDraftBuildIdea = shouldGenerateBuildIdea(analysis);
+    const articleContent = shouldDraftArticle && analysis.article_markdown
+      ? analysis.article_markdown
+      : null;
+    const contentQuality = evaluateMetadataQuality(analysis);
+    if (!contentQuality.pass) {
+      await recordRejection(supabase, {
+        source: source.name,
+        sourceUrl: source.url,
+        originalUrl,
+        title: item.title,
+        reason: contentQuality.reason,
+        keywordScore: keywordPolicy.score,
+        matchedKeywords: keywordPolicy.matched,
+        softExcluded: keywordPolicy.softExcluded,
+        hardExcluded: keywordPolicy.hardExcluded,
+        aiScore: analysis.relevance_score,
+        dailyRankScore,
+      });
+      return 'skipped';
+    }
+    const canonicalKey = buildCanonicalKey(koreanTitle, sourceJson.publishedAt);
 
-    const { error } = await supabase.from('news_items').upsert(
-      {
+    const payload = {
         title: koreanTitle,
         raw_title: item.title,
         summary: truncate(analysis.ai_summary, 500),
         content: articleContent,
         raw_content: rawContent || item.title,
         category: analysis.category,
+        content_type: analysis.content_type,
+        newsletter_section: analysis.newsletter_section,
+        newsletter_priority: analysis.newsletter_priority,
+        short_summary: analysis.short_summary,
         source: source.name,
         source_url: source.url,
         original_url: originalUrl,
+        canonical_key: canonicalKey,
+        duplicate_group_key: canonicalKey,
         image_url: extractImageUrl(item),
-        project_idea: analysis.project_idea,
+        project_idea: shouldDraftBuildIdea ? analysis.project_idea : null,
         ai_summary: analysis.ai_summary,
         beginner_summary: analysis.beginner_summary,
         why_it_matters: analysis.why_it_matters,
@@ -149,23 +228,241 @@ async function ingestItem({
         target_interests: analysis.target_interests,
         content_depth: analysis.content_depth,
         relevance_score: analysis.relevance_score,
+        topic_tags: analysis.topic_tags,
+        skill_tags: analysis.skill_tags,
+        intent_tags: analysis.intent_tags,
+        audience_tags: analysis.audience_tags,
+        related_roles: analysis.related_roles,
+        learning_topics: analysis.learning_topics,
+        project_convertible: analysis.project_convertible,
+        personalization_hooks: analysis.personalization_hooks,
+        source_quality_score: Math.max(analysis.source_quality_score, source.quality ?? 0),
+        novelty_score: analysis.novelty_score,
+        buildability_score: analysis.buildability_score,
+        project_connect_score: analysis.project_connect_score,
+        daily_rank_score: dailyRankScore,
+        recommendation_reasons: analysis.recommendation_reasons,
+        quality_notes: [
+          ...contentQuality.notes,
+          articleContent ? 'content_mode:article_draft' : 'content_mode:metadata_only',
+        ],
+        ranked_at: new Date().toISOString(),
         ai_model: model,
         processed_at: new Date().toISOString(),
         source_language: source.language,
         published_at: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
-      },
-      { onConflict: 'original_url' },
-    );
+      };
+
+    const { error } = await upsertNewsItem(supabase, payload);
 
     if (error) {
       console.error('RSS upsert failed', source.name, item.title, error);
       return 'error';
     }
 
+    await refreshDuplicateGroup(supabase, canonicalKey);
     return 'inserted';
   } catch (error) {
     console.error('RSS item failed', source.name, item.title, error);
     return 'error';
+  }
+}
+
+async function upsertNewsItem(supabase: NonNullable<ReturnType<typeof createAdminClient>>, payload: Record<string, unknown>) {
+  const result = await supabase.from('news_items').upsert(payload, { onConflict: 'original_url' });
+  if (!result.error) return result;
+
+  const message = result.error.message.toLowerCase();
+  const recommendationColumnError = [
+    'topic_tags',
+    'skill_tags',
+    'intent_tags',
+    'audience_tags',
+    'content_type',
+    'newsletter_section',
+    'newsletter_priority',
+    'short_summary',
+    'source_quality_score',
+    'novelty_score',
+    'buildability_score',
+    'project_connect_score',
+    'daily_rank_score',
+    'recommendation_reasons',
+    'related_roles',
+    'learning_topics',
+    'project_convertible',
+    'personalization_hooks',
+    'ranked_at',
+    'canonical_key',
+    'duplicate_group_key',
+    'quality_notes',
+  ].some((column) => message.includes(column));
+
+  if (!recommendationColumnError) return result;
+
+  const fallbackPayload = { ...payload };
+  for (const key of [
+    'topic_tags',
+    'skill_tags',
+    'intent_tags',
+    'audience_tags',
+    'content_type',
+    'newsletter_section',
+    'newsletter_priority',
+    'short_summary',
+    'source_quality_score',
+    'novelty_score',
+    'buildability_score',
+    'project_connect_score',
+    'daily_rank_score',
+    'recommendation_reasons',
+    'related_roles',
+    'learning_topics',
+    'project_convertible',
+    'personalization_hooks',
+    'ranked_at',
+    'canonical_key',
+    'duplicate_group_key',
+    'quality_notes',
+  ]) {
+    delete fallbackPayload[key];
+  }
+
+  console.warn('RSS upsert retrying without recommendation columns. Apply supabase/schema.sql to enable full ranking metadata.');
+  return supabase.from('news_items').upsert(fallbackPayload, { onConflict: 'original_url' });
+}
+
+function isRecentEnough(value: string | undefined) {
+  if (!value) return true;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return true;
+  return Date.now() - time <= RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function calculateDailyRankScore({
+  publishedAt,
+  relevanceScore,
+  sourceQualityScore,
+  noveltyScore,
+  buildabilityScore,
+  projectConnectScore,
+  keywordScore,
+  sourceDefaultQuality,
+}: {
+  publishedAt: string;
+  relevanceScore: number;
+  sourceQualityScore: number;
+  noveltyScore: number;
+  buildabilityScore: number;
+  projectConnectScore: number;
+  keywordScore: number;
+  sourceDefaultQuality: number;
+}) {
+  const publishedTime = new Date(publishedAt).getTime();
+  const ageHours = Number.isFinite(publishedTime) ? Math.max(0, (Date.now() - publishedTime) / 36e5) : 168;
+  const freshness = ageHours <= 24 ? 35 : ageHours <= 48 ? 28 : ageHours <= 168 ? 16 : 4;
+  return Math.round(
+    freshness +
+    Math.min(relevanceScore * 0.22, 22) +
+    Math.min(sourceQualityScore * 0.1, 10) +
+    Math.min(sourceDefaultQuality * 0.05, 5) +
+    Math.min(noveltyScore * 0.1, 10) +
+    Math.min(buildabilityScore * 0.12, 12) +
+    Math.min(projectConnectScore * 0.11, 11) +
+    Math.min(Math.max(keywordScore, 0) * 0.18, 14),
+  );
+}
+
+function evaluateMetadataQuality(analysis: {
+  short_summary: string;
+  key_points: string[];
+  topic_tags: string[];
+  skill_tags: string[];
+  newsletter_section: string;
+  newsletter_priority: number;
+}) {
+  const summaryLength = stripHtml(analysis.short_summary).replace(/\s+/g, ' ').trim().length;
+  const tagCount = analysis.topic_tags.length + analysis.skill_tags.length;
+  const hasEnoughKeyPoints = analysis.key_points.length >= 2;
+  const hasNewsletterRouting = Boolean(analysis.newsletter_section) && Number(analysis.newsletter_priority ?? 0) > 0;
+  const pass = summaryLength >= 40 && hasEnoughKeyPoints && tagCount >= 1 && hasNewsletterRouting;
+  const notes = [
+    `summary_length:${summaryLength}`,
+    `tags:${tagCount}`,
+    `key_points:${analysis.key_points.length}`,
+    `newsletter_section:${analysis.newsletter_section}`,
+  ];
+
+  return {
+    pass,
+    reason: summaryLength < 40 ? 'metadata_summary_too_short' : !hasEnoughKeyPoints ? 'metadata_key_points_too_few' : 'metadata_routing_missing',
+    notes,
+  };
+}
+
+function buildCanonicalKey(title: string, publishedAt: string) {
+  const publishedTime = new Date(publishedAt).getTime();
+  const day = Number.isFinite(publishedTime) ? new Date(publishedTime).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const normalizedTitle = title
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !['the', 'and', 'with', '에서', '으로', '하는', '대한'].includes(token))
+    .slice(0, 10)
+    .join('-');
+
+  return `${day}:${normalizedTitle || 'untitled'}`;
+}
+
+async function refreshDuplicateGroup(supabase: NonNullable<ReturnType<typeof createAdminClient>>, canonicalKey: string) {
+  const { data, error } = await supabase
+    .from('news_items')
+    .select('id')
+    .eq('canonical_key', canonicalKey);
+
+  if (error || !data?.length) return;
+
+  await supabase
+    .from('news_items')
+    .update({
+      duplicate_group_key: canonicalKey,
+      duplicate_count: data.length,
+    })
+    .eq('canonical_key', canonicalKey);
+}
+
+async function recordRejection(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  payload: {
+    source: string;
+    sourceUrl: string;
+    originalUrl: string;
+    title: string;
+    reason: string;
+    keywordScore: number;
+    matchedKeywords: string[];
+    softExcluded: string[];
+    hardExcluded: string[];
+    aiScore?: number;
+    dailyRankScore?: number;
+  },
+) {
+  const { error } = await supabase.from('ingest_rejections').insert({
+    source: payload.source,
+    source_url: payload.sourceUrl,
+    original_url: payload.originalUrl,
+    title: truncate(payload.title, 240),
+    reason: payload.reason,
+    keyword_score: payload.keywordScore,
+    matched_keywords: payload.matchedKeywords,
+    soft_excluded: payload.softExcluded,
+    hard_excluded: payload.hardExcluded,
+    ai_score: payload.aiScore ?? null,
+    daily_rank_score: payload.dailyRankScore ?? null,
+  });
+
+  if (error && !['42P01', '42703', '42501'].includes(error.code ?? '')) {
+    console.warn('Failed to record ingest rejection', error.message);
   }
 }
 
@@ -187,15 +484,25 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
 
 function extractImageUrl(item: Parser.Item) {
   const enclosureUrl = item.enclosure?.url;
-  if (enclosureUrl) return enclosureUrl;
+  if (isImageUrl(enclosureUrl)) return enclosureUrl;
 
   const content = getItemField(item, 'content:encoded') || item.content || '';
   const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return match?.[1] ?? null;
+  return isImageUrl(match?.[1]) ? match?.[1] ?? null : null;
 }
 
 function getItemField(item: Parser.Item, key: string) {
   const record = item as Parser.Item & Record<string, unknown>;
   const value = record[key];
   return typeof value === 'string' ? value : '';
+}
+
+function isImageUrl(url?: string | null) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 }

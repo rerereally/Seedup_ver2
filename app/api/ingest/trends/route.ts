@@ -11,10 +11,33 @@ type TrendCandidate = {
   news: number;
   products: number;
   repos: number;
+  signalStrength: number;
   recentSignals: number;
   previousSignals: number;
   refs: Array<{ type: string; id: string; title: string }>;
   projectIdeas: Set<string>;
+  sourceKeys: Set<string>;
+  recentSourceKeys: Set<string>;
+  previousSourceKeys: Set<string>;
+  newsSourceIds: Set<string>;
+  productSourceIds: Set<string>;
+  repoSourceIds: Set<string>;
+};
+
+type TrendNewsSignal = {
+  id: string;
+  title: string;
+  category: string | null;
+  related_skills?: string[] | null;
+  topic_tags?: string[] | null;
+  skill_tags?: string[] | null;
+  intent_tags?: string[] | null;
+  project_idea: string | null;
+  relevance_score: number | null;
+  daily_rank_score?: number | null;
+  original_url: string | null;
+  published_at: string | null;
+  created_at?: string | null;
 };
 
 const STOPWORDS = new Set(['api', 'web', 'app', 'data', 'tool', 'tools', 'new', 'open', 'source']);
@@ -38,17 +61,23 @@ async function ingest(request: Request) {
     return NextResponse.json({ error: 'Missing Supabase server configuration' }, { status: 500 });
   }
 
-  const [{ data: news }, { data: products }, { data: repos }] = await Promise.all([
-    supabase.from('news_items').select('id,title,category,related_skills,project_idea,relevance_score,original_url,published_at,created_at').order('published_at', { ascending: false }).limit(120),
+  const [newsResult, { data: products }, { data: repos }] = await Promise.all([
+    supabase.from('news_items').select('id,title,category,related_skills,topic_tags,skill_tags,intent_tags,project_idea,relevance_score,daily_rank_score,original_url,published_at,created_at').order('published_at', { ascending: false }).limit(160),
     supabase.from('ai_products').select('id,name,category,use_cases,related_project_ideas,score,website_url,product_hunt_url,created_at').order('created_at', { ascending: false }).limit(120),
     supabase.from('github_trends').select('id,repo_full_name,repo_url,topics,language,project_idea,stars,relevance_score,pushed_at,created_at').order('stars', { ascending: false }).limit(120),
   ]);
+  const news: TrendNewsSignal[] | null = newsResult.error
+    ? (await supabase.from('news_items').select('id,title,category,related_skills,project_idea,relevance_score,original_url,published_at,created_at').order('published_at', { ascending: false }).limit(160)).data
+    : newsResult.data;
 
   const signals: KeywordSignalInput[] = [];
 
   for (const item of news ?? []) {
-    addSignal(signals, item.category, 18 + Number(item.relevance_score ?? 50) / 10, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
-    for (const skill of item.related_skills ?? []) addSignal(signals, skill, 10, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
+    const newsWeight = 14 + Number(item.relevance_score ?? 50) / 12 + Number(item.daily_rank_score ?? 0) / 10;
+    addSignal(signals, item.category, newsWeight, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
+    for (const tag of item.topic_tags ?? []) addSignal(signals, tag, newsWeight * 0.9, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
+    for (const skill of [...(item.related_skills ?? []), ...(item.skill_tags ?? [])]) addSignal(signals, skill, 10 + Number(item.daily_rank_score ?? 0) / 18, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
+    for (const intent of item.intent_tags ?? []) addSignal(signals, intent, 7, 'news', item.id, item.title, item.original_url, item.published_at ?? item.created_at, item.project_idea);
   }
 
   for (const item of products ?? []) {
@@ -63,14 +92,30 @@ async function ingest(request: Request) {
     addSignal(signals, repo.language, 6, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, repo.project_idea);
   }
 
-  const { error: signalError } = await supabase.from('keyword_signals').upsert(
-    signals.map(({ projectIdea, ...signal }) => signal),
-    { onConflict: 'source_type,source_id,normalized_keyword' },
-  );
-
-  if (signalError) {
-    return NextResponse.json({ error: 'Keyword signal upsert failed', detail: signalError.message }, { status: 500 });
+  // Deduplicate by conflict key before upsert — same (source_type, source_id, normalized_keyword)
+  // appearing twice in one batch causes PostgreSQL to reject the entire upsert.
+  const signalMap = new Map<string, Omit<KeywordSignalInput, 'projectIdea'>>();
+  for (const { projectIdea, ...signal } of signals) {
+    const key = `${signal.source_type}::${signal.source_id}::${signal.normalized_keyword}`;
+    const existing = signalMap.get(key);
+    if (!existing || signal.weight > existing.weight) {
+      signalMap.set(key, signal);
+    }
   }
+  const deduplicatedSignals = [...signalMap.values()];
+
+  const BATCH_SIZE = 200;
+  for (let i = 0; i < deduplicatedSignals.length; i += BATCH_SIZE) {
+    const batch = deduplicatedSignals.slice(i, i + BATCH_SIZE);
+    const { error: signalError } = await supabase
+      .from('keyword_signals')
+      .upsert(batch, { onConflict: 'source_type,source_id,normalized_keyword' });
+    if (signalError) {
+      console.error('Keyword signal upsert batch failed', signalError);
+      return NextResponse.json({ error: 'Keyword signal upsert failed', detail: signalError.message }, { status: 500 });
+    }
+  }
+
 
   const since30Days = new Date(Date.now() - 30 * DAY_MS).toISOString();
   const { data: storedSignals, error: readError } = await supabase
@@ -87,7 +132,7 @@ async function ingest(request: Request) {
   const map = buildTrendCandidates(storedSignals ?? []);
 
   const ranked = [...map.values()]
-    .filter((candidate) => candidate.keyword.length >= 2)
+    .filter((candidate) => candidate.keyword.length >= 2 && candidate.sourceKeys.size >= 2)
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
 
@@ -98,16 +143,17 @@ async function ingest(request: Request) {
   for (const candidate of ranked) {
     const score = Math.max(1, Math.min(100, Math.round(candidate.score)));
     const growth = candidate.previousSignals ? Math.round(((candidate.recentSignals - candidate.previousSignals) / candidate.previousSignals) * 100) : candidate.recentSignals > 1 ? 100 : 0;
+    const sourceCount = candidate.sourceKeys.size;
     const { error } = await supabase.from('trends').upsert(
       {
         keyword: candidate.keyword,
         rank,
-        summary: `${candidate.keyword} 관련 신호가 최근 30일 동안 뉴스 ${candidate.news}개, 제품 ${candidate.products}개, GitHub ${candidate.repos}개에서 누적 감지되었습니다. 최근 7일 변화율은 ${growth}%입니다.`,
+        summary: `${candidate.keyword} 관련 신호가 최근 30일 동안 뉴스 ${candidate.news}개, 제품 ${candidate.products}개, GitHub ${candidate.repos}개 출처에서 감지되었습니다. 최신성, 출처 다양성, 7일 성장률, 콘텐츠 품질을 함께 반영한 순위입니다.`,
         score,
         status: growth >= 80 || score >= 85 ? 'Hot' : growth >= 25 || score >= 60 ? 'Rising' : 'Watch',
         bars: buildBars(score),
         project_ideas: [...candidate.projectIdeas].slice(0, 4),
-        sources_count: candidate.news + candidate.products + candidate.repos,
+        sources_count: sourceCount,
         news_count: candidate.news,
         product_count: candidate.products,
         github_repo_count: candidate.repos,
@@ -126,7 +172,7 @@ async function ingest(request: Request) {
       keyword: candidate.keyword,
       snapshot_date: new Date().toISOString().slice(0, 10),
       score: Math.max(1, Math.min(100, Math.round(candidate.score))),
-      signal_count: candidate.news + candidate.products + candidate.repos,
+      signal_count: candidate.sourceKeys.size,
       news_count: candidate.news,
       product_count: candidate.products,
       github_repo_count: candidate.repos,
@@ -144,7 +190,7 @@ async function ingest(request: Request) {
     skipped: 0,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { signals: signals.length, ranked: ranked.length },
+    detail: { signals: signals.length, deduplicated: deduplicatedSignals.length, ranked: ranked.length },
   });
 
   return NextResponse.json({ ok: true, signals: signals.length, upserted, errors });
@@ -203,37 +249,63 @@ function buildTrendCandidates(signals: Array<Record<string, any>>) {
     const ageDays = Math.max(0, (now - detectedTime) / DAY_MS);
     const isRecent = ageDays <= 7;
     const isPrevious = ageDays > 7 && ageDays <= 14;
-    const recencyBoost = Math.max(0.25, 1 - ageDays / 45);
-    const sourceBoost = signal.source_type === 'github' ? 1.15 : signal.source_type === 'product' ? 1.08 : 1;
+    const recencyBoost = ageDays <= 2 ? 1.35 : ageDays <= 7 ? 1.15 : ageDays <= 14 ? 0.85 : Math.max(0.35, 1 - ageDays / 45);
+    const sourceBoost = signal.source_type === 'news' ? 1.1 : signal.source_type === 'github' ? 1.05 : 1;
     const score = Number(signal.weight ?? 1) * recencyBoost * sourceBoost;
+    const sourceKey = `${signal.source_type}:${signal.source_id}`;
     const candidate = map.get(keyword) ?? {
       keyword,
       score: 0,
       news: 0,
       products: 0,
       repos: 0,
+      signalStrength: 0,
       recentSignals: 0,
       previousSignals: 0,
       refs: [],
       projectIdeas: new Set<string>(),
+      sourceKeys: new Set<string>(),
+      recentSourceKeys: new Set<string>(),
+      previousSourceKeys: new Set<string>(),
+      newsSourceIds: new Set<string>(),
+      productSourceIds: new Set<string>(),
+      repoSourceIds: new Set<string>(),
     };
 
-    candidate.score += score;
-    if (signal.source_type === 'news') candidate.news += 1;
-    if (signal.source_type === 'product') candidate.products += 1;
-    if (signal.source_type === 'github') candidate.repos += 1;
+    candidate.signalStrength += score;
+    candidate.sourceKeys.add(sourceKey);
+    if (signal.source_type === 'news') candidate.newsSourceIds.add(String(signal.source_id));
+    if (signal.source_type === 'product') candidate.productSourceIds.add(String(signal.source_id));
+    if (signal.source_type === 'github') candidate.repoSourceIds.add(String(signal.source_id));
     if (isRecent) candidate.recentSignals += 1;
     if (isPrevious) candidate.previousSignals += 1;
-    candidate.refs.push({ type: signal.source_type, id: signal.source_id, title: signal.source_title });
+    if (isRecent) candidate.recentSourceKeys.add(sourceKey);
+    if (isPrevious) candidate.previousSourceKeys.add(sourceKey);
+    if (!candidate.refs.some((ref) => ref.type === signal.source_type && ref.id === signal.source_id)) {
+      candidate.refs.push({ type: signal.source_type, id: signal.source_id, title: signal.source_title });
+    }
     const projectIdea = signal.metadata?.project_idea;
     if (typeof projectIdea === 'string') candidate.projectIdeas.add(projectIdea);
     map.set(keyword, candidate);
   }
 
   for (const candidate of map.values()) {
-    const sourceDiversity = [candidate.news, candidate.products, candidate.repos].filter(Boolean).length;
-    candidate.score += sourceDiversity * 8;
-    if (candidate.recentSignals > candidate.previousSignals) candidate.score += Math.min(20, (candidate.recentSignals - candidate.previousSignals) * 4);
+    candidate.news = candidate.newsSourceIds.size;
+    candidate.products = candidate.productSourceIds.size;
+    candidate.repos = candidate.repoSourceIds.size;
+
+    const sourceTypeDiversity = [candidate.news, candidate.products, candidate.repos].filter(Boolean).length;
+    const uniqueSources = candidate.sourceKeys.size;
+    const recentSources = candidate.recentSourceKeys.size;
+    const previousSources = candidate.previousSourceKeys.size;
+    const growthRatio = previousSources ? Math.max(0, (recentSources - previousSources) / previousSources) : recentSources >= 2 ? 1 : 0;
+    const diversityScore = sourceTypeDiversity * 10;
+    const coverageScore = Math.min(26, uniqueSources * 4);
+    const freshnessScore = Math.min(24, recentSources * 6);
+    const momentumScore = Math.min(18, growthRatio * 18);
+    const strengthScore = Math.min(32, candidate.signalStrength / 4);
+
+    candidate.score = strengthScore + freshnessScore + diversityScore + coverageScore + momentumScore;
   }
 
   return map;

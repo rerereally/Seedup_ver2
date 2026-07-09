@@ -14,6 +14,10 @@ export type NewsItem = {
   title: string;
   summary: string | null;
   content: string | null;
+  content_type?: string | null;
+  newsletter_section?: string | null;
+  newsletter_priority?: number | null;
+  short_summary?: string | null;
   category: string | null;
   source: string | null;
   source_url?: string | null;
@@ -34,9 +38,28 @@ export type NewsItem = {
   target_goals?: string[] | null;
   target_interests?: string[] | null;
   content_depth?: string | null;
+  topic_tags?: string[] | null;
+  skill_tags?: string[] | null;
+  intent_tags?: string[] | null;
+  audience_tags?: string[] | null;
+  related_roles?: string[] | null;
+  learning_topics?: string[] | null;
+  project_convertible?: boolean | null;
+  personalization_hooks?: string[] | null;
+  source_quality_score?: number | null;
+  novelty_score?: number | null;
+  buildability_score?: number | null;
+  project_connect_score?: number | null;
+  daily_rank_score?: number | null;
+  recommendation_reasons?: string[] | null;
+  ranked_at?: string | null;
   ai_model?: string | null;
   processed_at?: string | null;
   source_language?: string | null;
+  canonical_key?: string | null;
+  duplicate_group_key?: string | null;
+  duplicate_count?: number | null;
+  quality_notes?: string[] | null;
   image_url: string | null;
   project_idea: string | null;
   published_at: string | null;
@@ -63,6 +86,10 @@ export type AIProduct = {
   name: string;
   category: string | null;
   description: string | null;
+  content_type?: string | null;
+  newsletter_section?: string | null;
+  newsletter_priority?: number | null;
+  short_summary?: string | null;
   score: number | null;
   rating_count: number | null;
   user_score_sum?: number | null;
@@ -70,6 +97,19 @@ export type AIProduct = {
   website_url: string | null;
   product_hunt_url?: string | null;
   use_cases?: string[] | null;
+  topic_tags?: string[] | null;
+  skill_tags?: string[] | null;
+  intent_tags?: string[] | null;
+  audience_tags?: string[] | null;
+  related_roles?: string[] | null;
+  learning_topics?: string[] | null;
+  project_convertible?: boolean | null;
+  personalization_hooks?: string[] | null;
+  source_quality_score?: number | null;
+  novelty_score?: number | null;
+  buildability_score?: number | null;
+  project_connect_score?: number | null;
+  recommendation_reasons?: string[] | null;
   pricing_type?: string | null;
   target_user?: string | null;
   related_project_ideas?: string[] | null;
@@ -125,10 +165,27 @@ export type GitHubTrend = {
   language: string | null;
   topics: string[] | null;
   pushed_at: string | null;
+  content_type?: string | null;
+  newsletter_section?: string | null;
+  newsletter_priority?: number | null;
+  short_summary?: string | null;
   ai_review: string | null;
   beginner_summary: string | null;
   project_idea: string | null;
   relevance_score: number | null;
+  topic_tags?: string[] | null;
+  skill_tags?: string[] | null;
+  intent_tags?: string[] | null;
+  audience_tags?: string[] | null;
+  related_roles?: string[] | null;
+  learning_topics?: string[] | null;
+  project_convertible?: boolean | null;
+  personalization_hooks?: string[] | null;
+  source_quality_score?: number | null;
+  novelty_score?: number | null;
+  buildability_score?: number | null;
+  project_connect_score?: number | null;
+  recommendation_reasons?: string[] | null;
   view_count?: number | null;
   like_count?: number | null;
   dislike_count?: number | null;
@@ -195,12 +252,31 @@ export type IngestRun = {
   created_at: string;
 };
 
+export type IngestRejection = {
+  id: string;
+  source: string;
+  source_url: string | null;
+  original_url: string | null;
+  title: string;
+  reason: string;
+  keyword_score: number | null;
+  ai_score: number | null;
+  daily_rank_score: number | null;
+  matched_keywords: string[] | null;
+  soft_excluded: string[] | null;
+  hard_excluded: string[] | null;
+  created_at: string;
+};
+
 export type ArticleFeedItem = {
   id: string;
   type: 'news' | 'paper';
   title: string;
   summary: string | null;
   content: string | null;
+  newsletter_section?: string | null;
+  newsletter_priority?: number | null;
+  short_summary?: string | null;
   category: string | null;
   source: string | null;
   source_url: string | null;
@@ -211,6 +287,20 @@ export type ArticleFeedItem = {
   why_it_matters: string | null;
   key_points: string[] | null;
   related_skills: string[] | null;
+  topic_tags?: string[] | null;
+  skill_tags?: string[] | null;
+  intent_tags?: string[] | null;
+  audience_tags?: string[] | null;
+  related_roles?: string[] | null;
+  learning_topics?: string[] | null;
+  project_convertible?: boolean | null;
+  personalization_hooks?: string[] | null;
+  source_quality_score?: number | null;
+  novelty_score?: number | null;
+  buildability_score?: number | null;
+  project_connect_score?: number | null;
+  daily_rank_score?: number | null;
+  recommendation_reasons?: string[] | null;
   difficulty: string | null;
   relevance_score: number | null;
   target_levels: string[] | null;
@@ -227,6 +317,14 @@ export type ArticleFeedItem = {
 export async function getNewsItems() {
   const supabase = await createClient();
   if (!supabase) return [];
+  const rankedResult = await supabase
+    .from('news_items')
+    .select('*')
+    .order('daily_rank_score', { ascending: false, nullsFirst: false })
+    .order('published_at', { ascending: false });
+
+  if (!rankedResult.error) return (rankedResult.data ?? []) as NewsItem[];
+
   const { data, error } = await supabase
     .from('news_items')
     .select('*')
@@ -282,12 +380,15 @@ export async function getResearchPaper(id: string) {
 
 export async function getArticleFeedItems() {
   const [news, papers] = await Promise.all([getNewsItems(), getResearchPapers(80)]);
-  const newsArticles: ArticleFeedItem[] = news.map((item) => ({
+  const newsArticles: ArticleFeedItem[] = news.filter((item) => Boolean(item.content?.trim())).map((item) => ({
     id: item.id,
     type: 'news',
     title: item.title,
     summary: item.summary,
     content: item.content,
+    newsletter_section: item.newsletter_section ?? null,
+    newsletter_priority: item.newsletter_priority ?? null,
+    short_summary: item.short_summary ?? null,
     category: item.category ?? '뉴스',
     source: item.source,
     source_url: item.source_url ?? null,
@@ -298,6 +399,20 @@ export async function getArticleFeedItems() {
     why_it_matters: item.why_it_matters ?? null,
     key_points: item.key_points ?? null,
     related_skills: item.related_skills ?? null,
+    topic_tags: item.topic_tags ?? null,
+    skill_tags: item.skill_tags ?? null,
+    intent_tags: item.intent_tags ?? null,
+    audience_tags: item.audience_tags ?? null,
+    related_roles: item.related_roles ?? null,
+    learning_topics: item.learning_topics ?? null,
+    project_convertible: item.project_convertible ?? null,
+    personalization_hooks: item.personalization_hooks ?? null,
+    source_quality_score: item.source_quality_score ?? null,
+    novelty_score: item.novelty_score ?? null,
+    buildability_score: item.buildability_score ?? null,
+    project_connect_score: item.project_connect_score ?? null,
+    daily_rank_score: item.daily_rank_score ?? null,
+    recommendation_reasons: item.recommendation_reasons ?? null,
     difficulty: item.difficulty ?? null,
     relevance_score: item.relevance_score ?? null,
     target_levels: item.target_levels ?? null,
@@ -315,6 +430,9 @@ export async function getArticleFeedItems() {
     title: paper.title,
     summary: paper.beginner_summary ?? paper.expert_summary ?? paper.abstract,
     content: paper.expert_summary ?? paper.beginner_summary ?? paper.abstract,
+    newsletter_section: paper.implementation_idea || paper.service_idea ? 'paper_to_project' : 'deep_dive',
+    newsletter_priority: paper.trend_score ?? paper.relevance_score ?? null,
+    short_summary: paper.beginner_summary ?? paper.expert_summary ?? null,
     category: paper.review_type ?? '논문',
     source: paper.source ?? 'Research',
     source_url: paper.source_url,
@@ -325,6 +443,20 @@ export async function getArticleFeedItems() {
     why_it_matters: paper.why_it_matters,
     key_points: paper.key_points,
     related_skills: paper.related_skills ?? paper.categories,
+    topic_tags: paper.categories ?? null,
+    skill_tags: paper.related_skills ?? paper.categories,
+    intent_tags: paper.implementation_idea ? ['프로젝트 연결 가능'] : ['심화 학습'],
+    audience_tags: paper.difficulty ? [paper.difficulty] : null,
+    related_roles: null,
+    learning_topics: paper.related_skills ?? paper.categories,
+    project_convertible: Boolean(paper.implementation_idea || paper.service_idea || paper.code_url),
+    personalization_hooks: paper.why_it_matters ? [paper.why_it_matters] : null,
+    source_quality_score: 72,
+    novelty_score: paper.trend_score ?? null,
+    buildability_score: paper.buildability_score ?? null,
+    project_connect_score: paper.implementation_idea || paper.service_idea ? 76 : null,
+    daily_rank_score: null,
+    recommendation_reasons: paper.implementation_idea ? ['논문을 프로젝트로 연결 가능'] : ['심화 학습에 적합'],
     difficulty: paper.difficulty,
     relevance_score: paper.relevance_score,
     target_levels: paper.target_levels ?? null,
@@ -539,4 +671,64 @@ export async function getIngestRuns() {
     return [];
   }
   return (data ?? []) as IngestRun[];
+}
+
+export async function getIngestRejections(limit = 40) {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('ingest_rejections')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    handleReadError(error);
+    return [];
+  }
+  return (data ?? []) as IngestRejection[];
+}
+
+export async function getIngestQualitySummary() {
+  const [runs, rejections, news] = await Promise.all([getIngestRuns(), getIngestRejections(120), getNewsItems()]);
+  const recentRuns = runs.slice(0, 12);
+  const totalInserted = recentRuns.reduce((sum, run) => sum + Number(run.inserted_count ?? 0), 0);
+  const totalSkipped = recentRuns.reduce((sum, run) => sum + Number(run.skipped_count ?? 0), 0);
+  const sourceMap = new Map<string, { inserted: number; skipped: number; rejected: number; quality: number; duplicates: number }>();
+
+  for (const run of recentRuns) {
+    const detailResults = Array.isArray(run.detail?.results) ? run.detail.results : [];
+    for (const item of detailResults) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as { source?: string; inserted?: number; skipped?: number };
+      if (!row.source) continue;
+      const current = sourceMap.get(row.source) ?? { inserted: 0, skipped: 0, rejected: 0, quality: 0, duplicates: 0 };
+      current.inserted += Number(row.inserted ?? 0);
+      current.skipped += Number(row.skipped ?? 0);
+      sourceMap.set(row.source, current);
+    }
+  }
+
+  for (const rejection of rejections) {
+    const current = sourceMap.get(rejection.source) ?? { inserted: 0, skipped: 0, rejected: 0, quality: 0, duplicates: 0 };
+    current.rejected += 1;
+    sourceMap.set(rejection.source, current);
+  }
+
+  for (const item of news) {
+    const source = item.source ?? 'Unknown';
+    const current = sourceMap.get(source) ?? { inserted: 0, skipped: 0, rejected: 0, quality: 0, duplicates: 0 };
+    current.quality = Math.max(current.quality, Number(item.source_quality_score ?? 0));
+    current.duplicates += Math.max(0, Number(item.duplicate_count ?? 1) - 1);
+    sourceMap.set(source, current);
+  }
+
+  return {
+    totalInserted,
+    totalSkipped,
+    rejections: rejections.length,
+    sources: Array.from(sourceMap.entries())
+      .map(([source, value]) => ({ source, ...value }))
+      .sort((a, b) => b.inserted + b.rejected - (a.inserted + a.rejected)),
+  };
 }

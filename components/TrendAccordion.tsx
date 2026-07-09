@@ -58,6 +58,32 @@ function SignalBars({ bars }: { bars: number[] | null }) {
   );
 }
 
+function RankingExplanation({ trend, sourcesCount }: { trend: Trend; sourcesCount: number }) {
+  const diversity = [
+    Number(trend.news_count ?? 0) > 0 ? '뉴스' : null,
+    Number(trend.product_count ?? 0) > 0 ? 'AI 제품' : null,
+    Number(trend.github_repo_count ?? 0) > 0 ? 'GitHub' : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="border border-outline-soft bg-surface p-4">
+      <h3 className="text-sm font-black uppercase text-ink">Ranking Logic</h3>
+      <div className="mt-4 grid gap-2">
+        {[
+          [`${trend.score ?? 0}점`, '키워드 빈도, 최신성, 출처 품질을 합산한 현재 점수'],
+          [`${sourcesCount || 0}개`, '서로 다른 콘텐츠에서 반복 감지된 신호 수'],
+          [diversity.join(' + ') || '단일 소스', '여러 출처에서 동시에 잡히면 순위가 더 올라갑니다'],
+        ].map(([value, label]) => (
+          <div key={label} className="border border-outline-soft bg-white p-3">
+            <p className="text-lg font-black text-ink">{value}</p>
+            <p className="mt-1 text-xs font-bold leading-5 text-muted">{label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TrendAccordion({ trends }: { trends: Trend[] }) {
   const [selectedId, setSelectedId] = useState(trends[0]?.id);
   const selectedTrend = useMemo(() => trends.find((trend) => trend.id === selectedId) ?? trends[0], [selectedId, trends]);
@@ -147,6 +173,8 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
                   ))}
                 </div>
               </div>
+
+              <RankingExplanation trend={selectedTrend} sourcesCount={sourcesCount} />
 
               <div className="border border-outline-soft bg-surface p-4">
                 <h3 className="text-sm font-black uppercase text-ink">Next Actions</h3>

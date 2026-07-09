@@ -21,6 +21,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   Other: '기타',
 };
 
+const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
+  daily_briefing: '핵심 뉴스',
+  ai_product_radar: 'AI 제품',
+  github_project_pick: 'GitHub Pick',
+  build_idea: 'Build Idea',
+  career_tip: 'Career Tip',
+  deep_dive: 'Deep Dive',
+  paper_to_project: '논문→프로젝트',
+};
+
 function formatDate(value: string | null) {
   if (!value) return '';
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value));
@@ -36,7 +46,15 @@ function itemHref(item: ArticleFeedItem) {
 }
 
 function scoreOf(item: ArticleFeedItem) {
-  return Number(item.relevance_score ?? 0) + Number(item.like_count ?? 0) * 2 + Number(item.view_count ?? 0) * 0.05;
+  return (
+    Number(item.newsletter_priority ?? 0) * 0.35 +
+    Number(item.daily_rank_score ?? 0) * 0.25 +
+    Number(item.relevance_score ?? 0) * 0.2 +
+    Number(item.novelty_score ?? 0) * 0.08 +
+    Number(item.source_quality_score ?? 0) * 0.07 +
+    Number(item.like_count ?? 0) * 2 +
+    Number(item.view_count ?? 0) * 0.05
+  );
 }
 
 function buildHref(params: { tab: string; page?: number; category?: string; q?: string }) {
@@ -53,19 +71,31 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
   const itemType = item.type === 'paper' ? 'paper' : 'news';
   const recommendedFor = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
   const trustLabel = item.published_at ? `수집 기준 ${formatDate(item.published_at)}` : item.source ? `출처 ${item.source}` : 'Seedup 검토';
+  const newsletterLabel = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : '브리핑 후보';
+  const scoreLabel = item.newsletter_priority ? `우선순위 ${Math.round(item.newsletter_priority)}` : item.daily_rank_score ? `랭킹 ${Math.round(item.daily_rank_score)}` : null;
+  const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
+  const reasons = item.recommendation_reasons?.length
+    ? item.recommendation_reasons
+    : item.personalization_hooks?.length
+      ? item.personalization_hooks
+      : item.project_convertible
+        ? ['프로젝트로 확장 가능']
+        : [];
 
   return (
     <article className="group border border-outline-soft bg-white p-5 transition-colors hover:border-ink">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold uppercase text-muted">
         <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category)}</span>
+        <span className="border border-outline-soft bg-ink px-2 py-1 text-white">{newsletterLabel}</span>
+        {scoreLabel && <span>{scoreLabel}</span>}
         <span>{item.source ?? 'Seedup'}</span>
         <span>{formatDate(item.published_at)}</span>
       </div>
       <Link href={itemHref(item)}>
         <h3 className="line-clamp-2 text-xl font-black leading-snug text-ink transition-colors group-hover:underline">{item.title}</h3>
       </Link>
-      {(item.summary || item.beginner_summary) && (
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{item.summary ?? item.beginner_summary}</p>
+      {summary && (
+        <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{summary}</p>
       )}
       <div className="mt-4 grid gap-3 border border-outline-soft bg-surface p-4 text-sm leading-6">
         <div>
@@ -78,13 +108,13 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
             <p className="mt-1 line-clamp-1 text-muted">{recommendedFor || (item.type === 'paper' ? '논문을 프로젝트로 연결하고 싶은 개발자' : '트렌드를 빠르게 파악하고 싶은 개발자')}</p>
           </div>
           <div>
-            <div className="text-xs font-bold uppercase text-ink">만들 수 있는 것</div>
-            <p className="mt-1 line-clamp-1 text-muted">{item.project_idea ?? '관련 미니 프로젝트 아이디어 탐색'}</p>
+            <div className="text-xs font-bold uppercase text-ink">추천 이유</div>
+            <p className="mt-1 line-clamp-1 text-muted">{reasons[0] ?? item.project_idea ?? '뉴스레터 추천 후보'}</p>
           </div>
         </div>
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
-        {(item.related_skills ?? []).slice(0, 3).map((skill) => (
+        {[...(item.skill_tags ?? []), ...(item.related_skills ?? []), ...(item.topic_tags ?? [])].slice(0, 3).map((skill) => (
           <span key={skill} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-semibold text-muted">{skill}</span>
         ))}
         <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-semibold text-muted">{trustLabel}</span>

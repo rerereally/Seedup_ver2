@@ -13,6 +13,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
+  daily_briefing: '핵심 뉴스',
+  ai_product_radar: 'AI 제품',
+  github_project_pick: 'GitHub Pick',
+  build_idea: 'Build Idea',
+  career_tip: 'Career Tip',
+  deep_dive: 'Deep Dive',
+  paper_to_project: '논문→프로젝트',
+};
+
 export default async function NewsDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [item, existingScrap, relatedPapers] = await Promise.all([
@@ -22,13 +32,25 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   if (!item) notFound();
+  if (!item.content?.trim()) notFound();
   await incrementContentView('news', item.id);
   const publishedAt = item.published_at ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(item.published_at)) : null;
   const projectPrompt = item.project_idea ?? `${item.title}를 바탕으로 만들 수 있는 프로젝트를 평가해줘.`;
   const categoryQuery = item.category ? `/news?category=${encodeURIComponent(item.category)}` : '/news';
+  const newsletterLabel = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
+  const summary = item.short_summary ?? item.summary;
+  const recommendationReasons = item.recommendation_reasons?.length
+    ? item.recommendation_reasons
+    : item.personalization_hooks?.length
+      ? item.personalization_hooks
+      : item.project_convertible
+        ? ['프로젝트나 포트폴리오로 확장할 수 있습니다.']
+        : [];
   const readingPoints = [
+    recommendationReasons[0] ? `추천 이유: ${recommendationReasons[0]}` : null,
     item.why_it_matters,
     item.project_idea ? `프로젝트 연결: ${item.project_idea}` : null,
+    item.learning_topics?.length ? `학습 주제: ${item.learning_topics.slice(0, 4).join(', ')}` : null,
     item.related_skills?.length ? `관련 기술: ${item.related_skills.slice(0, 4).join(', ')}` : null,
   ].filter(Boolean);
 
@@ -46,12 +68,19 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
               <div className="border border-outline-soft bg-white p-5 md:p-7">
                 <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
                   <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.category ?? 'ARTICLE'}</span>
+                  {newsletterLabel && <span className="border border-outline-soft bg-ink px-2 py-1 text-white">{newsletterLabel}</span>}
+                  {item.newsletter_priority && <span>우선순위 {Math.round(item.newsletter_priority)}</span>}
                   <span>{item.source ?? 'Seedup'}</span>
                   {publishedAt && <span>{publishedAt}</span>}
                   {item.difficulty && <span>{item.difficulty}</span>}
                 </div>
                 <h1 className="max-w-4xl text-3xl font-black leading-tight text-ink md:text-5xl">{item.title}</h1>
-                {item.summary && <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">{item.summary}</p>}
+                {summary && <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">{summary}</p>}
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {[...(item.skill_tags ?? []), ...(item.topic_tags ?? []), ...(item.intent_tags ?? [])].slice(0, 6).map((tag) => (
+                    <span key={tag} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{tag}</span>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-4 border border-outline-soft bg-white">
@@ -101,7 +130,17 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                 </div>
               )}
 
-              {item.content && <MarkdownContent content={item.content} />}
+              {item.content ? (
+                <MarkdownContent content={item.content} />
+              ) : (
+                <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
+                  <div className="mb-3 text-sm font-black uppercase text-ink">Preprocessed Briefing</div>
+                  <p className="text-sm leading-7 text-muted">
+                    이 항목은 RSS 수집 후 뉴스레터 추천용 메타데이터로 전처리된 상태입니다. 긴 Deep Dive 글이나 Build Idea 글은 관리자 콘솔의 통합 글 생성 단계에서 별도로 생성됩니다.
+                  </p>
+                  {summary && <p className="mt-4 border border-outline-soft bg-surface p-4 text-sm leading-7 text-ink">{summary}</p>}
+                </section>
+              )}
 
               <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">

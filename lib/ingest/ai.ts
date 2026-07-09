@@ -1,11 +1,16 @@
 import { fallbackSummary, truncate } from './text';
+import type { ContentType, NewsletterSection } from '@/lib/recommendations';
 
 export type NewsAnalysis = {
   translated_title: string;
+  content_type: ContentType;
+  newsletter_section: NewsletterSection;
+  newsletter_priority: number;
   category: string;
   relevance_score: number;
+  short_summary: string;
   ai_summary: string;
-  article_markdown: string;
+  article_markdown?: string;
   beginner_summary: string;
   why_it_matters: string;
   key_points: string[];
@@ -16,6 +21,19 @@ export type NewsAnalysis = {
   target_goals: string[];
   target_interests: string[];
   content_depth: string;
+  topic_tags: string[];
+  skill_tags: string[];
+  intent_tags: string[];
+  audience_tags: string[];
+  related_roles: string[];
+  learning_topics: string[];
+  project_convertible: boolean;
+  personalization_hooks: string[];
+  source_quality_score: number;
+  novelty_score: number;
+  buildability_score: number;
+  project_connect_score: number;
+  recommendation_reasons: string[];
 };
 
 export type RepoAnalysis = {
@@ -88,10 +106,19 @@ export type PaperAnalysis = {
   content_depth: string;
 };
 
-const DEFAULT_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
+const FALLBACK_MODEL = 'google/gemini-3.5-flash';
 const OPENROUTER_TIMEOUT_MS = 45_000;
+const MODEL_ROUTES = {
+  preprocess: [
+    'google/gemini-2.5-flash',
+  ],
+  writing: [
+    'google/gemini-3.5-flash',
+  ],
+};
 
-export async function analyzeNews(input: { title: string; content: string; source: string }) {
+export async function analyzeNews(input: { title: string; content: string; source: string; sourceLanguage?: string }) {
   const fallback = buildFallbackNewsAnalysis(input.title, input.content);
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -101,30 +128,40 @@ export async function analyzeNews(input: { title: string; content: string; sourc
     const { result, model } = await callOpenRouter<NewsAnalysis>(apiKey, [
       {
         role: 'system',
-        content: '너는 초보 개발자를 위한 기술 뉴스 큐레이터다. 영어/한국어 원문을 모두 자연스러운 한국어 콘텐츠로 재작성한다. 반드시 JSON만 반환한다. 원문에 없는 수치, 인용, 사실은 만들지 않는다.',
+        content: '너는 개인 맞춤 개발 뉴스레터를 위한 콘텐츠 전처리 엔진이다. 영어/한국어 원문을 한국어 추천 메타데이터로 구조화한다. 반드시 JSON만 반환한다. 원문에 없는 수치, 인용, 사실은 만들지 않는다.',
       },
       {
         role: 'user',
         content: `아래 뉴스가 개발, 코딩, AI 제품, 개발 트렌드, 개발자 도구와 관련 있는지 판단하고 한국어 JSON으로 분석하라.
 
+목표:
+- 원문을 긴 글로 재작성하지 않는다.
+- 뉴스레터 추천과 개인화 매칭에 필요한 구조화 데이터를 만든다.
+- 개발 관련성, 직무, 수준, 목표, 태그, 프로젝트 연결 가능성을 판단한다.
+
 규칙:
-- 원문 언어가 영어여도 제목과 모든 설명은 한국어로 작성한다.
-- article_markdown은 원문 전체 번역이 아니라 Seedup 뉴스 상세페이지에 들어갈 요약 기사다.
-- article_markdown은 Markdown으로 작성하고 ## 소제목 4~6개, bullet list, 짧은 문단을 섞는다.
+- 원문 언어가 영어이거나 제목/본문에 영어가 섞여 있으면 제목과 모든 설명을 자연스러운 한국어로 번역한다.
+- translated_title은 반드시 한국어 기사 제목이어야 한다. 영어 원문 제목을 그대로 복사하지 않는다.
+- short_summary, ai_summary, beginner_summary, why_it_matters, key_points, project_idea, tags는 모두 한국어로 작성한다. 고유명사, 제품명, 프레임워크명만 원문 표기를 유지할 수 있다.
+- article_markdown은 기본적으로 빈 문자열로 둔다. 긴 글 작성은 별도 writing 단계에서만 한다.
 - 초보 개발자가 이해할 수 있도록 용어를 풀어쓴다.
 - 확실하지 않은 내용은 단정하지 말고 "원문 기준으로는"처럼 표현한다.
-- 본문은 1800~2600자 안에서 충분히 설명한다. 너무 짧은 요약으로 끝내지 않는다.
-- 반드시 "무슨 내용인가", "왜 중요한가", "초보 개발자가 알아야 할 개념", "직접 해볼 만한 프로젝트", "주의할 점"을 포함한다.
-- 기술 용어는 처음 보는 사람도 이해할 수 있게 쉬운 비유나 예시를 붙인다.
 - 광고 문구, 구독 유도 문구, 저작권 문구, 메뉴 텍스트는 요약에 포함하지 않는다.
-
-출력 JSON 스키마:
-{
+- topic_tags는 5개 이하, skill_tags는 5개 이하, intent_tags는 3개 이하, audience_tags는 3개 이하로 제한한다.
+- related_roles는 frontend_developer, backend_developer, ai_builder, startup_builder, developer 중에서 고른다.
+- newsletter_priority는 뉴스레터에 넣을 우선순위이며 0~100 정수다.
+	
+	출력 JSON 스키마:
+	{
   "translated_title": "한국어 기사 제목",
-  "category": "AI Agent | Frontend | Backend | DevTools | Product | Trend | Other",
+  "content_type": "news",
+  "newsletter_section": "daily_briefing | ai_product_radar | github_project_pick | build_idea | career_tip | deep_dive | paper_to_project",
+  "newsletter_priority": 0,
+  "category": "AI Agent | Frontend | Backend | DevTools | Product | Trend | Paper | Career | Other",
   "relevance_score": 0,
-  "ai_summary": "전문가용 3문장 요약",
-  "article_markdown": "한국어 마크다운 요약 기사",
+  "short_summary": "뉴스레터에 넣을 2~3문장 요약",
+  "ai_summary": "전문가용 2~3문장 요약",
+  "article_markdown": "",
   "beginner_summary": "초보자용 쉬운 설명",
   "why_it_matters": "왜 중요한지",
   "key_points": ["핵심 1", "핵심 2", "핵심 3"],
@@ -132,16 +169,30 @@ export async function analyzeNews(input: { title: string; content: string; sourc
   "project_idea": "작게 만들 수 있는 프로젝트",
   "difficulty": "초급 | 중급 | 고급",
   "target_levels": ["완전 처음 | 입문자 | 초보자 | 중급자 | 실무 경험 있음"],
-  "target_goals": ["포트폴리오 만들기 | 취업/이직 준비 | 사이드 프로젝트 | 창업 아이디어 검증 | 최신 기술 공부 | 팀 프로젝트 주제 찾기"],
-  "target_interests": ["프론트엔드 | 백엔드 | 풀스택 | AI/API 연동 | 데이터/DB | 모바일 | 디자인/UI | DevOps/배포 | 오픈소스 | 논문 쉽게 읽기"],
-  "content_depth": "짧고 쉽게 | 핵심과 예시 중심 | 기술 배경까지 자세히 | 실무 적용 관점으로 깊게"
-}
+	  "target_goals": ["포트폴리오 만들기 | 취업/이직 준비 | 사이드 프로젝트 | 창업 아이디어 검증 | 최신 기술 공부 | 팀 프로젝트 주제 찾기"],
+	  "target_interests": ["프론트엔드 | 백엔드 | 풀스택 | AI/API 연동 | 데이터/DB | 모바일 | 디자인/UI | DevOps/배포 | 오픈소스 | 논문 쉽게 읽기"],
+	  "content_depth": "짧고 쉽게 | 핵심과 예시 중심 | 기술 배경까지 자세히 | 실무 적용 관점으로 깊게",
+	  "topic_tags": ["AI", "Open Source"],
+	  "skill_tags": ["Next.js", "Supabase"],
+	  "intent_tags": ["프로젝트 연결 가능", "초보자 추천"],
+	  "audience_tags": ["초급", "포트폴리오 준비"],
+	  "related_roles": ["frontend_developer", "ai_builder"],
+	  "learning_topics": ["API 호출", "Tool Calling"],
+	  "project_convertible": true,
+	  "source_quality_score": 0,
+	  "novelty_score": 0,
+	  "buildability_score": 0,
+	  "project_connect_score": 0,
+	  "recommendation_reasons": ["최근 신호", "프로젝트로 확장 가능"],
+	  "personalization_hooks": ["AI 앱 개발에 관심 있는 사용자에게 적합"]
+	}
 
 source: ${input.source}
+source_language: ${input.sourceLanguage ?? 'unknown'}
 title: ${input.title}
 content: ${truncate(input.content, 5200)}`,
       },
-    ]);
+    ], { models: MODEL_ROUTES.preprocess });
 
     return { analysis: normalizeNewsAnalysis(result, fallback), model };
   } catch (error) {
@@ -181,7 +232,7 @@ description: ${input.description ?? ''}
 language: ${input.language ?? ''}
 topics: ${input.topics.join(', ')}`,
       },
-    ]);
+    ], { models: MODEL_ROUTES.preprocess });
 
     return { analysis: { ...fallback, ...result }, model };
   } catch (error) {
@@ -228,7 +279,7 @@ name: ${input.name}
 url: ${input.url ?? ''}
 content: ${truncate(input.content, 2500)}`,
       },
-    ]);
+    ], { models: MODEL_ROUTES.preprocess });
 
     return { analysis: { ...fallback, ...result }, model };
   } catch (error) {
@@ -288,7 +339,7 @@ categories: ${input.categories.join(', ')}
 has_code: ${input.hasCode}
 abstract: ${truncate(input.abstract, 5000)}`,
       },
-    ]);
+    ], { models: MODEL_ROUTES.preprocess });
 
     return { analysis: normalizePaperAnalysis(result, fallback), model };
   } catch (error) {
@@ -304,17 +355,49 @@ export async function generateProjectIdea(input: {
   trend?: string | null;
   skills?: string[];
 }) {
+  const fallbackDesc = `## 이 프로젝트는 무엇인가요?
+
+${truncate(input.summary, 200)}
+
+## 어떤 문제를 해결하나요?
+
+개발자들이 최신 트렌드를 빠르게 파악하고 실제 결과물로 연결하는 과정에서 겪는 막막함을 해소합니다. 작은 기능부터 시작해 배포까지 경험할 수 있습니다.
+
+## 핵심 기능
+
+- 트렌드 신호를 수집하고 저장하는 기본 CRUD 기능
+- 사용자가 결과를 확인할 수 있는 간단한 UI 화면
+- 외부 API 또는 AI를 활용한 분석 또는 자동화 기능
+
+## 왜 만들어볼 만한가요?
+
+이 프로젝트는 단순한 클론 코딩이 아니라 실제 문제를 정의하고 해결하는 과정을 담습니다. 포트폴리오에 올릴 때 "왜 만들었는지"를 설명할 수 있어 면접에서도 강점이 됩니다.
+
+## 이 프로젝트로 배울 수 있는 것
+
+- Next.js와 Supabase를 연결하는 풀스택 흐름
+- 외부 API를 fetch로 호출하고 데이터를 화면에 표시하는 방법
+- Vercel을 통한 자동 배포와 도메인 연결 경험`;
+
   const fallback: GeneratedProjectIdea = {
     title: `${input.title}로 시작하는 실전 미니 프로젝트`,
-    description: truncate(input.summary, 240),
+    description: fallbackDesc,
     level: '초급',
     duration_days: 7,
-    stack: input.skills?.length ? input.skills.slice(0, 5) : ['Next.js', 'Supabase', 'API'],
+    stack: input.skills?.length ? input.skills.slice(0, 5) : ['Next.js', 'Supabase', 'TypeScript'],
     related_trend: input.trend ?? input.title,
     target_user_level: 'beginner-builder',
     recommended_for: ['포트폴리오 만들기', '최신 기술 공부'],
     portfolio_value: '뉴스나 트렌드를 실제 결과물로 바꾸는 과정을 보여줄 수 있습니다.',
-    plan: ['문제 정의', '데이터 모델 설계', '화면 구현', 'API 연결', '상태 처리', '배포', 'README 작성'],
+    plan: [
+      'Day 1: 문제 정의 & 기획 | 도구: 노션 or 마크다운 | 방법: 해결할 문제 1가지를 한 문장으로 적고, 핵심 기능 3개로 범위를 제한한다',
+      'Day 2: 데이터 모델 설계 | 도구: Supabase Table Editor | 언어: SQL | 방법: 테이블 2~3개를 설계하고 Supabase에서 직접 생성한다',
+      'Day 3: 기본 UI 구현 | 도구: Next.js, Tailwind CSS | 언어: TypeScript, JSX | 방법: 메인 페이지 레이아웃과 컴포넌트 구조를 잡는다',
+      'Day 4: 핵심 기능 구현 | 도구: Next.js API Route, Supabase Client | 언어: TypeScript | 방법: 데이터 CRUD 로직을 작성하고 화면과 연결한다',
+      'Day 5: API 연결 & 상태 처리 | 도구: OpenRouter API 또는 외부 API | 언어: TypeScript | 방법: fetch로 API를 호출하고 로딩/에러 상태를 처리한다',
+      'Day 6: UI 다듬기 & 테스트 | 도구: 브라우저 DevTools | 방법: 모바일 반응형을 확인하고 엣지 케이스를 테스트한다',
+      'Day 7: 배포 & README | 도구: Vercel 또는 Cloudflare Pages | 방법: main 브랜치를 연결해 자동 배포하고 README에 스크린샷과 기능 설명을 작성한다',
+    ],
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -327,18 +410,33 @@ export async function generateProjectIdea(input: {
         role: 'user',
         content: `아래 소스를 기반으로 만들 만한 프로젝트 1개를 JSON으로 제안하라.
 
+규칙:
+- description은 마크다운으로 작성하며 반드시 아래 5개 ## 섹션을 모두 포함한다.
+  ## 이 프로젝트는 무엇인가요?   → 2~3문장으로 서비스 개요
+  ## 어떤 문제를 해결하나요?    → 어떤 불편함/필요를 해결하는지 구체적으로
+  ## 핵심 기능                  → bullet list로 3~5개 기능 나열
+  ## 왜 만들어볼 만한가요?       → 학습 가치, 포트폴리오 차별점
+  ## 이 프로젝트로 배울 수 있는 것 → bullet list로 3~5개 학습 포인트
+- description 전체 길이는 600~1200자(한국어 기준)
+- plan 배열은 각 Day를 "Day N: 작업 제목 | 도구: 사용할 도구명 | 언어: 사용 언어 | 방법: 구체적인 구현 방법" 형식으로 작성한다.
+- plan은 최소 5개, 최대 7개 항목으로 작성한다.
+- stack은 실제로 plan에서 사용하는 기술만 포함한다.
+
 출력 JSON:
 {
   "title": "프로젝트명",
-  "description": "설명",
+  "description": "## 이 프로젝트는 무엇인가요?\n\n설명...\n\n## 어떤 문제를 해결하나요?\n\n설명...\n\n## 핵심 기능\n\n- 기능1\n- 기능2\n\n## 왜 만들어볼 만한가요?\n\n설명...\n\n## 이 프로젝트로 배울 수 있는 것\n\n- 학습1\n- 학습2",
   "level": "초급 | 중급 | 고급",
   "duration_days": 7,
-  "stack": ["기술"],
+  "stack": ["사용 기술"],
   "related_trend": "관련 트렌드",
   "target_user_level": "beginner-builder | portfolio-seeker | ai-tool-maker | startup-explorer",
   "recommended_for": ["목적"],
-  "portfolio_value": "포트폴리오 가치",
-  "plan": ["Day 1", "Day 2", "Day 3"]
+  "portfolio_value": "포트폴리오 가치 설명 (2~3문장)",
+  "plan": [
+    "Day 1: 문제 정의 & 기획 | 도구: 노션 or 마크다운 | 방법: 해결할 문제를 정의하고 핵심 기능 3개로 범위를 좁힌다",
+    "Day N: ..."
+  ]
 }
 
 source_type: ${input.sourceType}
@@ -347,7 +445,7 @@ trend: ${input.trend ?? ''}
 skills: ${(input.skills ?? []).join(', ')}
 summary: ${truncate(input.summary, 2500)}`,
       },
-    ]);
+    ], { maxTokens: 3500, models: MODEL_ROUTES.writing });
 
     return { idea: { ...fallback, ...result }, model };
   } catch (error) {
@@ -355,6 +453,7 @@ summary: ${truncate(input.summary, 2500)}`,
     return { idea: fallback, model: null };
   }
 }
+
 
 export async function evaluateIdea(input: { idea: string }) {
   const fallback: IdeaEvaluation = {
@@ -447,9 +546,14 @@ question: ${truncate(input.question, 500)}`,
   }
 }
 
-async function callOpenRouter<T>(apiKey: string, messages: Array<{ role: 'system' | 'user'; content: string }>) {
-  const models = getOpenRouterModels();
+async function callOpenRouter<T>(
+  apiKey: string,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+  options?: { maxTokens?: number; models?: string[] },
+) {
+  const models = options?.models?.length ? options.models : getOpenRouterModels();
   const errors: string[] = [];
+  const maxTokens = options?.maxTokens ?? 2400;
 
   for (const model of models) {
     const controller = new AbortController();
@@ -469,8 +573,7 @@ async function callOpenRouter<T>(apiKey: string, messages: Array<{ role: 'system
           model,
           messages,
           temperature: 0.2,
-          max_tokens: 2400,
-          response_format: { type: 'json_object' },
+          max_tokens: maxTokens,
         }),
       });
 
@@ -480,6 +583,12 @@ async function callOpenRouter<T>(apiKey: string, messages: Array<{ role: 'system
       }
 
       const json = await response.json();
+
+      // OpenRouter sometimes returns 200 OK with an error object (quota/rate-limit)
+      if (json.error) {
+        throw new Error(`OpenRouter API error: ${json.error.message ?? JSON.stringify(json.error)}`);
+      }
+
       const content = json.choices?.[0]?.message?.content;
       if (!content) throw new Error('OpenRouter returned empty content');
 
@@ -501,6 +610,7 @@ function getOpenRouterModels() {
     process.env.OPENROUTER_MODEL,
     ...(process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(','),
     DEFAULT_MODEL,
+    FALLBACK_MODEL,
   ]
     .map((model) => model?.trim())
     .filter((model): model is string => Boolean(model))
@@ -508,31 +618,54 @@ function getOpenRouterModels() {
 }
 
 function parseJsonResponse<T>(content: string) {
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const stripped = content
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
+
+  // Detect HTML responses (rate-limit pages, error pages from provider)
+  if (/^<!DOCTYPE|^<html/i.test(stripped)) {
+    const preview = stripped.slice(0, 120).replace(/\s+/g, ' ');
+    console.warn('OpenRouter returned HTML instead of JSON:', preview);
+    throw new Error('OpenRouter returned HTML (rate-limit or quota exceeded)');
+  }
+
+  // Log first 200 chars when parsing fails to help debugging
   try {
-    return JSON.parse(content) as T;
+    return JSON.parse(stripped) as T;
   } catch {
-    const start = content.indexOf('{');
-    const end = content.lastIndexOf('}');
+    const start = stripped.indexOf('{');
+    const end = stripped.lastIndexOf('}');
     if (start === -1 || end === -1 || end <= start) {
+      console.warn('OpenRouter non-JSON preview:', stripped.slice(0, 200));
       throw new Error('OpenRouter returned non-JSON content');
     }
 
-    return JSON.parse(content.slice(start, end + 1)) as T;
+    return JSON.parse(stripped.slice(start, end + 1)) as T;
   }
 }
 
 function buildFallbackNewsAnalysis(title: string, content: string): NewsAnalysis {
-  const summary = fallbackSummary(title, content);
+  const rawSummary = fallbackSummary(title, content);
+  const translatedTitle = ensureKoreanTitle(title);
+  const summary = containsHangul(rawSummary)
+    ? rawSummary
+    : `${translatedTitle}에 관한 기술 뉴스입니다. 원문을 바탕으로 개발자가 확인할 핵심 흐름과 프로젝트로 연결할 포인트를 정리합니다.`;
 
   return {
-    translated_title: title,
+    translated_title: translatedTitle,
+    content_type: 'news',
+    newsletter_section: 'daily_briefing',
+    newsletter_priority: 62,
     category: 'Trend',
     relevance_score: 60,
+    short_summary: summary,
     ai_summary: summary,
-    article_markdown: `## 한눈에 보기\n\n${summary}\n\n## 초보 개발자가 볼 포인트\n\n- 이 소식이 어떤 기술 흐름과 연결되는지 확인해보세요.\n- 기사에 등장한 도구나 개념을 작은 실습 프로젝트로 바꿔볼 수 있습니다.\n\n## 만들어볼 만한 것\n\n뉴스 요약과 학습 노트를 저장하는 작은 웹앱으로 시작해볼 수 있습니다.`,
+    article_markdown: '',
     beginner_summary: summary,
     why_it_matters: '개발자가 최신 동향을 이해하고 작은 프로젝트 아이디어로 연결할 수 있는 내용입니다.',
-    key_points: [title, summary, '상세 내용을 읽고 관련 기술을 실습해볼 수 있습니다.'],
+    key_points: [translatedTitle, summary, '상세 내용을 읽고 관련 기술을 실습해볼 수 있습니다.'],
     related_skills: ['Research', 'Web', 'API'],
     project_idea: '뉴스 요약 및 학습 노트 앱',
     difficulty: '초급',
@@ -540,14 +673,31 @@ function buildFallbackNewsAnalysis(title: string, content: string): NewsAnalysis
     target_goals: ['최신 기술 공부', '포트폴리오 만들기'],
     target_interests: ['뉴스/콘텐츠 서비스', 'AI/API 연동'],
     content_depth: '핵심과 예시 중심',
+    topic_tags: ['개발 트렌드', '기술 뉴스'],
+    skill_tags: ['Web', 'API'],
+    intent_tags: ['초보자 추천', '프로젝트 연결 가능'],
+    audience_tags: ['초급', '포트폴리오 준비'],
+    related_roles: ['developer'],
+    learning_topics: ['기술 뉴스 읽기', '프로젝트 아이디어 발굴'],
+    project_convertible: true,
+    source_quality_score: 55,
+    novelty_score: 50,
+    buildability_score: 65,
+    project_connect_score: 70,
+    recommendation_reasons: ['프로젝트로 확장 가능', '초보자도 읽기 좋음'],
+    personalization_hooks: ['최신 기술을 프로젝트로 연결하고 싶은 사용자에게 적합합니다.'],
   };
 }
 
 function normalizeNewsAnalysis(result: Partial<NewsAnalysis>, fallback: NewsAnalysis): NewsAnalysis {
   return {
-    translated_title: result.translated_title ?? fallback.translated_title,
+    translated_title: ensureKoreanTitle(result.translated_title ?? fallback.translated_title),
+    content_type: result.content_type ?? fallback.content_type,
+    newsletter_section: result.newsletter_section ?? fallback.newsletter_section,
+    newsletter_priority: clampScore(result.newsletter_priority ?? fallback.newsletter_priority),
     category: result.category ?? fallback.category,
     relevance_score: Number(result.relevance_score ?? fallback.relevance_score),
+    short_summary: result.short_summary ?? result.ai_summary ?? fallback.short_summary,
     ai_summary: result.ai_summary ?? fallback.ai_summary,
     article_markdown: result.article_markdown ?? fallback.article_markdown,
     beginner_summary: result.beginner_summary ?? fallback.beginner_summary,
@@ -560,6 +710,19 @@ function normalizeNewsAnalysis(result: Partial<NewsAnalysis>, fallback: NewsAnal
     target_goals: Array.isArray(result.target_goals) ? result.target_goals : fallback.target_goals,
     target_interests: Array.isArray(result.target_interests) ? result.target_interests : fallback.target_interests,
     content_depth: result.content_depth ?? fallback.content_depth,
+    topic_tags: Array.isArray(result.topic_tags) ? result.topic_tags.slice(0, 5) : fallback.topic_tags,
+    skill_tags: Array.isArray(result.skill_tags) ? result.skill_tags.slice(0, 5) : fallback.skill_tags,
+    intent_tags: Array.isArray(result.intent_tags) ? result.intent_tags.slice(0, 3) : fallback.intent_tags,
+    audience_tags: Array.isArray(result.audience_tags) ? result.audience_tags.slice(0, 3) : fallback.audience_tags,
+    related_roles: Array.isArray(result.related_roles) ? result.related_roles.slice(0, 5) : fallback.related_roles,
+    learning_topics: Array.isArray(result.learning_topics) ? result.learning_topics.slice(0, 6) : fallback.learning_topics,
+    project_convertible: Boolean(result.project_convertible ?? fallback.project_convertible),
+    source_quality_score: clampScore(result.source_quality_score ?? fallback.source_quality_score),
+    novelty_score: clampScore(result.novelty_score ?? fallback.novelty_score),
+    buildability_score: clampScore(result.buildability_score ?? fallback.buildability_score),
+    project_connect_score: clampScore(result.project_connect_score ?? fallback.project_connect_score),
+    recommendation_reasons: Array.isArray(result.recommendation_reasons) ? result.recommendation_reasons.slice(0, 4) : fallback.recommendation_reasons,
+    personalization_hooks: Array.isArray(result.personalization_hooks) ? result.personalization_hooks.slice(0, 4) : fallback.personalization_hooks,
   };
 }
 
@@ -638,6 +801,17 @@ function normalizePaperAnalysis(result: Partial<PaperAnalysis>, fallback: PaperA
     target_interests: Array.isArray(result.target_interests) ? result.target_interests : fallback.target_interests,
     content_depth: result.content_depth ?? fallback.content_depth,
   };
+}
+
+function ensureKoreanTitle(title: string) {
+  const normalized = title.trim();
+  if (!normalized) return '기술 뉴스 요약';
+  if (containsHangul(normalized)) return normalized;
+  return `영문 아티클 요약: ${truncate(normalized, 90)}`;
+}
+
+function containsHangul(value: string) {
+  return /[가-힣]/.test(value);
 }
 
 function clampScore(value: unknown) {

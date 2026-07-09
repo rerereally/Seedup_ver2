@@ -40,14 +40,17 @@ export async function sendManualNewsletter() {
   const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
 
-  const [{ data: recipients }, { data: news }, { data: papers }, { data: products }, { data: repos }, { data: projects }] = await Promise.all([
+  const [{ data: recipients }, newsResult, { data: papers }, { data: products }, { data: repos }, { data: projects }] = await Promise.all([
     service.from('user_onboarding').select('email, newsletter_subscribed, answers').eq('newsletter_subscribed', true).not('email', 'is', null),
-    service.from('news_items').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(24),
+    service.from('news_items').select('*').order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
     service.from('research_papers').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(12),
     service.from('ai_products').select('*').order('score', { ascending: false }).limit(4),
     service.from('github_trends').select('*').order('stars', { ascending: false }).limit(4),
     service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(4),
   ]);
+  const news = newsResult.error
+    ? (await service.from('news_items').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(24)).data
+    : newsResult.data;
 
   const recipientList = Array.from(
     new Map(((recipients ?? []) as Recipient[]).filter((item) => item.email).map((item) => [item.email, item])).values(),

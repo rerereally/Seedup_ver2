@@ -1,13 +1,15 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
-import { ArrowRight, Bookmark, Calendar, Code2, FileText, Languages, Lightbulb, Search, Sparkles, TerminalSquare, TrendingUp } from 'lucide-react';
-import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ScrapItem } from '@/lib/data';
+import { ArrowRight, Calendar, Code2, Languages, Lightbulb, Search, TerminalSquare, TrendingUp } from 'lucide-react';
+import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper, ScrapItem } from '@/lib/data';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers, getScraps, getTrends } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import OnboardingModal from '@/components/OnboardingModal';
 import { cleanProjectTitle } from '@/lib/utils';
 import { DevCard, DevSectionHeader, DevTag } from '@/components/ui/DevCard';
+import DashboardRecommendationBanner from '@/components/DashboardRecommendationBanner';
+import { buildRecommendationProfile, recommendAIProducts, recommendGitHubRepos, recommendNewsItems, recommendProjectIdeas, scrapTokens, type RecommendedItem } from '@/lib/recommendations';
 
 const STEPS = [
   { icon: Search, title: 'Article Collection', desc: '매일 최신 기술 뉴스와 글 수집' },
@@ -52,30 +54,25 @@ function scoreLabel(score: number | null | undefined) {
   return `${Math.round(score)}점`;
 }
 
-function articleSignal(item?: NewsItem) {
-  const score = item?.relevance_score ? `${Math.round(item.relevance_score)} signal` : 'live signal';
-  const views = item?.view_count ? `${item.view_count.toLocaleString()} views` : 'curated';
-  return [score, views, item?.source].filter(Boolean).join(' / ');
-}
-
 function LoggedInHome({
   userName,
-  popularNews,
   recommendedNews,
+  latestNews,
   githubRepos,
   projects,
   aiProducts,
   userScraps,
+  latestPapers,
 }: {
   userName: string;
-  popularNews: NewsItem[];
-  recommendedNews: NewsItem[];
-  githubRepos: GitHubTrend[];
-  projects: ProjectIdea[];
-  aiProducts: AIProduct[];
+  recommendedNews: RecommendedItem<NewsItem>[];
+  latestNews: NewsItem[];
+  githubRepos: RecommendedItem<GitHubTrend>[];
+  projects: RecommendedItem<ProjectIdea>[];
+  aiProducts: RecommendedItem<AIProduct>[];
   userScraps: ScrapItem[];
+  latestPapers: ResearchPaper[];
 }) {
-  const heroItem = popularNews[0] ?? recommendedNews[0];
   const topRepos = githubRepos.slice(0, 3);
   const todayProjects = projects.slice(0, 3);
   const topProducts = aiProducts.slice(0, 4);
@@ -83,86 +80,33 @@ function LoggedInHome({
   return (
     <main className="grow bg-surface">
       <section className="border-b border-ink bg-white">
-        <div className="mx-auto max-w-[1180px] px-4 py-10 md:px-8 md:py-12">
-          <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
                 <TerminalSquare className="h-3.5 w-3.5" />
                 daily_dashboard.ts
               </div>
-              <h1 className="text-3xl font-black leading-tight text-ink md:text-[44px]">
-                {userName}님, 오늘 개발자들이 보는 신호만 골랐어요.
+              <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">
+                {userName}님, 오늘 볼 기술 신호입니다.
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-muted">
-                인기 글, 추천 아티클, 뜨는 오픈소스, 오늘 도전할 프로젝트와 AI 제품 랭킹을 한 화면에 모았습니다.
+              <p className="mt-3 max-w-3xl text-base leading-7 text-muted">
+                인기 아티클, 오픈소스, 프로젝트 후보, AI 제품을 빠르게 훑고 바로 이어갈 수 있게 정리했습니다.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <DevTag active>Live Briefing</DevTag>
+              <DevTag active>Daily Briefing</DevTag>
               <DevTag>{recommendedNews.length} 추천</DevTag>
               <DevTag>{userScraps.length} 저장</DevTag>
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <Link href={heroItem ? `/news/${heroItem.id}` : '/news'} className="group border border-ink bg-ink p-6 text-white transition-opacity hover:opacity-95">
-              <div className="mb-6 flex items-center justify-between gap-3 text-xs font-bold uppercase text-white/70">
-                <span>지금 인기 있는 글</span>
-                <span>{heroItem?.category ?? 'Article'}</span>
-              </div>
-              <h2 className="max-w-3xl text-2xl font-black leading-tight md:text-4xl">
-                {heroItem?.title ?? '오늘 읽을 추천 글을 준비 중입니다.'}
-              </h2>
-              <p className="mt-4 line-clamp-2 max-w-2xl text-sm leading-6 text-white/70">
-                {heroItem?.summary ?? '뉴스 수집이 완료되면 가장 반응이 좋은 아티클이 이 배너에 표시됩니다.'}
-              </p>
-              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/20 pt-4">
-                <span className="text-xs font-bold uppercase text-white/60">{articleSignal(heroItem)}</span>
-                <span className="inline-flex items-center gap-2 text-sm font-bold">
-                  지금 읽기
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </span>
-              </div>
-            </Link>
-
-            <div className="grid gap-3 border border-outline-soft bg-white p-4">
-              {[
-                [`${popularNews.length}`, '실시간 인기'],
-                [`${recommendedNews.length}`, '맞춤 추천'],
-                [`${userScraps.length}`, '이어볼 저장'],
-              ].map(([value, label]) => (
-                <div key={label} className="flex items-center justify-between border border-outline-soft bg-surface px-4 py-3">
-                  <span className="text-sm font-bold text-muted">{label}</span>
-                  <span className="text-2xl font-black text-ink">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <DashboardRecommendationBanner recommendedNews={recommendedNews} latestNews={latestNews} latestPapers={latestPapers} />
         </div>
       </section>
 
       <section className="border-b border-outline-soft bg-surface py-12">
-        <div className="mx-auto grid max-w-[1180px] gap-5 px-4 md:px-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="border border-outline-soft bg-white p-5">
-            <DevSectionHeader
-              eyebrow="recommended_articles"
-              title="오늘의 추천 아티클"
-              action={<Link href="/news" className="text-xs font-bold uppercase text-ink hover:underline">전체 보기</Link>}
-            />
-            <div className="space-y-3">
-              {recommendedNews.slice(0, 4).map((item) => (
-                <Link key={item.id} href={`/news/${item.id}`} className="group grid gap-3 border border-outline-soft bg-surface-lowest p-4 hover:border-ink md:grid-cols-[120px_1fr]">
-                  <div className="text-xs font-bold uppercase text-muted">{item.category ?? 'Article'}</div>
-                  <div>
-                    <h3 className="line-clamp-2 text-base font-black leading-snug text-ink group-hover:underline">{item.title}</h3>
-                    {item.summary && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{item.summary}</p>}
-                  </div>
-                </Link>
-              ))}
-              {!recommendedNews.length && <div className="border border-outline-soft bg-surface p-4 text-sm text-muted">추천 아티클을 준비 중입니다.</div>}
-            </div>
-          </div>
-
+        <div className="mx-auto grid max-w-6xl gap-5 px-4 md:px-8 lg:grid-cols-2">
           <div className="border border-outline-soft bg-white p-5">
             <DevSectionHeader
               eyebrow="github_radar"
@@ -170,7 +114,7 @@ function LoggedInHome({
               action={<Link href="/github-trends" className="text-xs font-bold uppercase text-ink hover:underline">전체 보기</Link>}
             />
             <div className="space-y-3">
-              {topRepos.map((repo, index) => (
+              {topRepos.map(({ item: repo, reasons }, index) => (
                 <Link key={repo.id} href={`/github-trends/${repo.id}`} className="block border border-outline-soft bg-surface-lowest p-4 hover:border-ink">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <DevTag active>#{index + 1}</DevTag>
@@ -178,37 +122,39 @@ function LoggedInHome({
                   </div>
                   <h3 className="line-clamp-1 text-base font-black text-ink">{repo.repo_full_name}</h3>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{repo.beginner_summary ?? repo.description ?? '학습과 프로젝트 참고 가치가 있는 저장소입니다.'}</p>
+                  <p className="mt-2 text-xs font-bold uppercase text-muted">{reasons[0]}</p>
                 </Link>
               ))}
               {!topRepos.length && <div className="border border-outline-soft bg-surface p-4 text-sm text-muted">오픈소스 데이터를 준비 중입니다.</div>}
             </div>
           </div>
-        </div>
-      </section>
 
-      <section className="border-b border-outline-soft bg-white py-12">
-        <div className="mx-auto grid max-w-[1180px] gap-5 px-4 md:px-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="border border-outline-soft bg-surface p-5">
+          <div className="border border-outline-soft bg-white p-5">
             <DevSectionHeader
               eyebrow="today_build"
               title="오늘 도전해볼 프로젝트"
               action={<Link href="/projects" className="text-xs font-bold uppercase text-ink hover:underline">프로젝트 보기</Link>}
             />
             <div className="space-y-3">
-              {todayProjects.map((project) => (
-                <Link key={project.id} href={`/projects/${project.id}`} className="block border border-outline-soft bg-white p-4 hover:border-ink">
+              {todayProjects.map(({ item: project, reasons }) => (
+                <Link key={project.id} href={`/projects/${project.id}`} className="block border border-outline-soft bg-surface-lowest p-4 hover:border-ink">
                   <div className="mb-2 flex flex-wrap gap-2">
                     <DevTag active>{project.level ?? '추천'}</DevTag>
                     {project.duration_days && <DevTag>{project.duration_days}일</DevTag>}
                   </div>
                   <h3 className="text-base font-black leading-snug text-ink">{cleanProjectTitle(project.title)}</h3>
                   {project.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{project.description}</p>}
+                  <p className="mt-2 text-xs font-bold uppercase text-muted">{reasons[0]}</p>
                 </Link>
               ))}
-              {!todayProjects.length && <div className="border border-outline-soft bg-white p-4 text-sm text-muted">프로젝트 추천을 준비 중입니다.</div>}
+              {!todayProjects.length && <div className="border border-outline-soft bg-surface p-4 text-sm text-muted">프로젝트 추천을 준비 중입니다.</div>}
             </div>
           </div>
+        </div>
+      </section>
 
+      <section className="border-b border-outline-soft bg-white py-12">
+        <div className="mx-auto max-w-6xl px-4 md:px-8">
           <div className="border border-outline-soft bg-surface p-5">
             <DevSectionHeader
               eyebrow="ai_tools_rank"
@@ -216,7 +162,7 @@ function LoggedInHome({
               action={<Link href="/ai-products" className="text-xs font-bold uppercase text-ink hover:underline">AI 제품 보기</Link>}
             />
             <div className="grid gap-3 sm:grid-cols-2">
-              {topProducts.map((product, index) => (
+              {topProducts.map(({ item: product, reasons }, index) => (
                 <Link key={product.id} href={`/ai-products/${product.id}`} className="border border-outline-soft bg-white p-4 hover:border-ink">
                   <div className="mb-3 flex items-center justify-between">
                     <DevTag active>#{index + 1}</DevTag>
@@ -224,6 +170,7 @@ function LoggedInHome({
                   </div>
                   <h3 className="line-clamp-1 text-base font-black text-ink">{product.name}</h3>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted">{product.description ?? product.target_user ?? '개발 워크플로우에 붙여볼 만한 AI 제품입니다.'}</p>
+                  <p className="mt-2 text-xs font-bold uppercase text-muted">{reasons[0]}</p>
                 </Link>
               ))}
               {!topProducts.length && <div className="border border-outline-soft bg-white p-4 text-sm text-muted sm:col-span-2">AI 제품 랭킹을 준비 중입니다.</div>}
@@ -241,16 +188,19 @@ export default async function Home() {
   const user = userResult.data.user;
 
   if (user) {
-    const [news, projects, githubRepos, aiProducts, userScraps] = await Promise.all([
+    const [news, projects, githubRepos, aiProducts, userScraps, latestPapers] = await Promise.all([
       getNewsItems(),
       getProjectIdeas(),
       getGitHubTrends(),
       getAIProducts(),
       getScraps(),
+      getResearchPapers(2),
     ]);
-    const popularNews = [...news].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 4);
+    const latestNews = [...news]
+      .sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime())
+      .slice(0, 2);
     const userName = user.email?.split('@')[0] ?? '개발자';
-    let recommendedNews = popularNews;
+    let onboardingAnswers: Record<string, unknown> | null = null;
     let shouldShowOnboarding = false;
 
     if (supabase) {
@@ -261,19 +211,13 @@ export default async function Home() {
         .maybeSingle();
 
       shouldShowOnboarding = !data;
-      const answerValues = Object.values((data?.answers ?? {}) as Record<string, string | string[]>).flat().map((value) => String(value).toLowerCase());
-      const personalized = news
-        .map((item) => {
-          const text = [item.title, item.summary, item.category, item.beginner_summary, ...(item.related_skills ?? [])].join(' ').toLowerCase();
-          const score = answerValues.filter((value) => value && text.includes(value)).length + Number(item.relevance_score ?? 0) / 100;
-          return { item, score };
-        })
-        .filter(({ score }) => score > 0.4)
-        .sort((a, b) => b.score - a.score)
-        .map(({ item }) => item)
-        .slice(0, 4);
-      recommendedNews = personalized.length ? personalized : popularNews;
+      onboardingAnswers = (data?.answers ?? null) as Record<string, unknown> | null;
     }
+    const profile = buildRecommendationProfile(onboardingAnswers, scrapTokens(userScraps));
+    const recommendedNews = recommendNewsItems(news, profile, 5);
+    const recommendedRepos = recommendGitHubRepos(githubRepos, profile, 3);
+    const recommendedProjects = recommendProjectIdeas(projects, profile, 3);
+    const recommendedProducts = recommendAIProducts(aiProducts, profile, 4);
 
     return (
       <>
@@ -281,12 +225,13 @@ export default async function Home() {
         <Header />
         <LoggedInHome
           userName={userName}
-          popularNews={popularNews}
           recommendedNews={recommendedNews}
-          githubRepos={githubRepos}
-          projects={projects}
-          aiProducts={aiProducts}
+          latestNews={latestNews}
+          githubRepos={recommendedRepos}
+          projects={recommendedProjects}
+          aiProducts={recommendedProducts}
           userScraps={userScraps}
+          latestPapers={latestPapers}
         />
         <Footer />
       </>
@@ -309,8 +254,8 @@ export default async function Home() {
       <Header />
       <main className="grow overflow-hidden">
         <section className="relative border-b border-ink bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-14 lg:py-16">
-            <div className="mb-9 flex flex-col gap-3 border-b border-outline-soft pb-5 md:flex-row md:items-center md:justify-between">
+          <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10 lg:py-12">
+            <div className="mb-7 flex flex-col gap-3 border-b border-outline-soft pb-4 md:flex-row md:items-center md:justify-between">
               <div className="inline-flex w-fit items-center gap-2 border border-ink bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
                 <TerminalSquare className="h-3.5 w-3.5" />
                 what_is_seedup.ts
@@ -321,15 +266,15 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="grid items-center gap-10 lg:grid-cols-3">
+            <div className="grid items-center gap-8 lg:grid-cols-3">
               <div className="lg:col-span-2">
-              <h1 className="max-w-2xl text-balance text-4xl font-black leading-tight text-ink md:text-6xl">
+              <h1 className="max-w-2xl text-balance text-4xl font-black leading-tight text-ink md:text-5xl">
                 개발자가 매일 봐야 할 기술 흐름을 한 번에 정리합니다
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
+              <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg">
                 Seedup은 AI 뉴스, 오픈소스 저장소, 논문, 개발 트렌드를 한국어로 요약하고 “읽고 끝”이 아니라 프로젝트 아이디어까지 연결해주는 개발자용 뉴스레터 서비스입니다.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-7 flex flex-wrap gap-3">
                 <Link href="/login" className="inline-flex h-12 items-center gap-2 bg-ink px-6 text-sm font-bold text-white transition-opacity hover:opacity-90">
                   무료로 시작하기
                   <ArrowRight className="h-4 w-4" />
@@ -339,26 +284,26 @@ export default async function Home() {
                 </Link>
               </div>
 
-              <div className="mt-9 grid max-w-2xl gap-3 sm:grid-cols-3">
+              <div className="mt-7 grid max-w-2xl grid-cols-3 border-y border-outline-soft py-4">
+                {[
+                  [`${trends.length}개`, '트렌드 분석 중'],
+                  [`${projects.length}개`, '프로젝트 아이디어'],
+                  [`${news.length}개`, '아티클 수집됨'],
+                ].map(([value, label], index) => (
+                  <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft pl-4'}>
+                    <div className="text-3xl font-black leading-none text-ink md:text-4xl">{value}</div>
+                    <div className="mt-2 text-xs font-bold uppercase text-muted md:text-sm">{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-7 grid max-w-2xl gap-3 sm:grid-cols-3">
                 {START_CARDS.map((card) => (
                   <DevCard key={card.href} as={Link} href={card.href} className="p-4">
                     <card.icon className="mb-4 h-5 w-5 text-ink" />
                     <h2 className="text-sm font-black leading-5 text-ink">{card.title}</h2>
                     <p className="mt-2 text-xs font-semibold leading-5 text-muted">{card.desc}</p>
                   </DevCard>
-                ))}
-              </div>
-
-              <div className="mt-9 grid max-w-2xl grid-cols-3 border-y border-outline-soft py-5">
-                {[
-                  [`${trends.length}개`, '트렌드 분석 중'],
-                  [`${projects.length}개`, '프로젝트 아이디어'],
-                  [`${news.length}개`, '아티클 수집됨'],
-                ].map(([value, label], index) => (
-                  <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft/70 pl-5'}>
-                    <div className="text-3xl font-black text-ink">{value}</div>
-                    <div className="mt-1 text-xs font-bold uppercase text-muted">{label}</div>
-                  </div>
                 ))}
               </div>
             </div>
@@ -376,13 +321,13 @@ export default async function Home() {
                     <div className="stream-bar stream-bar-delay-2 h-2 w-[82%] bg-ink" />
                     <div className="stream-bar stream-bar-delay-3 h-2 w-full bg-surface-high" />
                   </div>
-                  <div className="mt-16 min-h-[160px] border-l border-outline-soft pl-4 text-sm leading-7 text-ink md:min-h-[220px]">
+                  <div className="mt-12 min-h-[150px] border-l border-outline-soft pl-4 text-sm leading-7 text-ink md:min-h-[190px]">
                     <div className="typing-line">collecting_ai_news()</div>
                     <div className="mt-3 text-muted">summarize.kr()</div>
                     <div className="text-muted">rank_open_source()</div>
                     <div className="text-muted">generate_project_idea()</div>
                   </div>
-                  <div className="mt-8 inline-flex bg-ink px-3 py-2 text-xs font-bold uppercase text-white">
+                  <div className="mt-6 inline-flex bg-ink px-3 py-2 text-xs font-bold uppercase text-white">
                     PROCESSING...
                   </div>
                 </div>

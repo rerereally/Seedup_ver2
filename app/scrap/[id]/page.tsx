@@ -1,9 +1,9 @@
 import { deleteScrap } from '@/app/actions/scraps';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import { getScrap } from '@/lib/data';
 import { getContentHref } from '@/lib/content-targets';
-import { ArrowLeft, ArrowRight, Bookmark, Trash2 } from 'lucide-react';
+import { getScrap } from '@/lib/data';
+import { ArrowLeft, ArrowRight, Bookmark, Lightbulb, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -24,51 +24,61 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
   if (!item) notFound();
   const contentHref = getContentHref(item.item_type, item.item_id);
   const savedAt = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(item.created_at));
+  const ideaPrompt = `${item.title}를 바탕으로 만들 수 있는 프로젝트 아이디어를 평가해줘.`;
 
   return (
     <>
       <Header />
       <main className="grow bg-surface">
-        <article className="mx-auto max-w-[860px] px-4 py-12 md:px-10 md:py-16">
-          <Link href="/scrap" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-brand-primary">
+        <article className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-10">
+          <Link href="/scrap" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />
             내 보관함으로
           </Link>
 
-          <section className="rounded-xl border border-outline-soft bg-white p-6 shadow-sm md:p-8">
-            <div className="mb-5 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">
-                <Bookmark className="h-3.5 w-3.5 fill-brand-primary" />
-                저장한 콘텐츠
+          <section className="border border-outline-soft bg-white p-5 md:p-7">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+              <span className="inline-flex items-center gap-1 border border-outline-soft bg-surface px-2 py-1 text-ink">
+                <Bookmark className="h-3.5 w-3.5 fill-ink" />
+                SAVED_ITEM
               </span>
-              <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">{TYPE_LABELS[item.item_type] ?? item.item_type}</span>
-              {item.tag && <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">{item.tag}</span>}
+              <span>{TYPE_LABELS[item.item_type] ?? item.item_type}</span>
+              {item.tag && <span>{item.tag}</span>}
             </div>
 
-            <h1 className="text-3xl font-bold leading-tight text-ink md:text-4xl">{item.title}</h1>
+            <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">{item.title}</h1>
             {item.description && <p className="mt-5 text-base leading-8 text-muted">{item.description}</p>}
+          </section>
 
-            <dl className="mt-8 grid gap-3 rounded-lg border border-outline-soft bg-surface-lowest p-4 text-sm md:grid-cols-2">
-              <div>
-                <dt className="font-bold text-ink">저장일</dt>
-                <dd className="mt-1 text-muted">{savedAt}</dd>
+          <section className="mt-4 border border-outline-soft bg-white p-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="border border-outline-soft bg-surface p-4">
+                <p className="text-xs font-bold uppercase text-muted">저장일</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-ink">{savedAt}</p>
               </div>
-              <div>
-                <dt className="font-bold text-ink">다음 행동</dt>
-                <dd className="mt-1 text-muted">원 콘텐츠를 열어 읽거나 프로젝트 후보로 이어보세요.</dd>
+              <div className="border border-outline-soft bg-surface p-4">
+                <p className="text-xs font-bold uppercase text-muted">다음 행동</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-ink">원 콘텐츠를 열거나 프로젝트 후보로 이어보세요.</p>
               </div>
-            </dl>
+            </div>
+          </section>
 
-            <div className="mt-8 flex flex-col gap-3 border-t border-outline-soft pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <Link href={contentHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90">
+          <section className="mt-4 border border-outline-soft bg-white p-5">
+            <div className="mb-4 text-sm font-black uppercase text-ink">Actions</div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Link href={contentHref} className="flex items-center justify-between gap-3 bg-ink p-3 text-sm font-bold text-white">
                 원 콘텐츠로 이동
                 <ArrowRight className="h-4 w-4" />
               </Link>
+              <Link href={`/ideas?idea=${encodeURIComponent(ideaPrompt)}`} className="flex items-center justify-between gap-3 border border-outline-soft bg-surface p-3 text-sm font-bold text-ink hover:border-ink">
+                아이디어 평가
+                <Lightbulb className="h-4 w-4" />
+              </Link>
               <form action={deleteScrap}>
                 <input type="hidden" name="id" value={item.id} />
-                <button type="submit" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-outline-soft bg-white px-5 text-sm font-semibold text-muted transition-colors hover:border-red-200 hover:text-red-600 sm:w-auto">
-                  <Trash2 className="h-4 w-4" />
+                <button type="submit" className="flex w-full items-center justify-between gap-3 border border-outline-soft bg-white p-3 text-sm font-bold text-muted hover:border-ink hover:text-ink">
                   보관함에서 제거
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </form>
             </div>

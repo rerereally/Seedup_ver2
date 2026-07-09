@@ -1,7 +1,9 @@
 'use server';
 
 import { isAdminEmail } from '@/lib/auth/admin';
+import type { NewsItem, ResearchPaper } from '@/lib/data';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
+import { buildRecommendationProfile, recommendNewsItems, recommendResearchPapers } from '@/lib/recommendations';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { revalidatePath } from 'next/cache';
@@ -54,8 +56,9 @@ export async function sendManualNewsletter() {
 
   let sent = 0;
   for (const recipient of recipientList) {
-    const personalizedNews = pickPersonalized(news ?? [], recipient.answers, 5);
-    const personalizedPapers = pickPersonalized(papers ?? [], recipient.answers, 3);
+    const profile = buildRecommendationProfile(recipient.answers);
+    const personalizedNews = recommendNewsItems((news ?? []) as NewsItem[], profile, 5);
+    const personalizedPapers = recommendResearchPapers((papers ?? []) as ResearchPaper[], profile, 3);
     const html = buildNewsletterHtml({
       news: personalizedNews,
       papers: personalizedPapers,
@@ -82,7 +85,7 @@ export async function sendManualNewsletter() {
       body: JSON.stringify({
         from,
         to: recipient.email,
-        subject: 'Seedup Weekly - 맞춤 개발 아티클 5 + 오늘 추천 3',
+        subject: 'Seedup Weekly - 오늘 추천 아티클과 논문',
         html,
         text,
       }),
@@ -108,46 +111,4 @@ export async function sendManualNewsletter() {
 
   revalidatePath('/admin/ingest');
   redirect(`/admin/ingest?newsletter=success&sent=${sent}`);
-}
-
-function flattenAnswers(answers: Record<string, unknown> | null | undefined) {
-  return Object.values(answers ?? {})
-    .flatMap((value) => Array.isArray(value) ? value : [value])
-    .map((value) => String(value ?? '').toLowerCase())
-    .filter(Boolean);
-}
-
-function pickPersonalized<T extends {
-  title?: string | null;
-  summary?: string | null;
-  beginner_summary?: string | null;
-  category?: string | null;
-  review_type?: string | null;
-  related_skills?: string[] | null;
-  target_levels?: string[] | null;
-  target_goals?: string[] | null;
-  target_interests?: string[] | null;
-  relevance_score?: number | null;
-}>(items: T[], answers: Record<string, unknown> | null | undefined, limit: number) {
-  const answerTokens = flattenAnswers(answers);
-  const ranked = items
-    .map((item) => {
-      const tags = [
-        item.title,
-        item.summary,
-        item.beginner_summary,
-        item.category,
-        item.review_type,
-        ...(item.related_skills ?? []),
-        ...(item.target_levels ?? []),
-        ...(item.target_goals ?? []),
-        ...(item.target_interests ?? []),
-      ].join(' ').toLowerCase();
-      const matchScore = answerTokens.filter((token) => token && tags.includes(token)).length;
-      return { item, score: matchScore * 10 + Number(item.relevance_score ?? 0) };
-    })
-    .sort((a, b) => b.score - a.score)
-    .map(({ item }) => item);
-
-  return ranked.slice(0, limit);
 }

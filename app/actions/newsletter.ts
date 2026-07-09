@@ -3,7 +3,7 @@
 import { isAdminEmail } from '@/lib/auth/admin';
 import type { NewsItem, ResearchPaper } from '@/lib/data';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
-import { buildRecommendationProfile, recommendNewsItems, recommendResearchPapers } from '@/lib/recommendations';
+import { buildRecommendationProfile, isRecommendableNewsItem, recommendNewsItems, recommendResearchPapers } from '@/lib/recommendations';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { revalidatePath } from 'next/cache';
@@ -42,15 +42,16 @@ export async function sendManualNewsletter() {
 
   const [{ data: recipients }, newsResult, { data: papers }, { data: products }, { data: repos }, { data: projects }] = await Promise.all([
     service.from('user_onboarding').select('email, newsletter_subscribed, answers').eq('newsletter_subscribed', true).not('email', 'is', null),
-    service.from('news_items').select('*').order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
+    service.from('news_items').select('*').not('content', 'is', null).order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
     service.from('research_papers').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(12),
     service.from('ai_products').select('*').order('score', { ascending: false }).limit(4),
     service.from('github_trends').select('*').order('stars', { ascending: false }).limit(4),
     service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(4),
   ]);
   const news = newsResult.error
-    ? (await service.from('news_items').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(24)).data
+    ? (await service.from('news_items').select('*').not('content', 'is', null).order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(24)).data
     : newsResult.data;
+  const publishedNews = (news ?? []).filter((item) => isRecommendableNewsItem(item as NewsItem));
 
   const recipientList = Array.from(
     new Map(((recipients ?? []) as Recipient[]).filter((item) => item.email).map((item) => [item.email, item])).values(),
@@ -60,7 +61,7 @@ export async function sendManualNewsletter() {
   let sent = 0;
   for (const recipient of recipientList) {
     const profile = buildRecommendationProfile(recipient.answers);
-    const personalizedNews = recommendNewsItems((news ?? []) as NewsItem[], profile, 5);
+    const personalizedNews = recommendNewsItems(publishedNews as NewsItem[], profile, 5);
     const personalizedPapers = recommendResearchPapers((papers ?? []) as ResearchPaper[], profile, 3);
     const html = buildNewsletterHtml({
       news: personalizedNews,

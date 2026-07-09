@@ -67,6 +67,28 @@ export type GeneratedProjectIdea = {
   plan: string[];
 };
 
+export type GeneratedArticleDraft = {
+  title: string;
+  summary: string;
+  content_markdown: string;
+  category: string;
+  content_type: ContentType;
+  newsletter_section: NewsletterSection;
+  newsletter_priority: number;
+  tags: string[];
+  related_skills: string[];
+  project_idea: string;
+  why_it_matters: string;
+  key_points: string[];
+  difficulty: string;
+  target_levels: string[];
+  target_goals: string[];
+  target_interests: string[];
+  referenced_tools: string[];
+  source_links: string[];
+  editorial_angle: string;
+};
+
 export type IdeaEvaluation = {
   score: number;
   verdict: string;
@@ -106,17 +128,32 @@ export type PaperAnalysis = {
   content_depth: string;
 };
 
-const DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
-const FALLBACK_MODEL = 'google/gemini-3.5-flash';
-const OPENROUTER_TIMEOUT_MS = 45_000;
-const MODEL_ROUTES = {
-  preprocess: [
-    'google/gemini-2.5-flash',
-  ],
-  writing: [
-    'google/gemini-3.5-flash',
-  ],
+export type PaperAnalysisResult = {
+  analysis: PaperAnalysis;
+  model: string | null;
+  ok: boolean;
+  qualityReason?: string;
 };
+
+const DEFAULT_MODEL = 'google/gemini-3.5-flash';
+const FALLBACK_MODEL = 'google/gemini-3.5-flash';
+const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
+const MODEL_ROUTES = {
+  preprocess: ['google/gemini-3.5-flash'],
+  writing: ['google/gemini-3.5-flash'],
+};
+
+const REPO_ANALYSIS_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['relevance_score', 'ai_review', 'beginner_summary', 'project_idea'],
+  properties: {
+    relevance_score: { type: 'number', minimum: 0, maximum: 100 },
+    ai_review: { type: 'string', maxLength: 500 },
+    beginner_summary: { type: 'string', maxLength: 400 },
+    project_idea: { type: 'string', maxLength: 500 },
+  },
+} as const;
 
 export async function analyzeNews(input: { title: string; content: string; source: string; sourceLanguage?: string }) {
   const fallback = buildFallbackNewsAnalysis(input.title, input.content);
@@ -192,7 +229,7 @@ source_language: ${input.sourceLanguage ?? 'unknown'}
 title: ${input.title}
 content: ${truncate(input.content, 5200)}`,
       },
-    ], { models: MODEL_ROUTES.preprocess });
+    ], { models: MODEL_ROUTES.preprocess, jsonMode: true });
 
     return { analysis: normalizeNewsAnalysis(result, fallback), model };
   } catch (error) {
@@ -202,42 +239,58 @@ content: ${truncate(input.content, 5200)}`,
 }
 
 export async function analyzeRepo(input: { fullName: string; description: string | null; language: string | null; topics: string[] }) {
-  const fallback = {
-    relevance_score: 70,
-    ai_review: `${input.fullName}은 ${input.language ?? '여러 기술'} 기반의 GitHub 프로젝트입니다.`,
-    beginner_summary: input.description ?? '프로젝트 설명이 제공되지 않았습니다.',
-    project_idea: `${input.fullName}처럼 핵심 기능 만들어보기`,
-  };
+  const fallback = buildFallbackRepoAnalysis(input);
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) return { analysis: fallback, model: null };
 
   try {
     const { result, model } = await callOpenRouter<RepoAnalysis>(apiKey, [
-      { role: 'system', content: '너는 초보 개발자를 위한 GitHub 오픈소스 리뷰어다. 반드시 JSON만 반환한다.' },
+      { role: 'system', content: '너는 Seedup의 오픈소스 큐레이터다. GitHub 저장소를 개발자 뉴스레터에 실을 가치가 있는지 엄격하게 판단한다. 반드시 JSON만 반환한다. 마크다운, 코드블록, 설명문, 따옴표가 깨질 수 있는 긴 문장은 금지한다.' },
       {
         role: 'user',
-        content: `이 GitHub 저장소를 초보 개발자 관점에서 리뷰하라.
+        content: `이 GitHub 저장소를 Seedup에 저장할지 평가하고 한국어로 리뷰하라.
+
+Seedup에 맞는 저장소:
+- AI agent, MCP, RAG, AI coding, developer tool, CLI/SDK, 앱 개발 생산성, 실전 템플릿/프레임워크와 관련 있어야 한다.
+- 단순 awesome list, 알고리즘 풀이, 일반 언어/프레임워크 예제, 설명이 빈약한 저장소는 relevance_score를 40 이하로 준다.
+- "이 저장소를 활용하여" 같은 일반 표현 금지. 실제 무엇을 만들 수 있는지 구체적으로 쓴다.
+- 모든 설명은 한국어로 쓴다. 프로젝트명/기술명만 원문을 유지한다.
 
 출력 JSON:
 {
   "relevance_score": 0,
-  "ai_review": "무엇을 하는 프로젝트인지",
-  "beginner_summary": "초보자용 쉬운 설명",
-  "project_idea": "이 저장소를 참고해 만들 수 있는 작은 프로젝트"
+  "ai_review": "무엇을 하는 프로젝트인지와 왜 지금 볼 가치가 있는지 2~4문장. 500자 이하.",
+  "beginner_summary": "초보자용 쉬운 설명 2문장 이하. 400자 이하.",
+  "project_idea": "이 저장소에서 참고할 수 있는 구체적인 작은 프로젝트 1개. 500자 이하."
 }
+
+추가 규칙:
+- JSON 외 텍스트 금지.
+- 코드블록 금지.
+- 줄바꿈이 많은 긴 문단 금지.
+- relevance_score는 0~100 숫자.
+- 저장소 설명이 부족하거나 Seedup 주제와 맞지 않으면 relevance_score를 40 이하로 준다.
 
 repo: ${input.fullName}
 description: ${input.description ?? ''}
 language: ${input.language ?? ''}
 topics: ${input.topics.join(', ')}`,
       },
-    ], { models: MODEL_ROUTES.preprocess });
+    ], {
+      models: MODEL_ROUTES.preprocess,
+      maxTokens: 1200,
+      jsonMode: true,
+      jsonSchema: {
+        name: 'repo_analysis',
+        schema: REPO_ANALYSIS_JSON_SCHEMA,
+      },
+    });
 
-    return { analysis: { ...fallback, ...result }, model };
+    return { analysis: normalizeRepoAnalysis(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter repo analysis failed', error);
-    return { analysis: fallback, model: null };
+    return { analysis: fallback, model: null, fallback: true };
   }
 }
 
@@ -295,26 +348,40 @@ export async function analyzePaper(input: {
   categories: string[];
   source: string;
   hasCode: boolean;
-}) {
+}): Promise<PaperAnalysisResult> {
   const fallback = buildFallbackPaperAnalysis(input);
   const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!apiKey) return { analysis: fallback, model: null };
+  if (!apiKey) return { analysis: fallback, model: null, ok: false, qualityReason: 'missing_api_key' };
 
   try {
     const { result, model } = await callOpenRouter<PaperAnalysis>(apiKey, [
-      { role: 'system', content: '너는 초보 개발자와 제품 빌더를 위한 AI/개발 논문 리뷰어다. 논문을 만들 수 있는 프로젝트와 서비스 아이디어로 바꾼다. 반드시 JSON만 반환한다.' },
+      { role: 'system', content: '너는 Seedup의 시니어 AI/개발 리서치 에디터다. 논문을 단순 요약하지 않고, 개발자와 제품 빌더가 읽을 만한 견해와 판단이 있는 한국어 미니 아티클로 바꾼다. 반드시 JSON만 반환한다.' },
       {
         role: 'user',
-        content: `아래 논문을 Seedup 자체 콘텐츠로 리뷰하라.
+        content: `아래 논문을 Seedup 자체 콘텐츠로 리뷰하라. 결과는 "요약문"이 아니라 전문가가 쓴 짧은 논문 해설/오피니언이어야 한다.
+
+Seedup에 맞는 관점:
+- 초보/중급 개발자가 AI 앱, 개발자 도구, 자동화, 오픈소스, 포트폴리오 프로젝트로 연결할 수 있어야 한다.
+- 순수 이론/비개발 도메인은 개발자가 만들 수 있는 구현 포인트가 명확할 때만 다룬다.
+- 모든 필드는 한국어로 쓴다. 논문 제목과 고유명사만 영어를 유지할 수 있다.
+- arXiv 메타 텍스트나 Abstract 원문을 그대로 복사하지 않는다.
+- 영어 abstract 문장을 그대로 번역투로 붙이지 말고, "이 논문이 어떤 흐름에서 중요한지", "실제로 만들면 어디가 어려운지", "무엇을 과장하면 안 되는지"를 포함한다.
+- implementation_idea는 제목 일부를 붙인 표현 금지. 실제로 만들 수 있는 구체적인 도구/대시보드/검증 앱 이름으로 쓴다.
+- service_idea는 "논문 아이디어를 활용한..." 같은 일반 문구 금지. 누가 왜 쓸지 드러나는 제품 아이디어로 쓴다.
+- beginner_summary는 250~500자 분량으로, 초보 개발자가 이 논문의 문제의식을 이해할 수 있게 쓴다.
+- expert_summary는 700~1200자 분량으로, 실무자가 읽는 논문 리뷰처럼 문제 배경, 접근법, 장점, 한계, 서비스 적용 판단을 모두 포함한다.
+- why_it_matters는 2~4문장으로, 지금 Seedup 독자가 시간을 써서 읽을 이유를 구체적으로 쓴다.
+- key_points는 제목 복사 금지. 논문에서 가져갈 판단/인사이트 3~5개를 한국어로 쓴다.
+- 품질이 낮거나 Seedup과 맞지 않으면 relevance_score를 30 이하로 낮게 준다.
 
 출력 JSON:
 {
   "relevance_score": 0,
   "review_type": "오늘 볼만한 논문 | 이번 주 집중해야 할 논문 | 코드가 공개된 논문 | 서비스 아이디어로 연결 가능한 논문 | 초보 개발자도 이해할 만한 논문 | 연구자용 고난도 논문",
-  "beginner_summary": "초보자용 쉬운 설명",
-  "expert_summary": "연구자/실무자용 요약",
-  "why_it_matters": "왜 지금 봐야 하는지",
+  "beginner_summary": "초보자용 쉬운 설명 250~500자",
+  "expert_summary": "실무자용 논문 리뷰 700~1200자",
+  "why_it_matters": "왜 지금 봐야 하는지 2~4문장",
   "key_points": ["핵심 1", "핵심 2", "핵심 3"],
   "related_skills": ["기술"],
   "implementation_idea": "작게 구현할 수 있는 프로젝트",
@@ -339,12 +406,14 @@ categories: ${input.categories.join(', ')}
 has_code: ${input.hasCode}
 abstract: ${truncate(input.abstract, 5000)}`,
       },
-    ], { models: MODEL_ROUTES.preprocess });
+    ], { models: MODEL_ROUTES.preprocess, jsonMode: true, maxTokens: 6500 });
 
-    return { analysis: normalizePaperAnalysis(result, fallback), model };
+    const analysis = normalizePaperAnalysis(result, fallback);
+    const quality = validatePaperAnalysisQuality(analysis, input);
+    return { analysis, model, ok: quality.ok, qualityReason: quality.reason };
   } catch (error) {
     console.error('OpenRouter paper analysis failed', error);
-    return { analysis: fallback, model: null };
+    return { analysis: fallback, model: null, ok: false, qualityReason: 'ai_generation_failed' };
   }
 }
 
@@ -454,6 +523,123 @@ summary: ${truncate(input.summary, 2500)}`,
   }
 }
 
+export async function generateArticleDraft(input: {
+  title: string;
+  sourceType: string;
+  summary: string;
+  trend?: string | null;
+  skills?: string[];
+  track?: string | null;
+}) {
+  const fallback: GeneratedArticleDraft = {
+    title: `${ensureKoreanTitle(input.title)} 정리`,
+    summary: fallbackSummary(input.title, input.summary),
+    content_markdown: '',
+    category: input.trend ?? 'Trend',
+    content_type: input.sourceType === 'trend_bundle' ? 'deep_dive' : 'article',
+    newsletter_section: input.sourceType === 'trend_bundle' ? 'deep_dive' : input.sourceType === 'paper' ? 'paper_to_project' : input.sourceType === 'github' ? 'github_project_pick' : 'daily_briefing',
+    newsletter_priority: 76,
+    tags: [input.trend, input.sourceType, ...(input.skills ?? [])].filter(Boolean).slice(0, 6) as string[],
+    related_skills: input.skills?.length ? input.skills.slice(0, 6) : ['Research', 'Web', 'API'],
+    project_idea: `${ensureKoreanTitle(input.title)} 기반 미니 프로젝트`,
+    why_it_matters: '수집된 뉴스, 제품, 오픈소스, 논문, 트렌드 신호를 실제 학습과 프로젝트로 연결할 수 있습니다.',
+    key_points: ['통합 데이터 기반으로 작성된 글입니다.', '프로젝트 아이디어로 확장할 수 있습니다.', '개인 맞춤 뉴스레터 소재로 활용할 수 있습니다.'],
+    difficulty: '중급',
+    target_levels: ['초보자', '중급자'],
+    target_goals: ['최신 개발 트렌드 파악', '포트폴리오 만들기', '사이드 프로젝트 만들기'],
+    target_interests: ['AI/LLM', '오픈소스', '사이드프로젝트'],
+    referenced_tools: input.skills?.slice(0, 6) ?? [],
+    source_links: [],
+    editorial_angle: 'AI 생성 실패',
+  };
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) return { draft: fallback, model: null };
+
+  try {
+    const trackGuide = getArticleTrackGuide(input.track);
+    const { result, model } = await callOpenRouter<GeneratedArticleDraft>(apiKey, [
+      {
+        role: 'system',
+        content: '너는 Seedup의 시니어 테크 에디터다. Lenny’s Newsletter처럼 길고 실용적인 한국어 개발자 에세이를 쓴다. 단순 요약이 아니라 관점, 판단, 반론, 사례, 실행 방법, 참고 도구가 있는 유료 뉴스레터급 글을 만든다. 반드시 JSON만 반환한다.',
+      },
+      {
+        role: 'user',
+        content: `아래 전처리 데이터를 기반으로 /news 아티클 페이지에 발행할 긴 한국어 전문가 글을 작성하라.
+
+발행 트랙: ${input.track ?? '공통'}
+
+트랙별 에디토리얼 전략:
+${trackGuide}
+
+규칙:
+- 제목, 요약, 본문은 모두 자연스러운 한국어로 작성한다.
+- source_type이 cluster이면 content_type은 반드시 "article"이고 newsletter_section은 "deep_dive"가 아니어야 한다.
+- source_type이 trend_bundle일 때만 content_type과 newsletter_section에 "deep_dive"를 사용할 수 있다.
+- 영어 제목/요약은 한국어로 번역하되, 고유명사와 제품명은 유지한다.
+- content_markdown은 4,500~7,500자 분량의 긴 마크다운 글이어야 한다.
+- 단순 요약 금지. 전문가가 직접 읽고 판단한 듯한 논지, 의견, 주의점, 반론, 실행 조언을 포함한다.
+- 원천 데이터에 있는 제품/도구/오픈소스/논문/트렌드를 함께 엮어 쓴다.
+- 데이터에 명시된 링크나 출처가 있으면 본문에 마크다운 링크로 넣는다. 링크가 없으면 URL을 지어내지 않는다.
+- 관련 제품/도구가 데이터에 있으면 "함께 봐야 할 도구" 섹션에서 실제 활용 관점으로 설명한다.
+- "왜 중요한가/개발자가 볼 포인트/작게 만들어볼 아이디어" 같은 짧은 템플릿만 반복하지 않는다.
+- 본문은 최소 7개 이상의 ## 섹션을 가진다.
+- 독자가 바로 따라 할 수 있는 체크리스트, 구현 순서, 평가 기준을 포함한다.
+- 과장 금지. 아직 검증이 필요한 부분과 실패 가능성도 적는다.
+- “이런 프로젝트를 만들어보세요”에서 끝내지 말고, 데이터 모델/API/화면/평가 지표까지 구체화한다.
+- 트랙별 에디토리얼 전략을 반드시 반영한다. 모든 트랙에 같은 구조/톤을 반복하지 않는다.
+- tags와 related_skills는 각각 6개 이하로 제한한다.
+
+권장 글 구조:
+1. 도입: 이 흐름이 왜 지금 나타났는지
+2. 핵심 주장: Seedup 독자가 가져가야 할 관점
+3. 현재 선택지/제품/오픈소스/논문 신호 정리
+4. 실제로 만들면 어디가 어려운지
+5. 써볼 만한 도구와 링크
+6. 7일 안에 만들 수 있는 MVP 설계
+7. 평가 지표와 실패 조건
+8. 누구에게 추천하고 누구에게는 아직 이른지
+9. 마무리: 다음 액션
+
+출력 JSON:
+{
+  "title": "한국어 제목",
+  "summary": "3~5문장 executive summary",
+  "content_markdown": "# 제목\\n\\n긴 전문가 글...",
+  "category": "AI Agent | Frontend | Backend | DevTools | Product | Trend | Paper | Open Source | Other",
+  "content_type": "article | deep_dive | build_idea",
+  "newsletter_section": "daily_briefing | ai_product_radar | github_project_pick | build_idea | deep_dive | paper_to_project",
+  "newsletter_priority": 0,
+  "tags": ["태그"],
+  "related_skills": ["기술"],
+  "project_idea": "작게 만들어볼 프로젝트 아이디어",
+  "why_it_matters": "왜 중요한지",
+  "key_points": ["핵심 1", "핵심 2", "핵심 3"],
+  "difficulty": "초급 | 중급 | 고급",
+  "target_levels": ["입문자 | 초보자 | 중급자 | 실무자"],
+  "target_goals": ["포트폴리오 만들기 | 사이드 프로젝트 만들기 | 최신 개발 트렌드 파악 | 논문/연구 흐름 파악 | 실무 역량 강화"],
+  "target_interests": ["AI/LLM | 프론트엔드 | 백엔드 | 데이터/ML | DevOps/클라우드 | 오픈소스 | 창업/사이드프로젝트"],
+  "referenced_tools": ["본문에서 다룬 제품/도구/오픈소스"],
+  "source_links": ["본문에 실제로 사용한 URL"],
+  "editorial_angle": "이 글의 핵심 관점 한 문장"
+}
+
+source_type: ${input.sourceType}
+title: ${input.title}
+trend: ${input.trend ?? ''}
+skills: ${(input.skills ?? []).join(', ')}
+source_data:
+${truncate(input.summary, 9000)}`,
+      },
+    ], { maxTokens: 9000, models: MODEL_ROUTES.writing, jsonMode: true });
+
+    return { draft: normalizeArticleDraft(result, fallback), model };
+  } catch (error) {
+    console.error('OpenRouter article draft generation failed', error);
+    return { draft: fallback, model: null };
+  }
+}
+
 
 export async function evaluateIdea(input: { idea: string }) {
   const fallback: IdeaEvaluation = {
@@ -549,7 +735,12 @@ question: ${truncate(input.question, 500)}`,
 async function callOpenRouter<T>(
   apiKey: string,
   messages: Array<{ role: 'system' | 'user'; content: string }>,
-  options?: { maxTokens?: number; models?: string[] },
+  options?: {
+    maxTokens?: number;
+    models?: string[];
+    jsonMode?: boolean;
+    jsonSchema?: { name: string; schema: Record<string, unknown> };
+  },
 ) {
   const models = options?.models?.length ? options.models : getOpenRouterModels();
   const errors: string[] = [];
@@ -574,6 +765,20 @@ async function callOpenRouter<T>(
           messages,
           temperature: 0.2,
           max_tokens: maxTokens,
+          ...(options?.jsonSchema
+            ? {
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: options.jsonSchema.name,
+                    strict: true,
+                    schema: options.jsonSchema.schema,
+                  },
+                },
+              }
+            : options?.jsonMode
+              ? { response_format: { type: 'json_object' } }
+              : {}),
         }),
       });
 
@@ -592,7 +797,13 @@ async function callOpenRouter<T>(
       const content = json.choices?.[0]?.message?.content;
       if (!content) throw new Error('OpenRouter returned empty content');
 
-      return { result: parseJsonResponse<T>(content), model };
+      try {
+        return { result: parseJsonResponse<T>(content), model };
+      } catch (parseError) {
+        const preview = content.slice(0, 500).replace(/\s+/g, ' ');
+        console.warn('OpenRouter JSON parse failed preview:', { model, preview });
+        throw parseError;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${model}: ${message}`);
@@ -618,6 +829,7 @@ function getOpenRouterModels() {
 }
 
 function parseJsonResponse<T>(content: string) {
+  // Log a short preview when parsing fails to help debugging without dumping the full model output.
   // Strip markdown code fences (```json ... ``` or ``` ... ```)
   const stripped = content
     .replace(/^```(?:json)?\s*/i, '')
@@ -638,12 +850,57 @@ function parseJsonResponse<T>(content: string) {
     const start = stripped.indexOf('{');
     const end = stripped.lastIndexOf('}');
     if (start === -1 || end === -1 || end <= start) {
-      console.warn('OpenRouter non-JSON preview:', stripped.slice(0, 200));
+      console.warn('OpenRouter non-JSON preview:', stripped.slice(0, 500));
       throw new Error('OpenRouter returned non-JSON content');
     }
 
-    return JSON.parse(stripped.slice(start, end + 1)) as T;
+    const candidate = stripped.slice(start, end + 1);
+    try {
+      return JSON.parse(candidate) as T;
+    } catch {
+      return JSON.parse(repairJsonCandidate(candidate)) as T;
+    }
   }
+}
+
+function repairJsonCandidate(value: string) {
+  return value
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/[\u0000-\u0019]+/g, ' ')
+    .trim();
+}
+
+function buildFallbackRepoAnalysis(input: { fullName: string; description: string | null; language: string | null; topics: string[] }): RepoAnalysis {
+  const description = input.description?.trim();
+  const topics = input.topics.filter(Boolean).slice(0, 5);
+  const topicText = topics.length ? ` 관련 토픽은 ${topics.join(', ')}입니다.` : '';
+  const languageText = input.language ? `${input.language} 기반 ` : '';
+
+  return {
+    relevance_score: /agent|mcp|rag|llm|ai|coding|developer|devtool|automation|workflow|sdk|cli/i.test(
+      `${input.fullName} ${description ?? ''} ${topics.join(' ')}`,
+    )
+      ? 55
+      : 35,
+    ai_review: description
+      ? `${input.fullName}은 ${languageText}오픈소스 프로젝트입니다. ${truncate(description, 220)}${topicText}`
+      : `${input.fullName}은 GitHub에서 수집된 오픈소스 프로젝트입니다.${topicText} 설명이 부족해 자세한 평가는 나중에 다시 분석하는 것이 좋습니다.`,
+    beginner_summary: description
+      ? `초보자는 이 저장소가 어떤 문제를 해결하는지와 README의 사용 예제를 먼저 확인하면 좋습니다. 관심 있는 기능 하나만 골라 작게 따라 만들어보세요.`
+      : `초보자는 저장소 설명과 README가 충분한지 먼저 확인하는 것이 좋습니다. 설명이 부족하면 프로젝트 참고용 가치가 낮을 수 있습니다.`,
+    project_idea: description
+      ? `${input.fullName.split('/').at(-1) ?? input.fullName}의 핵심 기능 하나를 골라 작은 대시보드나 자동화 도구로 재구현해보세요.`
+      : `이 저장소의 README를 확인한 뒤 핵심 기능 1개만 골라 미니 프로젝트로 따라 만들어보세요.`,
+  };
+}
+
+function normalizeRepoAnalysis(result: Partial<RepoAnalysis>, fallback: RepoAnalysis): RepoAnalysis {
+  return {
+    relevance_score: clampScore(result.relevance_score ?? fallback.relevance_score),
+    ai_review: truncate(String(result.ai_review ?? fallback.ai_review), 500),
+    beginner_summary: truncate(String(result.beginner_summary ?? fallback.beginner_summary), 400),
+    project_idea: truncate(String(result.project_idea ?? fallback.project_idea), 500),
+  };
 }
 
 function buildFallbackNewsAnalysis(title: string, content: string): NewsAnalysis {
@@ -726,6 +983,97 @@ function normalizeNewsAnalysis(result: Partial<NewsAnalysis>, fallback: NewsAnal
   };
 }
 
+function normalizeArticleDraft(result: Partial<GeneratedArticleDraft>, fallback: GeneratedArticleDraft): GeneratedArticleDraft {
+  const title = ensureKoreanTitle(result.title ?? fallback.title);
+  const summary = result.summary ?? fallback.summary;
+  const content = result.content_markdown?.trim() || fallback.content_markdown;
+
+  return {
+    title,
+    summary,
+    content_markdown: content.startsWith('#') ? content : `# ${title}\n\n${content}`,
+    category: result.category ?? fallback.category,
+    content_type: isContentType(result.content_type) ? result.content_type : fallback.content_type,
+    newsletter_section: isNewsletterSection(result.newsletter_section) ? result.newsletter_section : fallback.newsletter_section,
+    newsletter_priority: clampScore(result.newsletter_priority ?? fallback.newsletter_priority),
+    tags: Array.isArray(result.tags) ? result.tags.slice(0, 6) : fallback.tags,
+    related_skills: Array.isArray(result.related_skills) ? result.related_skills.slice(0, 6) : fallback.related_skills,
+    project_idea: result.project_idea ?? fallback.project_idea,
+    why_it_matters: result.why_it_matters ?? fallback.why_it_matters,
+    key_points: Array.isArray(result.key_points) ? result.key_points.slice(0, 5) : fallback.key_points,
+    difficulty: result.difficulty ?? fallback.difficulty,
+    target_levels: Array.isArray(result.target_levels) ? result.target_levels.slice(0, 4) : fallback.target_levels,
+    target_goals: Array.isArray(result.target_goals) ? result.target_goals.slice(0, 5) : fallback.target_goals,
+    target_interests: Array.isArray(result.target_interests) ? result.target_interests.slice(0, 5) : fallback.target_interests,
+    referenced_tools: Array.isArray(result.referenced_tools) ? result.referenced_tools.slice(0, 10) : fallback.referenced_tools,
+    source_links: Array.isArray(result.source_links) ? result.source_links.slice(0, 10) : fallback.source_links,
+    editorial_angle: result.editorial_angle ?? fallback.editorial_angle,
+  };
+}
+
+export function validateGeneratedArticleDraft(draft: GeneratedArticleDraft) {
+  const content = draft.content_markdown.trim();
+  const sectionCount = (content.match(/^##\s+/gm) ?? []).length;
+  const linkCount = (content.match(/\]\(https?:\/\//g) ?? []).length;
+
+  if (content.length < 2600) return { ok: false, reason: 'too_short' };
+  if (sectionCount < 5) return { ok: false, reason: 'too_few_sections' };
+  if (/## 왜 중요한가\s*[\s\S]{0,500}## 개발자가 볼 포인트\s*[\s\S]{0,500}## 작게 만들어볼 아이디어/i.test(content)) {
+    return { ok: false, reason: 'template_article' };
+  }
+  if (/기반\s+미니\s+프로젝트|기반\s+미니\s+데모|논문 아이디어를 활용한/i.test(content + draft.project_idea)) {
+    return { ok: false, reason: 'generic_project_phrase' };
+  }
+  if (/(생산성을 높일 수 있습니다|포트폴리오에 도움이 됩니다|최신 트렌드를 파악할 수 있습니다)/g.test(content)) {
+    return { ok: false, reason: 'generic_editorial_language' };
+  }
+  if (!containsHangul(content) || !containsHangul(draft.summary)) {
+    return { ok: false, reason: 'not_korean' };
+  }
+  if (draft.source_links.length > 0 && linkCount === 0) {
+    return { ok: false, reason: 'links_not_used' };
+  }
+  return { ok: true };
+}
+
+function getArticleTrackGuide(track?: string | null) {
+  if (track === 'AI/LLM') {
+    return `AI/LLM 트랙:
+- 핵심 질문: 이 기술/모델/에이전트 흐름이 실제 AI 앱의 품질, 비용, 신뢰도, 운영 방식에 어떤 변화를 만드는가?
+- 반드시 다룰 것: 모델 선택 기준, agent/RAG/tool calling/eval/observability 중 해당되는 축, 비용과 지연시간, 환각/보안/평가 리스크.
+- 좋은 글의 형태: "새 도구 소개"가 아니라 어떤 아키텍처 결정을 바꿔야 하는지 설명한다.
+- 실행 섹션: 작은 eval 세트 만들기, 로그 스키마, 실패 케이스 수집, 모델 비교 기준을 구체화한다.
+- 피해야 할 것: AI가 좋아진다, 생산성이 오른다 같은 일반론.`;
+  }
+  if (track === '프론트엔드') {
+    return `프론트엔드 트랙:
+- 핵심 질문: 이 흐름이 사용자의 첫 경험, 인터랙션, 상태 처리, UI 품질, 프론트엔드 개발 속도를 어떻게 바꾸는가?
+- 반드시 다룰 것: UX/DX, 컴포넌트 구조, 상태 관리, 로딩/에러/빈 상태, 접근성, 배포와 성능.
+- 좋은 글의 형태: 도구를 나열하지 말고 실제 화면/플로우를 어떻게 바꿀지 설명한다.
+- 실행 섹션: Next.js/React 기준 화면 구조, 컴포넌트 단위, API boundary, 사용자 이벤트/분석 지표를 제시한다.
+- 피해야 할 것: 예쁜 UI 만들기 수준의 얕은 조언.`;
+  }
+  if (track === '백엔드') {
+    return `백엔드 트랙:
+- 핵심 질문: 이 흐름이 데이터 모델, API, 큐/잡, 인증, 관찰 가능성, 비용, 확장성에 어떤 요구를 만드는가?
+- 반드시 다룰 것: DB 스키마, API 설계, 비동기 작업, 캐싱, rate limit, 장애/재시도, 보안과 운영 지표.
+- 좋은 글의 형태: 아이디어가 아니라 운영 가능한 시스템으로 바꿔 설명한다.
+- 실행 섹션: 테이블/엔드포인트/잡/로그/알림/평가 지표를 구체적으로 제안한다.
+- 피해야 할 것: "서버를 만든다", "DB에 저장한다" 같은 추상 문장.`;
+  }
+  if (track === '사이드프로젝트/창업') {
+    return `사이드프로젝트/창업 트랙:
+- 핵심 질문: 이 신호가 누구의 반복적인 문제를 해결하며, 작게 팔거나 배포할 수 있는 제품으로 바뀔 수 있는가?
+- 반드시 다룰 것: 타깃 사용자, 기존 대안, 차별점, MVP 범위, 가격/유통/검증 방법, 실패 가능성.
+- 좋은 글의 형태: 기술 설명보다 "왜 이걸 만들면 사람들이 쓸지"를 판단한다.
+- 실행 섹션: 7일 MVP, 랜딩/온보딩/핵심 기능/결제 또는 대기 리스트/첫 유저 확보 방법을 제안한다.
+- 피해야 할 것: 포트폴리오용으로 좋다는 말만 반복하기.`;
+  }
+  return `공통 트랙:
+- 핵심 질문, 구현 난이도, 실사용 가치, 실패 가능성을 균형 있게 다룬다.
+- 데이터에 있는 여러 source를 종합해 단일 관점을 만든다.`;
+}
+
 function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: IdeaEvaluation): IdeaEvaluation {
   return {
     score: Math.max(0, Math.min(100, Number(result.score ?? fallback.score))),
@@ -739,11 +1087,24 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
   };
 }
 
+function isContentType(value: unknown): value is ContentType {
+  return typeof value === 'string' && ['news', 'article', 'ai_product', 'github_repo', 'paper', 'career_tip', 'build_idea', 'deep_dive'].includes(value);
+}
+
+function isNewsletterSection(value: unknown): value is NewsletterSection {
+  return typeof value === 'string' && ['daily_briefing', 'ai_product_radar', 'github_project_pick', 'build_idea', 'career_tip', 'deep_dive', 'paper_to_project'].includes(value);
+}
+
 function buildFallbackPaperAnalysis(input: { title: string; abstract: string; categories: string[]; hasCode: boolean }): PaperAnalysis {
+  const cleanAbstract = cleanResearchAbstract(input.abstract);
+  const easySummary = buildKoreanPaperFallbackSummary(input.title, cleanAbstract);
+  const expertSummary = buildKoreanPaperExpertFallback(input.title, cleanAbstract);
+  const implementationIdea = buildPaperImplementationIdea(input.title, cleanAbstract);
+  const serviceIdea = buildPaperServiceIdea(input.title, cleanAbstract);
   const beginnerScore = input.abstract.length < 1200 ? 72 : 54;
   const buildabilityScore = input.hasCode ? 82 : 62;
-  const businessScore = /agent|rag|retrieval|tool|workflow|code|ui|app|search|automation/i.test(`${input.title} ${input.abstract}`) ? 78 : 56;
-  const researchDepthScore = /theorem|proof|optimization|benchmark|architecture|training|loss/i.test(input.abstract) ? 82 : 60;
+  const businessScore = /agent|rag|retrieval|tool|workflow|code|ui|app|search|automation/i.test(`${input.title} ${cleanAbstract}`) ? 78 : 56;
+  const researchDepthScore = /theorem|proof|optimization|benchmark|architecture|training|loss/i.test(cleanAbstract) ? 82 : 60;
   const reviewType = input.hasCode
     ? '코드가 공개된 논문'
     : beginnerScore >= 70
@@ -757,13 +1118,13 @@ function buildFallbackPaperAnalysis(input: { title: string; abstract: string; ca
   return {
     relevance_score: 65,
     review_type: reviewType,
-    beginner_summary: fallbackSummary(input.title, input.abstract),
-    expert_summary: fallbackSummary(input.title, input.abstract),
+    beginner_summary: easySummary,
+    expert_summary: expertSummary,
     why_it_matters: 'AI와 개발 트렌드를 이해하고 작은 구현 프로젝트로 연결할 수 있는 연구입니다.',
-    key_points: [input.title, fallbackSummary(input.title, input.abstract), input.categories.join(', ') || 'AI/CS research'],
+    key_points: [input.title, easySummary, input.categories.join(', ') || 'AI/CS research'],
     related_skills: ['Paper Reading', 'AI', 'Prototype'],
-    implementation_idea: `${input.title.slice(0, 48)} 기반 미니 데모 만들기`,
-    service_idea: '논문 아이디어를 활용한 개발자 생산성 도구 만들기',
+    implementation_idea: implementationIdea,
+    service_idea: serviceIdea,
     difficulty: beginnerScore >= 70 ? '중급' : '고급',
     target_reader: beginnerScore >= 70 ? '초보 개발자와 제품 빌더' : 'AI 구현 경험이 있는 개발자',
     trend_score: 65,
@@ -776,6 +1137,59 @@ function buildFallbackPaperAnalysis(input: { title: string; abstract: string; ca
     target_interests: ['논문 쉽게 읽기', 'AI/API 연동', input.hasCode ? '오픈소스' : '데이터/DB'],
     content_depth: beginnerScore >= 70 ? '핵심과 예시 중심' : '기술 배경까지 자세히',
   };
+}
+
+function cleanResearchAbstract(value: string) {
+  return value
+    .replace(/^arxiv:\S+\s*/i, '')
+    .replace(/^announce\s+type:\s*\w+\s*/i, '')
+    .replace(/^abstract:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildKoreanPaperFallbackSummary(title: string, abstract: string) {
+  const lower = `${title} ${abstract}`.toLowerCase();
+  if (/agent|coding agent|code agent/.test(lower)) {
+    return '이 논문은 코딩 에이전트가 실제 개발 작업에서 얼마나 잘 동작하는지 평가하는 방법을 다룹니다. 초보 개발자는 “AI가 코드를 잘 짜는지”를 단순 정답률이 아니라 작업 과정과 결과물 기준으로 봐야 한다는 관점으로 읽으면 좋습니다.';
+  }
+  if (/routing|attention|kv-cache|cache|moe|expert/.test(lower)) {
+    return '이 논문은 언어 모델을 더 효율적으로 실행하기 위한 라우팅, 어텐션, 캐시 활용 방식을 다룹니다. 초보 개발자는 모델 성능뿐 아니라 추론 비용과 속도를 함께 최적화하는 연구로 이해하면 됩니다.';
+  }
+  if (/retrieval|rag|vector/.test(lower)) {
+    return '이 논문은 검색 기반 생성이나 외부 지식 활용 방식을 더 안정적으로 만드는 방법을 다룹니다. 초보 개발자는 LLM 앱에서 문서 검색과 답변 품질을 연결하는 아이디어로 읽으면 좋습니다.';
+  }
+  return `${title} 논문은 ${abstract ? truncate(abstract, 180) : 'AI와 컴퓨터공학의 최신 연구 주제'}를 다룹니다. 초보 개발자는 세부 수식보다 어떤 문제를 해결하려는지, 그리고 작은 데모로 구현할 수 있는 부분이 무엇인지에 집중하면 좋습니다.`;
+}
+
+function buildKoreanPaperExpertFallback(title: string, abstract: string) {
+  const lower = `${title} ${abstract}`.toLowerCase();
+  if (/agent|coding agent|code agent/.test(lower)) {
+    return '이 연구는 코딩 에이전트의 결과물뿐 아니라 작업 경로와 상호작용 과정을 평가하려는 흐름과 연결됩니다. 실무 관점에서는 에이전트 벤치마크, 로그 기반 평가, 실패 케이스 분석 체계를 설계할 때 참고할 수 있습니다.';
+  }
+  if (/retrieval|rag|vector/.test(lower)) {
+    return '이 연구는 외부 문서 검색과 생성 모델 답변을 연결할 때 신뢰도와 최신성을 높이는 문제를 다룹니다. 실무 관점에서는 문서 인덱싱, 검색 품질 평가, 답변 근거 표시, 환각 감소 설계에 초점을 맞춰 읽을 수 있습니다.';
+  }
+  if (/routing|attention|kv-cache|cache|moe|expert/.test(lower)) {
+    return '이 연구는 모델 추론 과정의 비용, 속도, 품질을 조절하는 시스템 설계와 연결됩니다. 실무 관점에서는 대규모 모델 서빙, 캐시 전략, 라우팅 정책을 평가하는 기준으로 참고할 수 있습니다.';
+  }
+  return '이 연구는 AI 시스템을 실제 서비스나 개발 워크플로우에 적용할 때 필요한 문제 정의와 평가 관점을 제공합니다. 실무 관점에서는 논문의 세부 알고리즘보다 입력, 출력, 평가 기준을 작은 프로토타입으로 재현할 수 있는지 확인하는 것이 중요합니다.';
+}
+
+function buildPaperImplementationIdea(title: string, abstract: string) {
+  const lower = `${title} ${abstract}`.toLowerCase();
+  if (/agent|coding agent|code agent/.test(lower)) return '코딩 에이전트 실행 로그를 수집하고 성공/실패 이유를 태깅하는 평가 대시보드 만들기';
+  if (/retrieval|rag|vector/.test(lower)) return '문서 검색 결과와 LLM 답변 근거를 함께 보여주는 RAG 품질 점검 도구 만들기';
+  if (/routing|attention|kv-cache|cache|moe|expert/.test(lower)) return '여러 모델 호출 전략의 비용과 응답 품질을 비교하는 추론 라우팅 실험 도구 만들기';
+  return '논문의 입력/출력 구조를 단순화해 작은 웹 데모로 재현하기';
+}
+
+function buildPaperServiceIdea(title: string, abstract: string) {
+  const lower = `${title} ${abstract}`.toLowerCase();
+  if (/agent|coding agent|code agent/.test(lower)) return '팀에서 사용하는 AI 코딩 에이전트의 작업 품질을 리뷰하고 리포트로 남기는 개발 생산성 서비스';
+  if (/retrieval|rag|vector/.test(lower)) return '사내 문서 기반 AI 답변의 근거, 최신성, 정확도를 점검하는 RAG 운영 대시보드';
+  if (/routing|attention|kv-cache|cache|moe|expert/.test(lower)) return 'LLM API 비용과 품질을 기준으로 모델 라우팅 정책을 추천하는 운영 도구';
+  return '논문의 핵심 평가 방식을 제품 아이디어 검증 체크리스트로 바꾼 개발자 도구';
 }
 
 function normalizePaperAnalysis(result: Partial<PaperAnalysis>, fallback: PaperAnalysis): PaperAnalysis {
@@ -801,6 +1215,42 @@ function normalizePaperAnalysis(result: Partial<PaperAnalysis>, fallback: PaperA
     target_interests: Array.isArray(result.target_interests) ? result.target_interests : fallback.target_interests,
     content_depth: result.content_depth ?? fallback.content_depth,
   };
+}
+
+function validatePaperAnalysisQuality(analysis: PaperAnalysis, input: { abstract: string }) {
+  const combined = [
+    analysis.beginner_summary,
+    analysis.expert_summary,
+    analysis.why_it_matters,
+    analysis.implementation_idea,
+    analysis.service_idea,
+    ...analysis.key_points,
+  ].join('\n');
+  const lower = combined.toLowerCase();
+  const abstractSlice = cleanResearchAbstract(input.abstract).slice(0, 80).toLowerCase();
+
+  if (!containsHangul(analysis.beginner_summary) || !containsHangul(analysis.expert_summary)) {
+    return { ok: false, reason: 'not_korean' };
+  }
+  if (/arxiv:\S+|announce type|abstract:/i.test(combined)) {
+    return { ok: false, reason: 'raw_arxiv_metadata' };
+  }
+  if (abstractSlice.length >= 40 && lower.includes(abstractSlice)) {
+    return { ok: false, reason: 'abstract_copy' };
+  }
+  if (/기반\s+미니\s+데모\s+만들기|논문 아이디어를 활용한|제목.*기반/i.test(combined)) {
+    return { ok: false, reason: 'generic_fallback_phrase' };
+  }
+  if (analysis.expert_summary.length < 500 || analysis.beginner_summary.length < 160 || analysis.why_it_matters.length < 70) {
+    return { ok: false, reason: 'too_short' };
+  }
+  if (analysis.implementation_idea.length < 20 || analysis.service_idea.length < 20) {
+    return { ok: false, reason: 'weak_idea' };
+  }
+  if (analysis.key_points.some((point) => point.length < 18) || new Set(analysis.key_points.map((point) => point.trim())).size < 3) {
+    return { ok: false, reason: 'weak_key_points' };
+  }
+  return { ok: true };
 }
 
 function ensureKoreanTitle(title: string) {

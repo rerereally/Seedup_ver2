@@ -15,10 +15,27 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value));
 }
 
+function readablePaperText(value: string | null | undefined, title: string) {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/^arxiv:\S+\s*/i, '')
+    .replace(/^announce\s+type:\s*\w+\s*/i, '')
+    .replace(/^abstract:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  if (/^[A-Za-z0-9:.\-\s]+$/.test(cleaned) && cleaned.length < 120) {
+    return `${title} 논문의 핵심 내용을 초보 개발자도 이해할 수 있게 정리한 리뷰입니다.`;
+  }
+  return cleaned;
+}
+
 function buildPaperMarkdown(paper: NonNullable<Awaited<ReturnType<typeof getResearchPaper>>>) {
+  const beginnerSummary = readablePaperText(paper.beginner_summary, paper.title);
+  const expertSummary = readablePaperText(paper.expert_summary, paper.title);
   const parts = [
-    paper.beginner_summary ? `## 초보자용 해설\n\n${paper.beginner_summary}` : '',
-    paper.expert_summary ? `## 실무자 관점 요약\n\n${paper.expert_summary}` : '',
+    beginnerSummary ? `## 초보자용 해설\n\n${beginnerSummary}` : '',
+    expertSummary ? `## 실무자 관점 요약\n\n${expertSummary}` : '',
     paper.why_it_matters ? `## 왜 지금 봐야 하나요?\n\n${paper.why_it_matters}` : '',
     paper.implementation_idea ? `## 직접 구현해볼 아이디어\n\n${paper.implementation_idea}` : '',
     paper.service_idea ? `## 서비스 아이디어로 바꾸면\n\n${paper.service_idea}` : '',
@@ -38,6 +55,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
   await incrementContentView('paper', paper.id);
   const publishedAt = formatDate(paper.published_at ?? paper.created_at);
   const paperMarkdown = buildPaperMarkdown(paper);
+  const heroSummary = readablePaperText(paper.beginner_summary ?? paper.expert_summary ?? paper.abstract, paper.title);
   const buildPrompt = paper.implementation_idea ?? paper.service_idea ?? `${paper.title} 논문을 바탕으로 만들 수 있는 프로젝트를 평가해줘.`;
   const readingPoints = [
     paper.why_it_matters,
@@ -72,7 +90,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                   {publishedAt && <span>{publishedAt}</span>}
                 </div>
                 <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">{paper.title}</h1>
-                {paper.beginner_summary && <p className="mt-4 text-lg leading-8 text-muted">{paper.beginner_summary}</p>}
+                {heroSummary && <p className="mt-4 text-lg leading-8 text-muted">{heroSummary}</p>}
               </div>
 
               <div className="mt-4 border border-outline-soft bg-white">
@@ -81,7 +99,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                     <input type="hidden" name="item_type" value="paper" />
                     <input type="hidden" name="item_id" value={paper.id} />
                     <input type="hidden" name="title" value={paper.title} />
-                    <input type="hidden" name="description" value={paper.beginner_summary ?? paper.expert_summary ?? ''} />
+                    <input type="hidden" name="description" value={heroSummary ?? ''} />
                     <input type="hidden" name="tag" value={paper.review_type ?? 'paper'} />
                     <input type="hidden" name="return_to" value={`/papers/${paper.id}`} />
                     <button type="submit" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" aria-label={`${paper.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>

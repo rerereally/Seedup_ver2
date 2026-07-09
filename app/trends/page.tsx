@@ -18,13 +18,13 @@ export default async function Trends() {
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Trend Radar"
-            title="오늘 감지된 개발 트렌드"
-            description="뉴스, AI 제품, GitHub 저장소에서 반복적으로 잡힌 키워드를 점수화해 지금 볼만한 기술 신호만 정리합니다."
+            title="카테고리별 개발 트렌드 Top 30"
+            description="뉴스, AI 제품, GitHub, 논문 신호를 카테고리별로 다르게 추출해 개발 워크플로우, AI 도구·모델, 구현 패턴, 오픈소스 프로젝트, 빌드 아이디어를 점수화합니다."
             icon={Radio}
             meta={(
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  [`${trends.length}개`, '랭킹 키워드'],
+                  [`${trends.length}개`, '분석된 트렌드'],
                   [topTrend?.keyword ?? '-', '최상위 트렌드'],
                   [`${totalSignals || '-'}개`, '누적 신호'],
                 ].map(([value, label]) => (

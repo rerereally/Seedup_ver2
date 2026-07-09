@@ -8,6 +8,10 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const GITHUB_FETCH_TIMEOUT_MS = 20_000;
+const DEFAULT_MIN_GITHUB_STARS = 50;
+const DEFAULT_PUSHED_WINDOW_DAYS = 30;
+
 export async function POST(request: Request) {
   return ingest(request);
 }
@@ -27,8 +31,10 @@ async function ingest(request: Request) {
   }
 
   const url = new URL(request.url);
-  const perQuery = Number(url.searchParams.get('limit') ?? 5);
-  const pushedAfter = url.searchParams.get('pushedAfter') ?? getDaysAgo(7);
+  const perQuery = Math.min(30, Number(url.searchParams.get('limit') ?? 15));
+  const minStars = Math.max(1, Number(url.searchParams.get('minStars') ?? process.env.GITHUB_MIN_STARS ?? DEFAULT_MIN_GITHUB_STARS));
+  const pushedAfter = url.searchParams.get('pushedAfter') ?? getDaysAgo(DEFAULT_PUSHED_WINDOW_DAYS);
+  const pruneDays = Number(url.searchParams.get('pruneDays') ?? 30);
   const token = process.env.GITHUB_TOKEN;
   const headers: HeadersInit = {
     accept: 'application/vnd.github+json',
@@ -40,6 +46,7 @@ async function ingest(request: Request) {
   let upserted = 0;
   let errors = 0;
   let skipped = 0;
+  let pruned = 0;
   const seen = new Set<string>();
 
   for (const query of GITHUB_QUERIES) {
@@ -48,9 +55,7 @@ async function ingest(request: Request) {
     const apiUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(search)}&sort=updated&order=desc&per_page=${perQuery}`;
 
     try {
-      const response = await fetch(apiUrl, { headers });
-      if (!response.ok) throw new Error(`GitHub API failed: ${response.status}`);
-      const json = await response.json();
+      const json = await fetchGitHubJson(apiUrl, headers);
 
       for (const repo of json.items ?? []) {
         if (seen.has(repo.full_name)) {
@@ -59,6 +64,12 @@ async function ingest(request: Request) {
         }
         seen.add(repo.full_name);
 
+        const preflight = evaluateGitHubRepoPreflight(repo, minStars);
+        if (!preflight.ok) {
+          skipped += 1;
+          continue;
+        }
+
         const topics = Array.isArray(repo.topics) ? repo.topics : [];
         const { analysis } = await analyzeRepo({
           fullName: repo.full_name,
@@ -66,6 +77,10 @@ async function ingest(request: Request) {
           language: repo.language,
           topics,
         });
+        if (!isRepoAnalysisUsable(analysis)) {
+          skipped += 1;
+          continue;
+        }
         const metadata = buildRepoNewsletterMetadata({
           analysis,
           language: repo.language,
@@ -88,6 +103,7 @@ async function ingest(request: Request) {
             beginner_summary: analysis.beginner_summary,
             project_idea: analysis.project_idea,
             relevance_score: analysis.relevance_score,
+            last_seen_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
 
@@ -98,12 +114,25 @@ async function ingest(request: Request) {
           console.error('GitHub trend upsert failed', repo.full_name, error);
         } else {
           upserted += 1;
+          await recordGitHubStarSnapshot(supabase, {
+            repoFullName: repo.full_name,
+            stars: Number(repo.stargazers_count ?? 0),
+            forks: Number(repo.forks_count ?? 0),
+            pushedAt: repo.pushed_at ?? null,
+          });
         }
       }
     } catch (error) {
       errors += 1;
       console.error('GitHub query failed', query, error);
     }
+  }
+
+  try {
+    pruned = await pruneStaleGitHubRepos(supabase, pruneDays);
+  } catch (error) {
+    errors += 1;
+    console.error('GitHub stale prune failed', error);
   }
 
   await recordIngestRun(supabase, {
@@ -113,10 +142,69 @@ async function ingest(request: Request) {
     skipped,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { perQuery, pushedAfter, queries: GITHUB_QUERIES },
+    detail: { perQuery, minStars, pushedAfter, pruneDays, pruned, queries: GITHUB_QUERIES.length },
   });
 
-  return NextResponse.json({ ok: true, upserted, skipped, errors, pushedAfter });
+  return NextResponse.json({ ok: true, upserted, skipped, pruned, errors, pushedAfter, minStars });
+}
+
+async function fetchGitHubJson(url: string, headers: HeadersInit) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { headers, signal: controller.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error(`GitHub API failed: ${response.status}`);
+      return await response.json() as { items?: Array<Record<string, any>> };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1) break;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function evaluateGitHubRepoPreflight(repo: Record<string, any>, minStars: number) {
+  const fullName = String(repo.full_name ?? '');
+  const description = String(repo.description ?? '').trim();
+  const topics = Array.isArray(repo.topics) ? repo.topics.map(String) : [];
+  const text = [fullName, description, repo.language, ...topics].join(' ').toLowerCase();
+  const stars = Number(repo.stargazers_count ?? 0);
+  const pushedAt = repo.pushed_at ? new Date(repo.pushed_at).getTime() : 0;
+  const pushedAgeDays = pushedAt ? (Date.now() - pushedAt) / (24 * 60 * 60 * 1000) : 999;
+
+  if (repo.archived || repo.disabled || repo.fork) return { ok: false, reason: 'inactive_or_fork' };
+  if (stars < minStars) return { ok: false, reason: 'low_stars' };
+  if (pushedAgeDays > 45) return { ok: false, reason: 'stale_push' };
+  if (description.length < 24) return { ok: false, reason: 'thin_description' };
+  if (/(^|[\/\s-])(awesome|list|lists|collection|curated|tutorial|examples?|leetcode|algorithm-study)([\/\s-]|$)/i.test(text) && stars < 500) {
+    return { ok: false, reason: 'low_signal_collection' };
+  }
+
+  const hasSeedupSignal = [
+    /ai[-\s]?agent|llm[-\s]?agent|agentic|coding agent|code agent/,
+    /\bmcp\b|model context protocol|rag|retrieval|vector database/,
+    /ai coding|codegen|developer tool|devtool|cli|sdk|ide|workflow|automation|observability/,
+    /local llm|ollama|langgraph|vercel ai sdk|supabase|next\.?js|react/,
+    /template|starter|boilerplate|framework|toolkit|dashboard/,
+  ].some((pattern) => pattern.test(text));
+
+  if (!hasSeedupSignal) return { ok: false, reason: 'off_topic' };
+  return { ok: true };
+}
+
+function isRepoAnalysisUsable(analysis: Awaited<ReturnType<typeof analyzeRepo>>['analysis']) {
+  const combined = [analysis.ai_review, analysis.beginner_summary, analysis.project_idea].join('\n');
+  if (Number(analysis.relevance_score ?? 0) < 65) return false;
+  if (!/[가-힣]/.test(combined)) return false;
+  if (/이 저장소를 활용하여|이 저장소처럼|핵심 기능 만들어보기|프로젝트 설명이 제공되지 않았습니다/i.test(combined)) return false;
+  if ((analysis.ai_review?.length ?? 0) < 50 || (analysis.beginner_summary?.length ?? 0) < 50) return false;
+  return true;
 }
 
 async function upsertGitHubTrend(supabase: NonNullable<ReturnType<typeof createAdminClient>>, payload: Record<string, unknown>) {
@@ -142,6 +230,8 @@ async function upsertGitHubTrend(supabase: NonNullable<ReturnType<typeof createA
     'buildability_score',
     'project_connect_score',
     'recommendation_reasons',
+    'last_seen_at',
+    'stars_delta_7d',
   ].some((column) => message.includes(column));
 
   if (!metadataColumnError) return result;
@@ -165,12 +255,74 @@ async function upsertGitHubTrend(supabase: NonNullable<ReturnType<typeof createA
     'buildability_score',
     'project_connect_score',
     'recommendation_reasons',
+    'last_seen_at',
+    'stars_delta_7d',
   ]) {
     delete fallbackPayload[key];
   }
 
   console.warn('GitHub trend upsert retrying without newsletter metadata columns. Apply supabase/schema.sql to enable full metadata.');
   return supabase.from('github_trends').upsert(fallbackPayload, { onConflict: 'repo_full_name' });
+}
+
+async function recordGitHubStarSnapshot(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  input: { repoFullName: string; stars: number; forks: number; pushedAt: string | null },
+) {
+  const today = new Date().toISOString().slice(0, 10);
+  const sevenDaysAgo = getDaysAgo(7);
+  const snapshot = await supabase
+    .from('github_repo_snapshots')
+    .upsert(
+      {
+        repo_full_name: input.repoFullName,
+        snapshot_date: today,
+        stars: input.stars,
+        forks: input.forks,
+        pushed_at: input.pushedAt,
+      },
+      { onConflict: 'repo_full_name,snapshot_date' },
+    );
+
+  if (snapshot.error) {
+    const message = snapshot.error.message.toLowerCase();
+    if (message.includes('schema') || message.includes('github_repo_snapshots') || message.includes('column')) return;
+    console.error('GitHub star snapshot failed', input.repoFullName, snapshot.error);
+    return;
+  }
+
+  const { data } = await supabase
+    .from('github_repo_snapshots')
+    .select('stars')
+    .eq('repo_full_name', input.repoFullName)
+    .lte('snapshot_date', sevenDaysAgo)
+    .order('snapshot_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const previousStars = Number(data?.stars ?? input.stars);
+  await supabase
+    .from('github_trends')
+    .update({ stars_delta_7d: input.stars - previousStars, last_seen_at: new Date().toISOString() })
+    .eq('repo_full_name', input.repoFullName);
+}
+
+async function pruneStaleGitHubRepos(supabase: NonNullable<ReturnType<typeof createAdminClient>>, pruneDays: number) {
+  const cutoff = getDaysAgo(Math.max(14, pruneDays));
+  const stale = await supabase
+    .from('github_trends')
+    .delete()
+    .lt('last_seen_at', cutoff)
+    .lt('pushed_at', cutoff)
+    .select('id');
+
+  if (stale.error) {
+    const message = stale.error.message.toLowerCase();
+    if (message.includes('last_seen_at') || message.includes('schema') || message.includes('column')) return 0;
+    throw stale.error;
+  }
+
+  return stale.data?.length ?? 0;
 }
 
 function buildRepoNewsletterMetadata({

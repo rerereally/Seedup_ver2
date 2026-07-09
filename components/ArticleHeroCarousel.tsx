@@ -29,8 +29,8 @@ export default function ArticleHeroCarousel({ items }: { items: ArticleFeedItem[
   if (!active) return null;
 
   return (
-    <section className="border border-outline-soft bg-white">
-      <div className="border-b border-outline-soft p-5 md:p-6">
+    <section className="flex h-full flex-col overflow-hidden border border-outline-soft bg-white">
+      <div className="min-h-0 flex-1 border-b border-outline-soft p-5 md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Newspaper className="h-4 w-4" />
@@ -39,14 +39,14 @@ export default function ArticleHeroCarousel({ items }: { items: ArticleFeedItem[
           <span className="text-xs font-bold uppercase text-muted">{active.type === 'paper' ? 'PAPER' : active.category ?? 'ARTICLE'}</span>
         </div>
         <Link href={itemHref(active)} className="mt-5 block">
-          <h2 className="line-clamp-3 text-3xl font-black leading-tight text-ink md:text-5xl">{active.title}</h2>
+          <h2 className="line-clamp-3 text-3xl font-black leading-tight text-ink md:text-4xl">{active.title}</h2>
           {(active.summary ?? active.beginner_summary) && (
-            <p className="mt-4 line-clamp-3 max-w-3xl text-base leading-8 text-muted">{active.summary ?? active.beginner_summary}</p>
+            <p className="mt-4 line-clamp-4 max-w-3xl text-base leading-7 text-muted">{active.summary ?? active.beginner_summary}</p>
           )}
         </Link>
       </div>
 
-      <div className="grid gap-0 border-b border-outline-soft md:grid-cols-3">
+      <div className="grid shrink-0 gap-0 border-b border-outline-soft md:grid-cols-3">
         {[
           [active.source ?? 'Seedup', 'source'],
           [formatDate(active.published_at) || '-', 'collected'],
@@ -59,7 +59,7 @@ export default function ArticleHeroCarousel({ items }: { items: ArticleFeedItem[
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 p-5 md:p-6">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 p-5 md:p-6">
         <div className="flex gap-1.5">
           {items.map((item, index) => (
             <button

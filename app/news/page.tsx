@@ -4,7 +4,6 @@ import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import PageIntro from '@/components/PageIntro';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
 import { ArrowLeft, ArrowRight, Bookmark, FileText, Lightbulb, Newspaper } from 'lucide-react';
 import Link from 'next/link';
@@ -134,10 +133,6 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
               {isScrapped ? '저장 해제' : '저장'}
             </button>
           </form>
-          <Link href="/projects" className="inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-xs font-bold text-ink hover:border-ink" aria-label={`${item.title} 프로젝트로 만들기`}>
-            <Lightbulb className="h-4 w-4" />
-            프로젝트로 만들기
-          </Link>
           <Link href={itemHref(item)} className="inline-flex h-10 items-center gap-1 bg-ink px-3 text-xs font-bold text-white transition-opacity hover:opacity-90">
             읽기
             <ArrowRight className="h-4 w-4" />
@@ -176,33 +171,37 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            eyebrow="Article Feed"
-            title="오늘 읽을 기술 브리핑"
-            description="뉴스, 논문, 개발 흐름을 한국어로 압축해 읽고 바로 다음 판단으로 이어갈 수 있게 정리합니다."
-            icon={Newspaper}
-          />
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-5 md:px-10 md:py-6">
+          <section className="border-b border-outline-soft pb-4">
+            <div className="inline-flex items-center gap-2 border border-outline-soft bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
+              <Newspaper className="h-4 w-4" />
+              Article Feed
+            </div>
+            <h1 className="mt-4 text-3xl font-black leading-tight text-ink md:text-[38px]">오늘 읽을 기술 브리핑</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted md:text-base">
+              뉴스, 논문, 개발 흐름을 한국어로 압축해 읽고 바로 다음 판단으로 이어갈 수 있게 정리합니다.
+            </p>
+          </section>
 
           {popularArticles.length > 0 && (
-            <section className="flex flex-col gap-5 lg:flex-row">
+            <section className="flex flex-col gap-5 lg:h-[520px] lg:flex-row">
               <div className="min-w-0 flex-1">
                 <ArticleHeroCarousel items={popularArticles} />
               </div>
               <aside className="lg:w-72 lg:shrink-0">
                 <section className="flex h-full flex-col border border-outline-soft bg-white p-5">
-                  <h2 className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">
+                  <h2 className="mb-3 flex shrink-0 items-center gap-2 text-sm font-black uppercase text-ink">
                     <FileText className="h-4 w-4 text-ink" />
                     인기 글 Top 5
                   </h2>
-                  <div className="flex flex-1 flex-col gap-2">
+                  <div className="grid min-h-0 flex-1 grid-rows-5 gap-2">
                     {popularArticles.map((item, index) => (
-                      <Link key={item.id} href={itemHref(item)} className="group flex items-start gap-3 border border-outline-soft bg-surface p-3 transition-colors hover:border-ink">
+                      <Link key={item.id} href={itemHref(item)} className="group flex min-h-0 items-start gap-3 overflow-hidden border border-outline-soft bg-surface p-2.5 transition-colors hover:border-ink">
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink text-xs font-black text-white">
                           {index + 1}
                         </span>
-                        <div className="min-w-0">
-                          <h3 className="line-clamp-2 text-sm font-bold leading-5 text-ink transition-colors group-hover:underline">{item.title}</h3>
+                        <div className="min-w-0 overflow-hidden">
+                          <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-5 text-ink transition-colors group-hover:underline">{item.title}</h3>
                           <p className="mt-0.5 text-xs text-muted">{item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category)}</p>
                         </div>
                       </Link>

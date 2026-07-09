@@ -9,11 +9,13 @@ import { redirect } from 'next/navigation';
 const INGEST_PATHS = {
   rss: '/api/ingest/rss?limit=8&minScore=50',
   products: '/api/ingest/products?limit=12',
-  github: '/api/ingest/github?limit=8',
-  research: '/api/ingest/research?limit=12',
+  github: '/api/ingest/github?limit=15&minStars=50&pruneDays=30',
+  research: '/api/ingest/research?limit=12&minScore=55&minFitScore=18',
+  'external-trends': '/api/ingest/external-trends',
   trends: '/api/ingest/trends',
   'project-ideas': '/api/ingest/project-ideas?limit=10',
-  'article-drafts': '/api/ingest/article-drafts?limit=6',
+  'article-drafts': '/api/ingest/article-drafts?mode=daily&limit=8',
+  'deep-dive': '/api/ingest/article-drafts?mode=deep-dive&limit=1&minSources=5&minSourceTypes=3',
 } as const;
 
 type IngestKey = keyof typeof INGEST_PATHS;
@@ -51,7 +53,7 @@ export async function runFullIngest() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'trends', 'project-ideas', 'article-drafts'];
+  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'external-trends', 'trends', 'project-ideas', 'article-drafts'];
 
   for (const target of order) {
     const formData = new FormData();

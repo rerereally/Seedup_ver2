@@ -70,7 +70,21 @@ create table if not exists public.trends (
   id uuid primary key default gen_random_uuid(),
   rank integer,
   keyword text not null,
+  display_name text,
+  normalized_name text,
+  entity_type text,
+  trend_type text,
+  category text,
   summary text,
+  raw_score numeric(10, 2),
+  display_score integer check (display_score is null or (display_score >= 0 and display_score <= 100)),
+  previous_score integer,
+  weekly_growth_rate integer default 0,
+  trend_direction text,
+  why_trending text[] default '{}',
+  related_skills text[] default '{}',
+  related_tools text[] default '{}',
+  target_roles text[] default '{}',
   score integer check (score is null or (score >= 0 and score <= 100)),
   status text,
   bars integer[] default '{}',
@@ -79,6 +93,9 @@ create table if not exists public.trends (
   news_count integer default 0,
   github_repo_count integer default 0,
   product_count integer default 0,
+  paper_count integer default 0,
+  source_mix jsonb default '{}'::jsonb,
+  detected_sources jsonb default '[]'::jsonb,
   source_refs jsonb default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -87,7 +104,7 @@ create table if not exists public.keyword_signals (
   id uuid primary key default gen_random_uuid(),
   keyword text not null,
   normalized_keyword text not null,
-  source_type text not null check (source_type in ('news', 'product', 'github')),
+  source_type text not null check (source_type in ('github', 'npm', 'huggingface', 'devto', 'stackoverflow', 'product_hunt', 'hackernews', 'rss', 'paper', 'news', 'product')),
   source_id uuid not null,
   source_title text not null,
   source_url text,
@@ -106,6 +123,7 @@ create table if not exists public.trend_snapshots (
   news_count integer not null default 0,
   product_count integer not null default 0,
   github_repo_count integer not null default 0,
+  paper_count integer not null default 0,
   source_refs jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -255,8 +273,20 @@ create table if not exists public.github_trends (
   buildability_score integer,
   project_connect_score integer,
   recommendation_reasons text[] default '{}',
+  last_seen_at timestamptz not null default now(),
+  stars_delta_7d integer default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.github_repo_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  repo_full_name text not null,
+  snapshot_date date not null default current_date,
+  stars integer not null default 0,
+  forks integer not null default 0,
+  pushed_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.research_papers (
@@ -396,6 +426,7 @@ alter table public.scraps enable row level security;
 alter table public.idea_evaluations enable row level security;
 alter table public.user_onboarding enable row level security;
 alter table public.github_trends enable row level security;
+alter table public.github_repo_snapshots enable row level security;
 alter table public.research_papers enable row level security;
 alter table public.news_paper_links enable row level security;
 alter table public.content_reactions enable row level security;
@@ -447,13 +478,33 @@ alter table public.news_items add column if not exists view_count integer not nu
 alter table public.news_items add column if not exists like_count integer not null default 0;
 alter table public.news_items add column if not exists dislike_count integer not null default 0;
 alter table public.trends add column if not exists sources_count integer default 0;
+alter table public.trends add column if not exists display_name text;
+alter table public.trends add column if not exists normalized_name text;
+alter table public.trends add column if not exists entity_type text;
 alter table public.trends add column if not exists news_count integer default 0;
 alter table public.trends add column if not exists github_repo_count integer default 0;
 alter table public.trends add column if not exists product_count integer default 0;
+alter table public.trends add column if not exists paper_count integer default 0;
+alter table public.trends add column if not exists source_mix jsonb default '{}'::jsonb;
+alter table public.trends add column if not exists detected_sources jsonb default '[]'::jsonb;
 alter table public.trends add column if not exists source_refs jsonb default '[]'::jsonb;
+alter table public.trends add column if not exists trend_type text;
+alter table public.trends add column if not exists category text;
+alter table public.trends add column if not exists raw_score numeric(10, 2);
+alter table public.trends add column if not exists display_score integer;
+alter table public.trends add column if not exists previous_score integer;
+alter table public.trends add column if not exists weekly_growth_rate integer default 0;
+alter table public.trends add column if not exists trend_direction text;
+alter table public.trends add column if not exists why_trending text[] default '{}';
+alter table public.trends add column if not exists related_skills text[] default '{}';
+alter table public.trends add column if not exists related_tools text[] default '{}';
+alter table public.trends add column if not exists target_roles text[] default '{}';
 alter table public.keyword_signals add column if not exists normalized_keyword text;
 alter table public.keyword_signals add column if not exists source_url text;
 alter table public.keyword_signals add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table public.keyword_signals drop constraint if exists keyword_signals_source_type_check;
+alter table public.keyword_signals add constraint keyword_signals_source_type_check check (source_type in ('github', 'npm', 'huggingface', 'devto', 'stackoverflow', 'product_hunt', 'hackernews', 'rss', 'paper', 'news', 'product'));
+alter table public.trend_snapshots add column if not exists paper_count integer not null default 0;
 alter table public.ai_products add column if not exists source text;
 alter table public.ai_products add column if not exists product_hunt_url text;
 alter table public.ai_products add column if not exists launch_date timestamptz;
@@ -539,6 +590,13 @@ alter table public.github_trends add column if not exists novelty_score integer;
 alter table public.github_trends add column if not exists buildability_score integer;
 alter table public.github_trends add column if not exists project_connect_score integer;
 alter table public.github_trends add column if not exists recommendation_reasons text[] default '{}';
+alter table public.github_trends add column if not exists last_seen_at timestamptz not null default now();
+alter table public.github_trends add column if not exists stars_delta_7d integer default 0;
+alter table public.github_repo_snapshots add column if not exists repo_full_name text;
+alter table public.github_repo_snapshots add column if not exists snapshot_date date not null default current_date;
+alter table public.github_repo_snapshots add column if not exists stars integer not null default 0;
+alter table public.github_repo_snapshots add column if not exists forks integer not null default 0;
+alter table public.github_repo_snapshots add column if not exists pushed_at timestamptz;
 
 grant usage on schema public to anon, authenticated, service_role;
 
@@ -551,6 +609,7 @@ grant select on public.ingest_rejections to authenticated;
 grant select on public.ai_products to anon, authenticated;
 grant select on public.project_ideas to anon, authenticated;
 grant select on public.github_trends to anon, authenticated;
+grant select on public.github_repo_snapshots to anon, authenticated;
 grant select on public.research_papers to anon, authenticated;
 grant select on public.news_paper_links to anon, authenticated;
 grant select on public.content_reactions to authenticated;
@@ -566,6 +625,7 @@ grant select, insert, update, delete on public.ingest_rejections to service_role
 grant select, insert, update, delete on public.ai_products to service_role;
 grant select, insert, update, delete on public.project_ideas to service_role;
 grant select, insert, update, delete on public.github_trends to service_role;
+grant select, insert, update, delete on public.github_repo_snapshots to service_role;
 grant select, insert, update, delete on public.research_papers to service_role;
 grant select, insert, update, delete on public.news_paper_links to service_role;
 grant select, insert, update, delete on public.idea_evaluations to service_role;
@@ -640,6 +700,11 @@ create policy "Project ideas are publicly readable"
 drop policy if exists "GitHub trends are publicly readable" on public.github_trends;
 create policy "GitHub trends are publicly readable"
   on public.github_trends for select
+  using (true);
+
+drop policy if exists "GitHub repo snapshots are publicly readable" on public.github_repo_snapshots;
+create policy "GitHub repo snapshots are publicly readable"
+  on public.github_repo_snapshots for select
   using (true);
 
 drop policy if exists "Research papers are publicly readable" on public.research_papers;
@@ -881,6 +946,9 @@ create index if not exists recommendation_feedback_item_idx on public.recommenda
 create unique index if not exists recommendation_feedback_user_item_surface_key on public.recommendation_feedback (user_id, item_type, item_id, surface);
 create index if not exists user_onboarding_user_idx on public.user_onboarding (user_id);
 create index if not exists github_trends_stars_idx on public.github_trends (stars desc);
+create index if not exists github_trends_last_seen_idx on public.github_trends (last_seen_at desc);
+create unique index if not exists github_repo_snapshots_repo_date_key on public.github_repo_snapshots (repo_full_name, snapshot_date);
+create index if not exists github_repo_snapshots_repo_date_idx on public.github_repo_snapshots (repo_full_name, snapshot_date desc);
 drop index if exists research_papers_paper_url_key;
 create unique index research_papers_paper_url_key on public.research_papers (paper_url);
 create index if not exists research_papers_relevance_idx on public.research_papers (relevance_score desc, published_at desc);

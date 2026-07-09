@@ -2,6 +2,8 @@
 
 Seedup is a developer trend and project idea platform. It collects developer news, AI product launches, and popular GitHub repositories, then turns them into beginner-friendly summaries, trend keywords, and portfolio project ideas.
 
+Current product direction: Seedup is a personal developer newsletter engine. Raw RSS/Product/GitHub/Paper data is collected first, preprocessed into structured metadata, stored in Supabase, clustered with related signals, and only then converted into publishable Korean articles.
+
 ## Main Features
 
 - Developer news collection from RSS feeds
@@ -49,11 +51,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
-OPENROUTER_FALLBACK_MODELS=google/gemini-2.0-flash-exp:free,meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_MODEL=google/gemini-3.5-flash
+OPENROUTER_FALLBACK_MODELS=google/gemini-3.5-flash
 NEXT_PUBLIC_SITE_URL=http://localhost:3001
 
 GITHUB_TOKEN=your-github-token
+GITHUB_MIN_STARS=50
 INGEST_SECRET=change-this-secret
 ADMIN_EMAILS=you@example.com
 NEXT_PUBLIC_ADMIN_EMAILS=you@example.com
@@ -144,20 +147,23 @@ Run these in order. Replace `BootCamp` with your `INGEST_SECRET` value and use `
 ```txt
 http://localhost:3000/api/ingest/rss?secret=BootCamp&limit=5
 http://localhost:3000/api/ingest/products?secret=BootCamp&limit=10
-http://localhost:3000/api/ingest/github?secret=BootCamp&limit=5
-http://localhost:3000/api/ingest/research?secret=BootCamp&limit=12
+http://localhost:3000/api/ingest/github?secret=BootCamp&limit=15&minStars=50&pruneDays=30
+http://localhost:3000/api/ingest/research?secret=BootCamp&limit=12&minScore=55&minFitScore=18
 http://localhost:3000/api/ingest/trends?secret=BootCamp
 http://localhost:3000/api/ingest/project-ideas?secret=BootCamp&limit=10
+http://localhost:3000/api/ingest/article-drafts?secret=BootCamp&mode=daily&limit=8
+http://localhost:3000/api/ingest/article-drafts?secret=BootCamp&mode=deep-dive&limit=1&minSources=5&minSourceTypes=3
 ```
 
 Expected order:
 
 1. `rss`: fills `news_items`
 2. `products`: fills `ai_products`
-3. `github`: fills `github_trends`
-4. `research`: fills `research_papers` and `news_paper_links`
+3. `github`: fills `github_trends` after repository quality gates
+4. `research`: fills `research_papers` and `news_paper_links` after research fit and AI quality gates
 5. `trends`: writes `keyword_signals`, `trend_snapshots`, and updates `trends`
 6. `project-ideas`: fills `project_ideas`
+7. `article-drafts`: writes publishable Seedup articles into `news_items`
 
 A successful trend response looks like:
 
@@ -191,6 +197,36 @@ INGEST_PRODUCT_SOURCES="Product Hunt|https://www.producthunt.com/feed|en"
 
 If these env values are empty, the app uses the default sources in code.
 
+## Data Quality Gates
+
+Seedup now uses separate gates per source type. The goal is to prevent weak raw data from becoming a trend, recommendation, or article.
+
+GitHub ingestion:
+
+- Default minimum stars: `50` (`GITHUB_MIN_STARS` or `minStars` query param)
+- Default freshness window: pushed within the last 30 days
+- Skips forks, archived repos, disabled repos, thin descriptions, low-signal awesome/list/tutorial repos, and off-topic repos
+- Requires a Seedup-relevant signal such as AI agent, MCP, RAG, AI coding, developer tools, CLI/SDK, workflow automation, app templates, or AI-focused frontend/backend tooling
+- Records daily star snapshots in `github_repo_snapshots` when the schema is applied
+
+Research ingestion:
+
+- Default minimum AI relevance score: `55`
+- Default minimum Seedup fit score: `18`
+- Off-domain papers such as medical/public-health/biology are rejected unless they have a strong developer anchor such as software engineering, coding agents, code generation, APIs/SDKs, developer tooling, deployment, observability, backend, frontend, database, or DevOps
+- Paper reviews must be Korean, non-generic, and long enough to read like a Seedup paper article, not an abstract copy
+
+Trend aggregation:
+
+- Generic standalone skills such as `TypeScript`, `React`, `Next.js`, `Rust`, `TUI`, `Benchmark`, `API`, and `LLM` are not allowed to rank by themselves
+- Build-idea phrases such as `이 저장소를 활용하여...` are rejected as low-signal keywords
+- Each category has its own threshold:
+  - `개발 워크플로우` only accepts concrete work patterns such as AI Code Review, Codebase Q&A, Test Generation, Design to Code, PRD to Code, and Figma to Code Workflow
+  - `AI 도구·모델` only accepts detected tool/model names such as Claude Code, Cursor, Qwen, Ollama, Cline, Continue, OpenHands, v0, and similar entities
+  - `구현 패턴` only accepts implementation patterns such as MCP Server Design, RAG Evaluation, Tool Calling, LLM Observability, Prompt Caching, Streaming UI, Eval Pipeline, and Rate Limit Handling
+  - `오픈소스 프로젝트` requires an actual GitHub project/repo display name, not repo topics or languages
+  - `빌드 아이디어` requires generated project topics from clustered signals, not raw keywords
+
 ## Trend Calculation
 
 Seedup does not only overwrite a simple trend list. It accumulates keyword signals.
@@ -198,20 +234,29 @@ Seedup does not only overwrite a simple trend list. It accumulates keyword signa
 Data flow:
 
 ```txt
-news_items / ai_products / github_trends
+news_items / ai_products / github_trends / research_papers
         -> keyword_signals
         -> trend_snapshots
         -> trends
 ```
+
+Trend entity extraction is category-specific:
+
+- `개발 워크플로우`: extracts workflow/action patterns from RSS/news, papers, products, GitHub descriptions, and community-style sources
+- `AI 도구·모델`: extracts product, model, and tool names from Product Hunt, GitHub, Hugging Face-style signals, npm-style signals, and community mentions
+- `구현 패턴`: extracts concrete architecture and implementation patterns from news, papers, GitHub descriptions, and project ideas
+- `오픈소스 프로젝트`: extracts only GitHub repo/project display names
+- `빌드 아이디어`: generates project topics such as `AI 코드 리뷰 봇`, `RAG 품질 평가 대시보드`, and `LLM 비용 모니터링 대시보드` from clustered signals
 
 Trend score considers:
 
 - Recent 7-day signal count
 - Previous 7-day comparison
 - Last 30-day accumulated signals
-- Source diversity across news, products, and GitHub
-- GitHub star weight
+- Source diversity across news, products, GitHub, and papers
+- GitHub quality/freshness after repository gates
 - Product source weight
+- Category-specific source weights for GitHub, npm, Product Hunt, Hacker News, DEV.to, Stack Overflow, Hugging Face, RSS/news, and papers
 - Recency decay for older signals
 
 The `trends` table is used as the current ranking cache for the UI.
@@ -228,11 +273,28 @@ OpenRouter is used for:
 - Article Q&A in the detail sidebar
 - Idea evaluation chat responses
 
-News ingestion first parses source data into structured fields such as title, source, original URL, published date, and cleaned content. Long content is compressed with paragraph sampling before it is sent to AI. The AI returns analysis JSON only: Korean title, category, relevance score, long-form Markdown summary article, beginner explanation, target audience tags, related skills, and project ideas.
+All AI routes use `google/gemini-3.5-flash` by default. Keep `OPENROUTER_MODEL` and `OPENROUTER_FALLBACK_MODELS` aligned unless you intentionally test another model.
 
-The displayed article body is not the copied original article. It is a Korean summary and explanation article generated for Seedup, with a source link preserved separately. Current prompt rules ask for enough detail for beginners, including what happened, why it matters, concepts to understand, project ideas, and cautions.
+News ingestion first parses source data into structured fields such as title, source, original URL, published date, and cleaned content. The AI returns analysis JSON only: Korean title, category, relevance score, summaries, target audience tags, related skills, and project ideas. RSS ingestion does not publish long articles.
 
-If OpenRouter returns an empty or invalid response, the app falls back to a local summary so ingestion can continue.
+Article generation happens separately in `/api/ingest/article-drafts`.
+
+Daily articles:
+
+- Four tracks: `AI/LLM`, `프론트엔드`, `백엔드`, `사이드프로젝트/창업`
+- Up to 2 posts per track per day, max 8 total
+- Requires at least 3 related sources and at least 2 source types by default
+- Rejects short/generic/template-like drafts before saving
+
+Weekly Deep Dive:
+
+- Separate admin action
+- Intended to run once per week
+- Requires at least 5 sources and 3 source types by default
+
+Paper reviews use their own prompt and quality gate. They must read like a paper-specific Korean mini article with beginner explanation, practitioner analysis, implementation idea, service angle, and limits. Generic abstract rewrites are skipped.
+
+If OpenRouter returns an empty or invalid response, ingestion skips quality-sensitive content instead of publishing weak fallback articles.
 
 ## UI Notes
 
@@ -282,10 +344,11 @@ For production, add scheduled ingestion after hosting. The recommended order is:
 
 1. RSS ingestion
 2. Product ingestion
-3. GitHub ingestion
-4. Research paper reviews
+3. GitHub ingestion with `minStars=50`
+4. Research paper reviews with `minScore=55&minFitScore=18`
 5. Trend aggregation
 6. Project idea generation
+7. Daily article generation
 
 On Vercel, this can be done with Vercel Cron Jobs calling the protected ingestion URLs with `INGEST_SECRET`.
 
@@ -357,6 +420,7 @@ OPENROUTER_MODEL
 OPENROUTER_FALLBACK_MODELS
 NEXT_PUBLIC_SITE_URL
 GITHUB_TOKEN
+GITHUB_MIN_STARS
 INGEST_SECRET
 ADMIN_EMAILS
 NEXT_PUBLIC_ADMIN_EMAILS

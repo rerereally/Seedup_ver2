@@ -14,6 +14,11 @@ function buildHref(page: number) {
   return page <= 1 ? '/github-trends' : `/github-trends?page=${page}`;
 }
 
+function formatDate(value: string | null | undefined) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit' }).format(new Date(value));
+}
+
 export default async function GitHubTrendsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const params = await searchParams;
   const [repos, scrapKeys] = await Promise.all([getGitHubTrends(), getScrapKeySet()]);
@@ -88,11 +93,12 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
                       </div>
                     </div>
 
-                    <div className="mb-4 grid grid-cols-3 gap-2">
+                    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {[
                         [<Star key="star" className="h-4 w-4" />, repo.stars ?? 0, 'stars'],
+                        [<Star key="delta" className="h-4 w-4" />, `${Number(repo.stars_delta_7d ?? 0) >= 0 ? '+' : ''}${repo.stars_delta_7d ?? 0}`, '7d stars'],
                         [<GitFork key="fork" className="h-4 w-4" />, repo.forks ?? 0, 'forks'],
-                        [<Code2 key="code" className="h-4 w-4" />, repo.relevance_score ?? '-', 'score'],
+                        [<Code2 key="code" className="h-4 w-4" />, formatDate(repo.last_seen_at), 'seen'],
                       ].map(([icon, value, label]) => (
                         <div key={String(label)} className="border border-outline-soft bg-surface p-3">
                           <div className="flex items-center gap-1 text-ink">{icon}<span className="text-lg font-black">{value}</span></div>

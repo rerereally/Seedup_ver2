@@ -5,6 +5,7 @@ import { DevTag } from '@/components/ui/DevCard';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
 import {
   DEMO_NEWSLETTER_PROFILES,
+  isRecommendableNewsItem,
   pickNewsletterSections,
   scoreNewsletterItems,
   toNewsletterContentItems,
@@ -40,7 +41,7 @@ export default async function NewsletterPreviewPage({
   const lookbackDays = getLookbackDays(news.length + products.length + repos.length + projects.length + papers.length);
   const cutoff = getCutoffTimestamp(lookbackDays);
   const items = toNewsletterContentItems({
-    news: news.filter((item) => isInLookback(item.published_at, cutoff)),
+    news: news.filter((item) => isInLookback(item.published_at, cutoff) && isRecommendableNewsItem(item)),
     products,
     repos: repos.filter((item) => isInLookback(item.pushed_at, cutoff)),
     projects,

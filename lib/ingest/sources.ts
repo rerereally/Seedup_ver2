@@ -41,18 +41,32 @@ export const PRODUCT_SOURCES = parseSourcesFromEnv(process.env.INGEST_PRODUCT_SO
 export const MAX_ITEMS_PER_SOURCE = Number(process.env.MAX_ITEMS_PER_SOURCE ?? 10);
 
 export const GITHUB_QUERIES = [
-  // 최근 급부상 AI/LLM 관련 — 스타 기준을 낮춰 신규 프로젝트 포함
-  'topic:llm stars:10..2000',
-  'topic:ai-agent stars:10..2000',
-  'topic:mcp stars:10..1000',
-  // 최신 개발 트렌드 토픽
-  'topic:vibe-coding stars:5..500',
-  'topic:cursor stars:5..500',
-  'topic:claude stars:5..1000',
-  // 실용 개발 도구 — 소규모 프로젝트도 포함
-  'topic:developer-tools stars:10..1000',
-  'topic:nextjs stars:10..800',
-  'topic:supabase stars:5..500',
+  'topic:ai-agent stars:50..12000',
+  'topic:llm-agent stars:50..12000',
+  'topic:mcp stars:50..12000',
+  'topic:mcp-server stars:50..8000',
+  'topic:rag stars:50..12000',
+  'topic:vector-database stars:50..12000',
+  'topic:local-llm stars:50..12000',
+  'topic:ollama stars:50..12000',
+  'topic:langgraph stars:50..12000',
+  'topic:ai-coding stars:50..8000',
+  'topic:coding-agent stars:50..8000',
+  'topic:browser-agent stars:50..6000',
+  'topic:computer-use stars:50..6000',
+  'topic:vibe-coding stars:50..6000',
+  'topic:cursor stars:50..8000',
+  'topic:claude-code stars:50..8000',
+  'topic:developer-tools topic:ai stars:200..12000',
+  'topic:developer-tools topic:llm stars:200..12000',
+  'topic:nextjs topic:ai-agent stars:100..8000',
+  'topic:nextjs topic:rag stars:100..8000',
+  'topic:react topic:ai-agent stars:100..8000',
+  'topic:typescript topic:ai-agent stars:50..8000',
+  'topic:typescript topic:mcp stars:50..8000',
+  'topic:vercel-ai-sdk stars:50..8000',
+  'topic:supabase topic:rag stars:100..8000',
+  'topic:supabase topic:ai-agent stars:100..8000',
 ] as const;
 
 function parseSourcesFromEnv(value?: string): IngestSource[] | null {

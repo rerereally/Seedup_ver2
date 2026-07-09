@@ -23,6 +23,11 @@ const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
   paper_to_project: '논문→프로젝트',
 };
 
+function getExternalUrl(value?: string | null) {
+  if (!value) return null;
+  return /^https?:\/\//i.test(value) ? value : null;
+}
+
 export default async function NewsDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [item, existingScrap, relatedPapers] = await Promise.all([
@@ -39,6 +44,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
   const categoryQuery = item.category ? `/news?category=${encodeURIComponent(item.category)}` : '/news';
   const newsletterLabel = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
   const summary = item.short_summary ?? item.summary;
+  const externalUrl = getExternalUrl(item.original_url ?? item.source_url);
   const recommendationReasons = item.recommendation_reasons?.length
     ? item.recommendation_reasons
     : item.personalization_hooks?.length
@@ -97,13 +103,13 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                       {existingScrap ? '저장 해제' : '저장'}
                     </button>
                   </form>
-                  {item.original_url && (
-                    <Link href={item.original_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
+                  {externalUrl && (
+                    <Link href={externalUrl} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
                       <ExternalLink className="h-4 w-4" />
                       원문
                     </Link>
                   )}
-                  <ShareButton title={item.title} url={item.original_url} />
+                  <ShareButton title={item.title} url={externalUrl} />
                 </div>
                 <div className="p-3">
                   <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={Number(item.view_count ?? 0) + 1} likes={item.like_count} dislikes={item.dislike_count} />

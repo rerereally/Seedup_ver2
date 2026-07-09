@@ -1,6 +1,6 @@
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { analyzePaper } from '@/lib/ingest/ai';
-import { RESEARCH_QUERIES, RESEARCH_SOURCE_INFO } from '@/lib/ingest/research-sources';
+import { ARXIV_FEED_SOURCES, RESEARCH_QUERIES, RESEARCH_SOURCE_INFO } from '@/lib/ingest/research-sources';
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
 import { stripHtml } from '@/lib/ingest/text';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -19,7 +19,7 @@ type ArxivItem = Parser.Item & {
 };
 
 const parser = new Parser({
-  timeout: 15000,
+  timeout: 10000,
   customFields: {
     item: [
       ['id', 'id'],
@@ -31,6 +31,8 @@ const parser = new Parser({
     'user-agent': 'SeedupBot/1.0 (research ingestion)',
   },
 });
+
+const RESEARCH_FETCH_TIMEOUT_MS = 20000;
 
 export async function POST(request: Request) {
   return ingest(request);
@@ -52,7 +54,8 @@ async function ingest(request: Request) {
 
   const url = new URL(request.url);
   const limit = Number(url.searchParams.get('limit') ?? 12);
-  const minScore = Number(url.searchParams.get('minScore') ?? 45);
+  const minScore = Number(url.searchParams.get('minScore') ?? 55);
+  const minFitScore = Number(url.searchParams.get('minFitScore') ?? 18);
   let inserted = 0;
   let skipped = 0;
   let errors = 0;
@@ -79,10 +82,16 @@ async function ingest(request: Request) {
         continue;
       }
 
+      const fit = evaluateSeedupResearchFit(paper);
+      if (fit.score < minFitScore) {
+        skipped += 1;
+        continue;
+      }
+
       const codeUrl = await findPapersWithCodeUrl(paper.title);
       const hasCode = Boolean(codeUrl);
       const isHuggingFaceTrending = hfTitles.some((title) => similarTitle(title, paper.title));
-      const { analysis, model } = await analyzePaper({
+      const { analysis, model, ok, qualityReason } = await analyzePaper({
         title: paper.title,
         abstract: paper.abstract,
         authors: paper.authors,
@@ -90,6 +99,11 @@ async function ingest(request: Request) {
         source: paper.source,
         hasCode,
       });
+      if (!ok) {
+        skipped += 1;
+        console.warn('Research paper skipped after AI quality check', paper.title, qualityReason);
+        continue;
+      }
 
       const boostedRelevance = Math.min(100, analysis.relevance_score + (hasCode ? 8 : 0) + (isHuggingFaceTrending ? 8 : 0));
       if (boostedRelevance < minScore) {
@@ -165,7 +179,7 @@ async function ingest(request: Request) {
     skipped,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { limit, minScore, candidates: candidates.length },
+    detail: { limit, minScore, minFitScore, candidates: candidates.length },
   });
 
   return NextResponse.json(
@@ -183,6 +197,58 @@ async function ingest(request: Request) {
 }
 
 async function fetchArxivPapers(limit: number) {
+  const feedPapers = await fetchArxivFeedPapers(limit);
+  if (feedPapers.length) return feedPapers;
+  return fetchArxivApiPapers(limit);
+}
+
+async function fetchArxivFeedPapers(limit: number) {
+  const seen = new Set<string>();
+  const papers: Array<{
+    title: string;
+    abstract: string;
+    authors: string[];
+    categories: string[];
+    source: string;
+    paperUrl: string;
+    pdfUrl: string | null;
+    publishedAt: string;
+  }> = [];
+  const perSource = Math.max(2, Math.ceil(limit / ARXIV_FEED_SOURCES.length));
+
+  for (const source of ARXIV_FEED_SOURCES) {
+    try {
+      const feed = await fetchAndParseFeed(source.url);
+      let picked = 0;
+      for (const item of feed.items as ArxivItem[]) {
+        const paperUrl = normalizeArxivPaperUrl(item.id || item.link || '');
+        if (!paperUrl || seen.has(paperUrl)) continue;
+        seen.add(paperUrl);
+
+        papers.push({
+          title: cleanText(item.title ?? ''),
+          abstract: cleanArxivAbstract(item.contentSnippet || item.content || getItemField(item, 'summary') || ''),
+          authors: parseAuthors(item),
+          categories: parseCategories(item).length ? parseCategories(item) : [source.name.replace(/^arXiv\s+/i, '')],
+          source: source.name,
+          paperUrl,
+          pdfUrl: paperUrl.replace('/abs/', '/pdf/'),
+          publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+        });
+        picked += 1;
+        if (papers.length >= limit || picked >= perSource) break;
+      }
+    } catch (error) {
+      console.error('Research feed skipped', source.name, error);
+    }
+
+    if (papers.length >= limit) return papers;
+  }
+
+  return papers;
+}
+
+async function fetchArxivApiPapers(limit: number) {
   const seen = new Set<string>();
   const papers: Array<{
     title: string;
@@ -197,35 +263,104 @@ async function fetchArxivPapers(limit: number) {
   const perQuery = Math.max(3, Math.ceil(limit / RESEARCH_QUERIES.length));
 
   for (const query of RESEARCH_QUERIES) {
-    const params = new URLSearchParams({
-      search_query: query,
-      start: '0',
-      max_results: String(perQuery),
-      sortBy: 'submittedDate',
-      sortOrder: 'descending',
-    });
-    const feed = await parser.parseURL(`${RESEARCH_SOURCE_INFO.arxiv.url}?${params.toString()}`);
-
-    for (const item of feed.items as ArxivItem[]) {
-      const paperUrl = item.id || item.link || '';
-      if (!paperUrl || seen.has(paperUrl)) continue;
-      seen.add(paperUrl);
-
-      papers.push({
-        title: cleanText(item.title ?? ''),
-        abstract: cleanText(stripHtml(item.contentSnippet || item.content || getItemField(item, 'summary') || '')),
-        authors: parseAuthors(item),
-        categories: parseCategories(item),
-        source: RESEARCH_SOURCE_INFO.arxiv.name,
-        paperUrl,
-        pdfUrl: paperUrl ? paperUrl.replace('/abs/', '/pdf/') : null,
-        publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+    try {
+      const params = new URLSearchParams({
+        search_query: query,
+        start: '0',
+        max_results: String(perQuery),
+        sortBy: 'submittedDate',
+        sortOrder: 'descending',
       });
-      if (papers.length >= limit) return papers;
+      const feed = await fetchAndParseFeed(`${RESEARCH_SOURCE_INFO.arxiv.url}?${params.toString()}`);
+
+      for (const item of feed.items as ArxivItem[]) {
+        const paperUrl = normalizeArxivPaperUrl(item.id || item.link || '');
+        if (!paperUrl || seen.has(paperUrl)) continue;
+        seen.add(paperUrl);
+
+        papers.push({
+          title: cleanText(item.title ?? ''),
+          abstract: cleanArxivAbstract(item.contentSnippet || item.content || getItemField(item, 'summary') || ''),
+          authors: parseAuthors(item),
+          categories: parseCategories(item),
+          source: RESEARCH_SOURCE_INFO.arxiv.name,
+          paperUrl,
+          pdfUrl: paperUrl ? paperUrl.replace('/abs/', '/pdf/') : null,
+          publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+        });
+        if (papers.length >= limit) return papers;
+      }
+    } catch (error) {
+      console.error('Research API query skipped', query, error);
     }
   }
 
   return papers;
+}
+
+function normalizeArxivPaperUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('/pdf/')) return trimmed.replace('/pdf/', '/abs/').replace(/\.pdf$/i, '');
+  return trimmed;
+}
+
+async function fetchAndParseFeed(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RESEARCH_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'user-agent': 'SeedupBot/1.0 (research ingestion)' },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`Feed request failed: ${response.status}`);
+    return parser.parseString(await response.text());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function evaluateSeedupResearchFit(paper: { title: string; abstract: string; categories: string[] }) {
+  const text = `${paper.title} ${paper.abstract} ${paper.categories.join(' ')}`.toLowerCase();
+  let score = 0;
+
+  const strongSignals = [
+    /coding agent|code agent|software engineering|program repair|code generation|developer tool|devtool/,
+    /agentic|ai agent|tool use|workflow|automation|orchestration/,
+    /retrieval|rag|vector database|knowledge base|search/,
+    /api|sdk|framework|library|cli|ide|editor|debug|test generation/,
+    /web app|application|service|product|prototype|user interface|human computer interaction/,
+    /database|backend|frontend|cloud|devops|deployment|observability/,
+  ];
+  for (const pattern of strongSignals) {
+    if (pattern.test(text)) score += 8;
+  }
+
+  const categoryBoost = paper.categories.some((category) => /cs\.se|cs\.ai|cs\.cl|cs\.db|cs\.hc/i.test(category)) ? 5 : 0;
+  score += categoryBoost;
+
+  const weakSignals = ['llm', 'language model', 'benchmark', 'evaluation', 'reasoning', 'multi-agent', 'prompt', 'fine-tuning'];
+  for (const signal of weakSignals) {
+    if (text.includes(signal)) score += 2;
+  }
+
+  const offDomain = [
+    /medical|clinical|medicine|patient|public health|healthcare|health question|disease|diagnosis|protein|genomics|molecule|drug discovery|biology/,
+    /satellite|astronomy|quantum|particle|robotics navigation/,
+    /pure mathematics|theorem proving only|fluid dynamics/,
+  ].some((pattern) => pattern.test(text));
+  const hasStrongDeveloperAnchor = [
+    /coding agent|code agent|software engineering|developer tool|devtool|code generation/,
+    /api|sdk|cli|ide|editor|debug|test generation|deployment|observability/,
+    /web app|application framework|backend|frontend|database|devops/,
+  ].some((pattern) => pattern.test(text));
+
+  if (offDomain && !hasStrongDeveloperAnchor) return { score: 0 };
+
+  const irrelevantPenalty = offDomain ? 30 : 0;
+
+  return { score: Math.max(0, score - irrelevantPenalty) };
 }
 
 async function findPapersWithCodeUrl(title: string) {
@@ -318,6 +453,16 @@ function getItemField(item: Parser.Item, key: string) {
 
 function cleanText(value: string) {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function cleanArxivAbstract(value: string) {
+  return cleanText(stripHtml(value))
+    .replace(/^arxiv:\S+\s*/i, '')
+    .replace(/^announce\s+type:\s*\w+\s*/i, '')
+    .replace(/^abstract:\s*/i, '')
+    .replace(/\s+comments:\s+.*$/i, '')
+    .replace(/\s+subjects:\s+.*$/i, '')
+    .trim();
 }
 
 function normalizeUnknownText(value: unknown): string[] {

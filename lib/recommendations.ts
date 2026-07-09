@@ -112,6 +112,7 @@ export type RecommendationProfile = {
   levels: string[];
   goals: string[];
   interests: string[];
+  tracks: DailyArticleTrack[];
 };
 
 export type RecommendedItem<T> = {
@@ -121,6 +122,9 @@ export type RecommendedItem<T> = {
 };
 
 type RecommendableArticle = NewsItem | ResearchPaper;
+type DailyArticleTrack = 'AI/LLM' | '프론트엔드' | '백엔드' | '사이드프로젝트/창업';
+
+const TRACKS: DailyArticleTrack[] = ['AI/LLM', '프론트엔드', '백엔드', '사이드프로젝트/창업'];
 
 function normalize(value: unknown) {
   return String(value ?? '').trim().toLowerCase();
@@ -145,10 +149,17 @@ function fuzzyOverlap(left: string[] = [], right: string[] = []) {
 
 export function scoreContentForProfile(content: RecommendationMetadata, profile: UserNewsletterProfile) {
   let score = 0;
+  const preferredTracks = inferPreferredTracks([
+    ...profile.interests,
+    ...profile.goals,
+    ...profile.preferred_roles,
+    ...profile.preferred_stack,
+  ]);
   score += fuzzyOverlap(content.topic_tags, profile.interests) * 4;
   score += fuzzyOverlap(content.skill_tags, profile.preferred_stack) * 3;
   score += fuzzyOverlap(content.target_goals, profile.goals) * 4;
   score += overlap(content.related_roles, profile.preferred_roles) * 4;
+  score += overlap(content.topic_tags, preferredTracks) * 5;
   if (content.target_levels.some((level) => normalize(level) === normalize(profile.level))) score += 3;
   if (profile.content_preferences.includes(content.newsletter_section)) score += 2;
   score += content.newsletter_priority * 0.2;
@@ -186,11 +197,15 @@ export function buildRecommendationProfile(answers: Record<string, unknown> | nu
   const goals = unique([...answerList('goals'), ...answerList('goal')]);
   const interests = answerList('interests');
 
+  const resolvedInterests = interests.length ? interests : tokens.filter((token) => !/beginner|intermediate|advanced|입문|초보|중급|고급|실무/.test(token));
+  const resolvedGoals = goals.length ? goals : tokens.filter((token) => /portfolio|project|startup|career|포트폴리오|프로젝트|창업|커리어|취업|이직|트렌드|논문|연구|실무/.test(token));
+
   return {
     tokens,
     levels: levels.length ? levels : tokens.filter((token) => /beginner|intermediate|advanced|입문|초보|중급|고급|실무/.test(token)),
-    goals: goals.length ? goals : tokens.filter((token) => /portfolio|project|startup|career|포트폴리오|프로젝트|창업|커리어|취업|이직|트렌드|논문|연구|실무/.test(token)),
-    interests: interests.length ? interests : tokens.filter((token) => !/beginner|intermediate|advanced|입문|초보|중급|고급|실무/.test(token)),
+    goals: resolvedGoals,
+    interests: resolvedInterests,
+    tracks: inferPreferredTracks([...tokens, ...resolvedInterests, ...resolvedGoals]),
   };
 }
 
@@ -224,6 +239,7 @@ function articleText(item: RecommendableArticle) {
     ...(news.target_interests ?? []),
     ...(paper.target_interests ?? []),
     ...(paper.categories ?? []),
+    ...(news.quality_notes ?? []),
   ].join(' ').toLowerCase();
 }
 
@@ -248,6 +264,87 @@ function profileMatchScore(text: string, profile: RecommendationProfile) {
   return Math.min(matches.length * 8, 28);
 }
 
+function articleQualitySignals(item: NewsItem) {
+  const notes = item.quality_notes ?? [];
+  const contentLength = item.content?.trim().length ?? 0;
+  const sourceCount = getNumberNote(notes, 'source_count');
+  const sourceTypes = getStringNote(notes, 'source_types')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const isGeneratedArticle = notes.some((note) => note === 'content_mode:daily_track_article' || note === 'content_mode:weekly_deep_dive');
+  const isLongform = notes.includes('content_mode:longform_editorial') || contentLength >= 2600;
+  const hasMultipleSources = sourceCount >= 3;
+  const hasMixedSources = sourceTypes.length >= 2;
+
+  let score = 0;
+  if (isGeneratedArticle) score += 22;
+  if (isLongform) score += 18;
+  if (hasMultipleSources) score += Math.min(sourceCount * 4, 20);
+  if (hasMixedSources) score += sourceTypes.length >= 3 ? 14 : 10;
+  if (contentLength >= 4500) score += 10;
+  if (contentLength > 0 && contentLength < 1200) score -= 28;
+  if (!contentLength) score -= 40;
+
+  return {
+    score,
+    isGeneratedArticle,
+    isLongform,
+    sourceCount,
+    sourceTypes,
+    track: getArticleTrack(item),
+  };
+}
+
+function trackMatchScore(item: NewsItem, profile: RecommendationProfile) {
+  const track = getArticleTrack(item);
+  if (!track || !profile.tracks.length) return 0;
+  return profile.tracks.includes(track) ? 24 : -8;
+}
+
+export function getArticleTrack(item: NewsItem): DailyArticleTrack | null {
+  const notes = item.quality_notes ?? [];
+  const notedTrack = getStringNote(notes, 'track');
+  if (isDailyArticleTrack(notedTrack)) return notedTrack;
+
+  const text = [
+    item.title,
+    item.summary,
+    item.category,
+    item.newsletter_section,
+    ...(item.topic_tags ?? []),
+    ...(item.skill_tags ?? []),
+    ...(item.related_roles ?? []),
+    ...(item.target_interests ?? []),
+  ].join(' ');
+  const inferred = inferPreferredTracks([text])[0];
+  return inferred ?? null;
+}
+
+function inferPreferredTracks(values: string[]) {
+  const text = values.join(' ').toLowerCase();
+  const tracks: DailyArticleTrack[] = [];
+  if (/ai|llm|agent|rag|openai|gemini|claude|머신러닝|인공지능|데이터\/ml|ai\/llm/.test(text)) tracks.push('AI/LLM');
+  if (/front|react|next|typescript|ui|ux|프론트|웹|앱 개발/.test(text)) tracks.push('프론트엔드');
+  if (/back|api|server|node|spring|fastapi|postgres|database|db|supabase|docker|cloud|devops|aws|백엔드|서버|데이터베이스/.test(text)) tracks.push('백엔드');
+  if (/startup|side|product|saas|maker|창업|사이드|제품|아이디어|포트폴리오|메이커/.test(text)) tracks.push('사이드프로젝트/창업');
+  return TRACKS.filter((track) => tracks.includes(track));
+}
+
+function isDailyArticleTrack(value: string): value is DailyArticleTrack {
+  return TRACKS.includes(value as DailyArticleTrack);
+}
+
+function getStringNote(notes: string[], key: string) {
+  const prefix = `${key}:`;
+  return notes.find((note) => note.startsWith(prefix))?.slice(prefix.length).trim() ?? '';
+}
+
+function getNumberNote(notes: string[], key: string) {
+  const value = Number(getStringNote(notes, key));
+  return Number.isFinite(value) ? value : 0;
+}
+
 function recommendationReasons(item: RecommendableArticle, profile: RecommendationProfile, text: string, scoreParts: { freshness: number; match: number; relevance: number; build: number }) {
   const reasons: string[] = [];
   if (scoreParts.freshness >= 28) reasons.push('최근 24~48시간 신호');
@@ -261,6 +358,7 @@ function recommendationReasons(item: RecommendableArticle, profile: Recommendati
 
 export function recommendNewsItems(items: NewsItem[], profile: RecommendationProfile, limit = 5): RecommendedItem<NewsItem>[] {
   return items
+    .filter((item) => isRecommendableNewsItem(item))
     .map((item) => {
       const text = articleText(item);
       const freshness = freshnessScore(item);
@@ -274,12 +372,22 @@ export function recommendNewsItems(items: NewsItem[], profile: RecommendationPro
       const editorial = Math.min(Number(item.daily_rank_score ?? 0) * 0.28, 28);
       const quality = Math.min(Number(item.source_quality_score ?? 0) * 0.08 + Number(item.novelty_score ?? 0) * 0.08, 14);
       const popularity = Math.min(Number(item.view_count ?? 0) * 0.25 + Number(item.like_count ?? 0) * 2, 12) - Math.min(Number(item.dislike_count ?? 0) * 2, 8);
-      const score = freshness + match + relevance + build + quality + editorial + popularity;
+      const articleQuality = articleQualitySignals(item);
+      const track = trackMatchScore(item, profile);
+      const score = freshness + match + relevance + build + quality + editorial + popularity + articleQuality.score + track;
+      const generatedReasons = [
+        articleQuality.track ? `${articleQuality.track} 트랙` : null,
+        articleQuality.sourceCount >= 3 ? `${articleQuality.sourceCount}개 소스 기반` : null,
+        articleQuality.sourceTypes.length >= 2 ? '뉴스/제품/GitHub/논문 신호 종합' : null,
+        articleQuality.isLongform ? '장문 전문가 해설' : null,
+      ].filter(Boolean) as string[];
 
       return {
         item,
         score,
-        reasons: item.recommendation_reasons?.length
+        reasons: generatedReasons.length
+          ? generatedReasons.slice(0, 3)
+          : item.recommendation_reasons?.length
           ? item.recommendation_reasons.slice(0, 3)
           : recommendationReasons(item, profile, text, { freshness, match, relevance, build }),
       };
@@ -288,8 +396,26 @@ export function recommendNewsItems(items: NewsItem[], profile: RecommendationPro
     .slice(0, limit);
 }
 
+export function isRecommendableNewsItem(item: NewsItem) {
+  const contentLength = item.content?.trim().length ?? 0;
+  if (contentLength === 0) return false;
+  if (contentLength < 900 && item.source === 'Seedup') return false;
+
+  const text = [
+    item.title,
+    item.summary,
+    item.beginner_summary,
+    item.content,
+    ...(item.quality_notes ?? []),
+  ].join(' ');
+
+  if (/기반 미니 (데모|프로젝트) 만들기|논문 아이디어를 활용한 개발자 생산성 도구|arxiv:\d{4}\.\d+/i.test(text)) return false;
+  return true;
+}
+
 export function recommendResearchPapers(items: ResearchPaper[], profile: RecommendationProfile, limit = 3): RecommendedItem<ResearchPaper>[] {
   return items
+    .filter(isRecommendableResearchPaper)
     .map((item) => {
       const text = articleText(item);
       const freshness = freshnessScore(item);
@@ -308,6 +434,16 @@ export function recommendResearchPapers(items: ResearchPaper[], profile: Recomme
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+}
+
+export function isRecommendableResearchPaper(item: ResearchPaper) {
+  const visible = [item.beginner_summary, item.expert_summary, item.why_it_matters, item.implementation_idea, item.service_idea].join('\n');
+  const text = [item.title, item.abstract, visible, ...(item.categories ?? []), ...(item.related_skills ?? [])].join(' ').toLowerCase();
+  if (/기반\s+미니\s+데모|논문 아이디어를 활용한|arxiv:\S+|announce type|abstract:/i.test(visible)) return false;
+  if ((item.expert_summary?.length ?? 0) < 500 || (item.beginner_summary?.length ?? 0) < 160 || (item.why_it_matters?.length ?? 0) < 70) return false;
+  const offDomain = /medical|clinical|medicine|patient|public health|healthcare|health question|disease|diagnosis|protein|genomics|molecule|drug discovery|biology/.test(text);
+  if (offDomain && !/coding agent|software engineering|developer tool|code generation|api|sdk|cli|backend|frontend|database|devops|observability/.test(text)) return false;
+  return Number(item.relevance_score ?? 0) >= 55;
 }
 
 export function recommendProjectIdeas(items: ProjectIdea[], profile: RecommendationProfile, limit = 3): RecommendedItem<ProjectIdea>[] {
@@ -373,6 +509,7 @@ export function recommendAIProducts(items: AIProduct[], profile: RecommendationP
 
 export function recommendGitHubRepos(items: GitHubTrend[], profile: RecommendationProfile, limit = 3): RecommendedItem<GitHubTrend>[] {
   return items
+    .filter(isRecommendableGitHubRepo)
     .map((item) => {
       const text = [
         item.repo_full_name,
@@ -400,6 +537,23 @@ export function recommendGitHubRepos(items: GitHubTrend[], profile: Recommendati
     .slice(0, limit);
 }
 
+export function isRecommendableGitHubRepo(item: GitHubTrend) {
+  const stars = Number(item.stars ?? 0);
+  const text = [
+    item.repo_full_name,
+    item.description,
+    item.short_summary,
+    item.beginner_summary,
+    item.project_idea,
+    item.language,
+    ...(item.topics ?? []),
+  ].join(' ').toLowerCase();
+  if (stars < 50) return false;
+  if (/이 저장소를 활용하여|이 저장소처럼|핵심 기능 만들어보기/i.test(text)) return false;
+  if (!/agent|llm|mcp|rag|vector|developer tool|devtool|cli|sdk|workflow|automation|ai coding|codegen|next|react|supabase|vercel ai/.test(text)) return false;
+  return Number(item.relevance_score ?? 0) >= 60;
+}
+
 export function toNewsletterContentItems({
   news,
   products,
@@ -415,15 +569,16 @@ export function toNewsletterContentItems({
 }) {
   const items: NewsletterContentItem[] = [
     ...news
-      .filter((item) => Number(item.relevance_score ?? 0) >= 60)
+      .filter((item) => Number(item.relevance_score ?? 0) >= 60 && isRecommendableNewsItem(item))
       .map((item) => {
         const priority = Math.max(Number(item.daily_rank_score ?? 0), Number(item.relevance_score ?? 0), 55);
+        const articleTrack = getArticleTrack(item);
         const metadata: RecommendationMetadata = {
           content_type: (item.content_type as ContentType | null) ?? 'news',
           newsletter_section: (item.newsletter_section as NewsletterSection | null) ?? (item.project_idea ? 'build_idea' : 'daily_briefing'),
           newsletter_priority: Number(item.newsletter_priority ?? priority),
           short_summary: item.short_summary ?? item.summary ?? item.beginner_summary ?? item.ai_summary ?? '오늘 확인할 만한 개발 뉴스입니다.',
-          topic_tags: item.topic_tags ?? [item.category ?? '개발 트렌드'],
+          topic_tags: articleTrack ? [articleTrack, ...(item.topic_tags ?? [])] : item.topic_tags ?? [item.category ?? '개발 트렌드'],
           skill_tags: item.skill_tags ?? item.related_skills ?? [],
           intent_tags: item.intent_tags ?? (item.project_idea ? ['프로젝트 연결 가능'] : ['최신 기술 공부']),
           audience_tags: item.audience_tags ?? item.target_levels ?? [],
@@ -483,7 +638,7 @@ export function toNewsletterContentItems({
       raw: item,
     } satisfies NewsletterContentItem)),
     ...repos
-      .filter((item) => Number(item.relevance_score ?? 0) >= 55)
+      .filter((item) => Number(item.relevance_score ?? 0) >= 55 && isRecommendableGitHubRepo(item))
       .map((item) => ({
         id: `repo:${item.id}`,
         title: item.repo_full_name,
@@ -546,7 +701,7 @@ export function toNewsletterContentItems({
       raw: item,
     } satisfies NewsletterContentItem)),
     ...papers
-      .filter((item) => Number(item.relevance_score ?? 0) >= 55)
+      .filter((item) => Number(item.relevance_score ?? 0) >= 55 && isRecommendableResearchPaper(item))
       .map((item) => ({
         id: `paper:${item.id}`,
         title: item.title,

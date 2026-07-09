@@ -13,11 +13,13 @@ import { redirect } from 'next/navigation';
 const TASKS = [
   { key: 'rss', label: '뉴스/RSS 전처리', stage: 'collect', description: '기술 뉴스와 블로그 RSS를 파싱해 짧은 요약, 태그, 뉴스레터 메타데이터만 저장합니다. 긴 글은 만들지 않습니다.' },
   { key: 'products', label: 'AI 제품 전처리', stage: 'collect', description: 'Product Hunt 피드를 분석해 AI 제품 메타데이터와 뉴스레터 추천 필드를 저장합니다.' },
-  { key: 'github', label: 'GitHub 전처리', stage: 'collect', description: '최근 업데이트된 오픈소스 저장소를 가져와 태그, 직무, 프로젝트 연결 가능성을 저장합니다.' },
+  { key: 'github', label: 'GitHub 전처리', stage: 'collect', description: '최근 업데이트된 오픈소스 저장소를 넓게 가져오고 stars 스냅샷, 7일 증가량, 마지막 확인일을 갱신합니다. 오래 안 보인 저장소는 정리합니다.' },
   { key: 'research', label: '논문/arXiv 전처리', stage: 'collect', description: '뉴스 RSS와 별개로 arXiv 논문을 수집하고 연구 요약, 구현 아이디어, 논문 추천 메타데이터를 저장합니다.' },
-  { key: 'trends', label: '트렌드 집계', stage: 'aggregate', description: '뉴스, AI 제품, GitHub 신호를 합쳐 트렌드 랭킹과 스냅샷을 갱신합니다.' },
+  { key: 'external-trends', label: '외부 트렌드 소스 수집', stage: 'collect', description: 'npm, Hugging Face, DEV.to, Stack Overflow, Product Hunt, Hacker News 공개 소스를 읽어 트렌드용 keyword_signals를 저장합니다.' },
+  { key: 'trends', label: '트렌드 집계', stage: 'aggregate', description: '뉴스, AI 제품, GitHub, 논문 신호를 합쳐 카테고리별 Top 30 트렌드 랭킹과 7일 스냅샷을 갱신합니다.' },
   { key: 'project-ideas', label: '프로젝트 아이디어 생성', stage: 'generate', description: '전처리된 뉴스/제품/오픈소스 신호를 개별 포트폴리오 프로젝트로 변환합니다.' },
-  { key: 'article-drafts', label: '통합 글 생성', stage: 'generate', description: '전처리된 뉴스, AI 제품, GitHub, 논문, 트렌드를 묶어 Build Idea/Deep Dive 초안을 만듭니다.' },
+  { key: 'article-drafts', label: '데일리 아티클 생성', stage: 'generate', description: 'AI/LLM, 프론트엔드, 백엔드, 사이드프로젝트/창업 4개 트랙별 2개씩 하루 최대 8개 글을 생성합니다. 최소 3개 소스와 2개 소스 타입이 묶인 클러스터만 발행합니다.' },
+  { key: 'deep-dive', label: '주간 Deep Dive 생성', stage: 'generate', description: '가장 강한 통합 클러스터를 바탕으로 긴 Deep Dive 글을 생성합니다. 주 1회만 실행하는 별도 발행 단계입니다.' },
 ] as const;
 
 const STAGE_LABELS = {

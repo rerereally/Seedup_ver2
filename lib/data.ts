@@ -68,7 +68,21 @@ export type NewsItem = {
 export type Trend = {
   id: string;
   keyword: string;
+  display_name?: string | null;
+  normalized_name?: string | null;
+  entity_type?: string | null;
+  trend_type?: string | null;
+  category?: string | null;
   summary: string | null;
+  raw_score?: number | null;
+  display_score?: number | null;
+  previous_score?: number | null;
+  weekly_growth_rate?: number | null;
+  trend_direction?: 'up' | 'down' | 'flat' | 'new' | string | null;
+  why_trending?: string[] | null;
+  related_skills?: string[] | null;
+  related_tools?: string[] | null;
+  target_roles?: string[] | null;
   score: number | null;
   status: string | null;
   rank: number | null;
@@ -78,7 +92,21 @@ export type Trend = {
   news_count?: number | null;
   product_count?: number | null;
   github_repo_count?: number | null;
-  source_refs?: Array<{ type: string; id: string; title: string }> | null;
+  paper_count?: number | null;
+  source_mix?: Partial<Record<string, number>> | null;
+  detected_sources?: Array<{ type: string; id: string; title: string; url?: string | null; source_name?: string | null }> | null;
+  source_refs?: Array<{ type: string; id: string; title: string; url?: string | null; source_name?: string | null }> | null;
+  recent_snapshots?: TrendSnapshot[];
+};
+
+export type TrendSnapshot = {
+  date: string;
+  score: number;
+  signal_count: number;
+  news_count: number;
+  github_repo_count: number;
+  product_count: number;
+  paper_count: number;
 };
 
 export type AIProduct = {
@@ -161,10 +189,12 @@ export type GitHubTrend = {
   repo_url: string;
   description: string | null;
   stars: number | null;
+  stars_delta_7d?: number | null;
   forks: number | null;
   language: string | null;
   topics: string[] | null;
   pushed_at: string | null;
+  last_seen_at?: string | null;
   content_type?: string | null;
   newsletter_section?: string | null;
   newsletter_priority?: number | null;
@@ -424,15 +454,15 @@ export async function getArticleFeedItems() {
     dislike_count: Number(item.dislike_count ?? 0),
     published_at: item.published_at,
   }));
-  const paperArticles: ArticleFeedItem[] = papers.map((paper) => ({
+  const paperArticles: ArticleFeedItem[] = papers.filter(isSeedupRelevantPaper).map((paper) => ({
     id: paper.id,
     type: 'paper',
     title: paper.title,
-    summary: paper.beginner_summary ?? paper.expert_summary ?? paper.abstract,
-    content: paper.expert_summary ?? paper.beginner_summary ?? paper.abstract,
+    summary: readablePaperText(paper.beginner_summary ?? paper.expert_summary ?? paper.abstract, paper.title),
+    content: readablePaperText(paper.expert_summary ?? paper.beginner_summary ?? paper.abstract, paper.title),
     newsletter_section: paper.implementation_idea || paper.service_idea ? 'paper_to_project' : 'deep_dive',
     newsletter_priority: paper.trend_score ?? paper.relevance_score ?? null,
-    short_summary: paper.beginner_summary ?? paper.expert_summary ?? null,
+    short_summary: readablePaperText(paper.beginner_summary ?? paper.expert_summary, paper.title),
     category: paper.review_type ?? '논문',
     source: paper.source ?? 'Research',
     source_url: paper.source_url,
@@ -473,6 +503,33 @@ export async function getArticleFeedItems() {
   return [...newsArticles, ...paperArticles].sort((a, b) => new Date(b.published_at ?? b.created_at ?? 0).getTime() - new Date(a.published_at ?? a.created_at ?? 0).getTime());
 }
 
+function readablePaperText(value: string | null | undefined, title: string) {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/^arxiv:\S+\s*/i, '')
+    .replace(/^announce\s+type:\s*\w+\s*/i, '')
+    .replace(/^abstract:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  if (/^[A-Za-z0-9:.\-\s]+$/.test(cleaned) && cleaned.length < 120) {
+    return `${title} 논문의 핵심 내용을 초보 개발자도 이해할 수 있게 정리한 리뷰입니다.`;
+  }
+  return cleaned;
+}
+
+function isSeedupRelevantPaper(paper: ResearchPaper) {
+  const text = [paper.title, paper.abstract, paper.beginner_summary, paper.expert_summary, paper.implementation_idea, paper.service_idea, ...(paper.categories ?? []), ...(paper.related_skills ?? [])]
+    .join(' ')
+    .toLowerCase();
+  const visibleText = [paper.beginner_summary, paper.expert_summary, paper.implementation_idea, paper.service_idea].join('\n');
+  if (/기반\s+미니\s+데모\s+만들기|논문 아이디어를 활용한|arxiv:\S+|announce type|abstract:/i.test(visibleText)) return false;
+  if ((paper.expert_summary?.length ?? 0) < 500 || (paper.beginner_summary?.length ?? 0) < 160 || (paper.why_it_matters?.length ?? 0) < 70) return false;
+  const offDomain = /medical|clinical|medicine|patient|public health|healthcare|health question|disease|diagnosis|protein|genomics|molecule|drug discovery|biology/.test(text);
+  if (!offDomain) return true;
+  return /coding agent|code agent|software engineering|developer tool|devtool|code generation|api|sdk|cli|ide|debug|deployment|observability|backend|frontend|database|devops/.test(text);
+}
+
 export async function getRelatedPapersForNews(newsId: string) {
   const supabase = await createClient();
   if (!supabase) return [];
@@ -493,13 +550,125 @@ export async function getRelatedPapersForNews(newsId: string) {
 export async function getTrends() {
   const supabase = await createClient();
   if (!supabase) return [];
-  const { data, error } = await supabase.from('trends').select('*').order('rank', { ascending: true });
+  const { data, error } = await supabase.from('trends').select('*').order('rank', { ascending: true }).limit(180);
 
   if (error) {
     handleReadError(error);
     return [];
   }
-  return (data ?? []) as Trend[];
+  const trends = ((data ?? []) as Trend[]).filter(isDisplayableTrend);
+  if (!trends.length) return trends;
+
+  const since = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const keywords = trends.map((trend) => trend.keyword);
+  const snapshotResult = await supabase
+    .from('trend_snapshots')
+    .select('keyword,snapshot_date,score,signal_count,news_count,github_repo_count,product_count,paper_count')
+    .in('keyword', keywords)
+    .gte('snapshot_date', since)
+    .order('snapshot_date', { ascending: true });
+
+  const { data: snapshots, error: snapshotError } = snapshotResult.error
+    ? await supabase
+      .from('trend_snapshots')
+      .select('keyword,snapshot_date,score,signal_count,news_count,github_repo_count,product_count')
+      .in('keyword', keywords)
+      .gte('snapshot_date', since)
+      .order('snapshot_date', { ascending: true })
+    : snapshotResult;
+
+  if (snapshotError) {
+    handleReadError(snapshotError);
+    return trends;
+  }
+
+  const snapshotMap = new Map<string, TrendSnapshot[]>();
+  for (const item of (snapshots ?? []) as Array<{
+    keyword: unknown;
+    snapshot_date: unknown;
+    score?: unknown;
+    signal_count?: unknown;
+    news_count?: unknown;
+    github_repo_count?: unknown;
+    product_count?: unknown;
+    paper_count?: unknown;
+  }>) {
+    const key = String(item.keyword);
+    const current = snapshotMap.get(key) ?? [];
+    current.push({
+      date: String(item.snapshot_date),
+      score: Number(item.score ?? 0),
+      signal_count: Number(item.signal_count ?? 0),
+      news_count: Number(item.news_count ?? 0),
+      github_repo_count: Number(item.github_repo_count ?? 0),
+      product_count: Number(item.product_count ?? 0),
+      paper_count: Number(item.paper_count ?? 0),
+    });
+    snapshotMap.set(key, current);
+  }
+
+  return trends.map((trend) => ({
+    ...trend,
+    recent_snapshots: snapshotMap.get(trend.keyword) ?? [],
+  }));
+}
+
+function isDisplayableTrend(trend: Trend) {
+  const keyword = trend.keyword.trim().toLowerCase();
+  const generic = new Set([
+    'ai',
+    'llm',
+    'api',
+    'github',
+    'open source',
+    'typescript',
+    'react',
+    'next.js',
+    'nextjs',
+    'node.js',
+    'rust',
+    'tui',
+    'benchmark',
+    'python',
+    'javascript',
+    'developer',
+    'development',
+    'tool',
+    'tools',
+    'product',
+    'news',
+    'paper',
+  ]);
+  if (generic.has(keyword)) return false;
+  if (/(이\s*저장소|이\s*프로젝트|활용하여|참고하여|핵심\s*기능\s*만들어보기)/i.test(trend.keyword)) return false;
+
+  const sourceCount = Number(trend.sources_count ?? 0);
+  const sourceDiversity = [
+    Number(trend.news_count ?? 0),
+    Number(trend.product_count ?? 0),
+    Number(trend.github_repo_count ?? 0),
+    Number(trend.paper_count ?? 0),
+  ].filter(Boolean).length;
+
+  const category = normalizeTrendCategory(trend.category);
+  if (category === '오픈소스 프로젝트') return Number(trend.github_repo_count ?? 0) > 0 && !generic.has(keyword);
+  if (category === 'AI 도구·모델') return !generic.has(keyword) && ['tool', 'model', 'ai_tool', 'ai_model'].includes(String(trend.entity_type ?? trend.trend_type ?? ''));
+  if (category === '개발 워크플로우') return !generic.has(keyword);
+  if (category === '구현 패턴') return !generic.has(keyword);
+  if (category === '빌드 아이디어') return sourceCount >= 2 && sourceDiversity >= 2;
+
+  if (trend.category === '오픈소스/GitHub') return Number(trend.github_repo_count ?? 0) > 0;
+  if (trend.category === '빌드 아이디어') return sourceCount >= 2 && sourceDiversity >= 2;
+  if (trend.category === '스킬/아키텍처') return sourceCount >= 3 && sourceDiversity >= 2;
+  return sourceCount >= 2 || Number(trend.display_score ?? trend.score ?? 0) >= 60;
+}
+
+function normalizeTrendCategory(value: string | null | undefined) {
+  if (value === 'AI 개발 방식') return '개발 워크플로우';
+  if (value === 'AI 도구/모델') return 'AI 도구·모델';
+  if (value === '스킬/아키텍처') return '구현 패턴';
+  if (value === '오픈소스/GitHub') return '오픈소스 프로젝트';
+  return value ?? '';
 }
 
 export async function getAIProducts() {
@@ -636,7 +805,15 @@ export async function getScrapKeySet() {
 export async function getGitHubTrends() {
   const supabase = await createClient();
   if (!supabase) return [];
-  const { data, error } = await supabase.from('github_trends').select('*').order('stars', { ascending: false }).limit(100);
+  const rankedResult = await supabase
+    .from('github_trends')
+    .select('*')
+    .order('stars_delta_7d', { ascending: false, nullsFirst: false })
+    .order('stars', { ascending: false })
+    .limit(150);
+  const { data, error } = rankedResult.error
+    ? await supabase.from('github_trends').select('*').order('stars', { ascending: false }).limit(150)
+    : rankedResult;
 
   if (error) {
     handleReadError(error);

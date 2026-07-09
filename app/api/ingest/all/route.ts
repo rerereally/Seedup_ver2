@@ -7,10 +7,12 @@ export const maxDuration = 300;
 const INGEST_STEPS = [
   ['rss', '/api/ingest/rss?limit=8&minScore=50'],
   ['products', '/api/ingest/products?limit=12'],
-  ['github', '/api/ingest/github?limit=8'],
-  ['research', '/api/ingest/research?limit=12'],
+  ['github', '/api/ingest/github?limit=15&minStars=50&pruneDays=30'],
+  ['research', '/api/ingest/research?limit=12&minScore=55&minFitScore=18'],
+  ['external-trends', '/api/ingest/external-trends'],
   ['trends', '/api/ingest/trends'],
   ['project-ideas', '/api/ingest/project-ideas?limit=10'],
+  ['article-drafts', '/api/ingest/article-drafts?mode=daily&limit=8'],
 ] as const;
 
 export async function GET(request: Request) {

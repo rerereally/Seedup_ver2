@@ -29,8 +29,9 @@ export async function recordIngestRun(
   }
 }
 
-export function getRunStatus(errors: number, inserted = 0): RunStatus {
+export function getRunStatus(errors: number, inserted = 0, skipped = 0): RunStatus {
   if (errors > 0 && inserted === 0) return 'failed';
+  if (inserted === 0 && skipped > 0) return 'partial';
   if (errors > 0) return 'partial';
   return 'success';
 }

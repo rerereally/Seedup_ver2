@@ -14,7 +14,7 @@ const INGEST_PATHS = {
   'external-trends': '/api/ingest/external-trends',
   trends: '/api/ingest/trends',
   'project-ideas': '/api/ingest/project-ideas?limit=10',
-  'article-drafts': '/api/ingest/article-drafts?mode=daily&limit=8',
+  'article-drafts': '/api/ingest/article-drafts?mode=daily&limit=12',
   'deep-dive': '/api/ingest/article-drafts?mode=deep-dive&limit=1&minSources=5&minSourceTypes=3',
 } as const;
 

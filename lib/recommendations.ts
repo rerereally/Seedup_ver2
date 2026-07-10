@@ -122,9 +122,9 @@ export type RecommendedItem<T> = {
 };
 
 type RecommendableArticle = NewsItem | ResearchPaper;
-type DailyArticleTrack = 'AI/LLM' | '프론트엔드' | '백엔드' | '사이드프로젝트/창업';
+type DailyArticleTrack = 'AI/LLM' | '프론트엔드' | '백엔드' | '오픈소스/GitHub' | '제품/빌드 아이디어' | '논문/리서치';
 
-const TRACKS: DailyArticleTrack[] = ['AI/LLM', '프론트엔드', '백엔드', '사이드프로젝트/창업'];
+const TRACKS: DailyArticleTrack[] = ['AI/LLM', '프론트엔드', '백엔드', '오픈소스/GitHub', '제품/빌드 아이디어', '논문/리서치'];
 
 function normalize(value: unknown) {
   return String(value ?? '').trim().toLowerCase();
@@ -306,6 +306,10 @@ export function getArticleTrack(item: NewsItem): DailyArticleTrack | null {
   const notes = item.quality_notes ?? [];
   const notedTrack = getStringNote(notes, 'track');
   if (isDailyArticleTrack(notedTrack)) return notedTrack;
+  if (item.content_type === 'deep_dive') return null;
+  if (item.source === 'Seedup' && item.newsletter_section === 'paper_to_project') return '논문/리서치';
+  if (item.newsletter_section === 'github_project_pick') return '오픈소스/GitHub';
+  if (item.newsletter_section === 'ai_product_radar' || item.newsletter_section === 'build_idea') return '제품/빌드 아이디어';
 
   const text = [
     item.title,
@@ -327,7 +331,7 @@ function inferPreferredTracks(values: string[]) {
   if (/ai|llm|agent|rag|openai|gemini|claude|머신러닝|인공지능|데이터\/ml|ai\/llm/.test(text)) tracks.push('AI/LLM');
   if (/front|react|next|typescript|ui|ux|프론트|웹|앱 개발/.test(text)) tracks.push('프론트엔드');
   if (/back|api|server|node|spring|fastapi|postgres|database|db|supabase|docker|cloud|devops|aws|백엔드|서버|데이터베이스/.test(text)) tracks.push('백엔드');
-  if (/startup|side|product|saas|maker|창업|사이드|제품|아이디어|포트폴리오|메이커/.test(text)) tracks.push('사이드프로젝트/창업');
+  if (/startup|side|product|saas|maker|창업|사이드|제품|아이디어|포트폴리오|메이커|빌드/.test(text)) tracks.push('제품/빌드 아이디어');
   return TRACKS.filter((track) => tracks.includes(track));
 }
 

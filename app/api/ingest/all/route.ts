@@ -12,7 +12,7 @@ const INGEST_STEPS = [
   ['external-trends', '/api/ingest/external-trends'],
   ['trends', '/api/ingest/trends'],
   ['project-ideas', '/api/ingest/project-ideas?limit=10'],
-  ['article-drafts', '/api/ingest/article-drafts?mode=daily&limit=8'],
+  ['article-drafts', '/api/ingest/article-drafts?mode=daily&limit=12'],
 ] as const;
 
 export async function GET(request: Request) {

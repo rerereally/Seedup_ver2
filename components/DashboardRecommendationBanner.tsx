@@ -1,11 +1,11 @@
 'use client';
 
 import { submitRecommendationFeedback } from '@/app/actions/engagement';
-import type { NewsItem, ResearchPaper } from '@/lib/data';
+import type { NewsItem } from '@/lib/data';
 import type { RecommendedItem } from '@/lib/recommendations';
 import { ArrowRight, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type BriefItem = {
   id: string;
@@ -28,21 +28,7 @@ function fromNews(item: NewsItem, reasons: string[] = []): BriefItem {
     category: item.category ?? 'Article',
     source: item.source ?? null,
     href: `/news/${item.id}`,
-    score: item.relevance_score ?? null,
-    reasons,
-  };
-}
-
-function fromPaper(item: ResearchPaper, reasons: string[] = []): BriefItem {
-  return {
-    id: item.id,
-    type: 'paper',
-    title: item.title,
-    summary: item.beginner_summary ?? item.expert_summary ?? item.abstract,
-    category: item.review_type ?? 'Paper',
-    source: item.source ?? 'Research',
-    href: `/papers/${item.id}`,
-    score: item.relevance_score ?? null,
+    score: item.daily_rank_score ?? item.newsletter_priority ?? item.relevance_score ?? null,
     reasons,
   };
 }
@@ -50,20 +36,17 @@ function fromPaper(item: ResearchPaper, reasons: string[] = []): BriefItem {
 export default function DashboardRecommendationBanner({
   recommendedNews,
   latestNews,
-  latestPapers,
 }: {
   recommendedNews: RecommendedItem<NewsItem>[];
   latestNews: NewsItem[];
-  latestPapers: ResearchPaper[];
 }) {
-  const weeklyItems = recommendedNews.slice(0, 5).map(({ item, reasons }) => fromNews(item, reasons));
+  const recommendationScores = recommendedNews.slice(0, 5).map(({ score }) => score);
+  const maxRecommendationScore = Math.max(...recommendationScores, 1);
+  const weeklyItems = recommendedNews.slice(0, 5).map(({ item, reasons, score }) => ({
+    ...fromNews(item, reasons),
+    score: Math.round(Math.min(100, (score / maxRecommendationScore) * 100)),
+  }));
   const rotatingItems = weeklyItems.length ? weeklyItems : latestNews.slice(0, 5).map((item) => fromNews(item));
-  // 미니카드: 최신 아티클 2 + 최신 논문 2 (총 4개로 빈 공간 자연스럽게 채움)
-  const smallItems = useMemo(
-    () =>
-      [...latestNews.slice(0, 2).map((item) => fromNews(item)), ...latestPapers.slice(0, 2).map((item) => fromPaper(item))].slice(0, 4),
-    [latestNews, latestPapers],
-  );
   const [activeIndex, setActiveIndex] = useState(0);
   const active = rotatingItems[activeIndex] ?? rotatingItems[0];
 
@@ -84,11 +67,10 @@ export default function DashboardRecommendationBanner({
   }
 
   return (
-    /* 배너 전체: 그리드 셀들이 가장 긴 콘텐츠 높이에 맞춰 동일하게 늘어남 */
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 lg:h-[520px] lg:grid-cols-5">
 
       {/* ── 좌측: 오늘의 추천글 ── */}
-      <section className="flex flex-col border border-outline-soft bg-white lg:col-span-3">
+      <section className="flex min-h-0 flex-col overflow-hidden border border-outline-soft bg-white lg:col-span-3">
 
         {/* 상단 헤더 — 카테고리 + 타입 */}
         <div className="flex items-center justify-between border-b border-outline-soft px-4 py-2 text-xs font-bold uppercase text-muted">
@@ -99,8 +81,7 @@ export default function DashboardRecommendationBanner({
           <span>{active.category}</span>
         </div>
 
-        {/* 기사 본문 — 슬라이더 내용이 적어도 이 박스의 최소 높이가 유지되어 전체 배너 크기가 흔들리지 않음 */}
-        <div className="flex flex-1 flex-col px-4 pt-3 pb-2 min-h-[220px]">
+        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
           <div>
             <Link href={active.href} className="group block">
               <h2 className="line-clamp-2 text-xl font-black leading-snug text-ink group-hover:underline md:text-2xl">
@@ -122,7 +103,6 @@ export default function DashboardRecommendationBanner({
               </div>
             )}
           </div>
-          {/* 피드백 버튼 - 본문 길이에 상관없이 하단에 안정적으로 배치 */}
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
             {([['useful', '추천 좋음'], ['not_relevant', '관련 없음']] as const).map(([feedback, label]) => (
               <form key={feedback} action={submitRecommendationFeedback}>
@@ -153,10 +133,8 @@ export default function DashboardRecommendationBanner({
           ))}
         </div>
 
-        {/* 인디케이터 + 미니카드 */}
-        <div className="px-4 pt-2 pb-3">
-          {/* 인디케이터 점 */}
-          <div className="mb-2 flex shrink-0 gap-1">
+        <div className="flex h-11 shrink-0 items-center justify-between border-t border-outline-soft px-4">
+          <div className="flex gap-1">
             {rotatingItems.map((item, index) => (
               <button
                 key={`${item.type}-${item.id}`}
@@ -167,49 +145,36 @@ export default function DashboardRecommendationBanner({
               />
             ))}
           </div>
-          {/* 미니카드 2열 (총 4개) */}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {smallItems.map((item) => (
-              <Link
-                key={`${item.type}-${item.id}`}
-                href={item.href}
-                className="border border-outline-soft bg-surface p-3 hover:border-ink"
-              >
-                <p className="mb-1 text-xs font-bold uppercase text-muted">
-                  {item.type === 'paper' ? '최신 논문' : '최신 아티클'}
-                </p>
-                <h3 className="line-clamp-2 text-sm font-black leading-5 text-ink">{item.title}</h3>
-              </Link>
-            ))}
-          </div>
+          <Link href={active.href} className="inline-flex items-center gap-1 text-xs font-black text-ink hover:underline">
+            읽기
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
       </section>
 
       {/* ── 우측: 이번 주 추천 아티클 ── */}
-      <aside className="flex flex-col border border-outline-soft bg-white p-4 lg:col-span-2">
+      <aside className="flex min-h-0 flex-col overflow-hidden border border-outline-soft bg-white p-4 lg:col-span-2">
         {/* 헤더 */}
         <div className="mb-3 flex items-center justify-between border-b border-outline-soft pb-3">
           <h2 className="text-sm font-black uppercase text-ink">이번 주 추천 아티클</h2>
           <span className="text-xs font-bold uppercase text-muted">{weeklyItems.length}개</span>
         </div>
 
-        {/* 아티클 목록 — 자연스러운 높이 유지 */}
-        <div className="flex-1">
-          <div className="flex flex-col gap-2">
+        <div className="grid min-h-0 flex-1 grid-rows-5 gap-2">
             {weeklyItems.slice(0, 5).map((item, index) => (
               <Link
                 key={item.id}
                 href={item.href}
-                className="group flex items-start gap-3 border border-outline-soft bg-surface p-3 hover:border-ink"
+                className="group flex min-h-0 items-start gap-2.5 overflow-hidden border border-outline-soft bg-surface p-2 hover:border-ink"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-ink text-xs font-black text-white">
                   {index + 1}
                 </span>
                 <span className="min-w-0">
-                  <span className="line-clamp-2 block text-sm font-bold leading-5 text-ink group-hover:underline">
+                  <span className="line-clamp-2 block text-[13px] font-bold leading-5 text-ink group-hover:underline">
                     {item.title}
                   </span>
-                  <span className="mt-1 block text-xs font-bold uppercase text-muted">
+                  <span className="mt-0.5 block truncate text-[11px] font-bold uppercase text-muted">
                     {item.reasons[0] ?? item.category}
                   </span>
                 </span>
@@ -220,7 +185,6 @@ export default function DashboardRecommendationBanner({
                 추천 아티클을 준비 중입니다.
               </div>
             )}
-          </div>
         </div>
 
         {/* 하단 버튼 */}

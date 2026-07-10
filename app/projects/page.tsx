@@ -8,7 +8,7 @@ import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowRight, Bookmark, Calendar, CheckCircle2, Code2, Filter, TerminalSquare, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
-const FILTERS = ['전체', '초급', '중급', '7일 플랜', '트렌드 연동'];
+const FILTERS = ['전체', '초급', '중급', '빠른 MVP', '트렌드 연동'];
 const PAGE_SIZE = 9;
 
 function buildHref(filter: string, page?: number) {
@@ -27,7 +27,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   const filteredProjects = projects.filter((project) => {
     if (activeFilter === '전체') return true;
     if (activeFilter === '초급' || activeFilter === '중급') return project.level === activeFilter;
-    if (activeFilter === '7일 플랜') return Number(project.duration_days ?? 0) <= 7;
+    if (activeFilter === '빠른 MVP') return Number(project.duration_estimate?.maximum_days ?? project.duration_days ?? 99) <= 10;
     if (activeFilter === '트렌드 연동') return Boolean(project.related_trend);
     return true;
   });
@@ -74,7 +74,12 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               {paginatedProjects.map((project) => {
                 const isScrapped = scrapKeys.has(`project:${project.id}`);
                 const displayTitle = cleanProjectTitle(project.title);
-                const planPreview = (project.plan ?? []).slice(0, 3);
+                const planPreview = project.build_plan?.length
+                  ? project.build_plan.slice(0, 3).map((step) => step.title ?? '실행 단계')
+                  : (project.plan ?? []).slice(0, 3);
+                const durationLabel = project.duration_estimate?.minimum_days && project.duration_estimate.maximum_days
+                  ? `${project.duration_estimate.minimum_days}~${project.duration_estimate.maximum_days}일`
+                  : project.duration_days ? `${project.duration_days}일` : '기간 미정';
 
                 return (
                   <article key={project.id} className="group flex min-h-96 flex-col border border-outline-soft bg-white transition-colors hover:border-ink">
@@ -82,10 +87,10 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
                           <span className="inline-flex h-7 items-center border border-ink bg-ink px-2 text-xs font-black uppercase text-white">{project.level ?? '추천'}</span>
-                          {project.duration_days && (
+                          {durationLabel && (
                             <span className="inline-flex h-7 items-center gap-1 border border-outline-soft bg-surface px-2 text-xs font-bold text-muted">
                               <Calendar className="h-3.5 w-3.5" />
-                              {project.duration_days}일
+                              {durationLabel}
                             </span>
                           )}
                         </div>
@@ -138,8 +143,8 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                           stack
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {(project.stack?.length ? project.stack : ['Next.js', 'Supabase']).slice(0, 5).map((tech) => (
-                            <span key={tech} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{tech}</span>
+                          {(project.stack?.length ? project.stack : ['Next.js', 'Supabase']).slice(0, 5).map((tech, techIndex) => (
+                            <span key={`${project.id}-${tech}-${techIndex}`} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{tech}</span>
                           ))}
                         </div>
                       </div>

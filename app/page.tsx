@@ -2,7 +2,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { ArrowRight, Calendar, Code2, Languages, Lightbulb, Search, TerminalSquare, TrendingUp } from 'lucide-react';
-import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper, ScrapItem } from '@/lib/data';
+import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ScrapItem } from '@/lib/data';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers, getScraps, getTrends } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import OnboardingModal from '@/components/OnboardingModal';
@@ -62,7 +62,6 @@ function LoggedInHome({
   projects,
   aiProducts,
   userScraps,
-  latestPapers,
 }: {
   userName: string;
   recommendedNews: RecommendedItem<NewsItem>[];
@@ -71,7 +70,6 @@ function LoggedInHome({
   projects: RecommendedItem<ProjectIdea>[];
   aiProducts: RecommendedItem<AIProduct>[];
   userScraps: ScrapItem[];
-  latestPapers: ResearchPaper[];
 }) {
   const topRepos = githubRepos.slice(0, 3);
   const todayProjects = projects.slice(0, 3);
@@ -103,7 +101,7 @@ function LoggedInHome({
           </div>
 
           {/* 하단: 배너 — 내용 크기에 맞게 자연스럽게 높이 결정 */}
-          <DashboardRecommendationBanner recommendedNews={recommendedNews} latestNews={latestNews} latestPapers={latestPapers} />
+          <DashboardRecommendationBanner recommendedNews={recommendedNews} latestNews={latestNews} />
         </div>
       </section>
 
@@ -190,13 +188,12 @@ export default async function Home() {
   const user = userResult.data.user;
 
   if (user) {
-    const [news, projects, githubRepos, aiProducts, userScraps, latestPapers] = await Promise.all([
+    const [news, projects, githubRepos, aiProducts, userScraps] = await Promise.all([
       getNewsItems(),
       getProjectIdeas(),
       getGitHubTrends(),
       getAIProducts(),
       getScraps(),
-      getResearchPapers(2),
     ]);
     const publishedNews = news.filter((item) => Boolean(item.content?.trim()));
     const latestNews = [...publishedNews]
@@ -245,7 +242,6 @@ export default async function Home() {
           projects={recommendedProjects}
           aiProducts={recommendedProducts}
           userScraps={userScraps}
-          latestPapers={latestPapers}
         />
         <Footer />
       </>

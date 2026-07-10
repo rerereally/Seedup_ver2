@@ -1,10 +1,10 @@
 import { saveScrap } from '@/app/actions/scraps';
 import ContentEngagement from '@/components/ContentEngagement';
+import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getGitHubTrend } from '@/lib/data';
-import { incrementContentView } from '@/lib/engagement';
 import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, ArrowRight, Bookmark, Code2, ExternalLink, GitFork, Github, Lightbulb, Star } from 'lucide-react';
 import Link from 'next/link';
@@ -18,7 +18,6 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
   ]);
 
   if (!repo) notFound();
-  await incrementContentView('github', repo.id);
   const projectTitle = repo.project_idea ? cleanProjectTitle(repo.project_idea) : '이 저장소의 핵심 기능을 작은 데모로 구현해보기';
 
   return (
@@ -63,7 +62,8 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
                   <ShareButton title={repo.repo_full_name} url={repo.repo_url} />
                 </div>
                 <div className="p-3">
-                  <ContentEngagement itemType="github" itemId={repo.id} returnTo={`/github-trends/${repo.id}`} views={Number(repo.view_count ?? 0) + 1} likes={repo.like_count} dislikes={repo.dislike_count} />
+                <ViewTracker itemType="github" itemId={repo.id} />
+                <ContentEngagement itemType="github" itemId={repo.id} returnTo={`/github-trends/${repo.id}`} views={repo.view_count} likes={repo.like_count} dislikes={repo.dislike_count} />
                 </div>
               </div>
 

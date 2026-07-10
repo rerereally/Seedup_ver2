@@ -44,16 +44,34 @@ function itemHref(item: ArticleFeedItem) {
   return item.type === 'paper' ? `/papers/${item.id}` : `/news/${item.id}`;
 }
 
-function scoreOf(item: ArticleFeedItem) {
-  return (
-    Number(item.newsletter_priority ?? 0) * 0.35 +
-    Number(item.daily_rank_score ?? 0) * 0.25 +
-    Number(item.relevance_score ?? 0) * 0.2 +
-    Number(item.novelty_score ?? 0) * 0.08 +
-    Number(item.source_quality_score ?? 0) * 0.07 +
-    Number(item.like_count ?? 0) * 2 +
-    Number(item.view_count ?? 0) * 0.05
-  );
+function categorySignal(item: ArticleFeedItem) {
+  const category = `${item.category ?? ''} ${item.newsletter_section ?? ''}`.toLowerCase();
+  const relevance = Number(item.relevance_score ?? 0);
+  const quality = Number(item.source_quality_score ?? 0);
+  const novelty = Number(item.novelty_score ?? 0);
+  const buildability = Number(item.buildability_score ?? 0);
+  const project = Number(item.project_connect_score ?? 0);
+  if (item.type === 'paper' || category.includes('paper') || category.includes('논문')) return relevance * 0.45 + novelty * 0.25 + buildability * 0.3;
+  if (/frontend|프론트|ui|ux/.test(category)) return relevance * 0.35 + quality * 0.3 + novelty * 0.2 + buildability * 0.15;
+  if (/backend|백엔드|server|database/.test(category)) return relevance * 0.35 + quality * 0.25 + buildability * 0.3 + novelty * 0.1;
+  if (/product|제품|build|아이디어|github|open.source|오픈소스/.test(category)) return project * 0.35 + buildability * 0.3 + relevance * 0.2 + novelty * 0.15;
+  return relevance * 0.35 + novelty * 0.25 + quality * 0.2 + buildability * 0.2;
+}
+
+function engagementScore(item: ArticleFeedItem) {
+  return Number(item.like_count ?? 0) * 10 + Number(item.view_count ?? 0) * 0.15 - Number(item.dislike_count ?? 0) * 5;
+}
+
+function popularityCompare(left: ArticleFeedItem, right: ArticleFeedItem, editorialWeight = 0.5) {
+  const engagementDiff = engagementScore(right) - engagementScore(left);
+  if (engagementDiff !== 0) return engagementDiff;
+  return (categorySignal(right) - categorySignal(left)) * editorialWeight;
+}
+
+function isWithinDays(value: string | null | undefined, days: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && time >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
 function buildHref(params: { tab: string; page?: number; category?: string; q?: string }) {
@@ -158,10 +176,13 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     return matchesQuery && matchesCategory && matchesTab;
   });
   const sortedArticles = [...baseFiltered].sort((a, b) => {
-    if (tab === 'popular') return scoreOf(b) - scoreOf(a) || new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
+    if (tab === 'popular') return popularityCompare(a, b) || new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
     return new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
   });
-  const popularArticles = [...articles].sort((a, b) => scoreOf(b) - scoreOf(a)).slice(0, 5);
+  const todayPopularArticles = [...articles.filter((item) => isWithinDays(item.published_at, 1))].sort((a, b) => popularityCompare(a, b, 1)).slice(0, 5);
+  const weeklyCandidates = [...articles.filter((item) => isWithinDays(item.published_at, 7))].sort((a, b) => popularityCompare(a, b));
+  const popularArticles = (weeklyCandidates.length ? weeklyCandidates : [...articles].sort((a, b) => popularityCompare(a, b))).slice(0, 5);
+  const featuredArticles = todayPopularArticles.length ? todayPopularArticles : [...articles].sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime()).slice(0, 5);
   const totalPages = Math.max(1, Math.ceil(sortedArticles.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paginatedArticles = sortedArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -183,16 +204,16 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             </p>
           </section>
 
-          {popularArticles.length > 0 && (
+          {featuredArticles.length > 0 && (
             <section className="flex flex-col gap-5 lg:h-[520px] lg:flex-row">
               <div className="min-w-0 flex-1">
-                <ArticleHeroCarousel items={popularArticles} />
+                <ArticleHeroCarousel items={featuredArticles} label="오늘 인기" />
               </div>
               <aside className="lg:w-72 lg:shrink-0">
                 <section className="flex h-full flex-col border border-outline-soft bg-white p-5">
                   <h2 className="mb-3 flex shrink-0 items-center gap-2 text-sm font-black uppercase text-ink">
                     <FileText className="h-4 w-4 text-ink" />
-                    인기 글 Top 5
+                    이번 주 인기 글 Top 5
                   </h2>
                   <div className="grid min-h-0 flex-1 grid-rows-5 gap-2">
                     {popularArticles.map((item, index) => (

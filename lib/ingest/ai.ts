@@ -65,6 +65,49 @@ export type GeneratedProjectIdea = {
   recommended_for: string[];
   portfolio_value: string;
   plan: string[];
+  duration_estimate?: ProjectDurationEstimate;
+  scope?: ProjectScope;
+  build_plan?: BuildPlanStep[];
+  prerequisites?: string[];
+  difficulty_reasons?: string[];
+  mvp_acceptance?: string;
+  expansion_ideas?: string[];
+  stack_details?: ProjectStackDetail[];
+};
+
+export type ProjectDurationEstimate = {
+  recommended_days: number;
+  minimum_days: number;
+  maximum_days: number;
+  estimated_hours_min: number;
+  estimated_hours_max: number;
+  assumed_hours_per_day: number;
+  reasoning: string;
+};
+
+export type ProjectScope = {
+  must_have: string[];
+  should_have: string[];
+  excluded: string[];
+};
+
+export type BuildPlanStep = {
+  order: number;
+  title: string;
+  objective: string;
+  tasks: string[];
+  tools: string[];
+  deliverable: string;
+  done_when: string;
+  estimated_hours_min: number;
+  estimated_hours_max: number;
+  dependencies?: number[];
+};
+
+export type ProjectStackDetail = {
+  name: string;
+  category: 'core' | 'optional' | 'alternative' | 'scale';
+  reason: string;
 };
 
 export type GeneratedArticleDraft = {
@@ -89,6 +132,49 @@ export type GeneratedArticleDraft = {
   editorial_angle: string;
 };
 
+export type ScoreBreakdown = {
+  feasibility?: number;
+  differentiation?: number;
+  market?: number;
+  portfolio?: number;
+  mvp_clarity?: number;
+};
+
+export type EvaluationConfidence = {
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+};
+
+export type EvaluationEvidence = {
+  type: 'news' | 'paper' | 'github' | 'product' | 'other';
+  title: string;
+  source?: string;
+  url?: string;
+  published_at?: string;
+  relevance: string;
+};
+
+export type RecommendedTechnology = {
+  name: string;
+  category: 'required' | 'optional' | 'scale';
+  reason: string;
+};
+
+export type EvaluationRisk = {
+  title: string;
+  severity: 'high' | 'medium' | 'low';
+  impact: string;
+  mitigation: string;
+};
+
+export type EvaluationNextStep = {
+  order: number;
+  title: string;
+  description: string;
+  deliverable: string;
+  done_when: string;
+};
+
 export type IdeaEvaluation = {
   score: number;
   verdict: string;
@@ -98,11 +184,19 @@ export type IdeaEvaluation = {
   recommended_stack: string[];
   risks: string[];
   next_steps: string[];
+  score_breakdown?: ScoreBreakdown;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommended_technologies?: RecommendedTechnology[];
+  structured_risks?: EvaluationRisk[];
+  structured_next_steps?: EvaluationNextStep[];
+  confidence?: EvaluationConfidence;
+  evidence?: EvaluationEvidence[];
+  missing_data?: string[];
 };
 
 export type ArticleQuestionAnswer = {
   answer: string;
-  project_prompt?: string;
 };
 
 export type PaperAnalysis = {
@@ -424,6 +518,7 @@ export async function generateProjectIdea(input: {
   trend?: string | null;
   skills?: string[];
 }) {
+  const estimate = estimateProjectComplexity(input);
   const fallbackDesc = `## 이 프로젝트는 무엇인가요?
 
 ${truncate(input.summary, 200)}
@@ -452,20 +547,33 @@ ${truncate(input.summary, 200)}
     title: `${input.title}로 시작하는 실전 미니 프로젝트`,
     description: fallbackDesc,
     level: '초급',
-    duration_days: 7,
+    duration_days: estimate.recommended_days,
     stack: input.skills?.length ? input.skills.slice(0, 5) : ['Next.js', 'Supabase', 'TypeScript'],
     related_trend: input.trend ?? input.title,
     target_user_level: 'beginner-builder',
     recommended_for: ['포트폴리오 만들기', '최신 기술 공부'],
     portfolio_value: '뉴스나 트렌드를 실제 결과물로 바꾸는 과정을 보여줄 수 있습니다.',
     plan: [
-      'Day 1: 문제 정의 & 기획 | 도구: 노션 or 마크다운 | 방법: 해결할 문제 1가지를 한 문장으로 적고, 핵심 기능 3개로 범위를 제한한다',
-      'Day 2: 데이터 모델 설계 | 도구: Supabase Table Editor | 언어: SQL | 방법: 테이블 2~3개를 설계하고 Supabase에서 직접 생성한다',
-      'Day 3: 기본 UI 구현 | 도구: Next.js, Tailwind CSS | 언어: TypeScript, JSX | 방법: 메인 페이지 레이아웃과 컴포넌트 구조를 잡는다',
-      'Day 4: 핵심 기능 구현 | 도구: Next.js API Route, Supabase Client | 언어: TypeScript | 방법: 데이터 CRUD 로직을 작성하고 화면과 연결한다',
-      'Day 5: API 연결 & 상태 처리 | 도구: OpenRouter API 또는 외부 API | 언어: TypeScript | 방법: fetch로 API를 호출하고 로딩/에러 상태를 처리한다',
-      'Day 6: UI 다듬기 & 테스트 | 도구: 브라우저 DevTools | 방법: 모바일 반응형을 확인하고 엣지 케이스를 테스트한다',
-      'Day 7: 배포 & README | 도구: Vercel 또는 Cloudflare Pages | 방법: main 브랜치를 연결해 자동 배포하고 README에 스크린샷과 기능 설명을 작성한다',
+      'Phase 1: 문제 정의와 핵심 화면 | 도구: 마크다운, Figma | 방법: 대상 사용자와 핵심 기능 3개를 정하고 제외 범위를 기록한다',
+      'Phase 2: 데이터와 핵심 기능 | 도구: Next.js, Supabase, TypeScript | 방법: 핵심 흐름을 실제 데이터와 연결한다',
+      'Phase 3: 실패 처리와 검증 | 도구: 브라우저 DevTools | 방법: 빈 값, API 실패, 모바일 화면을 테스트한다',
+      'Phase 4: 배포와 README | 도구: Vercel | 방법: 배포 URL과 실행 방법, 제한 사항을 문서화한다',
+    ],
+    duration_estimate: estimate,
+    scope: {
+      must_have: ['핵심 사용자 흐름 1개', '입력·결과 화면', '최소 데이터 저장', '배포 가능한 실행 경로'],
+      should_have: ['기본 오류 처리', 'README와 시연 데이터'],
+      excluded: ['결제', '멀티테넌트', '고급 운영 분석', '실제 외부 서비스의 모든 예외 처리'],
+    },
+    prerequisites: ['TypeScript 기본 문법', 'REST API와 비동기 처리', '환경 변수와 배포 기초'],
+    difficulty_reasons: ['외부 데이터와 AI 응답을 화면 상태로 변환해야 합니다.', '실패 응답과 빈 데이터를 별도로 처리해야 합니다.'],
+    mvp_acceptance: '핵심 사용자가 한 가지 대표 작업을 완료하고, 배포된 URL에서 결과를 확인할 수 있어야 합니다.',
+    expansion_ideas: ['사용자 인증', '고급 검색 또는 RAG', '운영 로그와 관리자 화면'],
+    stack_details: [
+      { name: 'Next.js + TypeScript', category: 'core', reason: '입력 화면과 서버 요청을 하나의 웹 앱에서 구현합니다.' },
+      { name: 'Supabase', category: 'core', reason: '최소 데이터 저장과 사용자별 기록에 사용합니다.' },
+      { name: 'RAG', category: 'optional', reason: '핵심 흐름을 검증한 후 참고 자료 검색이 필요할 때 추가합니다.' },
+      { name: 'Queue', category: 'scale', reason: '처리량이 늘어 비동기 작업이 필요할 때 검토합니다.' },
     ],
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -496,16 +604,21 @@ ${truncate(input.summary, 200)}
   "title": "프로젝트명",
   "description": "## 이 프로젝트는 무엇인가요?\n\n설명...\n\n## 어떤 문제를 해결하나요?\n\n설명...\n\n## 핵심 기능\n\n- 기능1\n- 기능2\n\n## 왜 만들어볼 만한가요?\n\n설명...\n\n## 이 프로젝트로 배울 수 있는 것\n\n- 학습1\n- 학습2",
   "level": "초급 | 중급 | 고급",
-  "duration_days": 7,
+  "duration_days": 14,
+  "duration_estimate": {"recommended_days": 14, "minimum_days": 10, "maximum_days": 18, "estimated_hours_min": 20, "estimated_hours_max": 36, "assumed_hours_per_day": 2, "reasoning": "외부 API와 데이터 저장을 포함한 MVP 기준"},
+  "scope": {"must_have": ["핵심 기능"], "should_have": ["선택 기능"], "excluded": ["이번 플랜에서 제외할 기능"]},
   "stack": ["사용 기술"],
   "related_trend": "관련 트렌드",
   "target_user_level": "beginner-builder | portfolio-seeker | ai-tool-maker | startup-explorer",
   "recommended_for": ["목적"],
   "portfolio_value": "포트폴리오 가치 설명 (2~3문장)",
-  "plan": [
-    "Day 1: 문제 정의 & 기획 | 도구: 노션 or 마크다운 | 방법: 해결할 문제를 정의하고 핵심 기능 3개로 범위를 좁힌다",
-    "Day N: ..."
-  ]
+  "plan": ["기존 호환용 요약 문자열"],
+  "build_plan": [{"order": 1, "title": "핵심 기능 구현", "objective": "대표 흐름을 만든다", "tasks": ["작업"], "tools": ["기술"], "deliverable": "산출물", "done_when": "완료 조건", "estimated_hours_min": 4, "estimated_hours_max": 8, "dependencies": []}],
+  "prerequisites": ["선행 지식"],
+  "difficulty_reasons": ["추천 수준 판단 이유"],
+  "mvp_acceptance": "검증 가능한 MVP 완료 기준",
+  "expansion_ideas": ["추후 확장"],
+  "stack_details": [{"name": "기술", "category": "core | optional | alternative | scale", "reason": "추천 이유"}]
 }
 
 source_type: ${input.sourceType}
@@ -516,7 +629,8 @@ summary: ${truncate(input.summary, 2500)}`,
       },
     ], { maxTokens: 3500, models: MODEL_ROUTES.writing });
 
-    return { idea: { ...fallback, ...result }, model };
+    const generated = normalizeGeneratedProjectIdea({ ...fallback, ...result }, estimate);
+    return { idea: generated, model };
   } catch (error) {
     console.error('OpenRouter project idea generation failed', error);
     return { idea: fallback, model: null };
@@ -641,7 +755,7 @@ ${truncate(input.summary, 9000)}`,
 }
 
 
-export async function evaluateIdea(input: { idea: string }) {
+export async function evaluateIdea(input: { idea: string; context?: string }) {
   const fallback: IdeaEvaluation = {
     score: 72,
     verdict: '작게 범위를 줄이면 7일 안에 포트폴리오 프로젝트로 만들기 좋은 아이디어입니다.',
@@ -651,6 +765,25 @@ export async function evaluateIdea(input: { idea: string }) {
     recommended_stack: ['Next.js', 'Supabase', 'OpenRouter API', 'Vercel'],
     risks: ['초기 범위가 커질 수 있음', '데이터 품질 관리가 필요함'],
     next_steps: ['핵심 사용자 1명을 정하기', 'MVP 기능 3개로 줄이기', '데이터 구조 설계하기', '첫 화면 와이어프레임 만들기', '7일 빌드 플랜 작성하기'],
+    score_breakdown: { feasibility: 78, differentiation: 64, market: 58, portfolio: 82, mvp_clarity: 72 },
+    strengths: ['문제와 대상 사용자를 구체화하면 작은 MVP로 검증할 수 있습니다.'],
+    weaknesses: ['유사 서비스와 비교한 차별화 근거가 아직 부족합니다.'],
+    recommended_technologies: [
+      { name: 'Next.js', category: 'required', reason: '입력 화면과 평가 결과를 하나의 웹 앱으로 구현할 수 있습니다.' },
+      { name: 'Supabase', category: 'required', reason: '평가 기록과 사용자별 최근 결과를 저장하는 데 적합합니다.' },
+      { name: 'LLM API', category: 'required', reason: '아이디어를 구조화된 평가 항목으로 변환합니다.' },
+      { name: 'Queue', category: 'scale', reason: '평가 요청이 많아질 때 비동기 처리를 위해 검토할 수 있습니다.' },
+    ],
+    structured_risks: [
+      { title: '초기 범위가 커질 위험', severity: 'high', impact: '평가와 추천 기능을 한 번에 만들면 MVP 검증이 늦어집니다.', mitigation: '입력, 평가, 결과 저장 세 기능만 먼저 출시합니다.' },
+      { title: '근거 부족', severity: 'medium', impact: '시장성 판단이 일반적인 추론에 머물 수 있습니다.', mitigation: '평가 결과에 참고 자료와 추가 검증 질문을 함께 표시합니다.' },
+    ],
+    structured_next_steps: [
+      { order: 1, title: '대상 사용자 좁히기', description: '첫 평가를 사용할 개발자 유형을 한 가지로 정합니다.', deliverable: '한 문장 문제 정의', done_when: '인터뷰 대상 3명에게 같은 문제를 설명할 수 있습니다.' },
+      { order: 2, title: '평가 MVP 만들기', description: '아이디어 입력과 구조화된 평가 결과를 연결합니다.', deliverable: '동작하는 평가 화면', done_when: '세 가지 예시 아이디어가 같은 형식으로 평가됩니다.' },
+    ],
+    confidence: { level: 'low', reason: '시장 인터뷰와 직접적인 경쟁 서비스 비교 자료가 충분하지 않습니다.' },
+    missing_data: ['실제 사용자 인터뷰', '직접적인 경쟁 서비스 비교'],
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -658,10 +791,10 @@ export async function evaluateIdea(input: { idea: string }) {
 
   try {
     const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
-      { role: 'system', content: '너는 초보 개발자를 위한 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다.' },
+      { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
       {
         role: 'user',
-        content: `아래 프로젝트 아이디어를 평가하라.
+        content: `아래 프로젝트 아이디어를 평가하라. 참고 자료가 있으면 경쟁 제품, 기술 선택, 시장성, 트렌드 판단에 반드시 활용하라. 참고 자료의 URL을 직접 열었다고 주장하지 말고, 자료에 없는 수치나 사실은 만들지 마라.
 
 출력 JSON:
 {
@@ -672,10 +805,29 @@ export async function evaluateIdea(input: { idea: string }) {
   "market_fit": "시장성과 트렌드 연결",
   "recommended_stack": ["기술"],
   "risks": ["리스크"],
-  "next_steps": ["다음 단계"]
+  "next_steps": ["다음 단계"],
+  "score_breakdown": {"feasibility": 0, "differentiation": 0, "market": 0, "portfolio": 0, "mvp_clarity": 0},
+  "strengths": ["확인된 강점"],
+  "weaknesses": ["확인된 약점"],
+  "recommended_technologies": [{"name": "기술명", "category": "required | optional | scale", "reason": "이유"}],
+  "structured_risks": [{"title": "위험 제목", "severity": "high | medium | low", "impact": "영향", "mitigation": "대응 방법"}],
+  "structured_next_steps": [{"order": 1, "title": "단계", "description": "작업", "deliverable": "산출물", "done_when": "완료 조건"}],
+  "confidence": {"level": "high | medium | low", "reason": "근거 충분도"},
+  "missing_data": ["추가 검증이 필요한 데이터"]
 }
 
-idea: ${truncate(input.idea, 2500)}`,
+idea: ${truncate(input.idea, 2500)}
+
+추가 규칙:
+- 점수는 구현 가능성, 차별성, 시장성, 포트폴리오 가치, MVP 명확성을 종합하되 임의의 세부 점수를 UI에서 만들지 않는다.
+- 참고 자료에 직접 근거가 없으면 시장성은 "근거 부족" 또는 "AI 추론"으로 표현한다.
+- recommended_technologies는 MVP 필수(required), 선택(optional), 확장(scale)으로 구분하고 기술마다 이유를 쓴다. 한 MVP에 불필요한 기술을 과도하게 넣지 않는다.
+- structured_risks는 위험마다 심각도, 영향, 현실적인 대응 방법을 포함한다.
+- structured_next_steps는 작업, 산출물, 완료 조건을 포함한다. 근거 없는 기간이나 시장 규모를 만들지 않는다.
+- 결과는 한국어로 작성하고 기술명만 원문 표기를 유지한다.
+
+참고 자료:
+${input.context || '관련 자료를 찾지 못했다. 일반론을 최신 사실처럼 말하지 말고 불확실성을 표시하라.'}`,
       },
     ]);
 
@@ -693,8 +845,7 @@ export async function answerArticleQuestion(input: {
   question: string;
 }) {
   const fallback: ArticleQuestionAnswer = {
-    answer: `이 글의 핵심은 "${input.title}"와 관련된 흐름을 이해하고, 작은 프로젝트로 실험해보는 것입니다. 질문을 조금 더 구체적으로 적으면 기술 선택이나 구현 순서까지 좁혀볼 수 있어요.`,
-    project_prompt: `${input.title}를 참고해서 초보자도 만들 수 있는 7일짜리 미니 프로젝트를 평가해줘.`,
+    answer: `이 글의 핵심은 "${input.title}"와 관련된 기술 흐름을 이해하는 것입니다. 질문을 조금 더 구체적으로 적으면 기술 선택이나 구현 순서까지 좁혀볼 수 있어요.`,
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -710,12 +861,10 @@ export async function answerArticleQuestion(input: {
 규칙:
 - 답변은 3~6문장으로 간결하게 작성한다.
 - 글에 없는 사실은 추측하지 않는다.
-- 프로젝트 관련 질문이면 idea evaluation 페이지로 넘길 수 있는 project_prompt를 함께 작성한다.
 
 출력 JSON:
 {
-  "answer": "질문에 대한 답변",
-  "project_prompt": "프로젝트 평가에 넘길 질문. 프로젝트 질문이 아니면 빈 문자열"
+  "answer": "질문에 대한 답변"
 }
 
 title: ${input.title}
@@ -1091,6 +1240,9 @@ function getArticleTrackGuide(track?: string | null) {
 }
 
 function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: IdeaEvaluation): IdeaEvaluation {
+  const technologies = normalizeRecommendedTechnologies(result.recommended_technologies, result.recommended_stack);
+  const structuredRisks = normalizeRisks(result.structured_risks, result.risks);
+  const structuredNextSteps = normalizeNextSteps(result.structured_next_steps, result.next_steps);
   return {
     score: Math.max(0, Math.min(100, Number(result.score ?? fallback.score))),
     verdict: result.verdict ?? fallback.verdict,
@@ -1100,7 +1252,108 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
     recommended_stack: Array.isArray(result.recommended_stack) ? result.recommended_stack : fallback.recommended_stack,
     risks: Array.isArray(result.risks) ? result.risks : fallback.risks,
     next_steps: Array.isArray(result.next_steps) ? result.next_steps : fallback.next_steps,
+    score_breakdown: result.score_breakdown ?? fallback.score_breakdown,
+    strengths: Array.isArray(result.strengths) ? result.strengths.filter((item): item is string => typeof item === 'string') : fallback.strengths,
+    weaknesses: Array.isArray(result.weaknesses) ? result.weaknesses.filter((item): item is string => typeof item === 'string') : fallback.weaknesses,
+    recommended_technologies: technologies.length ? technologies : fallback.recommended_technologies,
+    structured_risks: structuredRisks.length ? structuredRisks : fallback.structured_risks,
+    structured_next_steps: structuredNextSteps.length ? structuredNextSteps : fallback.structured_next_steps,
+    confidence: result.confidence ?? fallback.confidence,
+    evidence: Array.isArray(result.evidence) ? result.evidence : fallback.evidence,
+    missing_data: Array.isArray(result.missing_data) ? result.missing_data.filter((item): item is string => typeof item === 'string') : fallback.missing_data,
   };
+}
+
+function estimateProjectComplexity(input: { title: string; summary: string; skills?: string[] }): ProjectDurationEstimate {
+  const text = `${input.title} ${input.summary} ${(input.skills ?? []).join(' ')}`.toLowerCase();
+  const has = (pattern: RegExp) => pattern.test(text);
+  let hours = 14;
+  const reasons: string[] = ['핵심 기능 1개와 최소 화면·배포를 기준으로 계산했습니다.'];
+  if (has(/api|연동|slack|github|product hunt|외부/)) { hours += 6; reasons.push('외부 API 연동이 포함되어 있습니다.'); }
+  if (has(/auth|인증|로그인|사용자/)) { hours += 5; reasons.push('인증 또는 사용자 상태 처리가 필요합니다.'); }
+  if (has(/real.?time|실시간|협업|채팅/)) { hours += 8; reasons.push('실시간 상태 동기화가 필요합니다.'); }
+  if (has(/rag|검색 증강|벡터|embedding/)) { hours += 8; reasons.push('RAG 데이터 준비와 검색 품질 검증이 필요합니다.'); }
+  if (has(/tool.?calling|에이전트|agent|예약/)) { hours += 8; reasons.push('AI 도구 호출과 실패 응답 검증이 필요합니다.'); }
+  if (has(/dashboard|대시보드|관리자|admin/)) { hours += 6; reasons.push('관리 화면과 운영 상태가 필요합니다.'); }
+  if (has(/결제|payment|멀티테넌트|multi.?tenant/)) { hours += 12; reasons.push('결제 또는 멀티테넌트 운영은 MVP 범위를 크게 늘립니다.'); }
+  const estimatedHoursMin = Math.max(12, Math.round(hours * 0.85));
+  const estimatedHoursMax = Math.round(hours * 1.35);
+  const assumedHoursPerDay = 2;
+  const recommendedDays = Math.max(5, Math.ceil(hours / assumedHoursPerDay));
+  return {
+    recommended_days: recommendedDays,
+    minimum_days: Math.max(3, Math.ceil(estimatedHoursMin / 3)),
+    maximum_days: Math.ceil(estimatedHoursMax / 1.5),
+    estimated_hours_min: estimatedHoursMin,
+    estimated_hours_max: estimatedHoursMax,
+    assumed_hours_per_day: assumedHoursPerDay,
+    reasoning: reasons.join(' '),
+  };
+}
+
+function normalizeGeneratedProjectIdea(result: GeneratedProjectIdea, estimate: ProjectDurationEstimate): GeneratedProjectIdea {
+  const duration = result.duration_estimate ?? estimate;
+  const plan = Array.isArray(result.build_plan) && result.build_plan.length ? result.build_plan : undefined;
+  const planHours = plan?.reduce((total, step) => total + (Number(step.estimated_hours_max) || 0), 0) ?? 0;
+  const recommendedDays = Math.max(3, Math.ceil(Math.max(Number(duration.recommended_days) || 0, estimate.recommended_days, planHours / estimate.assumed_hours_per_day)));
+  return {
+    ...result,
+    duration_days: recommendedDays,
+    duration_estimate: {
+      recommended_days: recommendedDays,
+      minimum_days: Math.max(3, Math.round(Math.min(recommendedDays, duration.minimum_days || estimate.minimum_days))),
+      maximum_days: Math.max(recommendedDays, Math.round(duration.maximum_days || estimate.maximum_days)),
+      estimated_hours_min: Math.max(1, Math.round(duration.estimated_hours_min || estimate.estimated_hours_min)),
+      estimated_hours_max: Math.max(1, Math.round(duration.estimated_hours_max || estimate.estimated_hours_max)),
+      assumed_hours_per_day: Math.max(1, Number(duration.assumed_hours_per_day || estimate.assumed_hours_per_day)),
+      reasoning: String(duration.reasoning || estimate.reasoning),
+    },
+    build_plan: plan,
+  };
+}
+
+function normalizeRecommendedTechnologies(value: unknown, legacy: unknown): RecommendedTechnology[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (typeof item === 'string') return [{ name: item, category: 'required' as const, reason: 'MVP 구현에 사용할 핵심 기술입니다.' }];
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Partial<RecommendedTechnology>;
+      if (!record.name) return [];
+      const category = record.category === 'optional' || record.category === 'scale' ? record.category : 'required';
+      return [{ name: String(record.name), category, reason: String(record.reason ?? '이 아이디어에 사용할 수 있는 기술입니다.') }];
+    });
+  }
+  if (Array.isArray(legacy)) return legacy.filter((item): item is string => typeof item === 'string').map((name) => ({ name, category: 'required', reason: 'MVP 구현에 사용할 핵심 기술입니다.' }));
+  return [];
+}
+
+function normalizeRisks(value: unknown, legacy: unknown): EvaluationRisk[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => {
+      if (typeof item === 'string') return [{ title: item, severity: index === 0 ? 'high' as const : 'medium' as const, impact: '구현과 검증 과정에서 추가 확인이 필요합니다.', mitigation: '범위를 줄이고 작은 실험으로 먼저 확인합니다.' }];
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Partial<EvaluationRisk>;
+      if (!record.title) return [];
+      const severity = record.severity === 'high' || record.severity === 'low' ? record.severity : 'medium';
+      return [{ title: String(record.title), severity, impact: String(record.impact ?? '영향을 추가로 확인해야 합니다.'), mitigation: String(record.mitigation ?? '작은 실험으로 위험을 검증합니다.') }];
+    });
+  }
+  if (Array.isArray(legacy)) return normalizeRisks(legacy, undefined);
+  return [];
+}
+
+function normalizeNextSteps(value: unknown, legacy: unknown): EvaluationNextStep[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => {
+      if (typeof item === 'string') return [{ order: index + 1, title: item, description: item, deliverable: '작동하는 작은 결과물', done_when: '핵심 흐름을 한 번 실행할 수 있음' }];
+      if (!item || typeof item !== 'object') return [];
+      const record = item as Partial<EvaluationNextStep>;
+      if (!record.title) return [];
+      return [{ order: Number(record.order ?? index + 1), title: String(record.title), description: String(record.description ?? ''), deliverable: String(record.deliverable ?? '작은 구현 결과물'), done_when: String(record.done_when ?? '핵심 흐름이 동작함') }];
+    });
+  }
+  if (Array.isArray(legacy)) return normalizeNextSteps(legacy, undefined);
+  return [];
 }
 
 function isContentType(value: unknown): value is ContentType {

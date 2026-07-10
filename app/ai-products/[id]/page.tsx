@@ -1,11 +1,11 @@
 import { rateAIProduct, submitAIProductReview } from '@/app/actions/product-ratings';
 import { saveScrap } from '@/app/actions/scraps';
 import ContentEngagement from '@/components/ContentEngagement';
+import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import type { AIProduct } from '@/lib/data';
 import { getAIProduct, getAIProductReviews, getExistingScrap } from '@/lib/data';
-import { incrementContentView } from '@/lib/engagement';
 import { createClient } from '@/lib/supabase/server';
 import { ArrowLeft, Bookmark, Bot, Code2, ExternalLink, ImageIcon, MessageSquare, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
@@ -66,7 +66,6 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
   ]);
 
   if (!product) notFound();
-  await incrementContentView('ai_product', product.id);
 
   const isLoggedIn = Boolean(userData.user);
   const homepage = product.website_url ?? product.product_hunt_url;
@@ -285,6 +284,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
 
               <section className="mt-5 border border-outline-soft bg-white p-5">
                 <h2 className="mb-4 text-xl font-black text-ink">반응</h2>
+                <ViewTracker itemType="ai_product" itemId={product.id} />
                 <ContentEngagement
                   itemType="ai_product"
                   itemId={product.id}

@@ -461,24 +461,42 @@ function buildArticleClusters(sources: SourceItem[], options: { minSources: numb
     });
 
   const selected = new Map<string, ArticleCluster>();
-  const usedSourceKeys = new Set<string>();
-  for (const cluster of clusters) {
-    const overlap = cluster.sources.filter((source) => usedSourceKeys.has(sourceKey(source))).length;
-    if (overlap > Math.floor(cluster.sources.length / 2)) continue;
-    selected.set(cluster.id, cluster);
-    for (const source of cluster.sources) usedSourceKeys.add(sourceKey(source));
-  }
-
-  // 제품 데이터가 다른 소스와 묶이지 않는 날에도, 단순 제품 소개가 아닌 평가 글을 만들 수 있게 한다.
-  if (![...selected.values()].some((cluster) => cluster.track === '제품/빌드 아이디어')) {
-    const product = sources.find((source) => source.sourceType === 'ai_product');
-    if (product) {
-      const fallback = buildClusterFromBucket(`product ${product.sourceId}`, [product]);
-      selected.set(fallback.id, fallback);
+  // 소스 중복 방지는 같은 트랙 안에서만 적용한다. 트랙 간 전역 차단을 하면
+  // 앞에서 선택된 AI 클러스터가 논문/GitHub 후보를 모두 밀어내는 문제가 생긴다.
+  for (const track of DAILY_TRACKS) {
+    const trackClusters = clusters.filter((cluster) => cluster.track === track);
+    const usedSourceKeys = new Set<string>();
+    let trackCount = 0;
+    for (const cluster of trackClusters) {
+      const overlap = cluster.sources.filter((source) => usedSourceKeys.has(sourceKey(source))).length;
+      if (trackCount > 0 && overlap > Math.floor(cluster.sources.length / 2)) continue;
+      selected.set(cluster.id, cluster);
+      trackCount += 1;
+      for (const source of cluster.sources) usedSourceKeys.add(sourceKey(source));
+      if (trackCount >= 3) break;
     }
   }
 
+  // 자료는 있지만 여러 소스가 같은 키워드로 묶이지 않는 경우에도 해당 트랙을 비우지 않는다.
+  for (const track of DAILY_TRACKS) {
+    if ([...selected.values()].some((cluster) => cluster.track === track)) continue;
+    const fallbackSource = findFallbackSource(track, sources);
+    if (!fallbackSource) continue;
+    const fallback = buildClusterFromBucket(`fallback ${track} ${fallbackSource.sourceId}`, [fallbackSource], sources.find((source) => source.sourceType === 'trend_bundle'));
+    selected.set(fallback.id, fallback);
+  }
+
   return [...selected.values()];
+}
+
+function findFallbackSource(track: ArticleTrack, sources: SourceItem[]) {
+  const candidates = sources.filter((source) => source.sourceType !== 'trend_bundle');
+  if (track === '오픈소스/GitHub') return candidates.find((source) => source.sourceType === 'github');
+  if (track === '제품/빌드 아이디어') return candidates.find((source) => source.sourceType === 'ai_product');
+  if (track === '논문/리서치') return candidates.find((source) => source.sourceType === 'paper');
+  if (track === '프론트엔드') return candidates.find((source) => /front|react|next|vue|svelte|css|ui|ux|browser|웹|프론트/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
+  if (track === '백엔드') return candidates.find((source) => /back|server|api|database|postgres|redis|spring|node|fastapi|infra|cloud|devops|서버|백엔드/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
+  return candidates.find((source) => /ai|llm|agent|rag|mcp|model|머신러닝|인공지능/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
 }
 
 function selectDailyClusters(clusters: ArticleCluster[], initialCounts: Record<ArticleTrack, number>, maxTotal: number, refillPerTrack = 1) {

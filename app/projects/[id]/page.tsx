@@ -1,9 +1,9 @@
 import { saveScrap } from '@/app/actions/scraps';
 import ContentEngagement from '@/components/ContentEngagement';
+import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getExistingScrap, getProjectIdea } from '@/lib/data';
-import { incrementContentView } from '@/lib/engagement';
 import { cleanProjectTitle } from '@/lib/utils';
 import MarkdownContent from '@/components/MarkdownContent';
 import {
@@ -46,6 +46,38 @@ function parsePlanStep(raw: string) {
   return { day: dayMatch?.[1] ?? null, title, meta };
 }
 
+function normalizeBuildPlan(project: {
+  build_plan?: Array<Record<string, unknown>> | null;
+  plan?: string[] | null;
+}) {
+  if (Array.isArray(project.build_plan) && project.build_plan.length) {
+    return project.build_plan.map((step, index) => ({
+      index,
+      day: String(step.order ?? index + 1),
+      title: String(step.title ?? `실행 단계 ${index + 1}`),
+      objective: String(step.objective ?? ''),
+      tasks: Array.isArray(step.tasks) ? step.tasks.map(String) : [],
+      tools: Array.isArray(step.tools) ? step.tools.map(String) : [],
+      deliverable: String(step.deliverable ?? ''),
+      doneWhen: String(step.done_when ?? ''),
+      hours: typeof step.estimated_hours_min === 'number' && typeof step.estimated_hours_max === 'number'
+        ? `${step.estimated_hours_min}~${step.estimated_hours_max}시간`
+        : null,
+      meta: [],
+    }));
+  }
+  return (project.plan ?? []).map((raw, index) => ({
+    index,
+    ...parsePlanStep(raw),
+    objective: '',
+    tasks: [],
+    tools: [],
+    deliverable: '',
+    doneWhen: '',
+    hours: null,
+  }));
+}
+
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [project, existingScrap] = await Promise.all([
@@ -54,23 +86,26 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   ]);
 
   if (!project) notFound();
-  await incrementContentView('project', project.id);
   const displayTitle = cleanProjectTitle(project.title);
 
-  const tools = [
-    ...(project.stack ?? []),
-    'Supabase',
-    'OpenRouter',
-    'Vercel 또는 Cloudflare',
-  ]
-    .filter((v, i, arr) => v && arr.indexOf(v) === i)
-    .slice(0, 8);
-
-  const planSteps = (project.plan ?? []).map((raw, index) => ({
-    index,
-    raw,
-    ...parsePlanStep(raw),
-  }));
+  const tools = (project.stack_details?.length ? project.stack_details.map((item) => item.name).filter(Boolean) : project.stack ?? []).filter((v, i, arr) => v && arr.indexOf(v) === i).slice(0, 8) as string[];
+  const planSteps = normalizeBuildPlan(project);
+  const duration = project.duration_estimate;
+  const planHours = project.build_plan?.reduce((range, step) => ({
+    min: range.min + (Number(step.estimated_hours_min) || 0),
+    max: range.max + (Number(step.estimated_hours_max) || 0),
+  }), { min: 0, max: 0 });
+  const assumedHoursPerDay = duration?.assumed_hours_per_day ?? 2;
+  const durationLabel = planHours?.min && planHours.max
+    ? `${Math.ceil(planHours.min / assumedHoursPerDay)}~${Math.ceil(planHours.max / assumedHoursPerDay)}일`
+    : duration?.minimum_days && duration.maximum_days
+      ? `${duration.minimum_days}~${duration.maximum_days}일`
+    : project.duration_days ? `${project.duration_days}일` : '기간 미정';
+  const hoursLabel = planHours?.min && planHours.max
+    ? `${planHours.min}~${planHours.max}시간`
+    : duration?.estimated_hours_min && duration.estimated_hours_max
+      ? `${duration.estimated_hours_min}~${duration.estimated_hours_max}시간`
+      : null;
 
   return (
     <>
@@ -99,10 +134,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   <span className="border border-ink bg-ink px-2 py-1 text-white">
                     {project.level ?? '추천'}
                   </span>
-                  {project.duration_days && (
+                  {durationLabel && (
                     <span className="inline-flex items-center gap-1 border border-outline-soft bg-surface px-2 py-1 text-ink">
                       <Calendar className="h-3.5 w-3.5" />
-                      {project.duration_days}일 플랜
+                      {durationLabel}
+                    </span>
+                  )}
+                  {hoursLabel && (
+                    <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">
+                      {hoursLabel}
                     </span>
                   )}
                   {project.related_trend && (
@@ -152,6 +192,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   </Link>
                 </div>
                 <div className="p-3">
+                  <ViewTracker itemType="project" itemId={project.id} />
                   <ContentEngagement
                     itemType="project"
                     itemId={project.id}
@@ -180,7 +221,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     추천 수준
                   </div>
                   <p className="text-sm leading-7 text-ink">
-                    {project.level ?? '초급'} 개발자가 {project.duration_days ?? 7}일 안에 따라 만들 수 있게 범위를 줄여 시작합니다.
+                    {project.level ?? '초급'} 개발자 기준 {durationLabel} 플랜입니다. {duration?.reasoning ?? '핵심 흐름을 먼저 검증하고 확장 기능은 뒤로 미룹니다.'}
                   </p>
                 </div>
                 <div className="p-5">
@@ -193,6 +234,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   </p>
                 </div>
               </div>
+
+              {(project.mvp_acceptance || project.scope || project.prerequisites?.length || project.difficulty_reasons?.length) && (
+                <section className="mt-4 grid gap-4 md:grid-cols-2">
+                  {project.mvp_acceptance && <div className="border border-ink bg-ink p-5 text-white md:col-span-2"><p className="font-mono text-xs font-bold uppercase text-white/60">MVP ACCEPTANCE</p><p className="mt-3 max-w-3xl text-sm leading-7">{project.mvp_acceptance}</p></div>}
+                  {project.scope && <div className="border border-outline-soft bg-white p-5 md:col-span-2"><h2 className="text-sm font-black text-ink">MVP 범위</h2><div className="mt-4 grid gap-4 md:grid-cols-3">{[['이번 플랜에 포함', project.scope.must_have], ['권장 확장', project.scope.should_have], ['이번 플랜에서 제외', project.scope.excluded]].map(([label, items]) => <div key={String(label)}><p className="font-mono text-[11px] font-bold uppercase text-muted">{String(label)}</p><ul className="mt-2 grid gap-1">{(Array.isArray(items) ? items : []).map((item, itemIndex) => <li key={`${String(label)}-${itemIndex}`} className="text-xs leading-5 text-muted">- {item}</li>)}</ul></div>)}</div></div>}
+                  {project.prerequisites?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">필요한 선행 지식</h2><ul className="mt-3 grid gap-2">{project.prerequisites.map((item, itemIndex) => <li key={`prerequisite-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                  {project.difficulty_reasons?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">추천 수준인 이유</h2><ul className="mt-3 grid gap-2">{project.difficulty_reasons.map((item, itemIndex) => <li key={`difficulty-reason-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                </section>
+              )}
 
               {/* 기술 스택 */}
               <section className="mt-4 border border-outline-soft bg-white p-5">
@@ -217,14 +267,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 <div className="flex items-center gap-2 border-b border-outline-soft p-5">
                   <Terminal className="h-5 w-5 text-ink" />
                   <h2 className="text-lg font-black uppercase text-ink">Build Plan</h2>
-                  <span className="ml-auto text-xs font-bold uppercase text-muted">
-                    {planSteps.length || 7}days
+                  <span className="ml-auto font-mono text-xs font-bold uppercase text-muted">
+                    {durationLabel}{hoursLabel ? ` · ${hoursLabel}` : ''}
                   </span>
                 </div>
 
                 <div className="divide-y divide-outline-soft">
                   {planSteps.length > 0
-                    ? planSteps.map(({ index, day, title, meta }) => (
+                    ? planSteps.map(({ index, day, title, meta, objective, tasks, tools: stepTools, deliverable, doneWhen, hours }) => (
                         <div key={`${index}-${title}`} className="p-5">
                           <div className="flex items-start gap-4">
                             {/* Day 번호 */}
@@ -239,12 +289,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                                 <span className="font-black text-ink">{title}</span>
                               </div>
 
-                              {/* 도구/언어/방법 태그 */}
+                              {objective && <p className="mt-2 text-sm leading-6 text-muted">{objective}</p>}
+                              {!!tasks.length && <ul className="mt-3 grid gap-1">{tasks.map((task) => <li key={task} className="text-xs leading-5 text-muted">- {task}</li>)}</ul>}
+                              {(deliverable || doneWhen || hours || stepTools.length > 0) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}</div>}
+
+                              {/* 이전 문자열 plan 호환용 메타 */}
                               {meta.length > 0 && (
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                  {meta.map(({ label, value }) => (
+                                  {meta.map(({ label, value }, metaIndex) => (
                                     <div
-                                      key={label}
+                                      key={`${label}-${metaIndex}`}
                                       className="flex gap-2 border border-outline-soft bg-surface p-3 text-sm"
                                     >
                                       <span className="shrink-0 font-black uppercase text-ink">
@@ -264,11 +318,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                       <div className="p-5 text-sm leading-7 text-muted">
                         <div className="grid gap-3">
                           {[
-                            { day: '1', title: '문제 정의 & 기획', tool: '노션 or 마크다운', method: '핵심 기능 3개로 범위를 좁히고 화면을 스케치한다' },
-                            { day: '2', title: '데이터 모델 설계', tool: 'Supabase Table Editor', lang: 'SQL', method: '필요한 테이블을 설계하고 Supabase에서 생성한다' },
-                            { day: '3-5', title: '핵심 기능 구현', tool: 'Next.js API Route, Supabase Client', lang: 'TypeScript', method: 'CRUD 로직과 화면을 연결한다' },
-                            { day: '6', title: 'UI 다듬기 & 테스트', tool: '브라우저 DevTools', method: '모바일 반응형을 확인하고 엣지 케이스를 테스트한다' },
-                            { day: '7', title: '배포 & README', tool: 'Vercel 또는 Cloudflare Pages', method: 'main 브랜치를 연결해 자동 배포하고 README를 작성한다' },
+                            { day: '01', title: '문제 정의와 핵심 화면', tool: '마크다운, Figma', method: '핵심 사용자와 기능 3개를 정하고 제외 범위를 기록한다' },
+                            { day: '02', title: '데이터와 핵심 기능', tool: 'Next.js, Supabase', lang: 'TypeScript', method: '대표 사용 흐름을 실제 데이터와 연결한다' },
+                            { day: '03', title: '실패 처리와 검증', tool: '브라우저 DevTools', method: '빈 값, API 실패, 모바일 화면을 테스트한다' },
+                            { day: '04', title: '배포와 README', tool: 'Vercel', method: '배포 URL과 실행 방법, 제한 사항을 문서화한다' },
                           ].map((step) => (
                             <div key={step.day} className="flex items-start gap-4">
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-ink bg-ink text-sm font-black text-white">

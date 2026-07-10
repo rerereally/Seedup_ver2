@@ -2,6 +2,7 @@
 -- Run this in Supabase SQL Editor.
 
 create extension if not exists pgcrypto;
+create extension if not exists vector;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -209,7 +210,7 @@ create table if not exists public.project_ideas (
   title text not null,
   description text,
   level text,
-  duration_days integer default 7,
+  duration_days integer,
   stack text[] default '{}',
   related_trend text,
   source_type text,
@@ -218,6 +219,14 @@ create table if not exists public.project_ideas (
   recommended_for text[] default '{}',
   portfolio_value text,
   plan text[] default '{}',
+  duration_estimate jsonb,
+  scope jsonb,
+  build_plan jsonb,
+  prerequisites text[] default '{}',
+  difficulty_reasons text[] default '{}',
+  mvp_acceptance text,
+  expansion_ideas text[] default '{}',
+  stack_details jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -241,6 +250,57 @@ create table if not exists public.idea_evaluations (
   result jsonb,
   created_at timestamptz not null default now()
 );
+
+-- RAG index for Seedup's collected content. The source rows remain in their
+-- domain tables; this table only stores searchable text and embeddings.
+create table if not exists public.content_embeddings (
+  id uuid primary key default gen_random_uuid(),
+  source_table text not null,
+  source_id uuid not null,
+  content text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  embedding vector(1536) not null,
+  content_hash text not null,
+  embedded_at timestamptz not null default now(),
+  unique (source_table, source_id, content_hash)
+);
+
+create index if not exists content_embeddings_embedding_hnsw_idx
+  on public.content_embeddings
+  using hnsw (embedding vector_cosine_ops);
+
+create index if not exists content_embeddings_source_idx
+  on public.content_embeddings (source_table, source_id);
+
+alter table public.content_embeddings enable row level security;
+revoke all on public.content_embeddings from anon, authenticated;
+
+create or replace function public.match_seedup_content(
+  query_embedding vector(1536),
+  match_count integer default 12,
+  min_similarity double precision default 0.60
+)
+returns table (
+  source_table text,
+  source_id uuid,
+  content text,
+  metadata jsonb,
+  similarity double precision
+)
+language sql
+stable
+as $$
+  select
+    ce.source_table,
+    ce.source_id,
+    ce.content,
+    ce.metadata,
+    1 - (ce.embedding <=> query_embedding) as similarity
+  from public.content_embeddings ce
+  where 1 - (ce.embedding <=> query_embedding) >= min_similarity
+  order by ce.embedding <=> query_embedding
+  limit greatest(1, least(match_count, 50));
+$$;
 
 create table if not exists public.github_trends (
   id uuid primary key default gen_random_uuid(),
@@ -565,6 +625,14 @@ alter table public.project_ideas add column if not exists source_id uuid;
 alter table public.project_ideas add column if not exists target_user_level text;
 alter table public.project_ideas add column if not exists recommended_for text[] default '{}';
 alter table public.project_ideas add column if not exists portfolio_value text;
+alter table public.project_ideas add column if not exists duration_estimate jsonb;
+alter table public.project_ideas add column if not exists scope jsonb;
+alter table public.project_ideas add column if not exists build_plan jsonb;
+alter table public.project_ideas add column if not exists prerequisites text[] default '{}';
+alter table public.project_ideas add column if not exists difficulty_reasons text[] default '{}';
+alter table public.project_ideas add column if not exists mvp_acceptance text;
+alter table public.project_ideas add column if not exists expansion_ideas text[] default '{}';
+alter table public.project_ideas add column if not exists stack_details jsonb;
 alter table public.project_ideas add column if not exists view_count integer not null default 0;
 alter table public.project_ideas add column if not exists like_count integer not null default 0;
 alter table public.project_ideas add column if not exists dislike_count integer not null default 0;
@@ -954,3 +1022,6 @@ create unique index research_papers_paper_url_key on public.research_papers (pap
 create index if not exists research_papers_relevance_idx on public.research_papers (relevance_score desc, published_at desc);
 create index if not exists research_papers_review_type_idx on public.research_papers (review_type, relevance_score desc);
 create index if not exists news_paper_links_news_idx on public.news_paper_links (news_id, relevance_score desc);
+
+grant select, insert, update, delete on public.content_embeddings to service_role;
+grant execute on function public.match_seedup_content(vector, integer, double precision) to service_role;

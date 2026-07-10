@@ -168,6 +168,33 @@ export type ProjectIdea = {
   related_trend: string | null;
   portfolio_value?: string | null;
   plan: string[] | null;
+  duration_estimate?: {
+    recommended_days?: number;
+    minimum_days?: number;
+    maximum_days?: number;
+    estimated_hours_min?: number;
+    estimated_hours_max?: number;
+    assumed_hours_per_day?: number;
+    reasoning?: string;
+  } | null;
+  scope?: { must_have?: string[]; should_have?: string[]; excluded?: string[] } | null;
+  build_plan?: Array<{
+    order?: number;
+    title?: string;
+    objective?: string;
+    tasks?: string[];
+    tools?: string[];
+    deliverable?: string;
+    done_when?: string;
+    estimated_hours_min?: number;
+    estimated_hours_max?: number;
+    dependencies?: number[];
+  }> | null;
+  prerequisites?: string[] | null;
+  difficulty_reasons?: string[] | null;
+  mvp_acceptance?: string | null;
+  expansion_ideas?: string[] | null;
+  stack_details?: Array<{ name?: string; category?: string; reason?: string }> | null;
   view_count?: number | null;
   like_count?: number | null;
   dislike_count?: number | null;

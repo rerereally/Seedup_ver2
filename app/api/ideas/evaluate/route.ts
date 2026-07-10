@@ -1,4 +1,5 @@
 import { evaluateIdea } from '@/lib/ingest/ai';
+import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -14,7 +15,15 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
-  const { evaluation, model } = await evaluateIdea({ idea });
+  const references = await retrieveIdeaContext(idea);
+  const ragContext = references.map((reference, index) => [
+    `[근거 ${index + 1}] ${reference.metadata.title ?? reference.source_table}`,
+    `출처: ${reference.metadata.source ?? reference.source_table}`,
+    `유사도: ${reference.similarity.toFixed(2)}`,
+    `URL: ${reference.metadata.url ?? '없음'}`,
+    reference.content,
+  ].join('\n')).join('\n\n');
+  const { evaluation, model } = await evaluateIdea({ idea, context: ragContext });
   const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   const user = userResult.data.user;
   let saved = false;
@@ -31,6 +40,7 @@ export async function POST(request: Request) {
         result: {
           ...evaluation,
           model,
+          references,
         },
       });
 
@@ -46,6 +56,7 @@ export async function POST(request: Request) {
     ok: true,
     evaluation,
     model,
+    references,
     saved,
     saveError,
   });

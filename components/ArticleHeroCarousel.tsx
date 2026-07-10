@@ -14,7 +14,7 @@ function itemHref(item: ArticleFeedItem) {
   return item.type === 'paper' ? `/papers/${item.id}` : `/news/${item.id}`;
 }
 
-export default function ArticleHeroCarousel({ items }: { items: ArticleFeedItem[] }) {
+export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }: { items: ArticleFeedItem[]; label?: string }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const active = items[activeIndex];
 
@@ -34,7 +34,7 @@ export default function ArticleHeroCarousel({ items }: { items: ArticleFeedItem[
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
             <Newspaper className="h-4 w-4" />
-            Featured Brief
+            {label}
           </div>
           <span className="text-xs font-bold uppercase text-muted">{active.type === 'paper' ? 'PAPER' : active.category ?? 'ARTICLE'}</span>
         </div>

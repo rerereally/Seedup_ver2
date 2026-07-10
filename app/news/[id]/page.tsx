@@ -7,7 +7,7 @@ import MarkdownContent from '@/components/MarkdownContent';
 import RelatedPapersToggle from '@/components/RelatedPapersToggle';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getNewsItem, getRelatedPapersForNews } from '@/lib/data';
-import { incrementContentView } from '@/lib/engagement';
+import ViewTracker from '@/components/ViewTracker';
 import { ArrowLeft, ArrowRight, Bookmark, ExternalLink, Lightbulb } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -38,7 +38,6 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
 
   if (!item) notFound();
   if (!item.content?.trim()) notFound();
-  await incrementContentView('news', item.id);
   const publishedAt = item.published_at ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(item.published_at)) : null;
   const projectPrompt = item.project_idea ?? `${item.title}를 바탕으로 만들 수 있는 프로젝트를 평가해줘.`;
   const categoryQuery = item.category ? `/news?category=${encodeURIComponent(item.category)}` : '/news';
@@ -112,7 +111,8 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                   <ShareButton title={item.title} url={externalUrl} />
                 </div>
                 <div className="p-3">
-                  <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={Number(item.view_count ?? 0) + 1} likes={item.like_count} dislikes={item.dislike_count} />
+                  <ViewTracker itemType="news" itemId={item.id} />
+                  <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
                 </div>
               </div>
 
@@ -169,7 +169,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
             </div>
 
             <aside className="w-full lg:sticky lg:top-24 lg:w-80 lg:shrink-0">
-              <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} projectIdea={item.project_idea} />
+              <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} />
               <RelatedPapersToggle links={relatedPapers} />
             </aside>
           </div>

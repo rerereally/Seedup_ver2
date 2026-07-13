@@ -67,6 +67,68 @@ create table if not exists public.news_items (
   created_at timestamptz not null default now()
 );
 
+-- Immutable source layer. Processed content may change as prompts/models improve,
+-- but the fetched payload and provenance should remain auditable.
+create table if not exists public.source_documents (
+  id uuid primary key default gen_random_uuid(),
+  canonical_url text not null unique,
+  source_name text not null,
+  source_type text not null,
+  source_role text not null default 'supporting' check (source_role in ('primary', 'independent', 'supporting', 'context')),
+  source_domain text,
+  language text,
+  title text not null,
+  published_at timestamptz,
+  collected_at timestamptz not null default now(),
+  raw_payload jsonb not null default '{}'::jsonb,
+  processing_status text not null default 'raw' check (processing_status in ('raw', 'processed', 'rejected', 'used')),
+  processed_at timestamptz,
+  quality_score integer,
+  duplicate_group_key text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.article_source_links (
+  id uuid primary key default gen_random_uuid(),
+  article_id uuid not null references public.news_items(id) on delete cascade,
+  source_document_id uuid references public.source_documents(id) on delete set null,
+  source_type text not null,
+  source_id uuid,
+  source_role text not null default 'supporting' check (source_role in ('primary', 'independent', 'supporting', 'context')),
+  claim_refs text[] default '{}',
+  created_at timestamptz not null default now(),
+  unique (article_id, source_document_id, source_type, source_id)
+);
+
+create table if not exists public.article_quality_evaluations (
+  id uuid primary key default gen_random_uuid(),
+  article_id uuid not null references public.news_items(id) on delete cascade,
+  content_mode text not null,
+  passed boolean not null default false,
+  actual_source_count integer not null default 0,
+  source_type_count integer not null default 0,
+  primary_source_count integer not null default 0,
+  independent_domain_count integer not null default 0,
+  section_count integer not null default 0,
+  character_count integer not null default 0,
+  duplicate_similarity numeric(5, 4),
+  failure_reasons text[] default '{}',
+  evaluated_at timestamptz not null default now()
+);
+
+create table if not exists public.recommendation_impressions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  item_type text not null check (item_type in ('news', 'paper', 'project', 'ai_product', 'github')),
+  item_id uuid not null,
+  surface text not null,
+  event_type text not null default 'impression' check (event_type in ('impression', 'click')),
+  position integer,
+  score numeric(8, 2),
+  reasons text[] default '{}',
+  shown_at timestamptz not null default now()
+);
+
 create table if not exists public.trends (
   id uuid primary key default gen_random_uuid(),
   rank integer,
@@ -245,11 +307,43 @@ create table if not exists public.idea_evaluations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
   idea_text text not null,
+  evaluation_key text,
   status text not null default 'pending',
   score integer check (score is null or (score >= 0 and score <= 100)),
   result jsonb,
   created_at timestamptz not null default now()
 );
+
+-- Daily OpenRouter model rankings. Usage, benchmark intelligence and arena
+-- preference stay separate because they answer different model-choice questions.
+create table if not exists public.ai_model_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  snapshot_date date not null,
+  model_id text not null,
+  model_name text not null,
+  provider text not null,
+  popularity_rank integer,
+  intelligence_rank integer,
+  intelligence_score numeric,
+  arena_rank integer,
+  arena_elo numeric,
+  context_length integer,
+  prompt_price numeric,
+  completion_price numeric,
+  throughput numeric,
+  latency numeric,
+  supported_parameters text[] not null default '{}',
+  metadata jsonb not null default '{}'::jsonb,
+  fetched_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (snapshot_date, model_id)
+);
+
+alter table public.idea_evaluations add column if not exists evaluation_key text;
+alter table public.ai_model_snapshots add column if not exists intelligence_score numeric;
+alter table public.ai_model_snapshots add column if not exists arena_elo numeric;
+create index if not exists idea_evaluations_user_key_created_idx
+  on public.idea_evaluations (user_id, evaluation_key, created_at desc);
 
 -- RAG index for Seedup's collected content. The source rows remain in their
 -- domain tables; this table only stores searchable text and embeddings.
@@ -490,6 +584,11 @@ alter table public.github_repo_snapshots enable row level security;
 alter table public.research_papers enable row level security;
 alter table public.news_paper_links enable row level security;
 alter table public.content_reactions enable row level security;
+alter table public.ai_model_snapshots enable row level security;
+alter table public.source_documents enable row level security;
+alter table public.article_source_links enable row level security;
+alter table public.article_quality_evaluations enable row level security;
+alter table public.recommendation_impressions enable row level security;
 alter table public.ai_product_ratings enable row level security;
 alter table public.ai_product_reviews enable row level security;
 alter table public.recommendation_feedback enable row level security;
@@ -533,6 +632,10 @@ alter table public.news_items add column if not exists buildability_score intege
 alter table public.news_items add column if not exists project_connect_score integer;
 alter table public.news_items add column if not exists daily_rank_score integer;
 alter table public.news_items add column if not exists recommendation_reasons text[] default '{}';
+alter table public.news_items add column if not exists source_role text default 'supporting';
+alter table public.news_items add column if not exists source_domain text;
+alter table public.news_items add column if not exists publication_status text default 'published';
+alter table public.news_items add column if not exists source_document_id uuid;
 alter table public.news_items add column if not exists ranked_at timestamptz;
 alter table public.news_items add column if not exists view_count integer not null default 0;
 alter table public.news_items add column if not exists like_count integer not null default 0;
@@ -685,6 +788,12 @@ grant select on public.ai_product_ratings to authenticated;
 grant select on public.ai_product_reviews to anon, authenticated;
 
 grant select, insert, update, delete on public.news_items to service_role;
+grant select, insert, update, delete on public.ai_model_snapshots to service_role;
+grant select, insert, update, delete on public.source_documents to service_role;
+grant select, insert, update, delete on public.article_source_links to service_role;
+grant select, insert, update, delete on public.article_quality_evaluations to service_role;
+grant select, insert on public.recommendation_impressions to service_role;
+grant select, insert on public.recommendation_impressions to authenticated;
 grant select, insert, update, delete on public.trends to service_role;
 grant select, insert, update, delete on public.keyword_signals to service_role;
 grant select, insert, update, delete on public.trend_snapshots to service_role;
@@ -710,7 +819,18 @@ grant select, insert, update, delete on public.content_reactions to authenticate
 grant select, insert, update on public.ai_product_ratings to authenticated;
 grant insert, update, delete on public.ai_product_reviews to authenticated;
 grant select, insert, update on public.recommendation_feedback to authenticated;
+
+drop policy if exists "Users can record own recommendation impressions" on public.recommendation_impressions;
+create policy "Users can record own recommendation impressions"
+  on public.recommendation_impressions for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can read own recommendation impressions" on public.recommendation_impressions;
+create policy "Users can read own recommendation impressions"
+  on public.recommendation_impressions for select
+  using (auth.uid() = user_id);
 grant select, insert on public.idea_evaluations to anon, authenticated;
+grant select on public.ai_model_snapshots to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.user_onboarding to authenticated;
 
@@ -885,6 +1005,11 @@ create policy "Anyone can create idea evaluations"
   on public.idea_evaluations for insert
   with check (user_id is null or auth.uid() = user_id);
 
+drop policy if exists "Public can read AI model snapshots" on public.ai_model_snapshots;
+create policy "Public can read AI model snapshots"
+  on public.ai_model_snapshots for select
+  using (true);
+
 drop policy if exists "Users can read own onboarding" on public.user_onboarding;
 create policy "Users can read own onboarding"
   on public.user_onboarding for select
@@ -986,6 +1111,14 @@ create index if not exists news_items_canonical_key_idx on public.news_items (ca
 create index if not exists news_items_duplicate_group_idx on public.news_items (duplicate_group_key);
 create index if not exists news_items_topic_tags_idx on public.news_items using gin (topic_tags);
 create index if not exists news_items_skill_tags_idx on public.news_items using gin (skill_tags);
+create index if not exists source_documents_published_idx on public.source_documents (published_at desc);
+create index if not exists ai_model_snapshots_date_idx on public.ai_model_snapshots (snapshot_date desc);
+create index if not exists source_documents_status_idx on public.source_documents (processing_status, collected_at desc);
+create index if not exists source_documents_domain_idx on public.source_documents (source_domain);
+create index if not exists article_source_links_article_idx on public.article_source_links (article_id);
+create index if not exists article_quality_article_idx on public.article_quality_evaluations (article_id, evaluated_at desc);
+create index if not exists recommendation_impressions_surface_idx on public.recommendation_impressions (surface, shown_at desc);
+create index if not exists recommendation_impressions_item_idx on public.recommendation_impressions (item_type, item_id, shown_at desc);
 drop index if exists news_items_original_url_key;
 create unique index news_items_original_url_key on public.news_items (original_url);
 create unique index if not exists trends_keyword_key on public.trends (keyword);

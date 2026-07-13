@@ -229,12 +229,13 @@ export type PaperAnalysisResult = {
   qualityReason?: string;
 };
 
-const DEFAULT_MODEL = 'google/gemini-3.5-flash';
-const FALLBACK_MODEL = 'google/gemini-3.5-flash';
+const DEFAULT_MODEL = 'anthropic/claude-sonnet-5';
+const FALLBACK_MODEL = 'anthropic/claude-sonnet-5';
 const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
+const ARTICLE_OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_ARTICLE_TIMEOUT_MS ?? 75_000);
 const MODEL_ROUTES = {
   preprocess: ['google/gemini-3.5-flash'],
-  writing: ['google/gemini-3.5-flash'],
+  writing: ['anthropic/claude-sonnet-5'],
 };
 
 const REPO_ANALYSIS_JSON_SCHEMA = {
@@ -627,7 +628,7 @@ trend: ${input.trend ?? ''}
 skills: ${(input.skills ?? []).join(', ')}
 summary: ${truncate(input.summary, 2500)}`,
       },
-    ], { maxTokens: 3500, models: MODEL_ROUTES.writing });
+    ], { maxTokens: 3500, models: getWritingModels() });
 
     const generated = normalizeGeneratedProjectIdea({ ...fallback, ...result }, estimate);
     return { idea: generated, model };
@@ -644,6 +645,7 @@ export async function generateArticleDraft(input: {
   trend?: string | null;
   skills?: string[];
   track?: string | null;
+  difficultyTarget?: '초급' | '중급' | '고급';
 }) {
   const fallback: GeneratedArticleDraft = {
     title: `${ensureKoreanTitle(input.title)} 정리`,
@@ -658,8 +660,8 @@ export async function generateArticleDraft(input: {
     project_idea: `${ensureKoreanTitle(input.title)} 기반 미니 프로젝트`,
     why_it_matters: '수집된 뉴스, 제품, 오픈소스, 논문, 트렌드 신호를 실제 학습과 프로젝트로 연결할 수 있습니다.',
     key_points: ['통합 데이터 기반으로 작성된 글입니다.', '프로젝트 아이디어로 확장할 수 있습니다.', '개인 맞춤 뉴스레터 소재로 활용할 수 있습니다.'],
-    difficulty: '중급',
-    target_levels: ['초보자', '중급자'],
+    difficulty: input.difficultyTarget ?? '중급',
+    target_levels: input.difficultyTarget === '초급' ? ['입문자', '초보자'] : input.difficultyTarget === '고급' ? ['중급자', '실무자'] : ['초보자', '중급자'],
     target_goals: ['최신 개발 트렌드 파악', '포트폴리오 만들기', '사이드 프로젝트 만들기'],
     target_interests: ['AI/LLM', '오픈소스', '사이드프로젝트'],
     referenced_tools: input.skills?.slice(0, 6) ?? [],
@@ -682,6 +684,7 @@ export async function generateArticleDraft(input: {
         content: `아래 전처리 데이터를 기반으로 /news 아티클 페이지에 발행할 긴 한국어 전문가 글을 작성하라.
 
 발행 트랙: ${input.track ?? '공통'}
+권장 난이도: ${input.difficultyTarget ?? '중급'}
 
 트랙별 에디토리얼 전략:
 ${trackGuide}
@@ -702,6 +705,7 @@ ${trackGuide}
 - 과장 금지. 아직 검증이 필요한 부분과 실패 가능성도 적는다.
 - “이런 프로젝트를 만들어보세요”에서 끝내지 말고, 데이터 모델/API/화면/평가 지표까지 구체화한다.
 - 트랙별 에디토리얼 전략을 반드시 반영한다. 모든 트랙에 같은 구조/톤을 반복하지 않는다.
+- difficulty는 권장 난이도와 일치시킨다. 튜토리얼·실습형 자료는 초급, 운영·성능·보안·분산 시스템 자료는 고급, 그 외는 중급으로 판단한다.
 - tags와 related_skills는 각각 6개 이하로 제한한다.
 
 권장 글 구조:
@@ -745,9 +749,18 @@ skills: ${(input.skills ?? []).join(', ')}
 source_data:
 ${truncate(input.summary, 9000)}`,
       },
-    ], { maxTokens: 9000, models: MODEL_ROUTES.writing, jsonMode: true });
+    ], { maxTokens: 6000, models: getWritingModels(), jsonMode: true, timeoutMs: ARTICLE_OPENROUTER_TIMEOUT_MS });
 
-    return { draft: normalizeArticleDraft(result, fallback), model };
+    const draft = normalizeArticleDraft(result, fallback);
+    if (input.difficultyTarget) {
+      draft.difficulty = input.difficultyTarget;
+      draft.target_levels = input.difficultyTarget === '초급'
+        ? ['입문자', '초보자']
+        : input.difficultyTarget === '고급'
+          ? ['중급자', '실무자']
+          : ['초보자', '중급자'];
+    }
+    return { draft, model };
   } catch (error) {
     console.error('OpenRouter article draft generation failed', error);
     return { draft: fallback, model: null };
@@ -757,41 +770,30 @@ ${truncate(input.summary, 9000)}`,
 
 export async function evaluateIdea(input: { idea: string; context?: string }) {
   const fallback: IdeaEvaluation = {
-    score: 72,
-    verdict: '작게 범위를 줄이면 7일 안에 포트폴리오 프로젝트로 만들기 좋은 아이디어입니다.',
-    portfolio_value: '문제 정의, 데이터 처리, UI 구현, 배포까지 보여줄 수 있습니다.',
-    difficulty: '중급',
-    market_fit: '최근 개발 생산성 및 자동화 흐름과 연결할 수 있습니다.',
-    recommended_stack: ['Next.js', 'Supabase', 'OpenRouter API', 'Vercel'],
-    risks: ['초기 범위가 커질 수 있음', '데이터 품질 관리가 필요함'],
-    next_steps: ['핵심 사용자 1명을 정하기', 'MVP 기능 3개로 줄이기', '데이터 구조 설계하기', '첫 화면 와이어프레임 만들기', '7일 빌드 플랜 작성하기'],
-    score_breakdown: { feasibility: 78, differentiation: 64, market: 58, portfolio: 82, mvp_clarity: 72 },
-    strengths: ['문제와 대상 사용자를 구체화하면 작은 MVP로 검증할 수 있습니다.'],
-    weaknesses: ['유사 서비스와 비교한 차별화 근거가 아직 부족합니다.'],
-    recommended_technologies: [
-      { name: 'Next.js', category: 'required', reason: '입력 화면과 평가 결과를 하나의 웹 앱으로 구현할 수 있습니다.' },
-      { name: 'Supabase', category: 'required', reason: '평가 기록과 사용자별 최근 결과를 저장하는 데 적합합니다.' },
-      { name: 'LLM API', category: 'required', reason: '아이디어를 구조화된 평가 항목으로 변환합니다.' },
-      { name: 'Queue', category: 'scale', reason: '평가 요청이 많아질 때 비동기 처리를 위해 검토할 수 있습니다.' },
-    ],
-    structured_risks: [
-      { title: '초기 범위가 커질 위험', severity: 'high', impact: '평가와 추천 기능을 한 번에 만들면 MVP 검증이 늦어집니다.', mitigation: '입력, 평가, 결과 저장 세 기능만 먼저 출시합니다.' },
-      { title: '근거 부족', severity: 'medium', impact: '시장성 판단이 일반적인 추론에 머물 수 있습니다.', mitigation: '평가 결과에 참고 자료와 추가 검증 질문을 함께 표시합니다.' },
-    ],
-    structured_next_steps: [
-      { order: 1, title: '대상 사용자 좁히기', description: '첫 평가를 사용할 개발자 유형을 한 가지로 정합니다.', deliverable: '한 문장 문제 정의', done_when: '인터뷰 대상 3명에게 같은 문제를 설명할 수 있습니다.' },
-      { order: 2, title: '평가 MVP 만들기', description: '아이디어 입력과 구조화된 평가 결과를 연결합니다.', deliverable: '동작하는 평가 화면', done_when: '세 가지 예시 아이디어가 같은 형식으로 평가됩니다.' },
-    ],
-    confidence: { level: 'low', reason: '시장 인터뷰와 직접적인 경쟁 서비스 비교 자료가 충분하지 않습니다.' },
-    missing_data: ['실제 사용자 인터뷰', '직접적인 경쟁 서비스 비교'],
+    score: 0,
+    verdict: '평가에 필요한 근거를 만들지 못했습니다.',
+    portfolio_value: '입력 내용을 구체화한 뒤 다시 평가해주세요.',
+    difficulty: '판단 보류',
+    market_fit: '근거 부족',
+    recommended_stack: [],
+    risks: ['입력 정보 부족'],
+    next_steps: ['대상 사용자와 해결할 문제를 한 문장으로 정의하기'],
+    score_breakdown: { feasibility: 0, differentiation: 0, market: 0, portfolio: 0, mvp_clarity: 0 },
+    strengths: [],
+    weaknesses: ['평가 결과를 만들기 위한 구조화된 입력이 부족합니다.'],
+    recommended_technologies: [],
+    structured_risks: [],
+    structured_next_steps: [],
+    confidence: { level: 'low', reason: '평가 결과를 확인할 수 없습니다.' },
+    missing_data: ['대상 사용자', '해결할 문제', '핵심 기능'],
   };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!apiKey) return { evaluation: fallback, model: null };
+  if (!apiKey) return { evaluation: null, model: null, error: '평가 모델 설정이 없습니다.' };
 
   try {
     const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
-      { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
+      { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 동일한 아이디어와 동일한 근거에는 항상 같은 평가 기준과 점수 체계를 적용한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
       {
         role: 'user',
         content: `아래 프로젝트 아이디어를 평가하라. 참고 자료가 있으면 경쟁 제품, 기술 선택, 시장성, 트렌드 판단에 반드시 활용하라. 참고 자료의 URL을 직접 열었다고 주장하지 말고, 자료에 없는 수치나 사실은 만들지 마라.
@@ -820,6 +822,8 @@ idea: ${truncate(input.idea, 2500)}
 
 추가 규칙:
 - 점수는 구현 가능성, 차별성, 시장성, 포트폴리오 가치, MVP 명확성을 종합하되 임의의 세부 점수를 UI에서 만들지 않는다.
+- 각 세부 점수는 0~100 정수다. 종합 점수는 feasibility 25%, differentiation 20%, market 20%, portfolio 20%, mvp_clarity 15%의 가중 평균을 반올림해 계산한다.
+- 문제, 대상 사용자, 해결 방식 중 둘 이상이 명확하지 않으면 MVP 명확성과 시장성에 40점을 넘기지 않는다. 근거가 부족하면 높게 추정하지 말고 낮은 신뢰도와 보완 질문을 제시한다.
 - 참고 자료에 직접 근거가 없으면 시장성은 "근거 부족" 또는 "AI 추론"으로 표현한다.
 - recommended_technologies는 MVP 필수(required), 선택(optional), 확장(scale)으로 구분하고 기술마다 이유를 쓴다. 한 MVP에 불필요한 기술을 과도하게 넣지 않는다.
 - structured_risks는 위험마다 심각도, 영향, 현실적인 대응 방법을 포함한다.
@@ -829,12 +833,12 @@ idea: ${truncate(input.idea, 2500)}
 참고 자료:
 ${input.context || '관련 자료를 찾지 못했다. 일반론을 최신 사실처럼 말하지 말고 불확실성을 표시하라.'}`,
       },
-    ]);
+    ], { models: getWritingModels(), jsonMode: true, temperature: 0 });
 
     return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter idea evaluation failed', error);
-    return { evaluation: fallback, model: null };
+    return { evaluation: null, model: null, error: '평가 모델 응답을 만들지 못했습니다.' };
   }
 }
 
@@ -872,7 +876,7 @@ summary: ${truncate(input.summary, 700)}
 content: ${truncate(input.content, 2200)}
 question: ${truncate(input.question, 500)}`,
       },
-    ]);
+    ], { models: getWritingModels(), jsonMode: true });
 
     return { result: { ...fallback, ...result }, model };
   } catch (error) {
@@ -886,7 +890,9 @@ async function callOpenRouter<T>(
   messages: Array<{ role: 'system' | 'user'; content: string }>,
   options?: {
     maxTokens?: number;
+    timeoutMs?: number;
     models?: string[];
+    temperature?: number;
     jsonMode?: boolean;
     jsonSchema?: { name: string; schema: Record<string, unknown> };
   },
@@ -897,7 +903,7 @@ async function callOpenRouter<T>(
 
   for (const model of models) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? OPENROUTER_TIMEOUT_MS);
 
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -912,7 +918,7 @@ async function callOpenRouter<T>(
         body: JSON.stringify({
           model,
           messages,
-          temperature: 0.2,
+          temperature: options?.temperature ?? 0.2,
           max_tokens: maxTokens,
           ...(options?.jsonSchema
             ? {
@@ -977,6 +983,16 @@ function getOpenRouterModels() {
     .filter((model, index, models) => models.indexOf(model) === index);
 }
 
+function getWritingModels() {
+  return [
+    ...MODEL_ROUTES.writing,
+    ...(process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(','),
+  ]
+    .map((model) => model.trim())
+    .filter(Boolean)
+    .filter((model, index, models) => models.indexOf(model) === index);
+}
+
 function parseJsonResponse<T>(content: string) {
   // Log a short preview when parsing fails to help debugging without dumping the full model output.
   // Strip markdown code fences (```json ... ``` or ``` ... ```)
@@ -997,19 +1013,56 @@ function parseJsonResponse<T>(content: string) {
     return JSON.parse(stripped) as T;
   } catch {
     const start = stripped.indexOf('{');
-    const end = stripped.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) {
+    if (start === -1) {
       console.warn('OpenRouter non-JSON preview:', stripped.slice(0, 500));
       throw new Error('OpenRouter returned non-JSON content');
     }
 
-    const candidate = stripped.slice(start, end + 1);
+    // Models occasionally append a second JSON object or a short explanation.
+    // Parse only the first balanced object instead of combining it with the tail.
+    const candidate = extractFirstJsonObject(stripped.slice(start));
+    if (!candidate) {
+      console.warn('OpenRouter incomplete JSON preview:', stripped.slice(0, 500));
+      throw new Error('OpenRouter returned incomplete JSON content');
+    }
     try {
       return JSON.parse(candidate) as T;
     } catch {
       return JSON.parse(repairJsonCandidate(candidate)) as T;
     }
   }
+}
+
+function extractFirstJsonObject(value: string) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return value.slice(0, index + 1);
+    }
+  }
+
+  return null;
 }
 
 function repairJsonCandidate(value: string) {
@@ -1136,6 +1189,7 @@ function normalizeArticleDraft(result: Partial<GeneratedArticleDraft>, fallback:
   const title = ensureKoreanTitle(result.title ?? fallback.title);
   const summary = result.summary ?? fallback.summary;
   const content = result.content_markdown?.trim() || fallback.content_markdown;
+  const priority = normalizeEditorialPriority(result.newsletter_priority, fallback.newsletter_priority);
 
   return {
     title,
@@ -1144,7 +1198,7 @@ function normalizeArticleDraft(result: Partial<GeneratedArticleDraft>, fallback:
     category: result.category ?? fallback.category,
     content_type: isContentType(result.content_type) ? result.content_type : fallback.content_type,
     newsletter_section: isNewsletterSection(result.newsletter_section) ? result.newsletter_section : fallback.newsletter_section,
-    newsletter_priority: clampScore(result.newsletter_priority ?? fallback.newsletter_priority),
+    newsletter_priority: priority,
     tags: Array.isArray(result.tags) ? result.tags.slice(0, 6) : fallback.tags,
     related_skills: Array.isArray(result.related_skills) ? result.related_skills.slice(0, 6) : fallback.related_skills,
     project_idea: result.project_idea ?? fallback.project_idea,
@@ -1160,13 +1214,24 @@ function normalizeArticleDraft(result: Partial<GeneratedArticleDraft>, fallback:
   };
 }
 
-export function validateGeneratedArticleDraft(draft: GeneratedArticleDraft) {
+function normalizeEditorialPriority(value: unknown, fallback: number) {
+  const candidate = clampScore(value ?? fallback);
+  // The writing model occasionally returns a 1-10 scale despite the requested
+  // 0-100 scale. Do not let that malformed value sink a finished article.
+  return candidate < 40 ? clampScore(fallback) : candidate;
+}
+
+export function validateGeneratedArticleDraft(draft: GeneratedArticleDraft, options?: { mode?: 'daily' | 'deep-dive'; track?: string }) {
   const content = draft.content_markdown.trim();
   const sectionCount = (content.match(/^##\s+/gm) ?? []).length;
   const linkCount = (content.match(/\]\(https?:\/\//g) ?? []).length;
+  const isDeepDive = options?.mode === 'deep-dive';
+  const isProductBrief = options?.track === '제품/빌드 아이디어';
+  const minimumCharacters = isDeepDive ? 5500 : isProductBrief ? 2500 : options?.track === '논문/리서치' ? 3500 : 3500;
+  const minimumSections = isDeepDive ? 7 : isProductBrief ? 4 : 6;
 
-  if (content.length < 2600) return { ok: false, reason: 'too_short' };
-  if (sectionCount < 5) return { ok: false, reason: 'too_few_sections' };
+  if (content.length < minimumCharacters) return { ok: false, reason: `too_short:${minimumCharacters}` };
+  if (sectionCount < minimumSections) return { ok: false, reason: `too_few_sections:${minimumSections}` };
   if (/## 왜 중요한가\s*[\s\S]{0,500}## 개발자가 볼 포인트\s*[\s\S]{0,500}## 작게 만들어볼 아이디어/i.test(content)) {
     return { ok: false, reason: 'template_article' };
   }
@@ -1239,12 +1304,34 @@ function getArticleTrackGuide(track?: string | null) {
 - 데이터에 있는 여러 source를 종합해 단일 관점을 만든다.`;
 }
 
+function normalizeScoreBreakdown(value: ScoreBreakdown | undefined, fallback: ScoreBreakdown | undefined): ScoreBreakdown {
+  const clamp = (score: unknown) => Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
+  return {
+    feasibility: clamp(value?.feasibility ?? fallback?.feasibility),
+    differentiation: clamp(value?.differentiation ?? fallback?.differentiation),
+    market: clamp(value?.market ?? fallback?.market),
+    portfolio: clamp(value?.portfolio ?? fallback?.portfolio),
+    mvp_clarity: clamp(value?.mvp_clarity ?? fallback?.mvp_clarity),
+  };
+}
+
+function weightedIdeaScore(breakdown: ScoreBreakdown) {
+  return Math.round(
+    Number(breakdown.feasibility ?? 0) * 0.25
+    + Number(breakdown.differentiation ?? 0) * 0.2
+    + Number(breakdown.market ?? 0) * 0.2
+    + Number(breakdown.portfolio ?? 0) * 0.2
+    + Number(breakdown.mvp_clarity ?? 0) * 0.15,
+  );
+}
+
 function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: IdeaEvaluation): IdeaEvaluation {
+  const scoreBreakdown = normalizeScoreBreakdown(result.score_breakdown, fallback.score_breakdown);
   const technologies = normalizeRecommendedTechnologies(result.recommended_technologies, result.recommended_stack);
   const structuredRisks = normalizeRisks(result.structured_risks, result.risks);
   const structuredNextSteps = normalizeNextSteps(result.structured_next_steps, result.next_steps);
   return {
-    score: Math.max(0, Math.min(100, Number(result.score ?? fallback.score))),
+    score: weightedIdeaScore(scoreBreakdown),
     verdict: result.verdict ?? fallback.verdict,
     portfolio_value: result.portfolio_value ?? fallback.portfolio_value,
     difficulty: result.difficulty ?? fallback.difficulty,
@@ -1252,7 +1339,7 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
     recommended_stack: Array.isArray(result.recommended_stack) ? result.recommended_stack : fallback.recommended_stack,
     risks: Array.isArray(result.risks) ? result.risks : fallback.risks,
     next_steps: Array.isArray(result.next_steps) ? result.next_steps : fallback.next_steps,
-    score_breakdown: result.score_breakdown ?? fallback.score_breakdown,
+    score_breakdown: scoreBreakdown,
     strengths: Array.isArray(result.strengths) ? result.strengths.filter((item): item is string => typeof item === 'string') : fallback.strengths,
     weaknesses: Array.isArray(result.weaknesses) ? result.weaknesses.filter((item): item is string => typeof item === 'string') : fallback.weaknesses,
     recommended_technologies: technologies.length ? technologies : fallback.recommended_technologies,

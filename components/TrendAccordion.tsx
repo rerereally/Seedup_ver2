@@ -1,12 +1,13 @@
 'use client';
 
-import type { Trend, TrendSnapshot } from '@/lib/data';
+import type { ModelIntelligence, Trend, TrendSnapshot } from '@/lib/data';
+import ModelIntelligencePanel from '@/components/ModelIntelligencePanel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowDown, ArrowRight, ArrowUp, ChevronsUpDown, Code2, FileText, PackageSearch, Radio, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-const CATEGORY_TABS = ['개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어'] as const;
+const CATEGORY_TABS = ['개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어', '모델 인텔리전스'] as const;
 
 const TREND_TYPE_LABELS: Record<string, string> = {
   development_method: '개발 워크플로우',
@@ -330,7 +331,7 @@ function TrendDetail({ trend }: { trend: Trend }) {
   );
 }
 
-export default function TrendAccordion({ trends }: { trends: Trend[] }) {
+export default function TrendAccordion({ trends, models = [] }: { trends: Trend[]; models?: ModelIntelligence[] }) {
   const [category, setCategory] = useState<(typeof CATEGORY_TABS)[number]>('개발 워크플로우');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -353,21 +354,21 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
               setCategory(item);
               setOpenId(null);
             }}
-            className={`h-10 border px-3 text-xs font-black ${category === item ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}
+            className={`min-h-11 border px-3 text-xs font-black ${category === item ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}
           >
             {item}
           </button>
         ))}
       </div>
 
-      <div className="grid gap-3">
+      {category === '모델 인텔리전스' ? <ModelIntelligencePanel models={models} /> : <div className="grid gap-3">
         {visibleTrends.map((trend, index) => {
           const isOpen = openId === trend.id;
           const growth = numberValue(trend.weekly_growth_rate);
           return (
             <article key={trend.id} className="border border-outline-soft bg-white">
-              <button type="button" onClick={() => setOpenId(isOpen ? null : trend.id)} className="grid w-full gap-4 p-5 text-left hover:bg-surface md:grid-cols-[5rem_1fr_6rem] md:items-center">
-                <div className="text-3xl font-black text-muted/70">
+              <button type="button" onClick={() => setOpenId(isOpen ? null : trend.id)} className="grid w-full gap-4 p-4 text-left hover:bg-surface sm:p-5 md:grid-cols-[5rem_1fr_6rem] md:items-center">
+                <div className="text-2xl font-black text-muted/70 md:text-3xl">
                   {String(index + 1).padStart(2, '0')}
                 </div>
                 <div className="min-w-0">
@@ -375,7 +376,7 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
                     <span className="border border-emerald-500/40 bg-emerald-50 px-2 py-1 text-xs font-black uppercase text-emerald-700">{statusLabel(trend.status)}</span>
                     <span className="text-xs font-black uppercase tracking-[0.24em] text-muted">{TREND_TYPE_LABELS[String(trend.entity_type ?? trend.trend_type ?? '')] ?? trend.entity_type ?? trend.trend_type ?? categoryOf(trend)}</span>
                   </div>
-                  <h2 className="truncate text-3xl font-black leading-tight text-ink">{trend.display_name ?? trend.keyword}</h2>
+                  <h2 className="line-clamp-2 text-2xl font-black leading-tight text-ink md:truncate md:text-3xl">{trend.display_name ?? trend.keyword}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold uppercase text-muted">
                     <span className="inline-flex items-center gap-1">{directionIcon(trend.trend_direction)} {growth >= 0 ? '+' : ''}{growth}%</span>
                     <span>·</span>
@@ -399,7 +400,7 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
             이 카테고리의 트렌드는 아직 집계되지 않았습니다. 트렌드 집계를 다시 실행하면 새 분류 기준으로 채워집니다.
           </div>
         )}
-      </div>
+      </div>}
     </section>
   );
 }

@@ -89,7 +89,11 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
   const recommendedFor = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
   const trustLabel = item.published_at ? `수집 기준 ${formatDate(item.published_at)}` : item.source ? `출처 ${item.source}` : 'Seedup 검토';
   const newsletterLabel = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : '브리핑 후보';
-  const scoreLabel = item.newsletter_priority ? `우선순위 ${Math.round(item.newsletter_priority)}` : item.daily_rank_score ? `랭킹 ${Math.round(item.daily_rank_score)}` : null;
+  const scoreLabel = Number(item.newsletter_priority ?? 0) >= 40
+    ? `우선순위 ${Math.round(Number(item.newsletter_priority))}`
+    : Number(item.daily_rank_score ?? 0) >= 40
+      ? `랭킹 ${Math.round(Number(item.daily_rank_score))}`
+      : null;
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
   const reasons = item.recommendation_reasons?.length
     ? item.recommendation_reasons
@@ -236,7 +240,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           <section>
             <div className="flex flex-col gap-6">
               <div className="flex flex-col gap-4 border border-outline-soft bg-white p-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex gap-2">
+                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar md:mx-0 md:px-0 md:pb-0">
                   {[
                     { key: 'new', label: 'New' },
                     { key: 'popular', label: 'Popular' },
@@ -247,13 +251,13 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                       key={item.key}
                       href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })}
                       scroll={false}
-                      className={`px-4 py-2 text-sm font-bold transition-colors ${tab === item.key ? 'bg-ink text-white' : 'bg-surface text-muted hover:text-ink'}`}
+                      className={`inline-flex h-11 shrink-0 items-center px-4 text-sm font-bold transition-colors ${tab === item.key ? 'bg-ink text-white' : 'bg-surface text-muted hover:text-ink'}`}
                     >
                       {item.label}
                     </Link>
                   ))}
                 </div>
-                <div className="text-sm font-semibold text-muted">총 {sortedArticles.length}개 아티클</div>
+                <div className="self-start text-sm font-semibold text-muted md:self-auto">총 {sortedArticles.length}개 아티클</div>
               </div>
 
               {paginatedArticles.length ? (

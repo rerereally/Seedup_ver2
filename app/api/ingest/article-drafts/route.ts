@@ -14,6 +14,9 @@ type SourceItem = {
   summary: string;
   trend: string | null;
   skills: string[];
+  sourceRole: 'primary' | 'independent' | 'supporting' | 'context';
+  sourceDomain: string | null;
+  publishedAt: string | null;
 };
 
 type ArticleTrack = 'AI/LLM' | '프론트엔드' | '백엔드' | '오픈소스/GitHub' | '제품/빌드 아이디어' | '논문/리서치';
@@ -27,11 +30,14 @@ type ArticleCluster = {
   sourceTypes: string[];
   sources: SourceItem[];
   track: ArticleTrack;
+  latestPublishedAt: string | null;
 };
 
 const DAILY_TRACKS: ArticleTrack[] = ['AI/LLM', '프론트엔드', '백엔드', '오픈소스/GitHub', '제품/빌드 아이디어', '논문/리서치'];
-const DAILY_PER_TRACK = 2;
-const DAILY_TOTAL_LIMIT = DAILY_TRACKS.length * DAILY_PER_TRACK;
+// 한 번의 실행에서 생성할 최대 수. 트랙별 고정 개수 제한은 두지 않는다.
+const DAILY_TOTAL_LIMIT = 12;
+const MAX_CANDIDATES_PER_TRACK = 6;
+const TRACK_DIGEST_MIN_SOURCES = 3;
 const RECENT_DUPLICATE_WINDOW_DAYS = 14;
 const DEEP_DIVE_WINDOW_DAYS = 7;
 
@@ -67,27 +73,30 @@ async function ingest(request: Request) {
   const [newsResult, productsResult, reposResult, papersResult, trendsResult] = await Promise.all([
     supabase
       .from('news_items')
-      .select('id,title,short_summary,beginner_summary,summary,newsletter_section,newsletter_priority,topic_tags,skill_tags,related_skills,project_idea,category,source,source_url,original_url')
+      .select('id,title,short_summary,beginner_summary,summary,newsletter_section,newsletter_priority,daily_rank_score,topic_tags,skill_tags,related_skills,project_idea,category,source,source_url,original_url,published_at')
+      .neq('source', 'Seedup')
+      .order('published_at', { ascending: false, nullsFirst: false })
       .order('newsletter_priority', { ascending: false, nullsFirst: false })
-      .order('daily_rank_score', { ascending: false, nullsFirst: false })
       .limit(sourceLimit),
     supabase
       .from('ai_products')
-      .select('id,name,short_summary,description,newsletter_priority,topic_tags,skill_tags,use_cases,related_project_ideas,category,website_url,product_hunt_url')
+      .select('id,name,short_summary,description,newsletter_priority,topic_tags,skill_tags,use_cases,related_project_ideas,category,website_url,product_hunt_url,created_at')
+      .order('created_at', { ascending: false, nullsFirst: false })
       .order('newsletter_priority', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(sourceLimit),
     supabase
       .from('github_trends')
-      .select('id,repo_full_name,repo_url,short_summary,beginner_summary,description,newsletter_priority,topic_tags,skill_tags,topics,language,project_idea,stars,stars_delta_7d')
+      .select('id,repo_full_name,repo_url,short_summary,beginner_summary,description,newsletter_priority,topic_tags,skill_tags,topics,language,project_idea,stars,stars_delta_7d,pushed_at,last_seen_at')
+      .order('pushed_at', { ascending: false, nullsFirst: false })
       .order('newsletter_priority', { ascending: false, nullsFirst: false })
       .order('stars', { ascending: false })
       .limit(sourceLimit),
     supabase
       .from('research_papers')
       .select('id,title,beginner_summary,expert_summary,abstract,categories,related_skills,implementation_idea,service_idea,relevance_score,trend_score,buildability_score,paper_url,code_url')
+      .order('published_at', { ascending: false, nullsFirst: false })
       .order('trend_score', { ascending: false, nullsFirst: false })
-      .order('published_at', { ascending: false })
       .limit(sourceLimit),
     supabase
       .from('trends')
@@ -135,22 +144,23 @@ async function ingest(request: Request) {
   const recentItems = recentGenerated ?? [];
   const todayTrackCounts = getTodayTrackCounts(todayGenerated ?? []);
   const clusters = buildArticleClusters(sources, { minSources, minSourceTypes })
-    .filter((cluster) => mode === 'deep-dive' || (todayTrackCounts[cluster.track] ?? 0) < DAILY_PER_TRACK)
+    .filter((cluster) => meetsPublicationThreshold(cluster, mode))
     .filter((cluster) => !isDuplicateCluster(cluster, recentItems));
-  const remainingDailySlots = Math.max(0, DAILY_TOTAL_LIMIT - totalTrackCount(todayTrackCounts));
   const selectedClusters = mode === 'daily'
-    ? selectDailyClusters(clusters, todayTrackCounts, Math.min(limit + DAILY_TRACKS.length, remainingDailySlots + DAILY_TRACKS.length), 3)
+    ? selectDailyClusters(clusters, Math.min(Math.max(1, limit), DAILY_TOTAL_LIMIT))
     : clusters.slice(0, 1);
 
   let upserted = 0;
   let errors = 0;
   let skipped = 0;
+  const skipReasons: string[] = [];
+  const upsertedTrackCounts = Object.fromEntries(DAILY_TRACKS.map((track) => [track, 0])) as Record<ArticleTrack, number>;
 
-  for (const cluster of selectedClusters) {
-    if (mode === 'daily' && (todayTrackCounts[cluster.track] ?? 0) >= DAILY_PER_TRACK) continue;
+  await mapWithConcurrency(selectedClusters, mode === 'daily' ? 3 : 1, async (cluster) => {
     if (isDuplicateCluster(cluster, recentItems)) {
       skipped += 1;
-      continue;
+      skipReasons.push(`${cluster.track}:duplicate_cluster`);
+      return;
     }
     try {
       const { draft, model } = await generateArticleDraft({
@@ -160,17 +170,25 @@ async function ingest(request: Request) {
         trend: cluster.trend,
         skills: cluster.skills,
         track: cluster.track,
+        difficultyTarget: inferClusterDifficulty(cluster),
       });
-      const quality = validateGeneratedArticleDraft(draft);
+      if (!draft.content_markdown.trim()) {
+        errors += 1;
+        skipReasons.push(`${cluster.track}:generation_empty`);
+        console.warn('Article draft generation returned empty content', cluster.id, cluster.title);
+        return;
+      }
+      const quality = validateGeneratedArticleDraft(draft, { mode, track: cluster.track });
       if (!quality.ok) {
         skipped += 1;
+        skipReasons.push(`${cluster.track}:${quality.reason}`);
         console.warn('Generated article skipped after quality check', cluster.id, cluster.title, quality.reason);
-        continue;
+        return;
       }
 
       const now = new Date().toISOString();
       const originalUrl = `seedup://article-drafts/cluster/${cluster.id}`;
-      const { error } = await upsertGeneratedArticle(supabase, {
+      const articleResult = await upsertGeneratedArticle(supabase, {
         title: draft.title,
         raw_title: cluster.title,
         summary: draft.summary,
@@ -228,11 +246,14 @@ async function ingest(request: Request) {
         published_at: now,
       });
 
-      if (error) {
+      if (articleResult.error) {
         errors += 1;
-        console.error('Generated article upsert failed', cluster.id, cluster.title, error);
+        console.error('Generated article upsert failed', cluster.id, cluster.title, articleResult.error);
       } else {
+        const articleId = articleResult.data?.id ?? null;
+        if (articleId) await recordArticleEvidence(supabase, articleId, cluster, mode, draft.content_markdown);
         upserted += 1;
+        upsertedTrackCounts[cluster.track] += 1;
         if (mode === 'daily') todayTrackCounts[cluster.track] = (todayTrackCounts[cluster.track] ?? 0) + 1;
         recentItems.push({
           id: originalUrl,
@@ -250,7 +271,7 @@ async function ingest(request: Request) {
       errors += 1;
       console.error('Article draft generation failed', cluster.id, cluster.title, error);
     }
-  }
+  });
 
   if (!selectedClusters.length) skipped += 1;
 
@@ -261,14 +282,39 @@ async function ingest(request: Request) {
     skipped,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { mode, limit, minSources, minSourceTypes, sources: sources.length, clusters: clusters.length, selected: selectedClusters.length, target: 'news_items' },
+    detail: {
+      mode,
+      limit,
+      minSources,
+      minSourceTypes,
+      sources: sources.length,
+      clusters: clusters.length,
+      selected: selectedClusters.length,
+      reason: upserted > 0
+        ? undefined
+        : errors > 0
+          ? 'generation_or_upsert_failed'
+          : skipped > 0
+            ? 'all_selected_skipped'
+            : clusters.length
+              ? 'no_daily_candidates_after_filters'
+              : 'no_eligible_clusters',
+      skip_reasons: skipReasons.slice(0, 20),
+      errors,
+      today_track_counts: todayTrackCounts,
+      source_types: countSourceTypes(sources),
+      candidate_tracks: countTracks(clusters),
+      selected_tracks: countTracks(selectedClusters),
+      upserted_tracks: upsertedTrackCounts,
+      target: 'news_items',
+    },
   });
 
-  return NextResponse.json({ ok: true, mode, upserted, skipped, errors, sources: sources.length, clusters: clusters.length, selected: selectedClusters.length });
+  return NextResponse.json({ ok: true, mode, upserted, skipped, errors, sources: sources.length, clusters: clusters.length, selected: selectedClusters.length, target: mode === 'daily' ? DAILY_TOTAL_LIMIT : 1 });
 }
 
 async function upsertGeneratedArticle(supabase: NonNullable<ReturnType<typeof createAdminClient>>, payload: Record<string, unknown>) {
-  const result = await supabase.from('news_items').upsert(payload, { onConflict: 'original_url' });
+  const result = await supabase.from('news_items').upsert(payload, { onConflict: 'original_url' }).select('id').single();
   if (!result.error) return result;
 
   const message = result.error.message.toLowerCase();
@@ -324,7 +370,38 @@ async function upsertGeneratedArticle(supabase: NonNullable<ReturnType<typeof cr
   }
 
   console.warn('Article draft upsert retrying without recommendation columns. Apply supabase/schema.sql to enable full ranking metadata.');
-  return supabase.from('news_items').upsert(fallbackPayload, { onConflict: 'original_url' });
+  return supabase.from('news_items').upsert(fallbackPayload, { onConflict: 'original_url' }).select('id').single();
+}
+
+async function recordArticleEvidence(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  articleId: string,
+  cluster: ArticleCluster,
+  mode: 'daily' | 'deep-dive',
+  content: string,
+) {
+  const actualSources = cluster.sources.filter((source) => source.sourceType !== 'trend_bundle');
+  const sectionCount = (content.match(/^##\s+/gm) ?? []).length;
+  await supabase.from('article_source_links').upsert(
+    actualSources.map((source) => ({
+      article_id: articleId,
+      source_type: source.sourceType,
+      source_id: source.sourceId,
+      source_role: source.sourceRole,
+    })),
+    { onConflict: 'article_id,source_document_id,source_type,source_id' },
+  );
+  await supabase.from('article_quality_evaluations').insert({
+    article_id: articleId,
+    content_mode: mode,
+    passed: true,
+    actual_source_count: actualSources.length,
+    source_type_count: new Set(actualSources.map((source) => source.sourceType)).size,
+    primary_source_count: actualSources.filter((source) => source.sourceRole === 'primary').length,
+    independent_domain_count: new Set(actualSources.map((source) => source.sourceDomain).filter(Boolean)).size,
+    section_count: sectionCount,
+    character_count: content.length,
+  });
 }
 
 function normalizeDailyNewsletterSection(value: unknown) {
@@ -371,6 +448,9 @@ function buildSources({
         ...trends.flatMap((item) => item.related_skills ?? []),
         ...trends.flatMap((item) => item.related_tools ?? []),
       ]),
+      publishedAt: new Date().toISOString(),
+      sourceRole: 'context' as const,
+      sourceDomain: null,
     }]
     : [];
 
@@ -389,6 +469,9 @@ function buildSources({
       ].filter(Boolean).join('\n'),
       trend: item.category ?? item.topic_tags?.[0] ?? null,
       skills: [...(item.skill_tags ?? []), ...(item.related_skills ?? [])],
+      publishedAt: item.published_at ?? null,
+      sourceRole: classifySourceRole(item.source, item.original_url || item.source_url),
+      sourceDomain: getSourceDomain(item.original_url || item.source_url),
     })),
     ...products.map((item) => ({
       sourceType: 'ai_product' as const,
@@ -403,6 +486,9 @@ function buildSources({
       ].filter(Boolean).join('\n'),
       trend: item.category ?? item.topic_tags?.[0] ?? null,
       skills: [...(item.skill_tags ?? []), ...(item.use_cases ?? [])],
+      publishedAt: item.created_at ?? null,
+      sourceRole: 'primary' as const,
+      sourceDomain: getSourceDomain(item.website_url || item.product_hunt_url),
     })),
     ...repos.filter(isUsableRepoSource).map((item) => ({
       sourceType: 'github' as const,
@@ -418,6 +504,9 @@ function buildSources({
       ].filter(Boolean).join('\n'),
       trend: pickSpecificTrend([...(item.topic_tags ?? []), ...(item.topics ?? [])]),
       skills: [...(item.skill_tags ?? []), ...(item.topics ?? []), item.language].filter(Boolean),
+      publishedAt: item.pushed_at ?? item.last_seen_at ?? null,
+      sourceRole: 'primary' as const,
+      sourceDomain: getSourceDomain(item.repo_url),
     })),
     ...papers.filter(isUsablePaperSource).map((item) => ({
       sourceType: 'paper' as const,
@@ -433,6 +522,9 @@ function buildSources({
       ].filter(Boolean).join('\n'),
       trend: item.categories?.[0] ?? null,
       skills: [...(item.related_skills ?? []), ...(item.categories ?? [])],
+      publishedAt: item.published_at ?? null,
+      sourceRole: 'primary' as const,
+      sourceDomain: getSourceDomain(item.paper_url),
     })),
   ];
 }
@@ -455,6 +547,8 @@ function buildArticleClusters(sources: SourceItem[], options: { minSources: numb
     .map(([key, items]) => buildClusterFromBucket(key, items, trendBundle))
     .filter((cluster) => cluster.sources.length >= options.minSources && cluster.sourceTypes.length >= options.minSourceTypes)
     .sort((a, b) => {
+      const latestDiff = new Date(b.latestPublishedAt ?? 0).getTime() - new Date(a.latestPublishedAt ?? 0).getTime();
+      if (latestDiff) return latestDiff;
       const diversityDiff = b.sourceTypes.length - a.sourceTypes.length;
       if (diversityDiff) return diversityDiff;
       return b.sources.length - a.sources.length;
@@ -477,41 +571,82 @@ function buildArticleClusters(sources: SourceItem[], options: { minSources: numb
     }
   }
 
-  // 자료는 있지만 여러 소스가 같은 키워드로 묶이지 않는 경우에도 해당 트랙을 비우지 않는다.
+  // 정확히 같은 키워드가 아니어도, 같은 트랙의 독립적인 최신 신호를 묶은
+  // 에디토리얼 브리프는 발행할 수 있다. 단일 원천 fallback은 발행 후보로 쓰지 않는다.
+  const globallyUsedSources = new Set([...selected.values()].flatMap((cluster) => cluster.sources
+    .filter((source) => source.sourceType !== 'trend_bundle')
+    .map(sourceKey)));
   for (const track of DAILY_TRACKS) {
-    if ([...selected.values()].some((cluster) => cluster.track === track)) continue;
-    const fallbackSource = findFallbackSource(track, sources);
-    if (!fallbackSource) continue;
-    const fallback = buildClusterFromBucket(`fallback ${track} ${fallbackSource.sourceId}`, [fallbackSource], sources.find((source) => source.sourceType === 'trend_bundle'));
-    selected.set(fallback.id, fallback);
+    if ([...selected.values()].some((cluster) => cluster.track === track && cluster.sources.filter((source) => source.sourceType !== 'trend_bundle').length >= TRACK_DIGEST_MIN_SOURCES)) continue;
+
+    const digestSources = pickTrackDigestSources(track, sources, globallyUsedSources);
+    if (digestSources.length < TRACK_DIGEST_MIN_SOURCES) continue;
+
+    const digest = buildClusterFromBucket(`track digest ${track}`, digestSources, trendBundle);
+    const trackDigest = {
+      ...digest,
+      id: `track-digest-${slugifyClusterKey(track)}`,
+      title: `${track}에서 지금 봐야 할 ${digestSources.length}가지 개발 신호`,
+      trend: `${track} 브리프`,
+      track,
+    };
+    selected.set(trackDigest.id, trackDigest);
+    for (const source of digestSources) globallyUsedSources.add(sourceKey(source));
   }
 
   return [...selected.values()];
 }
 
-function findFallbackSource(track: ArticleTrack, sources: SourceItem[]) {
-  const candidates = sources.filter((source) => source.sourceType !== 'trend_bundle');
-  if (track === '오픈소스/GitHub') return candidates.find((source) => source.sourceType === 'github');
-  if (track === '제품/빌드 아이디어') return candidates.find((source) => source.sourceType === 'ai_product');
-  if (track === '논문/리서치') return candidates.find((source) => source.sourceType === 'paper');
-  if (track === '프론트엔드') return candidates.find((source) => /front|react|next|vue|svelte|css|ui|ux|browser|웹|프론트/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
-  if (track === '백엔드') return candidates.find((source) => /back|server|api|database|postgres|redis|spring|node|fastapi|infra|cloud|devops|서버|백엔드/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
-  return candidates.find((source) => /ai|llm|agent|rag|mcp|model|머신러닝|인공지능/i.test(`${source.title} ${source.summary} ${source.skills.join(' ')}`));
+function pickTrackDigestSources(track: ArticleTrack, sources: SourceItem[], usedSources: Set<string>) {
+  const candidates = sources.filter((source) => source.sourceType !== 'trend_bundle'
+    && !usedSources.has(sourceKey(source))
+    && sourceMatchesTrack(source, track));
+  const selected: SourceItem[] = [];
+  const usedDomains = new Set<string>();
+
+  for (const source of candidates) {
+    const domain = source.sourceDomain ?? `${source.sourceType}:${source.sourceId}`;
+    if (usedDomains.has(domain) && candidates.some((item) => item.sourceDomain && item.sourceDomain !== domain && sourceMatchesTrack(item, track))) continue;
+    selected.push(source);
+    usedDomains.add(domain);
+    if (selected.length >= 4) break;
+  }
+
+  return selected;
 }
 
-function selectDailyClusters(clusters: ArticleCluster[], initialCounts: Record<ArticleTrack, number>, maxTotal: number, refillPerTrack = 1) {
-  const counts = { ...initialCounts };
-  const selected: ArticleCluster[] = [];
+function sourceMatchesTrack(source: SourceItem, track: ArticleTrack) {
+  const text = `${source.title} ${source.summary} ${source.skills.join(' ')}`.toLowerCase();
+  if (track === '오픈소스/GitHub') return source.sourceType === 'github';
+  if (track === '제품/빌드 아이디어') return source.sourceType === 'ai_product';
+  if (track === '논문/리서치') return source.sourceType === 'paper';
+  if (track === '프론트엔드') return /front|react|next\.?js|vue|svelte|css|ui|ux|browser|web component|accessibility|design system|프론트/.test(text);
+  if (track === '백엔드') return /back|server|api|database|postgres|mysql|mongodb|redis|kafka|grpc|graphql|spring|java|kotlin|node|nestjs|express|fastapi|django|flask|golang|rust|kubernetes|docker|terraform|microservice|distributed system|queue|worker|cache|infra|cloud|devops|backend|서버|백엔드|데이터베이스|마이크로서비스/.test(text);
+  return /ai|llm|agent|rag|mcp|model|codex|claude code|copilot|머신러닝|인공지능|생성형/.test(text);
+}
 
-  for (let round = 0; round < DAILY_PER_TRACK + refillPerTrack; round += 1) {
+function inferClusterDifficulty(cluster: ArticleCluster): '초급' | '중급' | '고급' {
+  const text = `${cluster.title} ${cluster.summary} ${cluster.skills.join(' ')}`.toLowerCase();
+  if (/tutorial|getting started|beginner|introduction|quickstart|walkthrough|입문|초보|기초|따라하기|실습/.test(text)) return '초급';
+  if (/production|architecture|distributed|scalab|performance|security|benchmark|evaluation|observability|kubernetes|운영|아키텍처|성능|보안|분산|평가|관찰 가능/.test(text)) return '고급';
+  return '중급';
+}
+
+function selectDailyClusters(clusters: ArticleCluster[], maxTotal: number) {
+  const selected: ArticleCluster[] = [];
+  const selectedIds = new Set<string>();
+
+  for (let round = 0; selected.length < maxTotal; round += 1) {
+    let addedThisRound = false;
     for (const track of DAILY_TRACKS) {
       if (selected.length >= maxTotal) return selected;
-      if ((counts[track] ?? 0) >= round + 1) continue;
-      const cluster = clusters.find((item) => item.track === track && !selected.some((selectedCluster) => selectedCluster.id === item.id));
+      const cluster = clusters.find((item) => item.track === track && !selectedIds.has(item.id));
       if (!cluster) continue;
       selected.push(cluster);
-      counts[track] = (counts[track] ?? 0) + 1;
+      selectedIds.add(cluster.id);
+      addedThisRound = true;
     }
+    if (!addedThisRound) break;
   }
 
   return selected;
@@ -523,6 +658,11 @@ function buildClusterFromBucket(key: string, items: SourceItem[], trendBundle?: 
   const track = inferArticleTrack(key, deduped);
   const clusterTitle = `${titleCaseClusterKey(key)} 흐름을 실제 프로젝트로 연결하는 법`;
   const skills = uniqueStrings(deduped.flatMap((item) => item.skills)).slice(0, 12);
+  const latestPublishedAt = deduped
+    .filter((source) => source.sourceType !== 'trend_bundle')
+    .map((source) => source.publishedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
   const summary = [
     `클러스터 주제: ${titleCaseClusterKey(key)}`,
     `참고 데이터 수: ${deduped.length}`,
@@ -546,6 +686,7 @@ function buildClusterFromBucket(key: string, items: SourceItem[], trendBundle?: 
     sourceTypes,
     sources: deduped,
     track,
+    latestPublishedAt,
   };
 }
 
@@ -556,7 +697,7 @@ function inferArticleTrack(key: string, sources: SourceItem[]): ArticleTrack {
   if (sourceTypes.has('github')) return '오픈소스/GitHub';
   if (sourceTypes.has('ai_product')) return '제품/빌드 아이디어';
   if (/front|react|next\.?js|vue|svelte|css|ui|ux|browser|web component|프론트/.test(text)) return '프론트엔드';
-  if (/back|server|api|database|postgres|redis|spring|node|fastapi|infra|cloud|devops|backend|서버|백엔드/.test(text)) return '백엔드';
+  if (/back|server|api|database|postgres|mysql|mongodb|redis|kafka|grpc|graphql|spring|java|kotlin|node|nestjs|express|fastapi|django|flask|golang|rust|kubernetes|docker|terraform|microservice|distributed system|queue|worker|cache|infra|cloud|devops|backend|서버|백엔드|데이터베이스|마이크로서비스/.test(text)) return '백엔드';
   if (/startup|saas|product hunt|product|maker|side project|business|market|revenue|창업|사이드|제품|서비스|빌드|아이디어/.test(text)) return '제품/빌드 아이디어';
   return 'AI/LLM';
 }
@@ -584,6 +725,14 @@ function extractKeywordsFromText(text: string) {
     'vector database',
     'local llm',
     'ai coding assistant',
+    'codex',
+    'claude code',
+    'github copilot',
+    'developer workflow',
+    'build log',
+    'implementation guide',
+    'cli',
+    'terminal',
     'browser agent',
     'computer use',
     'developer tool',
@@ -592,6 +741,16 @@ function extractKeywordsFromText(text: string) {
     'observability',
     'vercel ai sdk',
     'supabase auth',
+    'api gateway',
+    'microservices',
+    'distributed systems',
+    'graphql',
+    'grpc',
+    'kafka',
+    'kubernetes',
+    'serverless',
+    'database migration',
+    'observability',
   ];
   return known.filter((keyword) => lower.includes(keyword));
 }
@@ -642,15 +801,92 @@ function totalTrackCount(counts: Record<ArticleTrack, number>) {
   return DAILY_TRACKS.reduce((sum, track) => sum + (counts[track] ?? 0), 0);
 }
 
+function countTracks(items: Array<{ track: ArticleTrack }>) {
+  return Object.fromEntries(DAILY_TRACKS.map((track) => [track, items.filter((item) => item.track === track).length]));
+}
+
+function countSourceTypes(items: SourceItem[]) {
+  return Object.fromEntries(uniqueStrings(items.map((item) => item.sourceType)).map((type) => [type, items.filter((item) => item.sourceType === type).length]));
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+function meetsPublicationThreshold(cluster: ArticleCluster, mode: 'daily' | 'deep-dive') {
+  const actualSources = cluster.sources.filter((source) => source.sourceType !== 'trend_bundle');
+  const actualTypes = new Set(actualSources.map((source) => source.sourceType));
+  const primaryCount = actualSources.filter((source) => source.sourceRole === 'primary').length;
+  const independentEntities = new Set(actualSources.map((source) => (
+    source.sourceType === 'github' || source.sourceType === 'paper'
+      ? `${source.sourceType}:${source.sourceId}`
+      : source.sourceDomain || `${source.sourceType}:${source.sourceId}`
+  )));
+  const isProductTrack = cluster.track === '제품/빌드 아이디어';
+  const minimumSources = mode === 'deep-dive' ? 5 : isProductTrack ? 2 : 3;
+  const minimumTypes = mode === 'deep-dive' ? 3 : 2;
+  const minimumPrimary = mode === 'deep-dive' ? 2 : 1;
+  const independentCoverage = actualSources.length >= 3 && independentEntities.size >= 3;
+  const sourceDiversityPass = actualTypes.size >= minimumTypes
+    || (mode === 'daily' && independentCoverage);
+  const primaryCoveragePass = primaryCount >= minimumPrimary
+    || (mode === 'daily' && independentCoverage);
+
+  return actualSources.length >= minimumSources
+    && sourceDiversityPass
+    && primaryCoveragePass
+    && independentEntities.size >= 2;
+}
+
+function classifySourceRole(sourceName: string | null | undefined, url: string | null | undefined): SourceItem['sourceRole'] {
+  const value = `${sourceName ?? ''} ${url ?? ''}`;
+  return /openai|anthropic|google|github|aws|cloudflare|vercel|nvidia|naver|kakao|toss|woowahan|daangn|arxiv/i.test(value)
+    ? 'primary'
+    : 'independent';
+}
+
+function getSourceDomain(url: string | null | undefined) {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function isDuplicateCluster(cluster: ArticleCluster, recentItems: Array<Record<string, any>>) {
   const clusterTokens = tokenSet([cluster.id, cluster.title, cluster.trend, ...cluster.skills].join(' '));
-  const clusterSourceKeys = new Set(cluster.sources.map(sourceKey));
+  // trend_bundle은 모든 클러스터에 공통으로 붙는 현재 트렌드 요약이다.
+  // 이를 실제 원문 소스로 세면 이전 글과 공통 트렌드만 겹쳐도
+  // 백엔드/프론트엔드 등 다른 트랙 후보까지 중복으로 잘못 제거된다.
+  const clusterSourceKeys = new Set(
+    cluster.sources
+      .filter((source) => source.sourceType !== 'trend_bundle')
+      .map(sourceKey),
+  );
 
   for (const item of recentItems) {
     const notes = getQualityNotes(item.quality_notes);
     if (notes.includes(`cluster_key:${cluster.id}`)) return true;
 
-    const recentSourceKeys = new Set(notes.filter((note) => note.startsWith('source_key:')).map((note) => note.replace(/^source_key:/, '')));
+    const recentSourceKeys = new Set(
+      notes
+        .filter((note) => note.startsWith('source_key:'))
+        .map((note) => note.replace(/^source_key:/, ''))
+        .filter((key) => !key.startsWith('trend_bundle:')),
+    );
     const sourceOverlap = [...clusterSourceKeys].filter((key) => recentSourceKeys.has(key)).length;
     if (sourceOverlap >= Math.max(2, Math.ceil(clusterSourceKeys.size * 0.5))) return true;
 

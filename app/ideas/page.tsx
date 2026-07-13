@@ -119,8 +119,9 @@ export default function Ideas() {
     });
 
     if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
       setStatus('error');
-      setErrorMessage('분석에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      setErrorMessage(typeof errorBody?.error === 'string' ? errorBody.error : '분석에 실패했습니다. 잠시 후 다시 시도해주세요.');
       return;
     }
 
@@ -135,22 +136,22 @@ export default function Ideas() {
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div className="flex items-center gap-3">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
+          <div className="mb-6 flex flex-col gap-3 sm:mb-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-black tracking-tight text-ink">아이디어 평가</h1>
               <span className="border border-ink bg-white px-3 py-1 text-xs font-black text-ink">IDEA REVIEW</span>
             </div>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">아이디어의 시장성, 구현 가능성, 차별성, 포트폴리오 가치를 분석합니다.</p>
+            <p className="max-w-2xl text-sm leading-7 text-muted">아이디어의 시장성, 구현 가능성, 차별성, 포트폴리오 가치를 분석합니다.</p>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section className="overflow-hidden border border-outline-soft bg-white">
-              <div className="min-h-[320px] p-5 md:p-8">
+              <div className="min-h-[320px] p-4 sm:p-5 md:p-8">
                 {!activeRun && status !== 'saving' && status !== 'error' && (
                   <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
                     <span className="flex h-16 w-16 items-center justify-center border border-ink bg-ink text-white"><Bot className="h-8 w-8" /></span>
-                    <h2 className="mt-6 text-2xl font-black text-ink md:text-3xl">만들고 싶은 아이디어를 평가해보세요.</h2>
+                    <h2 className="mt-6 text-2xl font-black leading-snug text-ink md:text-3xl">만들고 싶은 아이디어를 평가해보세요.</h2>
                     <p className="mt-3 text-sm leading-7 text-muted">아이디어를 입력하면 포트폴리오 가치와 실행 가능성을 함께 검토해드려요.</p>
                     <div className="mt-10 grid w-full max-w-3xl gap-3 md:grid-cols-3">
                       {EXAMPLE_IDEAS.map((example) => (
@@ -166,8 +167,8 @@ export default function Ideas() {
                 )}
 
                 {activeRun && <div className="space-y-5">
-                  <div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-ink px-5 py-4 text-sm leading-7 text-white">{activeRun.idea}</div>
-                  <div className="max-w-[96%] border border-outline-soft bg-surface p-5">
+                  <div className="ml-auto max-w-[94%] bg-ink px-4 py-3 text-sm leading-7 text-white sm:max-w-[88%] sm:px-5 sm:py-4">{activeRun.idea}</div>
+                  <div className="max-w-full border border-outline-soft bg-surface p-4 sm:max-w-[96%] sm:p-5">
                     <p className="mb-4 text-xs font-black uppercase tracking-wider text-ink">평가 결과</p>
                     <EvaluationPanel run={activeRun} />
                   </div>
@@ -178,19 +179,26 @@ export default function Ideas() {
               </div>
 
               <div className="border-t border-outline-soft bg-white p-4 md:p-5">
-                <div className="flex items-end gap-3">
-                  <label htmlFor="idea-chat-input" className="sr-only">평가받을 프로젝트 아이디어</label>
-                  <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} aria-label="평가받을 프로젝트 아이디어" placeholder="어떤 사용자의 어떤 문제를 해결하는 아이디어인지 설명해주세요.&#10;&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="h-28 min-h-28 min-w-0 flex-1 resize-none overflow-y-auto border border-outline-soft bg-surface px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted/80 focus:border-ink" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
-                  <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="inline-flex h-14 shrink-0 items-center justify-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"><Send className="h-4 w-4" />{status === 'saving' ? '아이디어 분석 중...' : '아이디어 평가하기'}</button>
+                <div className="overflow-hidden border border-ink bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-soft bg-surface px-4 py-2.5">
+                    <label htmlFor="idea-chat-input" className="text-xs font-black text-ink">어떤 아이디어를 검토할까요?</label>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Seedup data context on</span>
+                  </div>
+                  <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} aria-label="평가받을 프로젝트 아이디어" placeholder="누가 겪는 어떤 문제를 어떻게 해결할지 적어주세요.&#10;&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="h-32 min-h-32 w-full resize-none bg-white px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted/70 sm:h-28 sm:min-h-28" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
+                  <div className="flex flex-col gap-3 border-t border-outline-soft bg-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                    <p className="text-xs leading-5 text-muted">시장성 · 차별성 · 구현 난이도 · 포트폴리오 · MVP 계획</p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <span className="text-[11px] text-muted">Cmd/Ctrl + Enter</span>
+                      <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"><Send className="h-4 w-4" />{status === 'saving' ? '분석 중...' : '평가하기'}</button>
+                    </div>
+                  </div>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-muted">시장성 · 차별성 · 구현 난이도 · 포트폴리오 가치 · 추천 기술 스택 · MVP 실행 계획</p>
-                <p className="mt-2 text-right text-[11px] text-muted">Cmd/Ctrl + Enter로 전송</p>
               </div>
             </section>
 
             <aside className="space-y-4">
               <div className="border border-outline-soft bg-white p-5">
-                <div className="flex items-center justify-between"><h2 className="text-sm font-black text-ink">최근 평가</h2><div className="flex items-center gap-3"><button type="button" onClick={() => setIsRecentModalOpen(true)} disabled={recentIdeas.length <= 3} className="text-xs font-bold text-muted underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40">더보기</button><button type="button" onClick={reset} className="inline-flex items-center gap-1 text-xs font-bold text-ink"><RotateCcw className="h-3.5 w-3.5" /> 새로 시작</button></div></div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-black text-ink">최근 평가</h2><div className="flex items-center gap-3"><button type="button" onClick={() => setIsRecentModalOpen(true)} disabled={recentIdeas.length <= 3} className="min-h-10 text-xs font-bold text-muted underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40">더보기</button><button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-ink"><RotateCcw className="h-3.5 w-3.5" /> 새로 시작</button></div></div>
                 <div className="mt-4 grid gap-2">
                   {recentIdeas.length ? recentIdeas.slice(0, 3).map((item) => <button key={item.id} type="button" onClick={() => openRecent(item)} className="border border-outline-soft bg-surface p-3 text-left text-xs font-bold leading-5 text-muted transition-colors hover:border-ink hover:bg-white hover:text-ink"><span className="line-clamp-2">{item.idea_text}</span><span className="mt-1 block text-[10px] font-black uppercase text-muted">{item.score ?? '-'} score</span></button>) : <p className="text-xs leading-6 text-muted">로그인하면 최근 평가가 여기에 저장됩니다.</p>}
                 </div>
@@ -204,7 +212,7 @@ export default function Ideas() {
             <div className="w-full max-w-2xl border border-ink bg-white">
               <div className="flex items-center justify-between border-b border-outline-soft px-5 py-4">
                 <div><h2 id="recent-evaluations-title" className="text-base font-black text-ink">최근 평가 전체 보기</h2><p className="mt-1 text-xs text-muted">이전에 평가받은 아이디어와 점수를 확인할 수 있습니다.</p></div>
-                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-10 w-10 items-center justify-center text-ink hover:bg-surface"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-11 w-11 items-center justify-center text-ink hover:bg-surface"><X className="h-5 w-5" /></button>
               </div>
               <div className="max-h-[70vh] space-y-2 overflow-y-auto p-5">
                 {recentIdeas.map((item) => <button key={item.id} type="button" onClick={() => openRecent(item)} className="w-full border border-outline-soft bg-surface p-4 text-left transition-colors hover:border-ink hover:bg-white"><div className="flex items-start justify-between gap-4"><span className="text-sm font-bold leading-6 text-ink">{item.idea_text}</span><span className="shrink-0 text-xs font-black text-muted">{item.score ?? '-'}점</span></div><span className="mt-2 block text-xs text-muted">{item.status === 'completed' ? '평가 완료' : item.status}</span></button>)}

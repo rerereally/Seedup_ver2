@@ -74,7 +74,7 @@ export default function ArticleAssistant({
         <p className="text-sm leading-6 text-muted">본문에서 이해되지 않는 부분이나 더 알고 싶은 내용을 질문해보세요.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {['이 글 쉽게 설명해줘', '핵심 기술이 뭐야?'].map((preset) => (
-            <button key={preset} type="button" onClick={() => ask(preset)} className="h-9 border border-outline-soft bg-surface px-3 text-xs font-bold text-muted transition-colors hover:border-ink hover:bg-white hover:text-ink">
+            <button key={preset} type="button" onClick={() => ask(preset)} className="inline-flex min-h-10 items-center border border-outline-soft bg-surface px-3 text-xs font-bold text-muted transition-colors hover:border-ink hover:bg-white hover:text-ink">
               {preset}
             </button>
           ))}
@@ -82,7 +82,7 @@ export default function ArticleAssistant({
       </div>}
 
       {hasConversation && (
-        <div className="max-h-96 min-h-64 space-y-3 overflow-y-auto border-t border-outline-soft bg-surface px-4 py-5">
+        <div className="max-h-[min(58dvh,34rem)] min-h-72 space-y-3 overflow-y-auto border-t border-outline-soft bg-surface px-4 py-5">
           {messages.slice(-3).map((message, index) => (
             <div key={`${message.role}-${index}`} className={`max-w-[92%] px-3 py-2.5 text-sm leading-6 ${message.role === 'assistant' ? 'border border-outline-soft bg-white text-muted' : 'ml-auto bg-ink text-white'}`}>
               {message.content}
@@ -106,14 +106,14 @@ export default function ArticleAssistant({
           }}
           placeholder="본문에 대해 질문하기"
           aria-label="본문에 대해 질문하기"
-          className="h-24 w-full resize-none bg-transparent p-2 text-sm leading-6 text-ink outline-none placeholder:text-muted/60"
+          className="h-28 w-full resize-none bg-transparent p-2 text-sm leading-6 text-ink outline-none placeholder:text-muted/60"
         />
         <div className="flex items-center justify-end gap-2 border-t border-outline-soft/70 pt-2">
           <button
             type="button"
             onClick={() => ask()}
             disabled={!question.trim() || status === 'loading'}
-            className="inline-flex h-10 items-center gap-2 bg-ink px-4 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex min-h-11 items-center gap-2 bg-ink px-4 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           >
             {status === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             질문

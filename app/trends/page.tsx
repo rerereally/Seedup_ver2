@@ -1,13 +1,12 @@
-import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import TrendAccordion from '@/components/TrendAccordion';
-import { getTrends } from '@/lib/data';
+import { getModelIntelligence, getTrends } from '@/lib/data';
 import { Radio } from 'lucide-react';
 
 export default async function Trends() {
-  const trends = await getTrends();
+  const [trends, models] = await Promise.all([getTrends(), getModelIntelligence()]);
   const topTrend = trends[0];
   const totalSignals = trends.reduce((sum, trend) => sum + Number(trend.sources_count ?? 0), 0);
 
@@ -37,11 +36,7 @@ export default async function Trends() {
             )}
           />
 
-          {trends.length ? (
-            <TrendAccordion trends={trends} />
-          ) : (
-            <EmptyState title="아직 등록된 트렌드가 없습니다" description="Supabase의 trends 테이블에 데이터를 넣으면 이 화면에 자동으로 표시됩니다." />
-          )}
+          <TrendAccordion trends={trends} models={models} />
         </div>
       </main>
       <Footer />

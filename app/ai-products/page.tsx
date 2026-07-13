@@ -10,10 +10,10 @@ import Link from 'next/link';
 
 const PAGE_SIZE = 9;
 
-function displayRating(score: number | null) {
+function displayRating(score: number | null, ratingCount: number | null) {
   const raw = Number(score ?? 0);
   if (!raw) return '-';
-  return (raw > 10 ? raw / 20 : raw / 2).toFixed(1);
+  return (ratingCount && ratingCount > 0 ? raw : raw > 10 ? raw / 20 : raw / 2).toFixed(1);
 }
 
 function buildHref(params: { q?: string; category?: string; pricing?: string; page?: number }) {
@@ -151,7 +151,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                 <div className="grid min-w-0 gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {paginatedProducts.map((product, index) => {
                     const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
-                    const rating = displayRating(product.score);
+                    const rating = displayRating(product.score, product.rating_count);
                     const ratingCount = product.rating_count ?? 0;
                     const globalIndex = (currentPage - 1) * PAGE_SIZE + index + 1;
 

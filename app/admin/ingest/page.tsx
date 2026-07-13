@@ -4,7 +4,7 @@ import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
-import { getIngestQualitySummary, getIngestRejections, getIngestRuns } from '@/lib/data';
+import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
 import { isAdminEmail } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { Activity, CheckCircle2, Clock3, DatabaseZap, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
@@ -16,9 +16,10 @@ const TASKS = [
   { key: 'github', label: 'GitHub 전처리', stage: 'collect', description: '최근 업데이트된 오픈소스 저장소를 넓게 가져오고 stars 스냅샷, 7일 증가량, 마지막 확인일을 갱신합니다. 오래 안 보인 저장소는 정리합니다.' },
   { key: 'research', label: '논문/arXiv 전처리', stage: 'collect', description: '뉴스 RSS와 별개로 arXiv 논문을 수집하고 연구 요약, 구현 아이디어, 논문 추천 메타데이터를 저장합니다.' },
   { key: 'external-trends', label: '외부 트렌드 소스 수집', stage: 'collect', description: 'npm, Hugging Face, DEV.to, Stack Overflow, Product Hunt, Hacker News 공개 소스를 읽어 트렌드용 keyword_signals를 저장합니다.' },
+  { key: 'model-intelligence', label: 'OpenRouter 모델 인텔리전스', stage: 'collect', description: 'OpenRouter의 주간 사용량, 지능 지수, Design Arena 순위를 수집해 트렌드 페이지의 AI 모델 비교 데이터로 저장합니다.' },
   { key: 'trends', label: '트렌드 집계', stage: 'aggregate', description: '뉴스, AI 제품, GitHub, 논문 신호를 합쳐 카테고리별 Top 30 트렌드 랭킹과 7일 스냅샷을 갱신합니다.' },
   { key: 'project-ideas', label: '프로젝트 아이디어 생성', stage: 'generate', description: '전처리된 뉴스/제품/오픈소스 신호를 개별 포트폴리오 프로젝트로 변환합니다.' },
-  { key: 'article-drafts', label: '데일리 아티클 생성', stage: 'generate', description: 'AI/LLM, 프론트엔드, 백엔드, 오픈소스/GitHub, 제품/빌드 아이디어, 논문/리서치 6개 트랙별 2개씩 하루 최대 12개 글을 생성합니다. 최소 3개 소스와 2개 소스 타입이 묶인 클러스터만 발행합니다.' },
+  { key: 'article-drafts', label: '데일리 아티클 생성', stage: 'generate', description: '최신 데이터가 있는 트랙부터 한 번에 최대 12개를 생성합니다. 트랙별 고정 개수 제한은 없으며, 최소 3개 소스와 2개 소스 타입이 묶인 클러스터를 우선 발행하고 중복 글은 차단합니다.' },
   { key: 'deep-dive', label: '주간 Deep Dive 생성', stage: 'generate', description: '가장 강한 통합 클러스터를 바탕으로 긴 Deep Dive 글을 생성합니다. 주 1회만 실행하는 별도 발행 단계입니다.' },
 ] as const;
 
@@ -43,8 +44,15 @@ function statusClass(status: string) {
 
 function detailSummary(detail: Record<string, unknown> | null) {
   if (!detail) return '-';
-  const pairs = Object.entries(detail)
-    .filter(([, value]) => typeof value === 'number' || typeof value === 'string')
+  const priorityKeys = ['reason', 'skip_reasons', 'remaining_daily_slots', 'sources', 'clusters', 'selected', 'upserted'];
+  const entries = Object.entries(detail);
+  const pairs = [...priorityKeys.map((key) => entries.find(([entryKey]) => entryKey === key)).filter(Boolean) as Array<[string, unknown]>, ...entries]
+    .filter((pair, index, all) => pair && all.findIndex(([key]) => key === pair[0]) === index)
+    .flatMap(([key, value]) => {
+      if (typeof value === 'number' || typeof value === 'string') return [[key, value] as [string, string | number]];
+      if (key === 'skip_reasons' && Array.isArray(value) && value.length) return [[key, value.slice(0, 2).join(' | ')] as [string, string]];
+      return [];
+    })
     .slice(0, 3);
 
   return pairs.length ? pairs.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
@@ -57,7 +65,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
   if (!isAdminEmail(data.user.email)) redirect('/');
 
   const params = await searchParams;
-  const [runs, rejections, qualitySummary] = await Promise.all([getIngestRuns(), getIngestRejections(), getIngestQualitySummary()]);
+  const [runs, rejections, qualitySummary, recommendationQuality] = await Promise.all([getIngestRuns(), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality()]);
 
   return (
     <>
@@ -101,6 +109,20 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               [`${qualitySummary.totalSkipped}`, '최근 스킵'],
               [`${qualitySummary.rejections}`, '제외 로그'],
               [`${qualitySummary.sources.length}`, '감시 소스'],
+            ].map(([value, label]) => (
+              <div key={label} className="border border-outline-soft bg-white p-5">
+                <p className="text-3xl font-black text-ink">{value}</p>
+                <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-4">
+            {[
+              [recommendationQuality.impressions, '추천 노출'],
+              [recommendationQuality.clicks, '추천 클릭'],
+              [`${recommendationQuality.clickRate}%`, '추천 클릭률'],
+              [recommendationQuality.useful, '유용 피드백'],
             ].map(([value, label]) => (
               <div key={label} className="border border-outline-soft bg-white p-5">
                 <p className="text-3xl font-black text-ink">{value}</p>
@@ -179,8 +201,10 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                       </div>
                       <span className="border border-outline-soft bg-white px-2 py-1 text-xs font-black text-ink">Q {source.quality || '-'}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
                       {[
+                        [source.fetched, '가져옴'],
+                        [source.recent, '최근'],
                         [source.inserted, '저장'],
                         [source.skipped, '스킵'],
                         [source.rejected, '제외'],

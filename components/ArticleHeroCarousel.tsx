@@ -39,7 +39,7 @@ export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }:
           <span className="text-xs font-bold uppercase text-muted">{active.type === 'paper' ? 'PAPER' : active.category ?? 'ARTICLE'}</span>
         </div>
         <Link href={itemHref(active)} className="mt-5 block">
-          <h2 className="line-clamp-3 text-3xl font-black leading-tight text-ink md:text-4xl">{active.title}</h2>
+          <h2 className="line-clamp-3 text-2xl font-black leading-tight text-ink sm:text-3xl md:text-4xl">{active.title}</h2>
           {(active.summary ?? active.beginner_summary) && (
             <p className="mt-4 line-clamp-4 max-w-3xl text-base leading-7 text-muted">{active.summary ?? active.beginner_summary}</p>
           )}
@@ -50,10 +50,10 @@ export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }:
         {[
           [active.source ?? 'Seedup', 'source'],
           [formatDate(active.published_at) || '-', 'collected'],
-          [String(active.relevance_score ?? '-'), 'score'],
+          [active.type === 'paper' ? '논문 리뷰' : active.source === 'Seedup' ? 'Seedup 편집' : '원문 브리핑', 'format'],
         ].map(([value, label]) => (
-          <div key={label} className="border-outline-soft p-4 md:border-r md:last:border-r-0">
-            <p className="text-xl font-black text-ink">{value}</p>
+          <div key={label} className="border-b border-outline-soft p-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+            <p className="truncate text-xl font-black text-ink">{value}</p>
             <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
           </div>
         ))}
@@ -71,7 +71,7 @@ export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }:
             />
           ))}
         </div>
-        <Link href={itemHref(active)} className="inline-flex h-10 items-center gap-2 bg-ink px-4 text-sm font-bold text-white">
+        <Link href={itemHref(active)} className="inline-flex min-h-11 items-center gap-2 bg-ink px-4 text-sm font-bold text-white">
           읽기
           <ArrowRight className="h-4 w-4" />
         </Link>

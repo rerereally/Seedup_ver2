@@ -10,6 +10,7 @@ const INGEST_STEPS = [
   ['github', '/api/ingest/github?limit=15&minStars=50&pruneDays=30'],
   ['research', '/api/ingest/research?limit=12&minScore=55&minFitScore=18'],
   ['external-trends', '/api/ingest/external-trends'],
+  ['model-intelligence', '/api/ingest/model-intelligence'],
   ['trends', '/api/ingest/trends'],
   ['project-ideas', '/api/ingest/project-ideas?limit=10'],
   ['article-drafts', '/api/ingest/article-drafts?mode=daily&limit=12'],

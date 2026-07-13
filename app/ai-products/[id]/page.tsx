@@ -1,4 +1,5 @@
-import { rateAIProduct, submitAIProductReview } from '@/app/actions/product-ratings';
+import { submitAIProductReview } from '@/app/actions/product-ratings';
+import { AIProductRatingControl, ProductRatingSummary } from '@/components/AIProductRating';
 import { saveScrap } from '@/app/actions/scraps';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
@@ -10,17 +11,6 @@ import { createClient } from '@/lib/supabase/server';
 import { ArrowLeft, Bookmark, Bot, Code2, ExternalLink, ImageIcon, MessageSquare, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-
-function normalizedScore(score: number | null) {
-  const raw = Number(score ?? 0);
-  if (!raw) return 0;
-  return Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
-}
-
-function displayRating(score: number | null) {
-  const normalized = normalizedScore(score);
-  return normalized ? normalized.toFixed(1) : '-';
-}
 
 function productTags(product: AIProduct) {
   return [product.category, product.pricing_type, product.target_user, ...(product.use_cases ?? [])]
@@ -70,8 +60,6 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
   const isLoggedIn = Boolean(userData.user);
   const homepage = product.website_url ?? product.product_hunt_url;
   const tags = productTags(product);
-  const rating = displayRating(product.score);
-  const roundedRating = Math.round(normalizedScore(product.score));
 
   return (
     <>
@@ -137,20 +125,10 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
             </div>
 
             <div className="mt-7 grid gap-4 border-t border-outline-soft pt-5 md:grid-cols-4">
-              <div>
-                <p className="text-xs font-bold uppercase text-muted">평균 평점</p>
-                <div className="mt-2 flex items-center gap-3">
-                  <p className="text-3xl font-black text-ink">{rating}</p>
-                  <RatingStars rating={roundedRating} />
-                </div>
-              </div>
+              <ProductRatingSummary productId={product.id} score={product.score} ratingCount={product.rating_count} />
               <div>
                 <p className="text-xs font-bold uppercase text-muted">리뷰</p>
                 <p className="mt-2 text-3xl font-black text-ink">{reviews.length}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase text-muted">평가 참여</p>
-                <p className="mt-2 text-3xl font-black text-ink">{product.rating_count ?? 0}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase text-muted">조회</p>
@@ -168,25 +146,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                     <p className="mt-1 text-sm text-muted">써본 사람의 짧은 평가가 다른 개발자에게 제일 도움이 됩니다.</p>
                   </div>
                 </div>
-                {isLoggedIn ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((score) => (
-                      <form key={score} action={rateAIProduct}>
-                        <input type="hidden" name="product_id" value={product.id} />
-                        <input type="hidden" name="rating" value={score} />
-                        <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
-                        <button type="submit" className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
-                          <Star className="h-4 w-4" />
-                          {score}
-                        </button>
-                      </form>
-                    ))}
-                  </div>
-                ) : (
-                  <Link href="/login" className="inline-flex h-11 items-center border border-outline-soft bg-ink px-4 text-sm font-bold text-white">
-                    로그인하고 평점 남기기
-                  </Link>
-                )}
+                <AIProductRatingControl productId={product.id} isLoggedIn={isLoggedIn} />
               </section>
 
               <section className="border border-outline-soft bg-white p-5 md:p-7">

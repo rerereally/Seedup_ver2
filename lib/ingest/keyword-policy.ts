@@ -60,6 +60,16 @@ const HANDS_ON: KeywordGroup = {
     'how to build',
     'starter project',
     'practical guide',
+    'implementation guide',
+    'build log',
+    'developer workflow',
+    'cli tutorial',
+    '실무 팁',
+    '구현기',
+    '빌딩 로그',
+    '개발 워크플로',
+    '터미널',
+    '명령줄',
   ],
 };
 
@@ -118,6 +128,11 @@ const AI_AGENT: KeywordGroup = {
     'cursor',
     'windsurf',
     'github copilot',
+    'codex',
+    'claude code',
+    'cursor cli',
+    'ai coding',
+    'agent workflow',
     'hugging face',
     'langchain',
     'llamaindex',
@@ -125,6 +140,10 @@ const AI_AGENT: KeywordGroup = {
     'autogen',
     'mcp',
     'model context protocol',
+    'glm',
+    '모델 추론',
+    '추론 서버',
+    'local model',
   ],
 };
 
@@ -201,6 +220,54 @@ const INFRA_TOOLING: KeywordGroup = {
   ],
 };
 
+const BACKEND_DATA: KeywordGroup = {
+  weight: 16,
+  terms: [
+    'postgres',
+    'postgresql',
+    'mysql',
+    'redis',
+    'kafka',
+    'grpc',
+    'graphql',
+    'presto',
+    'trino',
+    'sql',
+    'database',
+    '데이터베이스',
+    '분산 시스템',
+    'distributed systems',
+    'rust',
+    'golang',
+    'kotlin',
+    'java',
+    'gpu',
+    'analytics',
+    '데이터 파이프라인',
+  ],
+};
+
+const SECURITY_RELIABILITY: KeywordGroup = {
+  weight: 16,
+  terms: [
+    '보안',
+    '취약점',
+    '비밀키',
+    '환경 변수',
+    'environment variable',
+    'sensitive environment',
+    'secret',
+    'vulnerability',
+    'security',
+    'privacy',
+    '로그 마스킹',
+    'rate limit',
+    'observability',
+    '신뢰성',
+    'reliability',
+  ],
+};
+
 const PRODUCT_CAREER: KeywordGroup = {
   weight: 8,
   terms: [
@@ -263,7 +330,7 @@ const HARD_EXCLUDES = [
   '정치',
 ];
 
-const GROUPS = [CORE, BEGINNER, HANDS_ON, PROJECT, AI_AGENT, WEB_APP, DATA_AUTOMATION, INFRA_TOOLING, PRODUCT_CAREER];
+const GROUPS = [CORE, BEGINNER, HANDS_ON, PROJECT, AI_AGENT, WEB_APP, DATA_AUTOMATION, INFRA_TOOLING, BACKEND_DATA, SECURITY_RELIABILITY, PRODUCT_CAREER];
 
 export type KeywordPolicyResult = {
   shouldAnalyze: boolean;
@@ -274,8 +341,11 @@ export type KeywordPolicyResult = {
 };
 
 export function evaluateArticleKeywordPolicy(input: { title: string; content: string; source?: string }) {
+  const title = normalize(input.title);
   const text = normalize(`${input.title}\n${input.content}\n${input.source ?? ''}`);
-  const hardExcluded = matchingTerms(text, HARD_EXCLUDES);
+  // Broad terms such as "주식" or "정치" can appear incidentally in technical
+  // articles. Require hard exclusions to appear in the headline first.
+  const hardExcluded = matchingTerms(title, HARD_EXCLUDES);
   if (hardExcluded.length) {
     return { shouldAnalyze: false, score: -100, matched: [], softExcluded: [], hardExcluded } satisfies KeywordPolicyResult;
   }

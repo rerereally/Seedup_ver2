@@ -30,7 +30,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     <>
       <Header />
       <main className="grow bg-surface">
-        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
           <section className="border border-outline-soft bg-white">
             <div className="border-b border-outline-soft p-5 md:p-7">
               <div className="mb-4 inline-flex items-center gap-2 border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-muted">
@@ -39,7 +39,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               </div>
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <h1 className="text-4xl font-black leading-tight text-ink md:text-5xl">무엇을 찾고 있나요?</h1>
+                  <h1 className="text-3xl font-black leading-tight text-ink sm:text-4xl md:text-5xl">무엇을 찾고 있나요?</h1>
                   <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">Seedup에서 정리한 아티클, 오픈소스, AI 제품, 프로젝트 아이디어를 한 번에 찾아보세요.</p>
                 </div>
                 <p className="text-xs font-bold uppercase tracking-wider text-muted">{rawQuery ? `${totalResults}개 결과` : '검색어를 입력하세요'}</p>
@@ -52,7 +52,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <input id="search-page-query" name="q" defaultValue={rawQuery} placeholder="예: MCP, RAG, React, AI 에이전트" className="h-11 w-full border border-outline-soft bg-surface pl-10 pr-3 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-ink" />
               </div>
-              <button type="submit" className="h-11 shrink-0 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90">검색</button>
+              <button type="submit" className="min-h-11 shrink-0 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90">검색</button>
             </form>
           </section>
 

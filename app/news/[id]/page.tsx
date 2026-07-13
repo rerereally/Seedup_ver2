@@ -74,7 +74,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                 <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
                   <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.category ?? 'ARTICLE'}</span>
                   {newsletterLabel && <span className="border border-outline-soft bg-ink px-2 py-1 text-white">{newsletterLabel}</span>}
-                  {item.newsletter_priority && <span>우선순위 {Math.round(item.newsletter_priority)}</span>}
+                  {Number(item.newsletter_priority ?? 0) >= 40 && <span>우선순위 {Math.round(Number(item.newsletter_priority))}</span>}
                   <span>{item.source ?? 'Seedup'}</span>
                   {publishedAt && <span>{publishedAt}</span>}
                   {item.difficulty && <span>{item.difficulty}</span>}

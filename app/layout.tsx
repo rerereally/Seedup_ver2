@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,6 +19,12 @@ export const metadata: Metadata = {
     title: 'Seedup - 개발 트렌드를 프로젝트로 연결하는 성장 플랫폼',
     description: '개발 트렌드와 오픈소스를 내 성장 루틴과 프로젝트 후보로 바꿔보세요.',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

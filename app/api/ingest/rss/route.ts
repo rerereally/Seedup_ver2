@@ -10,7 +10,7 @@ import Parser from 'rss-parser';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const parser = new Parser({
   timeout: 12000,
@@ -19,8 +19,9 @@ const parser = new Parser({
   },
 });
 
-const ITEM_CONCURRENCY = 3;
-const RECENT_WINDOW_DAYS = 7;
+const SOURCE_CONCURRENCY = 4;
+const ITEM_CONCURRENCY = 2;
+const RECENT_WINDOW_DAYS = Number(process.env.RSS_RECENT_WINDOW_DAYS ?? 7);
 
 export async function POST(request: Request) {
   return ingest(request);
@@ -43,18 +44,19 @@ async function ingest(request: Request) {
   const url = new URL(request.url);
   const limitPerSource = Number(url.searchParams.get('limit') ?? MAX_ITEMS_PER_SOURCE);
   const minScore = Number(url.searchParams.get('minScore') ?? 45);
-  const results: Array<{ source: string; inserted: number; skipped: number; errors: number }> = [];
-
-  for (const source of RSS_SOURCES) {
+  const results = await mapWithConcurrency(RSS_SOURCES, SOURCE_CONCURRENCY, async (source) => {
     let inserted = 0;
     let skipped = 0;
     let errors = 0;
+    let fetched = 0;
+    let recent = 0;
 
     try {
       const feed = await parser.parseURL(source.url);
-      const items = feed.items
-        .filter((item) => isRecentEnough(item.isoDate ?? item.pubDate))
-        .slice(0, limitPerSource);
+      fetched = feed.items.length;
+      const recentItems = feed.items.filter((item) => isRecentEnough(item.isoDate ?? item.pubDate));
+      recent = recentItems.length;
+      const items = recentItems.slice(0, limitPerSource);
 
       const outcomes = await mapWithConcurrency(items, ITEM_CONCURRENCY, (item) => ingestItem({ item, minScore, source, supabase }));
       for (const outcome of outcomes) {
@@ -67,8 +69,8 @@ async function ingest(request: Request) {
       console.error('RSS source failed', source.name, error);
     }
 
-    results.push({ source: source.name, inserted, skipped, errors });
-  }
+    return { source: source.name, fetched, recent, inserted, skipped, errors };
+  });
 
   const totals = results.reduce(
     (sum, item) => ({
@@ -115,6 +117,24 @@ async function ingestItem({
       '',
     );
     const content = rawContent || item.title;
+    const publishedAt = item.isoDate ?? item.pubDate ?? new Date().toISOString();
+    const sourceDocument = await saveRawSourceDocument(supabase, {
+      canonicalUrl: originalUrl,
+      sourceName: source.name,
+      sourceType: 'rss',
+      sourceRole: source.tier === 'primary' ? 'primary' : source.tier === 'specialist' ? 'independent' : 'supporting',
+      sourceDomain: getSourceDomain(originalUrl),
+      language: source.language,
+      title: item.title,
+      publishedAt,
+      rawPayload: {
+        guid: item.guid ?? null,
+        link: item.link ?? null,
+        pubDate: item.pubDate ?? null,
+        isoDate: item.isoDate ?? null,
+        contentSnippet: item.contentSnippet ?? null,
+      },
+    });
     const keywordPolicy = evaluateArticleKeywordPolicy({ title: item.title, content, source: source.name });
     if (!keywordPolicy.shouldAnalyze) {
       await recordRejection(supabase, {
@@ -137,7 +157,7 @@ async function ingestItem({
       source: source.name,
       sourceUrl: source.url,
       originalUrl,
-      publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+      publishedAt,
     };
     const { analysis, model } = await analyzeNews({
       title: sourceJson.title,
@@ -250,7 +270,8 @@ async function ingestItem({
         ai_model: model,
         processed_at: new Date().toISOString(),
         source_language: source.language,
-        published_at: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
+        published_at: publishedAt,
+        source_document_id: sourceDocument?.id ?? null,
       };
 
     const { error } = await upsertNewsItem(supabase, payload);
@@ -265,6 +286,49 @@ async function ingestItem({
   } catch (error) {
     console.error('RSS item failed', source.name, item.title, error);
     return 'error';
+  }
+}
+
+async function saveRawSourceDocument(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  input: {
+    canonicalUrl: string;
+    sourceName: string;
+    sourceType: string;
+    sourceRole: 'primary' | 'independent' | 'supporting' | 'context';
+    sourceDomain: string | null;
+    language: string;
+    title: string;
+    publishedAt: string;
+    rawPayload: Record<string, unknown>;
+  },
+) {
+  const { data } = await supabase
+    .from('source_documents')
+    .upsert({
+      canonical_url: input.canonicalUrl,
+      source_name: input.sourceName,
+      source_type: input.sourceType,
+      source_role: input.sourceRole,
+      source_domain: input.sourceDomain,
+      language: input.language,
+      title: input.title,
+      published_at: input.publishedAt,
+      raw_payload: input.rawPayload,
+      processing_status: 'processed',
+      processed_at: new Date().toISOString(),
+    }, { onConflict: 'canonical_url' })
+    .select('id')
+    .maybeSingle();
+  return data;
+}
+
+function getSourceDomain(url: string | null) {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
   }
 }
 
@@ -296,6 +360,7 @@ async function upsertNewsItem(supabase: NonNullable<ReturnType<typeof createAdmi
     'canonical_key',
     'duplicate_group_key',
     'quality_notes',
+    'source_document_id',
   ].some((column) => message.includes(column));
 
   if (!recommendationColumnError) return result;
@@ -324,6 +389,7 @@ async function upsertNewsItem(supabase: NonNullable<ReturnType<typeof createAdmi
     'canonical_key',
     'duplicate_group_key',
     'quality_notes',
+    'source_document_id',
   ]) {
     delete fallbackPayload[key];
   }

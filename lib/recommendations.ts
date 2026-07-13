@@ -742,14 +742,32 @@ export function toNewsletterContentItems({
   return dedupeNewsletterItems(items);
 }
 
-export function scoreNewsletterItems(items: NewsletterContentItem[], profile: UserNewsletterProfile): ScoredNewsletterItem[] {
+export function scoreNewsletterItems(items: NewsletterContentItem[], profile: UserNewsletterProfile | RecommendationProfile): ScoredNewsletterItem[] {
   return items
     .map((content) => {
-      const score = scoreContentForProfile(content.metadata, profile);
-      const reasons = buildNewsletterReasons(content.metadata, profile);
+      const score = 'user_id' in profile ? scoreContentForProfile(content.metadata, profile) : scoreContentForRecommendationProfile(content.metadata, profile);
+      const reasons = 'user_id' in profile ? buildNewsletterReasons(content.metadata, profile) : recommendationProfileReasons(content.metadata, profile);
       return { content, score, reasons };
     })
     .sort((a, b) => b.score - a.score);
+}
+
+function scoreContentForRecommendationProfile(content: RecommendationMetadata, profile: RecommendationProfile) {
+  const tokens = [...profile.tokens, ...profile.interests, ...profile.goals];
+  const match = fuzzyOverlap([...content.topic_tags, ...content.skill_tags, ...content.target_interests], tokens);
+  const goalMatch = fuzzyOverlap(content.target_goals, profile.goals);
+  const trackMatch = profile.tracks.some((track) => content.topic_tags.some((tag) => normalize(tag).includes(normalize(track)))) ? 5 : 0;
+  return Math.round(match * 4 + goalMatch * 4 + trackMatch + content.newsletter_priority * 0.2 + content.novelty_score * 0.1 + content.source_quality_score * 0.1);
+}
+
+function recommendationProfileReasons(content: RecommendationMetadata, profile: RecommendationProfile) {
+  const reasons = [
+    fuzzyOverlap(content.topic_tags, profile.interests) > 0 ? '관심 분야와 일치' : null,
+    fuzzyOverlap(content.skill_tags, profile.tokens) > 0 ? '저장·선택한 기술과 연결' : null,
+    fuzzyOverlap(content.target_goals, profile.goals) > 0 ? '현재 목표와 연결' : null,
+    content.project_convertible ? '프로젝트로 확장 가능' : null,
+  ].filter(Boolean) as string[];
+  return reasons.length ? reasons.slice(0, 3) : ['개발 신호로 확인할 만한 콘텐츠'];
 }
 
 export function pickNewsletterSections(scoredItems: ScoredNewsletterItem[]) {

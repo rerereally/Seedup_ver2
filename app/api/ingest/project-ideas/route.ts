@@ -65,8 +65,7 @@ async function ingest(request: Request) {
 
   for (const source of sources) {
     const { idea } = await generateProjectIdea(source);
-    const { error } = await supabase.from('project_ideas').upsert(
-      {
+    const { error } = await upsertProjectIdea(supabase, source, {
         title: idea.title,
         description: idea.description,
         level: idea.level,
@@ -87,9 +86,7 @@ async function ingest(request: Request) {
         mvp_acceptance: idea.mvp_acceptance ?? null,
         expansion_ideas: idea.expansion_ideas ?? [],
         stack_details: idea.stack_details ?? [],
-      },
-      { onConflict: 'source_type,source_id,title' },
-    );
+      });
 
     if (error) {
       errors += 1;
@@ -110,6 +107,33 @@ async function ingest(request: Request) {
   });
 
   return NextResponse.json({ ok: true, upserted, errors });
+}
+
+async function upsertProjectIdea(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  source: { sourceType: string; sourceId: string },
+  payload: Record<string, unknown>,
+) {
+  const insertPayload = { ...payload, source_type: source.sourceType, source_id: source.sourceId };
+  const result = await supabase
+    .from('project_ideas')
+    .upsert(insertPayload, { onConflict: 'source_type,source_id,title' });
+
+  if (!result.error || !/unique|conflict|constraint/i.test(result.error.message)) return result;
+
+  // Older Supabase schemas can be missing the composite unique index. Keep the
+  // ingestion working while schema.sql is being applied.
+  const { data: existing, error: lookupError } = await supabase
+    .from('project_ideas')
+    .select('id')
+    .eq('source_type', source.sourceType)
+    .eq('source_id', source.sourceId)
+    .eq('title', String(payload.title ?? ''))
+    .maybeSingle();
+
+  if (lookupError) return { error: lookupError };
+  if (existing?.id) return supabase.from('project_ideas').update(insertPayload).eq('id', existing.id);
+  return supabase.from('project_ideas').insert(insertPayload);
 }
 
 const GENERIC_TREND_TERMS = new Set([

@@ -12,6 +12,7 @@ const INGEST_PATHS = {
   github: '/api/ingest/github?limit=15&minStars=50&pruneDays=30',
   research: '/api/ingest/research?limit=12&minScore=55&minFitScore=18',
   'external-trends': '/api/ingest/external-trends',
+  'model-intelligence': '/api/ingest/model-intelligence',
   trends: '/api/ingest/trends',
   'project-ideas': '/api/ingest/project-ideas?limit=10',
   'article-drafts': '/api/ingest/article-drafts?mode=daily&limit=12',
@@ -35,11 +36,7 @@ export async function runManualIngest(formData: FormData) {
   if (!secret) redirect('/admin/ingest?status=missing-secret');
 
   const headerStore = await headers();
-  const host = headerStore.get('host');
-  const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
-  const separator = INGEST_PATHS[target].includes('?') ? '&' : '?';
-  const { ok, reason } = await requestIngest(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`);
+  const { ok, reason } = await requestIngest(buildIngestUrl(INGEST_PATHS[target], secret, headerStore));
 
   revalidatePath('/admin/ingest');
   redirect(`/admin/ingest?status=${ok ? 'success' : 'failed'}&target=${target}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`);
@@ -53,7 +50,7 @@ export async function runFullIngest() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'external-trends', 'trends', 'project-ideas', 'article-drafts'];
+  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'external-trends', 'model-intelligence', 'trends', 'project-ideas', 'article-drafts'];
 
   for (const target of order) {
     const formData = new FormData();
@@ -73,12 +70,16 @@ async function runManualIngestNoRedirect(formData: FormData) {
   if (!INGEST_PATHS[target]) return;
 
   const headerStore = await headers();
-  const host = headerStore.get('host');
-  const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
-  const separator = INGEST_PATHS[target].includes('?') ? '&' : '?';
+  await requestIngest(buildIngestUrl(INGEST_PATHS[target], secret, headerStore));
+}
 
-  await requestIngest(`${baseUrl}${INGEST_PATHS[target]}${separator}secret=${encodeURIComponent(secret)}`);
+function buildIngestUrl(path: string, secret: string, headerStore: Headers) {
+  const configuredBaseUrl = process.env.INGEST_INTERNAL_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  const host = headerStore.get('x-forwarded-host') || headerStore.get('host');
+  const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
+  const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'http://localhost:3000');
+  const separator = path.includes('?') ? '&' : '?';
+  return `${baseUrl}${path}${separator}secret=${encodeURIComponent(secret)}`;
 }
 
 async function getFailureReason(response: Response) {
@@ -114,9 +115,13 @@ async function requestIngest(url: string) {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const cause = error instanceof Error && error.cause && typeof error.cause === 'object'
+      ? (error.cause as { code?: string; message?: string })
+      : null;
+    const detail = cause?.code || cause?.message;
     return {
       ok: false,
-      reason: truncateReason(message),
+      reason: truncateReason(detail ? `${message}: ${detail}` : message),
     };
   }
 }

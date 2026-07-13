@@ -5,7 +5,7 @@ import type { NewsItem } from '@/lib/data';
 import type { RecommendedItem } from '@/lib/recommendations';
 import { ArrowRight, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type BriefItem = {
   id: string;
@@ -48,6 +48,18 @@ export default function DashboardRecommendationBanner({
   }));
   const rotatingItems = weeklyItems.length ? weeklyItems : latestNews.slice(0, 5).map((item) => fromNews(item));
   const [activeIndex, setActiveIndex] = useState(0);
+  const recordedImpressionKey = useRef('');
+  const recordClick = (item: BriefItem) => {
+    void fetch('/api/recommendations/impressions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        surface: 'dashboard_banner',
+        eventType: 'click',
+        items: [{ itemType: item.type, itemId: item.id, position: activeIndex, score: item.score, reasons: item.reasons }],
+      }),
+    }).catch(() => undefined);
+  };
   const active = rotatingItems[activeIndex] ?? rotatingItems[0];
 
   useEffect(() => {
@@ -57,6 +69,27 @@ export default function DashboardRecommendationBanner({
     }, 5500);
     return () => window.clearInterval(timer);
   }, [rotatingItems.length]);
+
+  useEffect(() => {
+    if (!weeklyItems.length) return;
+    const impressionKey = weeklyItems.map((item) => `${item.type}:${item.id}`).join('|');
+    if (recordedImpressionKey.current === impressionKey) return;
+    recordedImpressionKey.current = impressionKey;
+    void fetch('/api/recommendations/impressions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        surface: 'dashboard_banner',
+        items: weeklyItems.map((item, position) => ({
+          itemType: item.type,
+          itemId: item.id,
+          position,
+          score: item.score,
+          reasons: item.reasons,
+        })),
+      }),
+    }).catch(() => undefined);
+  }, [weeklyItems]);
 
   if (!active) {
     return (
@@ -83,8 +116,8 @@ export default function DashboardRecommendationBanner({
 
         <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
           <div>
-            <Link href={active.href} className="group block">
-              <h2 className="line-clamp-2 text-xl font-black leading-snug text-ink group-hover:underline md:text-2xl">
+            <Link href={active.href} onClick={() => recordClick(active)} className="group block">
+              <h2 className="line-clamp-3 text-xl font-black leading-snug text-ink group-hover:underline sm:line-clamp-2 md:text-2xl">
                 {active.title}
               </h2>
               {active.summary && (
@@ -111,7 +144,7 @@ export default function DashboardRecommendationBanner({
                 <input type="hidden" name="feedback" value={feedback} />
                 <input type="hidden" name="surface" value="dashboard_banner" />
                 <input type="hidden" name="return_to" value="/" />
-                <button type="submit" className="border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted hover:border-ink hover:text-ink">
+                <button type="submit" className="inline-flex min-h-10 items-center border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted hover:border-ink hover:text-ink">
                   {label}
                 </button>
               </form>
@@ -120,14 +153,14 @@ export default function DashboardRecommendationBanner({
         </div>
 
         {/* 메타 행 — 소스 / 타입 / 점수 */}
-        <div className="grid grid-cols-3 border-t border-outline-soft">
+        <div className="grid grid-cols-1 border-t border-outline-soft sm:grid-cols-3">
           {[
             [active.source ?? 'Seedup', 'source'],
             [active.type === 'paper' ? '논문' : '아티클', 'type'],
             [active.score ? `${Math.round(active.score)}점` : '-', 'signal'],
           ].map(([value, label]) => (
-            <div key={label} className="border-r border-outline-soft px-3 py-2 last:border-r-0">
-              <p className="truncate text-base font-black text-ink">{value}</p>
+            <div key={label} className="min-w-0 border-b border-outline-soft px-3 py-2 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+              <p className="truncate text-sm font-black text-ink sm:text-base">{value}</p>
               <p className="mt-0.5 text-xs font-bold uppercase text-muted">{label}</p>
             </div>
           ))}
@@ -160,11 +193,12 @@ export default function DashboardRecommendationBanner({
           <span className="text-xs font-bold uppercase text-muted">{weeklyItems.length}개</span>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-rows-5 gap-2">
+        <div className="grid min-h-0 flex-1 gap-2 sm:grid-rows-5">
             {weeklyItems.slice(0, 5).map((item, index) => (
               <Link
                 key={item.id}
                 href={item.href}
+                onClick={() => recordClick(item)}
                 className="group flex min-h-0 items-start gap-2.5 overflow-hidden border border-outline-soft bg-surface p-2 hover:border-ink"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-ink text-xs font-black text-white">
@@ -190,7 +224,7 @@ export default function DashboardRecommendationBanner({
         {/* 하단 버튼 */}
         <Link
           href="/news"
-          className="mt-3 inline-flex h-10 items-center gap-2 bg-ink px-4 text-sm font-bold text-white"
+          className="mt-3 inline-flex min-h-11 items-center gap-2 bg-ink px-4 text-sm font-bold text-white"
         >
           아티클 전체 보기
           <ArrowRight className="h-4 w-4" />

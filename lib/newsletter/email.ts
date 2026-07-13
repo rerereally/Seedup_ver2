@@ -4,9 +4,9 @@ import type { RecommendedItem } from '@/lib/recommendations';
 type NewsletterData = {
   news: RecommendedItem<NewsItem>[];
   papers: RecommendedItem<ResearchPaper>[];
-  products: AIProduct[];
-  repos: GitHubTrend[];
-  projects: ProjectIdea[];
+  products: RecommendedItem<AIProduct>[];
+  repos: RecommendedItem<GitHubTrend>[];
+  projects: RecommendedItem<ProjectIdea>[];
   siteUrl: string;
 };
 
@@ -39,9 +39,12 @@ function pill(value: string) {
 export function buildNewsletterHtml(data: NewsletterData) {
   const featuredNews = data.news[0]?.item;
   const featuredPaper = data.papers[0]?.item;
-  const topProduct = data.products[0];
-  const topRepo = data.repos[0];
-  const topProject = data.projects[0];
+  const topProduct = data.products[0]?.item;
+  const topRepo = data.repos[0]?.item;
+  const topProject = data.projects[0]?.item;
+  const productReasons = data.products[0]?.reasons ?? [];
+  const repoReasons = data.repos[0]?.reasons ?? [];
+  const projectReasons = data.projects[0]?.reasons ?? [];
   const previewTags = [
     featuredNews?.category,
     featuredPaper?.review_type,
@@ -74,13 +77,11 @@ export function buildNewsletterHtml(data: NewsletterData) {
             <tr>
               <td style="padding:26px 32px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                  <tr><td style="padding:0 0 8px;font-size:14px;font-weight:900;color:#111111;">오늘 추천 아티클 5</td></tr>
-                  ${data.news.slice(0, 5).map(({ item, reasons }, index) => card(item.title, item.beginner_summary ?? item.summary, `${data.siteUrl}/news/${item.id}`, `추천 글 ${index + 1}`, reasons)).join('')}
-                  <tr><td style="padding:24px 0 8px;font-size:14px;font-weight:900;color:#111111;">오늘 추천 논문 3</td></tr>
-                  ${data.papers.slice(0, 3).map(({ item, reasons }, index) => card(item.title, item.beginner_summary ?? item.expert_summary, `${data.siteUrl}/papers/${item.id}`, `추천 논문 ${index + 1}`, reasons)).join('')}
-                  ${topProduct ? card(topProduct.name, topProduct.description, `${data.siteUrl}/ai-products/${topProduct.id}`, 'AI 제품') : ''}
-                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends/${topRepo.id}`, '오픈소스') : ''}
-                  ${topProject ? card(topProject.title, topProject.description, `${data.siteUrl}/projects/${topProject.id}`, '프로젝트 아이디어') : ''}
+                  ${data.news.length ? `<tr><td style="padding:0 0 8px;font-size:14px;font-weight:900;color:#111111;">오늘 추천 아티클 ${data.news.length}</td></tr>${data.news.slice(0, 5).map(({ item, reasons }, index) => card(item.title, item.beginner_summary ?? item.summary, `${data.siteUrl}/news/${item.id}`, `추천 글 ${index + 1}`, reasons)).join('')}` : ''}
+                  ${data.papers.length ? `<tr><td style="padding:24px 0 8px;font-size:14px;font-weight:900;color:#111111;">오늘 추천 논문 ${data.papers.length}</td></tr>${data.papers.slice(0, 3).map(({ item, reasons }, index) => card(item.title, item.beginner_summary ?? item.expert_summary, `${data.siteUrl}/papers/${item.id}`, `추천 논문 ${index + 1}`, reasons)).join('')}` : ''}
+                  ${topProduct ? card(topProduct.name, topProduct.description, `${data.siteUrl}/ai-products/${topProduct.id}`, 'AI 제품', productReasons) : ''}
+                  ${topRepo ? card(topRepo.repo_full_name, topRepo.beginner_summary ?? topRepo.description, `${data.siteUrl}/github-trends/${topRepo.id}`, '오픈소스', repoReasons) : ''}
+                  ${topProject ? card(topProject.title, topProject.description, `${data.siteUrl}/projects/${topProject.id}`, '프로젝트 아이디어', projectReasons) : ''}
                 </table>
                 <div style="padding-top:24px;text-align:center;">
                   <a href="${data.siteUrl}" style="display:inline-block;padding:14px 22px;background:#111111;color:#ffffff;font-size:15px;font-weight:900;text-decoration:none;">Seedup에서 전체 보기</a>
@@ -102,14 +103,18 @@ export function buildNewsletterHtml(data: NewsletterData) {
 
 export function buildNewsletterText(data: NewsletterData) {
   const lines = ['Seedup Weekly', '오늘 읽을 개발 신호', ''];
-  lines.push('오늘 추천 아티클 5');
-  data.news.slice(0, 5).forEach(({ item, reasons }, index) => lines.push(`${index + 1}. ${item.title}`, `추천 이유: ${reasons.join(', ')}`, `${data.siteUrl}/news/${item.id}`));
-  lines.push('', '오늘 추천 논문 3');
-  data.papers.slice(0, 3).forEach(({ item, reasons }, index) => lines.push(`${index + 1}. ${item.title}`, `추천 이유: ${reasons.join(', ')}`, `${data.siteUrl}/papers/${item.id}`));
+  if (data.news.length) {
+    lines.push(`오늘 추천 아티클 ${data.news.length}`);
+    data.news.slice(0, 5).forEach(({ item, reasons }, index) => lines.push(`${index + 1}. ${item.title}`, `추천 이유: ${reasons.join(', ')}`, `${data.siteUrl}/news/${item.id}`));
+  }
+  if (data.papers.length) {
+    lines.push('', `오늘 추천 논문 ${data.papers.length}`);
+    data.papers.slice(0, 3).forEach(({ item, reasons }, index) => lines.push(`${index + 1}. ${item.title}`, `추천 이유: ${reasons.join(', ')}`, `${data.siteUrl}/papers/${item.id}`));
+  }
   lines.push('');
-  if (data.products[0]) lines.push(`AI 제품: ${data.products[0].name}`, `${data.siteUrl}/ai-products/${data.products[0].id}`, '');
-  if (data.repos[0]) lines.push(`오픈소스: ${data.repos[0].repo_full_name}`, `${data.siteUrl}/github-trends/${data.repos[0].id}`, '');
-  if (data.projects[0]) lines.push(`프로젝트 아이디어: ${data.projects[0].title}`, `${data.siteUrl}/projects/${data.projects[0].id}`, '');
+  if (data.products[0]) lines.push(`AI 제품: ${data.products[0].item.name}`, `추천 이유: ${data.products[0].reasons.join(', ')}`, `${data.siteUrl}/ai-products/${data.products[0].item.id}`, '');
+  if (data.repos[0]) lines.push(`오픈소스: ${data.repos[0].item.repo_full_name}`, `추천 이유: ${data.repos[0].reasons.join(', ')}`, `${data.siteUrl}/github-trends/${data.repos[0].item.id}`, '');
+  if (data.projects[0]) lines.push(`프로젝트 아이디어: ${data.projects[0].item.title}`, `추천 이유: ${data.projects[0].reasons.join(', ')}`, `${data.siteUrl}/projects/${data.projects[0].item.id}`, '');
   lines.push(`전체 보기: ${data.siteUrl}`);
   return lines.join('\n');
 }

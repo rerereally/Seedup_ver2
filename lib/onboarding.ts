@@ -35,12 +35,6 @@ export const onboardingQuestions = [
     type: 'multi',
     options: ['React', 'Next.js', 'TypeScript', 'Node.js', 'Python', 'FastAPI', 'Spring', 'Supabase', 'PostgreSQL', 'Docker', 'AWS', 'Cloudflare', 'LLM API', '아직 모르겠음'],
   },
-  {
-    id: 'newsletter_frequency',
-    title: '뉴스레터는 얼마나 자주 받고 싶나요?',
-    type: 'single',
-    options: ['매일', '주 2~3회', '주 1회', '중요한 소식만', '아직 모르겠음'],
-  },
 ] as const;
 
 export type OnboardingAnswers = Record<string, string | string[]>;

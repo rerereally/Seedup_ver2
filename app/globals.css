@@ -130,8 +130,12 @@
   }
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
-  @apply text-ink bg-surface font-sans;
+  @apply min-w-0 overflow-x-hidden bg-surface font-sans text-ink;
 }
 
 button,
@@ -149,11 +153,11 @@ textarea {
 }
 
 .page-shell {
-  @apply mx-auto max-w-[1280px] px-4 py-8 md:px-10 md:py-10;
+  @apply mx-auto max-w-[1280px] px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10;
 }
 
 .page-stack {
-  @apply flex flex-col gap-9;
+  @apply flex flex-col gap-7 md:gap-9;
 }
 
 .page-intro {
@@ -177,11 +181,11 @@ textarea {
 }
 
 .article-markdown {
-  @apply border border-outline-soft bg-white px-5 py-5 text-ink md:px-7 md:py-7;
+  @apply border border-outline-soft bg-white px-4 py-5 text-ink sm:px-5 md:px-7 md:py-7;
 }
 
 .article-markdown h2 {
-  @apply mt-8 border-l-4 border-ink pl-4 text-2xl font-black leading-snug text-ink first:mt-0;
+  @apply mt-8 border-l-4 border-ink pl-3 text-xl font-black leading-snug text-ink first:mt-0 sm:pl-4 sm:text-2xl;
 }
 
 .article-markdown h3 {
@@ -189,7 +193,7 @@ textarea {
 }
 
 .article-markdown p {
-  @apply mt-4 text-base leading-8 text-ink;
+  @apply mt-4 text-[15px] leading-7 text-ink sm:text-base sm:leading-8;
 }
 
 .article-markdown p:first-child {
@@ -222,7 +226,7 @@ textarea {
 }
 
 .article-markdown pre {
-  @apply mt-5 max-h-96 overflow-auto bg-ink p-5 text-sm leading-7 text-white;
+  @apply -mx-4 mt-5 max-h-96 overflow-auto bg-ink px-4 py-5 text-xs leading-6 text-white sm:mx-0 sm:p-5 sm:text-sm sm:leading-7;
 }
 
 .article-markdown code {
@@ -235,4 +239,12 @@ textarea {
 
 .article-source {
   @apply mt-8 border border-outline-soft bg-surface px-5 py-4 text-sm font-semibold leading-7 text-muted;
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }

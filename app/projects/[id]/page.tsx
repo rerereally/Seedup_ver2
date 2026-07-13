@@ -1,4 +1,4 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
@@ -9,7 +9,6 @@ import MarkdownContent from '@/components/MarkdownContent';
 import {
   ArrowLeft,
   ArrowRight,
-  Bookmark,
   Calendar,
   CheckCircle2,
   Code2,
@@ -167,22 +166,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               {/* 액션 바 */}
               <div className="mt-4 border border-outline-soft bg-white">
                 <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <form action={saveScrap}>
-                    <input type="hidden" name="item_type" value="project" />
-                    <input type="hidden" name="item_id" value={project.id} />
-                    <input type="hidden" name="title" value={displayTitle} />
-                    <input type="hidden" name="description" value={project.description ?? ''} />
-                    <input type="hidden" name="tag" value={project.related_trend ?? project.level ?? 'project'} />
-                    <input type="hidden" name="return_to" value={`/projects/${project.id}`} />
-                    <button
-                      type="submit"
-                      className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink"
-                      aria-label={`${displayTitle} ${existingScrap ? '저장 해제' : '내 프로젝트 후보에 저장하기'}`}
-                    >
-                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
-                      {existingScrap ? '저장 해제' : '저장'}
-                    </button>
-                  </form>
+                  <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
                   <Link
                     href="/projects"
                     className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink"

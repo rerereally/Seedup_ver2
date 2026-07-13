@@ -1,6 +1,6 @@
 'use client';
 
-import { submitRecommendationFeedback } from '@/app/actions/engagement';
+import RecommendationFeedbackButtons from '@/components/RecommendationFeedbackButtons';
 import type { NewsItem } from '@/lib/data';
 import type { RecommendedItem } from '@/lib/recommendations';
 import { ArrowRight, FileText } from 'lucide-react';
@@ -136,19 +136,8 @@ export default function DashboardRecommendationBanner({
               </div>
             )}
           </div>
-          <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
-            {([['useful', '추천 좋음'], ['not_relevant', '관련 없음']] as const).map(([feedback, label]) => (
-              <form key={feedback} action={submitRecommendationFeedback}>
-                <input type="hidden" name="item_type" value={active.type} />
-                <input type="hidden" name="item_id" value={active.id} />
-                <input type="hidden" name="feedback" value={feedback} />
-                <input type="hidden" name="surface" value="dashboard_banner" />
-                <input type="hidden" name="return_to" value="/" />
-                <button type="submit" className="inline-flex min-h-10 items-center border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted hover:border-ink hover:text-ink">
-                  {label}
-                </button>
-              </form>
-            ))}
+          <div className="mt-auto pt-3">
+            <RecommendationFeedbackButtons itemType={active.type} itemId={active.id} />
           </div>
         </div>
 

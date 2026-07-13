@@ -1,6 +1,6 @@
 import { submitAIProductReview } from '@/app/actions/product-ratings';
 import { AIProductRatingControl, ProductRatingSummary } from '@/components/AIProductRating';
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
@@ -97,18 +97,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
 
               <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                 {isLoggedIn ? (
-                  <form action={saveScrap}>
-                    <input type="hidden" name="item_type" value="ai_product" />
-                    <input type="hidden" name="item_id" value={product.id} />
-                    <input type="hidden" name="title" value={product.name} />
-                    <input type="hidden" name="description" value={product.description ?? ''} />
-                    <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
-                    <input type="hidden" name="return_to" value={`/ai-products/${product.id}`} />
-                    <button type="submit" className="inline-flex h-11 items-center gap-2 border border-outline-soft bg-white px-4 text-sm font-bold text-ink hover:border-ink">
-                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
-                      {existingScrap ? '저장됨' : '저장'}
-                    </button>
-                  </form>
+                  <ScrapButton itemType="ai_product" itemId={product.id} title={product.name} description={product.description} tag={product.category ?? 'ai_product'} initialSaved={Boolean(existingScrap)} savedLabel="저장됨" className="inline-flex h-11 items-center gap-2 border border-outline-soft bg-white px-4 text-sm font-bold text-ink hover:border-ink" />
                 ) : (
                   <Link href="/login" className="inline-flex h-11 items-center gap-2 border border-outline-soft bg-white px-4 text-sm font-bold text-ink hover:border-ink">
                     <Bookmark className="h-4 w-4" />

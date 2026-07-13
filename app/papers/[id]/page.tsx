@@ -1,4 +1,4 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ArticleAssistant from '@/components/ArticleAssistant';
 import Footer from '@/components/Footer';
@@ -7,7 +7,7 @@ import MarkdownContent from '@/components/MarkdownContent';
 import ShareButton from '@/components/ShareButton';
 import ViewTracker from '@/components/ViewTracker';
 import { getExistingScrap, getResearchPaper } from '@/lib/data';
-import { ArrowLeft, ArrowRight, Bookmark, Code2, ExternalLink, FlaskConical, Lightbulb } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Code2, ExternalLink, FlaskConical, Lightbulb } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -95,18 +95,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               <div className="mt-4 border border-outline-soft bg-white">
                 <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <form action={saveScrap}>
-                    <input type="hidden" name="item_type" value="paper" />
-                    <input type="hidden" name="item_id" value={paper.id} />
-                    <input type="hidden" name="title" value={paper.title} />
-                    <input type="hidden" name="description" value={heroSummary ?? ''} />
-                    <input type="hidden" name="tag" value={paper.review_type ?? 'paper'} />
-                    <input type="hidden" name="return_to" value={`/papers/${paper.id}`} />
-                    <button type="submit" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" aria-label={`${paper.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
-                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
-                      {existingScrap ? '저장 해제' : '저장'}
-                    </button>
-                  </form>
+                  <ScrapButton itemType="paper" itemId={paper.id} title={paper.title} description={heroSummary} tag={paper.review_type ?? 'paper'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
                   {paper.paper_url && (
                     <Link href={paper.paper_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
                       <ExternalLink className="h-4 w-4" />

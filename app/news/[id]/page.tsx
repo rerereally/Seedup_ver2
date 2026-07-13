@@ -1,4 +1,4 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ArticleAssistant from '@/components/ArticleAssistant';
 import ContentEngagement from '@/components/ContentEngagement';
 import Footer from '@/components/Footer';
@@ -8,7 +8,7 @@ import RelatedPapersToggle from '@/components/RelatedPapersToggle';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getNewsItem, getRelatedPapersForNews } from '@/lib/data';
 import ViewTracker from '@/components/ViewTracker';
-import { ArrowLeft, ArrowRight, Bookmark, ExternalLink, Lightbulb } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Lightbulb } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -90,18 +90,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
 
               <div className="mt-4 border border-outline-soft bg-white">
                 <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <form action={saveScrap}>
-                    <input type="hidden" name="item_type" value="news" />
-                    <input type="hidden" name="item_id" value={item.id} />
-                    <input type="hidden" name="title" value={item.title} />
-                    <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
-                    <input type="hidden" name="tag" value={item.category ?? 'news'} />
-                    <input type="hidden" name="return_to" value={`/news/${item.id}`} />
-                    <button type="submit" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" aria-label={`${item.title} ${existingScrap ? '저장 해제' : '저장하기'}`}>
-                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
-                      {existingScrap ? '저장 해제' : '저장'}
-                    </button>
-                  </form>
+                  <ScrapButton itemType="news" itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'news'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
                   {externalUrl && (
                     <Link href={externalUrl} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
                       <ExternalLink className="h-4 w-4" />

@@ -1,11 +1,11 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ArticleHeroCarousel from '@/components/ArticleHeroCarousel';
 import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
-import { ArrowLeft, ArrowRight, Bookmark, FileText, Lightbulb, Newspaper } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Lightbulb, Newspaper } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 10;
@@ -143,18 +143,7 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-outline-soft pt-4">
         <ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
         <div className="flex gap-2">
-          <form action={saveScrap}>
-            <input type="hidden" name="item_type" value={itemType} />
-            <input type="hidden" name="item_id" value={item.id} />
-            <input type="hidden" name="title" value={item.title} />
-            <input type="hidden" name="description" value={item.summary ?? item.beginner_summary ?? ''} />
-            <input type="hidden" name="tag" value={item.category ?? 'article'} />
-            <input type="hidden" name="return_to" value={returnTo} />
-            <button type="submit" className="inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-xs font-bold text-ink hover:border-ink" aria-label={`${item.title} ${isScrapped ? '저장 해제' : '저장하기'}`}>
-              <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-ink text-ink' : ''}`} />
-              {isScrapped ? '저장 해제' : '저장'}
-            </button>
-          </form>
+          <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-xs font-bold text-ink hover:border-ink" />
           <Link href={itemHref(item)} className="inline-flex h-10 items-center gap-1 bg-ink px-3 text-xs font-bold text-white transition-opacity hover:opacity-90">
             읽기
             <ArrowRight className="h-4 w-4" />

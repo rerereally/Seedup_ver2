@@ -1,11 +1,11 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import { getGitHubTrends, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowLeft, ArrowRight, Bookmark, Code2, ExternalLink, GitFork, Github, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Code2, ExternalLink, GitFork, Github, Star } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 10;
@@ -76,17 +76,7 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
                         {repo.description && <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted">{repo.description}</p>}
                       </div>
                       <div className="flex shrink-0 gap-2">
-                        <form action={saveScrap}>
-                          <input type="hidden" name="item_type" value="github" />
-                          <input type="hidden" name="item_id" value={repo.id} />
-                          <input type="hidden" name="title" value={repo.repo_full_name} />
-                          <input type="hidden" name="description" value={repo.beginner_summary ?? repo.description ?? ''} />
-                          <input type="hidden" name="tag" value={repo.language ?? 'github'} />
-                          <input type="hidden" name="return_to" value="/github-trends" />
-                          <button type="submit" className="border border-outline-soft bg-white p-2 text-muted hover:border-ink hover:text-ink" aria-label={`${repo.repo_full_name} ${isScrapped ? '저장 해제' : '저장하기'}`}>
-                            <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-ink text-ink' : ''}`} />
-                          </button>
-                        </form>
+                        <ScrapButton itemType="github" itemId={repo.id} title={repo.repo_full_name} description={repo.beginner_summary ?? repo.description} tag={repo.language ?? 'github'} initialSaved={isScrapped} iconOnly className="border border-outline-soft bg-white p-2 text-muted hover:border-ink hover:text-ink" />
                         <Link href={repo.repo_url} target="_blank" className="border border-outline-soft bg-white p-2 text-muted hover:border-ink hover:text-ink" aria-label={`${repo.repo_full_name} 원문 보기`}>
                           <ExternalLink className="h-4 w-4" />
                         </Link>

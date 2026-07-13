@@ -1,4 +1,4 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getGitHubTrend } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowLeft, ArrowRight, Bookmark, Code2, ExternalLink, GitFork, Github, Lightbulb, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Code2, ExternalLink, GitFork, Github, Lightbulb, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -43,18 +43,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
 
               <div className="mt-4 border border-outline-soft bg-white">
                 <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <form action={saveScrap}>
-                    <input type="hidden" name="item_type" value="github" />
-                    <input type="hidden" name="item_id" value={repo.id} />
-                    <input type="hidden" name="title" value={repo.repo_full_name} />
-                    <input type="hidden" name="description" value={repo.beginner_summary ?? repo.description ?? ''} />
-                    <input type="hidden" name="tag" value={repo.language ?? 'github'} />
-                    <input type="hidden" name="return_to" value={`/github-trends/${repo.id}`} />
-                    <button type="submit" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" aria-label={`${repo.repo_full_name} ${existingScrap ? '저장 해제' : '저장하기'}`}>
-                      <Bookmark className={`h-4 w-4 ${existingScrap ? 'fill-ink text-ink' : ''}`} />
-                      {existingScrap ? '저장 해제' : '저장'}
-                    </button>
-                  </form>
+                  <ScrapButton itemType="github" itemId={repo.id} title={repo.repo_full_name} description={repo.beginner_summary ?? repo.description} tag={repo.language ?? 'github'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
                   <Link href={repo.repo_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
                     <ExternalLink className="h-4 w-4" />
                     저장소

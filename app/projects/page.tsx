@@ -1,11 +1,11 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowRight, Bookmark, Calendar, CheckCircle2, Code2, Filter, TerminalSquare, TrendingUp } from 'lucide-react';
+import { ArrowRight, Calendar, CheckCircle2, Code2, Filter, TerminalSquare, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 const FILTERS = ['전체', '초급', '중급', '빠른 MVP', '트렌드 연동'];
@@ -94,17 +94,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                             </span>
                           )}
                         </div>
-                        <form action={saveScrap}>
-                          <input type="hidden" name="item_type" value="project" />
-                          <input type="hidden" name="item_id" value={project.id} />
-                          <input type="hidden" name="title" value={displayTitle} />
-                          <input type="hidden" name="description" value={project.description ?? ''} />
-                          <input type="hidden" name="tag" value={project.related_trend ?? project.level ?? 'project'} />
-                          <input type="hidden" name="return_to" value="/projects" />
-                          <button type="submit" className="inline-flex h-10 w-10 items-center justify-center border border-outline-soft bg-white text-ink transition-colors hover:border-ink" aria-label={`${displayTitle} ${isScrapped ? '저장 해제' : '내 프로젝트 후보에 저장하기'}`}>
-                            <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-ink text-ink' : ''}`} />
-                          </button>
-                        </form>
+                        <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={isScrapped} iconOnly className="inline-flex h-10 w-10 items-center justify-center border border-outline-soft bg-white text-ink transition-colors hover:border-ink" />
                       </div>
                       <Link href={`/projects/${project.id}`} className="block">
                         <h2 className="line-clamp-2 text-2xl font-black leading-tight text-ink group-hover:underline">{displayTitle}</h2>

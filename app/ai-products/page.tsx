@@ -1,11 +1,11 @@
-import { saveScrap } from '@/app/actions/scraps';
+import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import type { AIProduct } from '@/lib/data';
 import { getAIProducts, getScrapKeySet } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
-import { ArrowRight, Bookmark, Bot, Code2, ImageIcon, Search, SquareTerminal, Star } from 'lucide-react';
+import { ArrowRight, Bot, Code2, ImageIcon, Search, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 9;
@@ -189,17 +189,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                             </div>
                             <div className="flex items-center gap-2">
                               {isLoggedIn ? (
-                                <form action={saveScrap}>
-                                  <input type="hidden" name="item_type" value="ai_product" />
-                                  <input type="hidden" name="item_id" value={product.id} />
-                                  <input type="hidden" name="title" value={product.name} />
-                                  <input type="hidden" name="description" value={product.description ?? ''} />
-                                  <input type="hidden" name="tag" value={product.category ?? 'ai_product'} />
-                                  <input type="hidden" name="return_to" value={buildHref({ q: query, category, pricing, page: currentPage })} />
-                                  <button type="submit" className="inline-flex h-8 w-8 items-center justify-center border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink" aria-label={`${product.name} ${isScrapped ? '저장 해제' : '저장하기'}`}>
-                                    <Bookmark className={`h-4 w-4 ${isScrapped ? 'fill-ink text-ink' : ''}`} />
-                                  </button>
-                                </form>
+                                <ScrapButton itemType="ai_product" itemId={product.id} title={product.name} description={product.description} tag={product.category ?? 'ai_product'} initialSaved={isScrapped} iconOnly className="inline-flex h-8 w-8 items-center justify-center border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink" />
                               ) : (
                                 <Link href="/login" className="text-xs font-bold uppercase text-muted hover:text-ink">Login</Link>
                               )}

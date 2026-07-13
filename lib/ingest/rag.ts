@@ -28,20 +28,27 @@ const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embeddin
 // large historical table should not consume the whole request timeout.
 const MAX_DOCUMENTS_PER_SOURCE = 18;
 
-export async function retrieveIdeaContext(idea: string): Promise<RagReference[]> {
+export async function retrieveIdeaContext(
+  idea: string,
+  options?: { maxReferences?: number; syncMissing?: boolean; maxSyncDocuments?: number },
+): Promise<RagReference[]> {
   const supabase = createAdminClient();
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!supabase || !apiKey) return [];
 
   try {
     const documents = await loadRagDocuments(supabase);
-    await syncMissingEmbeddings(supabase, apiKey, documents);
+    // Interactive evaluation must not wait for the entire historical corpus to
+    // embed. Sync a small recent batch; a later request can fill the rest.
+    if (options?.syncMissing !== false) {
+      await syncMissingEmbeddings(supabase, apiKey, documents, options?.maxSyncDocuments ?? 8);
+    }
     const [queryEmbedding] = await createEmbeddings(apiKey, [idea]);
     if (!queryEmbedding?.length) return [];
 
     const { data, error } = await supabase.rpc('match_seedup_content', {
       query_embedding: queryEmbedding,
-      match_count: 12,
+      match_count: options?.maxReferences ?? 6,
       min_similarity: 0.55,
     });
     if (error) {
@@ -68,7 +75,7 @@ export async function retrieveIdeaContext(idea: string): Promise<RagReference[]>
       const current = uniqueMatches.get(key);
       if (!current || match.similarity > current.similarity) uniqueMatches.set(key, match);
     }
-    return [...uniqueMatches.values()].sort((left, right) => right.similarity - left.similarity);
+    return [...uniqueMatches.values()].sort((left, right) => right.similarity - left.similarity).slice(0, options?.maxReferences ?? 6);
   } catch (error) {
     console.error('RAG context retrieval failed', error);
     return [];
@@ -141,6 +148,7 @@ async function syncMissingEmbeddings(
   supabase: NonNullable<ReturnType<typeof createAdminClient>>,
   apiKey: string,
   documents: RagDocument[],
+  maxDocuments: number,
 ) {
   const missing: RagDocument[] = [];
   for (const sourceTable of [...new Set(documents.map((item) => item.source_table))]) {
@@ -150,8 +158,26 @@ async function syncMissingEmbeddings(
     missing.push(...sourceDocuments.filter((item) => !existing.has(`${item.source_id}:${item.content_hash}`)));
   }
 
-  for (let index = 0; index < missing.length; index += 40) {
-    const batch = missing.slice(index, index + 40);
+  const bySource = new Map<string, RagDocument[]>();
+  for (const document of missing) {
+    const list = bySource.get(document.source_table) ?? [];
+    list.push(document);
+    bySource.set(document.source_table, list);
+  }
+  const selected: RagDocument[] = [];
+  while (selected.length < Math.max(0, maxDocuments)) {
+    let added = false;
+    for (const documentsForSource of bySource.values()) {
+      const document = documentsForSource.shift();
+      if (!document) continue;
+      selected.push(document);
+      added = true;
+      if (selected.length >= maxDocuments) break;
+    }
+    if (!added) break;
+  }
+  for (let index = 0; index < selected.length; index += 20) {
+    const batch = selected.slice(index, index + 20);
     const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content));
     const rows = batch.flatMap((item, itemIndex) => embeddings[itemIndex]?.length ? [{ ...item, embedding: embeddings[itemIndex] }] : []);
     if (rows.length) {
@@ -162,6 +188,9 @@ async function syncMissingEmbeddings(
 }
 
 async function createEmbeddings(apiKey: string, input: string[]): Promise<number[][]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
   const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
     method: 'POST',
     headers: {
@@ -170,9 +199,13 @@ async function createEmbeddings(apiKey: string, input: string[]): Promise<number
       'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
       'x-title': 'Seedup',
     },
+    signal: controller.signal,
     body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
   });
   if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
   const json = await response.json() as { data?: Array<{ embedding?: number[] }> };
   return (json.data ?? []).map((item) => item.embedding ?? []);
+  } finally {
+    clearTimeout(timeout);
+  }
 }

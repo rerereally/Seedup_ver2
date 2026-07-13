@@ -119,24 +119,29 @@ export default function Ideas() {
     setStatus('saving');
     setErrorMessage('');
 
-    const response = await fetch('/api/ideas/evaluate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ idea: submittedIdea }),
-    });
+    try {
+      const response = await fetch('/api/ideas/evaluate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ idea: submittedIdea }),
+      });
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        setStatus('error');
+        setErrorMessage(typeof errorBody?.error === 'string' ? errorBody.error : '분석에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+
+      const json = await response.json();
+      const evaluation = normalizeEvaluation(json.evaluation);
+      const saved = Boolean(json.saved);
+      setActiveRun({ idea: submittedIdea, saved, result: { ...evaluation, references: json.references ?? [] } });
+      setStatus('saved');
+    } catch {
       setStatus('error');
-      setErrorMessage(typeof errorBody?.error === 'string' ? errorBody.error : '분석에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      return;
+      setErrorMessage('네트워크 연결이 끊겼거나 평가 요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
     }
-
-    const json = await response.json();
-    const evaluation = normalizeEvaluation(json.evaluation);
-    const saved = Boolean(json.saved);
-    setActiveRun({ idea: submittedIdea, saved, result: { ...evaluation, references: json.references ?? [] } });
-    setStatus('saved');
   };
 
   return (

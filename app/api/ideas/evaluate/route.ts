@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 110;
 
 const EVALUATION_CACHE_HOURS = 24;
-const EVALUATION_CRITERIA_VERSION = 'v2';
+const EVALUATION_CRITERIA_VERSION = 'v3';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -65,13 +65,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const references = await retrieveIdeaContext(idea);
+  const references = await retrieveIdeaContext(idea, { maxReferences: 6, syncMissing: true, maxSyncDocuments: 8 });
   const ragContext = references.map((reference, index) => [
     `[근거 ${index + 1}] ${reference.metadata.title ?? reference.source_table}`,
     `출처: ${reference.metadata.source ?? reference.source_table}`,
     `유사도: ${reference.similarity.toFixed(2)}`,
     `URL: ${reference.metadata.url ?? '없음'}`,
-    reference.content,
+    reference.content.slice(0, 1_200),
   ].join('\n')).join('\n\n');
   const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
   if (!rawEvaluation) {

@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 110;
 
 const EVALUATION_CACHE_HOURS = 24;
-const EVALUATION_CRITERIA_VERSION = 'v3';
+const EVALUATION_CRITERIA_VERSION = 'v4';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);

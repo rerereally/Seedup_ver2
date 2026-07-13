@@ -137,7 +137,7 @@ export default function DashboardRecommendationBanner({
             )}
           </div>
           <div className="mt-auto pt-3">
-            <RecommendationFeedbackButtons itemType={active.type} itemId={active.id} />
+            <RecommendationFeedbackButtons key={`${active.type}:${active.id}`} itemType={active.type} itemId={active.id} />
           </div>
         </div>
 

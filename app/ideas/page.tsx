@@ -58,9 +58,9 @@ type EvaluationRun = {
 };
 
 const EXAMPLE_IDEAS = [
-  { category: 'AI AUTOMATION', title: 'GitHub 이슈 데일리 리포트 봇', description: '변경 내용을 요약해 팀에 전달하는 자동화 도구' },
-  { category: 'RAG SERVICE', title: '논문 기반 구현 아이디어 생성기', description: '논문의 핵심을 작은 실험과 프로젝트로 연결하는 웹앱' },
-  { category: 'DEVELOPER TOOL', title: 'Product Hunt 팀 큐레이션', description: '신제품을 분석해 팀 Slack에 공유하는 대시보드' },
+  { category: 'AI AUTOMATION', title: 'GitHub 이슈 데일리 리포트 봇', description: '개발팀이 놓치는 이슈 변경을 줄이기 위해, 저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구를 만들고 싶어요.' },
+  { category: 'RAG SERVICE', title: '논문 기반 구현 아이디어 생성기', description: 'AI를 공부하는 개발자가 논문 초록을 넣으면 핵심을 작은 실험과 구현 가능한 프로젝트로 바꿔주는 웹앱을 만들고 싶어요.' },
+  { category: 'DEVELOPER TOOL', title: 'Product Hunt 팀 큐레이션', description: '제품팀이 신제품을 빠르게 검토하도록 Product Hunt 제품을 분석해 매일 팀 Slack에 공유하는 대시보드를 만들고 싶어요.' },
 ];
 
 export default function Ideas() {
@@ -167,7 +167,7 @@ export default function Ideas() {
                     <p className="mt-3 text-sm leading-7 text-muted">아이디어를 입력하면 포트폴리오 가치와 실행 가능성을 함께 검토해드려요.</p>
                     <div className="mt-10 grid w-full max-w-3xl gap-3 md:grid-cols-3">
                       {EXAMPLE_IDEAS.map((example) => (
-                        <button key={example.title} type="button" onClick={() => setIdea(example.title)} className="group border border-outline-soft bg-surface p-5 text-left transition-colors hover:border-ink hover:bg-white">
+                        <button key={example.title} type="button" onClick={() => setIdea(example.description)} className="group border border-outline-soft bg-surface p-5 text-left transition-colors hover:border-ink hover:bg-white">
                           <span className="block font-mono text-[11px] font-bold uppercase tracking-wider text-muted">{example.category}</span>
                           <span className="mt-3 block text-sm font-bold leading-6 text-ink">{example.title}</span>
                           <span className="mt-2 block text-xs leading-5 text-muted">{example.description}</span>

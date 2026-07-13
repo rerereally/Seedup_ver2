@@ -35,12 +35,22 @@ export default function ArticleAssistant({
     setStatus('loading');
     setQuestion('');
     setMessages((current) => [...current, { role: 'user', content: nextQuestion }]);
+    const history = messages
+      .filter((message, index) => index > 0)
+      .slice(-4)
+      .map(({ role, content }) => ({ role, content }));
 
-    const response = await fetch('/api/articles/ask', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title, summary, content, question: nextQuestion }),
-    });
+    let response: Response;
+    try {
+      response = await fetch('/api/articles/ask', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title, summary, content, question: nextQuestion, history }),
+      });
+    } catch {
+      setStatus('error');
+      return;
+    }
 
     if (!response.ok) {
       setStatus('error');

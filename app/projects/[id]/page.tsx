@@ -59,6 +59,8 @@ function normalizeBuildPlan(project: {
       tools: Array.isArray(step.tools) ? step.tools.map(String) : [],
       deliverable: String(step.deliverable ?? ''),
       doneWhen: String(step.done_when ?? ''),
+      acceptanceCriteria: Array.isArray(step.acceptance_criteria) ? step.acceptance_criteria.map(String) : [],
+      risks: Array.isArray(step.risks) ? step.risks.map(String) : [],
       hours: typeof step.estimated_hours_min === 'number' && typeof step.estimated_hours_max === 'number'
         ? `${step.estimated_hours_min}~${step.estimated_hours_max}시간`
         : null,
@@ -73,6 +75,8 @@ function normalizeBuildPlan(project: {
     tools: [],
     deliverable: '',
     doneWhen: '',
+    acceptanceCriteria: [],
+    risks: [],
     hours: null,
   }));
 }
@@ -205,7 +209,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     추천 수준
                   </div>
                   <p className="text-sm leading-7 text-ink">
-                    {project.level ?? '초급'} 개발자 기준 {durationLabel} 플랜입니다. {duration?.reasoning ?? '핵심 흐름을 먼저 검증하고 확장 기능은 뒤로 미룹니다.'}
+                    {project.level ?? '초급'} 개발자 기준 {durationLabel} 플랜입니다. {project.project_constraints?.primary_language ? `${project.project_constraints.primary_language} 한 가지 언어와 핵심 기능 ${project.project_constraints.core_feature_count ?? 3}개 기준으로 범위를 제한했습니다. ` : ''}{project.schedule_reasoning ?? duration?.reasoning ?? '핵심 흐름을 먼저 검증하고 확장 기능은 뒤로 미룹니다.'}
                   </p>
                 </div>
                 <div className="p-5">
@@ -219,12 +223,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 </div>
               </div>
 
-              {(project.mvp_acceptance || project.scope || project.prerequisites?.length || project.difficulty_reasons?.length) && (
+              {(project.mvp_acceptance || project.scope || project.prerequisites?.length || project.difficulty_reasons?.length || project.technical_limitations?.length || project.assumptions?.length || project.validation_metrics?.length) && (
                 <section className="mt-4 grid gap-4 md:grid-cols-2">
                   {project.mvp_acceptance && <div className="border border-ink bg-ink p-5 text-white md:col-span-2"><p className="font-mono text-xs font-bold uppercase text-white/60">MVP ACCEPTANCE</p><p className="mt-3 max-w-3xl text-sm leading-7">{project.mvp_acceptance}</p></div>}
                   {project.scope && <div className="border border-outline-soft bg-white p-5 md:col-span-2"><h2 className="text-sm font-black text-ink">MVP 범위</h2><div className="mt-4 grid gap-4 md:grid-cols-3">{[['이번 플랜에 포함', project.scope.must_have], ['권장 확장', project.scope.should_have], ['이번 플랜에서 제외', project.scope.excluded]].map(([label, items]) => <div key={String(label)}><p className="font-mono text-[11px] font-bold uppercase text-muted">{String(label)}</p><ul className="mt-2 grid gap-1">{(Array.isArray(items) ? items : []).map((item, itemIndex) => <li key={`${String(label)}-${itemIndex}`} className="text-xs leading-5 text-muted">- {item}</li>)}</ul></div>)}</div></div>}
                   {project.prerequisites?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">필요한 선행 지식</h2><ul className="mt-3 grid gap-2">{project.prerequisites.map((item, itemIndex) => <li key={`prerequisite-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
                   {project.difficulty_reasons?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">추천 수준인 이유</h2><ul className="mt-3 grid gap-2">{project.difficulty_reasons.map((item, itemIndex) => <li key={`difficulty-reason-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                  {project.technical_limitations?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">기술적 한계</h2><ul className="mt-3 grid gap-2">{project.technical_limitations.map((item, itemIndex) => <li key={`limitation-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                  {project.assumptions?.length ? <div className="border border-outline-soft bg-white p-5"><h2 className="text-sm font-black text-ink">전제 조건</h2><ul className="mt-3 grid gap-2">{project.assumptions.map((item, itemIndex) => <li key={`assumption-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                  {project.validation_metrics?.length ? <div className="border border-outline-soft bg-white p-5 md:col-span-2"><h2 className="text-sm font-black text-ink">검증 지표</h2><div className="mt-3 grid gap-2 md:grid-cols-3">{project.validation_metrics.map((item, itemIndex) => <div key={`metric-${itemIndex}`} className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">{item.metric ?? '검증 항목'}</p><p className="mt-1 text-xs leading-5 text-muted">목표: {item.target ?? '-'}</p><p className="mt-1 text-xs leading-5 text-muted">방법: {item.method ?? '-'}</p></div>)}</div></div> : null}
                 </section>
               )}
 
@@ -258,7 +265,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
                 <div className="divide-y divide-outline-soft">
                   {planSteps.length > 0
-                    ? planSteps.map(({ index, day, title, meta, objective, tasks, tools: stepTools, deliverable, doneWhen, hours }) => (
+                    ? planSteps.map(({ index, day, title, meta, objective, tasks, tools: stepTools, deliverable, doneWhen, acceptanceCriteria, risks, hours }) => (
                         <div key={`${index}-${title}`} className="p-5">
                           <div className="flex items-start gap-4">
                             {/* Day 번호 */}
@@ -275,7 +282,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
                               {objective && <p className="mt-2 text-sm leading-6 text-muted">{objective}</p>}
                               {!!tasks.length && <ul className="mt-3 grid gap-1">{tasks.map((task) => <li key={task} className="text-xs leading-5 text-muted">- {task}</li>)}</ul>}
-                              {(deliverable || doneWhen || hours || stepTools.length > 0) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}</div>}
+                              {(deliverable || doneWhen || hours || stepTools.length > 0 || acceptanceCriteria.length || risks.length) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="border border-outline-soft bg-surface p-3 text-xs"><span className="font-black text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}{acceptanceCriteria.length > 0 && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">검증 기준 </span><span className="text-muted">{acceptanceCriteria.join(' · ')}</span></div>}{risks.length > 0 && <div className="border border-outline-soft bg-surface p-3 text-xs sm:col-span-2"><span className="font-black text-ink">주의할 점 </span><span className="text-muted">{risks.join(' · ')}</span></div>}</div>}
 
                               {/* 이전 문자열 plan 호환용 메타 */}
                               {meta.length > 0 && (

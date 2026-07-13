@@ -51,13 +51,15 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
       : item.project_convertible
         ? ['프로젝트나 포트폴리오로 확장할 수 있습니다.']
         : [];
-  const readingPoints = [
+  const legacyReadingPoints = [
     recommendationReasons[0] ? `추천 이유: ${recommendationReasons[0]}` : null,
     item.why_it_matters,
     item.project_idea ? `프로젝트 연결: ${item.project_idea}` : null,
     item.learning_topics?.length ? `학습 주제: ${item.learning_topics.slice(0, 4).join(', ')}` : null,
     item.related_skills?.length ? `관련 기술: ${item.related_skills.slice(0, 4).join(', ')}` : null,
   ].filter(Boolean);
+  const readingPoints = item.source === 'Seedup' && item.key_points?.length ? item.key_points : legacyReadingPoints;
+  const evidenceLabel = item.article_evidence?.confidence === 'high' ? '근거 충분' : item.article_evidence?.confidence === 'medium' ? '근거 보통' : '근거 제한적';
 
   return (
     <>
@@ -116,6 +118,25 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
                       </div>
                     ))}
                   </div>
+                </section>
+              )}
+
+              {item.source === 'Seedup' && (item.article_evidence || item.technical_limitations?.length || item.mvp_scope?.length || item.article_claims?.length) && (
+                <section className="mt-5 border border-outline-soft bg-white p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-black uppercase text-ink">Evidence & Scope</h2>
+                      <p className="mt-1 text-xs leading-5 text-muted">수집 자료를 바탕으로 작성한 글의 근거 범위와 구현 제약입니다.</p>
+                    </div>
+                    {item.article_evidence && <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-ink">{evidenceLabel} · 출처 {item.article_evidence.source_count ?? 0}개</span>}
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {!!item.technical_limitations?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">한계와 주의점</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.technical_limitations.slice(0, 3).map((value, index) => <li key={`limitation-${index}`}>- {value}</li>)}</ul></div>}
+                    {!!item.mvp_scope?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">현실적인 MVP 범위</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.mvp_scope.slice(0, 3).map((value, index) => <li key={`scope-${index}`}>- {value}</li>)}</ul></div>}
+                    {!!item.excluded_scope?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">이번 단계에서 제외</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.excluded_scope.slice(0, 3).map((value, index) => <li key={`excluded-${index}`}>- {value}</li>)}</ul></div>}
+                    {!!item.measurable_acceptance_criteria?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">완료 조건</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.measurable_acceptance_criteria.slice(0, 3).map((value, index) => <li key={`acceptance-${index}`}>- {value}</li>)}</ul></div>}
+                  </div>
+                  {!!item.article_claims?.length && <div className="mt-3 border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">주장 구분</p><div className="mt-2 grid gap-2">{item.article_claims.slice(0, 3).map((claim, index) => <div key={`claim-${index}`} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-xs leading-5 text-muted"><span className="font-bold text-ink">{claim.evidence_type === 'source' ? '수집 근거' : claim.evidence_type === 'inference' ? '해석·제안' : '일반 해설'}</span><span>{claim.claim}</span></div>)}</div></div>}
                 </section>
               )}
 

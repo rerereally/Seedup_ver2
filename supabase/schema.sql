@@ -44,6 +44,14 @@ create table if not exists public.news_items (
   duplicate_group_key text,
   duplicate_count integer not null default 1,
   quality_notes text[] default '{}',
+  article_evidence jsonb,
+  article_claims jsonb,
+  technical_limitations text[] default '{}',
+  article_assumptions text[] default '{}',
+  mvp_scope text[] default '{}',
+  excluded_scope text[] default '{}',
+  measurable_acceptance_criteria text[] default '{}',
+  link_warnings text[] default '{}',
   target_levels text[] default '{}',
   target_goals text[] default '{}',
   target_interests text[] default '{}',
@@ -289,6 +297,13 @@ create table if not exists public.project_ideas (
   mvp_acceptance text,
   expansion_ideas text[] default '{}',
   stack_details jsonb,
+  project_constraints jsonb,
+  technical_limitations text[] default '{}',
+  assumptions text[] default '{}',
+  excluded_scope text[] default '{}',
+  complexity_reasons text[] default '{}',
+  schedule_reasoning text,
+  validation_metrics jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -614,6 +629,14 @@ alter table public.news_items add column if not exists canonical_key text;
 alter table public.news_items add column if not exists duplicate_group_key text;
 alter table public.news_items add column if not exists duplicate_count integer not null default 1;
 alter table public.news_items add column if not exists quality_notes text[] default '{}';
+alter table public.news_items add column if not exists article_evidence jsonb;
+alter table public.news_items add column if not exists article_claims jsonb;
+alter table public.news_items add column if not exists technical_limitations text[] default '{}';
+alter table public.news_items add column if not exists article_assumptions text[] default '{}';
+alter table public.news_items add column if not exists mvp_scope text[] default '{}';
+alter table public.news_items add column if not exists excluded_scope text[] default '{}';
+alter table public.news_items add column if not exists measurable_acceptance_criteria text[] default '{}';
+alter table public.news_items add column if not exists link_warnings text[] default '{}';
 alter table public.news_items add column if not exists target_levels text[] default '{}';
 alter table public.news_items add column if not exists target_goals text[] default '{}';
 alter table public.news_items add column if not exists target_interests text[] default '{}';
@@ -736,6 +759,13 @@ alter table public.project_ideas add column if not exists difficulty_reasons tex
 alter table public.project_ideas add column if not exists mvp_acceptance text;
 alter table public.project_ideas add column if not exists expansion_ideas text[] default '{}';
 alter table public.project_ideas add column if not exists stack_details jsonb;
+alter table public.project_ideas add column if not exists project_constraints jsonb;
+alter table public.project_ideas add column if not exists technical_limitations text[] default '{}';
+alter table public.project_ideas add column if not exists assumptions text[] default '{}';
+alter table public.project_ideas add column if not exists excluded_scope text[] default '{}';
+alter table public.project_ideas add column if not exists complexity_reasons text[] default '{}';
+alter table public.project_ideas add column if not exists schedule_reasoning text;
+alter table public.project_ideas add column if not exists validation_metrics jsonb;
 alter table public.project_ideas add column if not exists view_count integer not null default 0;
 alter table public.project_ideas add column if not exists like_count integer not null default 0;
 alter table public.project_ideas add column if not exists dislike_count integer not null default 0;

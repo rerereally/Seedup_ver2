@@ -61,6 +61,26 @@ export type NewsItem = {
   duplicate_group_key?: string | null;
   duplicate_count?: number | null;
   quality_notes?: string[] | null;
+  article_evidence?: {
+    source_count?: number;
+    source_type_count?: number;
+    direct_metric_count?: number;
+    has_primary_source?: boolean;
+    confidence?: 'low' | 'medium' | 'high';
+    limitations?: string[];
+  } | null;
+  article_claims?: Array<{
+    claim?: string;
+    evidence_type?: 'source' | 'general_knowledge' | 'inference';
+    source_urls?: string[];
+    confidence?: 'low' | 'medium' | 'high';
+  }> | null;
+  technical_limitations?: string[] | null;
+  article_assumptions?: string[] | null;
+  mvp_scope?: string[] | null;
+  excluded_scope?: string[] | null;
+  measurable_acceptance_criteria?: string[] | null;
+  link_warnings?: string[] | null;
   image_url: string | null;
   project_idea: string | null;
   published_at: string | null;
@@ -209,12 +229,31 @@ export type ProjectIdea = {
     estimated_hours_min?: number;
     estimated_hours_max?: number;
     dependencies?: number[];
+    acceptance_criteria?: string[];
+    risks?: string[];
   }> | null;
   prerequisites?: string[] | null;
   difficulty_reasons?: string[] | null;
   mvp_acceptance?: string | null;
   expansion_ideas?: string[] | null;
   stack_details?: Array<{ name?: string; category?: string; reason?: string }> | null;
+  project_constraints?: {
+    target_level?: 'beginner' | 'intermediate' | 'advanced';
+    duration_days_min?: number;
+    duration_days_max?: number;
+    estimated_hours_min?: number;
+    estimated_hours_max?: number;
+    primary_language?: string;
+    core_feature_count?: number;
+    integration_count?: number;
+    excluded_features?: string[];
+  } | null;
+  technical_limitations?: string[] | null;
+  assumptions?: string[] | null;
+  excluded_scope?: string[] | null;
+  complexity_reasons?: string[] | null;
+  schedule_reasoning?: string | null;
+  validation_metrics?: Array<{ metric?: string; target?: string; method?: string }> | null;
   view_count?: number | null;
   like_count?: number | null;
   dislike_count?: number | null;

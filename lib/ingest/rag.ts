@@ -24,7 +24,9 @@ type RagDocument = {
 };
 
 const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small';
-const MAX_DOCUMENTS_PER_SOURCE = 30;
+// Keep evaluation requests bounded. New embeddings are synced lazily, so a
+// large historical table should not consume the whole request timeout.
+const MAX_DOCUMENTS_PER_SOURCE = 18;
 
 export async function retrieveIdeaContext(idea: string): Promise<RagReference[]> {
   const supabase = createAdminClient();
@@ -47,7 +49,7 @@ export async function retrieveIdeaContext(idea: string): Promise<RagReference[]>
       return [];
     }
 
-    return ((data ?? []) as Array<Record<string, unknown>>).map((item) => ({
+    const matches = ((data ?? []) as Array<Record<string, unknown>>).map((item) => ({
       source_table: String(item.source_table ?? ''),
       source_id: String(item.source_id ?? ''),
       content: String(item.content ?? ''),
@@ -57,6 +59,16 @@ export async function retrieveIdeaContext(idea: string): Promise<RagReference[]>
       },
       similarity: Number(item.similarity ?? 0),
     })).filter((item) => item.content && item.similarity >= 0.55);
+
+    // A source can have more than one embedding after its content changes.
+    // Keep the strongest match so the evaluator and UI see one document once.
+    const uniqueMatches = new Map<string, RagReference>();
+    for (const match of matches) {
+      const key = `${match.source_table}:${match.source_id}`;
+      const current = uniqueMatches.get(key);
+      if (!current || match.similarity > current.similarity) uniqueMatches.set(key, match);
+    }
+    return [...uniqueMatches.values()].sort((left, right) => right.similarity - left.similarity);
   } catch (error) {
     console.error('RAG context retrieval failed', error);
     return [];

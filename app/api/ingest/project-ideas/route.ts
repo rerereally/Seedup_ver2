@@ -30,10 +30,11 @@ async function ingest(request: Request) {
   let upserted = 0;
   let errors = 0;
 
-  const [{ data: news }, { data: products }, { data: repos }] = await Promise.all([
+  const [{ data: news }, { data: products }, { data: repos }, { data: papers }] = await Promise.all([
     supabase.from('news_items').select('id,title,short_summary,beginner_summary,project_idea,related_skills,topic_tags,skill_tags,category').order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(limit),
     supabase.from('ai_products').select('id,name,short_summary,description,category,topic_tags,skill_tags,use_cases,related_project_ideas').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(limit),
     supabase.from('github_trends').select('id,repo_full_name,short_summary,beginner_summary,project_idea,language,topics,topic_tags,skill_tags').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('stars', { ascending: false }).limit(limit),
+    supabase.from('research_papers').select('id,title,beginner_summary,expert_summary,implementation_idea,related_skills,categories').order('relevance_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(limit),
   ]);
 
   const sources = [
@@ -61,6 +62,14 @@ async function ingest(request: Request) {
       trend: pickSpecificTrend([...(item.topic_tags ?? []), ...(item.topics ?? [])]),
       skills: [...(item.skill_tags ?? []), ...(item.topics ?? []), item.language].filter(Boolean),
     })),
+    ...(papers ?? []).map((item) => ({
+      sourceType: 'paper',
+      sourceId: item.id,
+      title: item.implementation_idea || item.title,
+      summary: item.beginner_summary || item.expert_summary || item.title,
+      trend: pickSpecificTrend(item.categories ?? []),
+      skills: [...(item.related_skills ?? []), ...(item.categories ?? [])],
+    })),
   ].slice(0, limit * 3);
 
   for (const source of sources) {
@@ -86,6 +95,13 @@ async function ingest(request: Request) {
         mvp_acceptance: idea.mvp_acceptance ?? null,
         expansion_ideas: idea.expansion_ideas ?? [],
         stack_details: idea.stack_details ?? [],
+        project_constraints: idea.project_constraints ?? null,
+        technical_limitations: idea.technical_limitations ?? [],
+        assumptions: idea.assumptions ?? [],
+        excluded_scope: idea.excluded_scope ?? [],
+        complexity_reasons: idea.complexity_reasons ?? [],
+        schedule_reasoning: idea.schedule_reasoning ?? null,
+        validation_metrics: idea.validation_metrics ?? [],
       });
 
     if (error) {
@@ -114,12 +130,20 @@ async function upsertProjectIdea(
   source: { sourceType: string; sourceId: string },
   payload: Record<string, unknown>,
 ) {
-  const insertPayload = { ...payload, source_type: source.sourceType, source_id: source.sourceId };
+  const insertPayload: Record<string, unknown> = { ...payload, source_type: source.sourceType, source_id: source.sourceId };
   const result = await supabase
     .from('project_ideas')
     .upsert(insertPayload, { onConflict: 'source_type,source_id,title' });
 
-  if (!result.error || !/unique|conflict|constraint/i.test(result.error.message)) return result;
+  if (!result.error) return result;
+
+  if (/column|schema cache|could not find/i.test(result.error.message)) {
+    const legacyPayload = { ...insertPayload };
+    for (const column of ['project_constraints', 'technical_limitations', 'assumptions', 'excluded_scope', 'complexity_reasons', 'schedule_reasoning', 'validation_metrics']) delete legacyPayload[column];
+    return supabase.from('project_ideas').upsert(legacyPayload, { onConflict: 'source_type,source_id,title' });
+  }
+
+  if (!/unique|conflict|constraint/i.test(result.error.message)) return result;
 
   // Older Supabase schemas can be missing the composite unique index. Keep the
   // ingestion working while schema.sql is being applied.

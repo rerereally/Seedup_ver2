@@ -1,13 +1,14 @@
-import { evaluateIdea } from '@/lib/ingest/ai';
+import { applyIdeaEvidencePolicy, evaluateIdea } from '@/lib/ingest/ai';
 import { validateIdeaInput } from '@/lib/ideas/input';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const EVALUATION_CACHE_HOURS = 24;
+const EVALUATION_CRITERIA_VERSION = 'v2';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
   if (!input.ok) {
     return NextResponse.json({ error: input.message }, { status: 422 });
   }
-  const { idea, key } = input;
+  const { idea, key: inputKey } = input;
+  const key = `${inputKey}:${EVALUATION_CRITERIA_VERSION}`;
 
   const supabase = await createClient();
   const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
@@ -50,9 +52,16 @@ export async function POST(request: Request) {
     const cached = cacheByKey.data ?? cacheByText?.data;
 
     if (cached?.result && typeof cached.result === 'object') {
-      const cachedResult = cached.result as { model?: string | null; evaluation?: unknown };
-      const evaluation = cachedResult.evaluation ?? cachedResult;
-      return NextResponse.json({ ok: true, evaluation, model: cachedResult.model ?? null, references: [], saved: true, cached: true });
+      const cachedResult = cached.result as { model?: string | null; evaluation?: unknown; references?: unknown };
+      const cachedEvaluation = cachedResult.evaluation ?? cachedResult;
+      const cachedReferences = Array.isArray(cachedResult.references) ? cachedResult.references : [];
+      const referencesForPolicy = cachedReferences.filter((reference): reference is { source_table?: unknown } => Boolean(reference && typeof reference === 'object'));
+      const evaluation = applyIdeaEvidencePolicy(cachedEvaluation as Parameters<typeof applyIdeaEvidencePolicy>[0], {
+        referenceCount: referencesForPolicy.length,
+        sourceTypeCount: new Set(referencesForPolicy.map((reference) => String(reference.source_table ?? 'unknown'))).size,
+        marketEvidenceCount: referencesForPolicy.filter((reference) => ['ai_products', 'news_items'].includes(String(reference.source_table ?? ''))).length,
+      });
+      return NextResponse.json({ ok: true, evaluation, model: cachedResult.model ?? null, references: cachedReferences, saved: true, cached: true });
     }
   }
 
@@ -64,10 +73,15 @@ export async function POST(request: Request) {
     `URL: ${reference.metadata.url ?? '없음'}`,
     reference.content,
   ].join('\n')).join('\n\n');
-  const { evaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
-  if (!evaluation) {
+  const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
+  if (!rawEvaluation) {
     return NextResponse.json({ error: evaluationError ?? '평가 모델에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
+  const evaluation = applyIdeaEvidencePolicy(rawEvaluation, {
+    referenceCount: references.length,
+    sourceTypeCount: new Set(references.map((reference) => reference.source_table)).size,
+    marketEvidenceCount: references.filter((reference) => ['ai_products', 'news_items'].includes(reference.source_table)).length,
+  });
   let saved = false;
   let saveError: string | null = null;
 

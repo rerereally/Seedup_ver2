@@ -18,6 +18,8 @@ type ScoreBreakdown = Partial<Record<'feasibility' | 'differentiation' | 'market
 type RecommendedTechnology = { name: string; category: 'required' | 'optional' | 'scale'; reason: string };
 type EvaluationRisk = { title: string; severity: 'high' | 'medium' | 'low'; impact: string; mitigation: string };
 type EvaluationNextStep = { order: number; title: string; description: string; deliverable: string; done_when: string };
+type EvaluationScoreReason = { positive: string[]; deductions: string[]; evidence: string[] };
+type EvaluationMvpScope = { team_size: string; duration_weeks: number; core_user_flow: string; excluded_scope: string[] };
 
 type IdeaEvaluationResult = {
   score: number;
@@ -36,8 +38,13 @@ type IdeaEvaluationResult = {
   structured_next_steps?: EvaluationNextStep[];
   confidence?: { level: 'high' | 'medium' | 'low'; reason: string };
   missing_data?: string[];
+  user_stated?: string[];
+  inferred_assumptions?: string[];
+  mvp_scope?: EvaluationMvpScope;
+  score_reasons?: Partial<Record<'feasibility' | 'differentiation' | 'market' | 'portfolio' | 'mvp_clarity', EvaluationScoreReason>>;
   references?: Array<{
     source_table: string;
+    source_id?: string;
     content: string;
     similarity: number;
     metadata: { title?: string; url?: string | null; source?: string | null };
@@ -252,6 +259,10 @@ function normalizeEvaluation(value: unknown): IdeaEvaluationResult {
     structured_next_steps: steps,
     confidence: result.confidence,
     missing_data: result.missing_data,
+    user_stated: Array.isArray(result.user_stated) ? result.user_stated.filter((item): item is string => typeof item === 'string') : [],
+    inferred_assumptions: Array.isArray(result.inferred_assumptions) ? result.inferred_assumptions.filter((item): item is string => typeof item === 'string') : [],
+    mvp_scope: result.mvp_scope && typeof result.mvp_scope === 'object' ? result.mvp_scope as EvaluationMvpScope : undefined,
+    score_reasons: result.score_reasons && typeof result.score_reasons === 'object' ? result.score_reasons : {},
     references: Array.isArray(result.references) ? result.references : [],
   };
 }
@@ -268,6 +279,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
   const technologies = evaluation.recommended_technologies ?? [];
   const risks = evaluation.structured_risks ?? [];
   const nextSteps = evaluation.structured_next_steps ?? [];
+  const scoreReasonLabels: Record<string, string> = { feasibility: '구현 가능성', differentiation: '차별성', market: '시장성', portfolio: '포트폴리오', mvp_clarity: 'MVP 명확성' };
 
   return (
     <div className="grid gap-4">
@@ -284,7 +296,9 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
         {!!evaluation.weaknesses?.length && <DetailList title="보완할 점" items={evaluation.weaknesses} />}
       </section>
 
-      {!!scoreItems.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">점수 근거</h3><div className="mt-3 grid gap-3 sm:grid-cols-2">{scoreItems.map(([label, value]) => <div key={label} className="border border-outline-soft bg-surface p-3"><div className="flex justify-between gap-3 text-xs font-bold text-muted"><span>{label}</span><span className="font-mono text-ink">{value}</span></div><div className="mt-2 h-1 bg-outline-soft"><div className="h-1 bg-ink" style={{ width: `${value}%` }} /></div></div>)}</div></section>}
+      {(evaluation.user_stated?.length || evaluation.inferred_assumptions?.length) && <div className="grid gap-4 md:grid-cols-2"><section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">사용자가 말한 내용</h3><p className="mt-2 text-xs leading-6 text-muted">입력에서 직접 확인된 사실입니다.</p><DetailList title="" items={evaluation.user_stated ?? []} /></section><section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">확장 가설</h3><p className="mt-2 text-xs leading-6 text-muted">Seedup 자료와 AI가 연결한 검증 전 가설입니다.</p><DetailList title="" items={evaluation.inferred_assumptions ?? []} /></section></div>}
+
+      {!!scoreItems.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">점수 근거</h3><div className="mt-3 grid gap-3 sm:grid-cols-2">{scoreItems.map(([label, value]) => { const key = Object.entries(scoreReasonLabels).find(([, currentLabel]) => currentLabel === label)?.[0] as keyof NonNullable<IdeaEvaluationResult['score_reasons']> | undefined; const reason = key ? evaluation.score_reasons?.[key] : undefined; return <div key={label} className="border border-outline-soft bg-surface p-3"><div className="flex justify-between gap-3 text-xs font-bold text-muted"><span>{label}</span><span className="font-mono text-ink">{value}</span></div><div className="mt-2 h-1 bg-outline-soft"><div className="h-1 bg-ink" style={{ width: `${value}%` }} /></div>{reason && <div className="mt-3 grid gap-2 text-xs leading-5 text-muted"><p><strong className="text-ink">긍정:</strong> {reason.positive.join(' · ') || '명시된 근거 없음'}</p><p><strong className="text-ink">감점:</strong> {reason.deductions.join(' · ') || '명시된 감점 없음'}</p><p><strong className="text-ink">근거:</strong> {reason.evidence.join(' · ') || '직접 근거 없음'}</p></div>}</div>; })}</div></section>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <TextSection title="포트폴리오 가치" content={evaluation.portfolio_value} />
@@ -297,9 +311,11 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
 
       {nextSteps.length > 0 && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">MVP 실행 계획</h3><div className="mt-3 grid gap-2">{nextSteps.slice(0, 5).map((step) => <div key={`${step.order}-${step.title}`} className="border border-outline-soft bg-surface p-3"><p className="text-sm font-bold text-ink"><span className="mr-2 font-mono text-muted">{String(step.order).padStart(2, '0')}</span>{step.title}</p><p className="mt-2 text-xs leading-5 text-muted">{step.description}</p><p className="mt-2 text-xs leading-5 text-muted"><strong className="text-ink">산출물:</strong> {step.deliverable}</p><p className="mt-1 text-xs leading-5 text-muted"><strong className="text-ink">완료 조건:</strong> {step.done_when}</p></div>)}</div></section>}
 
+      {evaluation.mvp_scope && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">MVP 범위</h3><div className="mt-3 grid gap-3 text-sm leading-6 text-muted sm:grid-cols-3"><p><strong className="block text-xs text-ink">팀과 기간</strong>{evaluation.mvp_scope.team_size} · {evaluation.mvp_scope.duration_weeks}주</p><p><strong className="block text-xs text-ink">핵심 흐름</strong>{evaluation.mvp_scope.core_user_flow}</p><p><strong className="block text-xs text-ink">이번 MVP 제외</strong>{evaluation.mvp_scope.excluded_scope.join(' · ') || '추가 범위 없음'}</p></div></section>}
+
       {evaluation.confidence && <section className="border border-outline-soft bg-white p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-black text-ink">평가 신뢰도</h3><span className="font-mono text-xs font-bold text-muted">{evaluation.confidence.level.toUpperCase()}</span></div><p className="mt-2 text-xs leading-6 text-muted">{evaluation.confidence.reason}</p>{!!evaluation.missing_data?.length && <DetailList title="추가 검증 필요" items={evaluation.missing_data} />}</section>}
 
-      {!!evaluation.references?.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">평가 근거</h3><p className="mt-2 text-xs leading-6 text-muted">이번 평가에서 실제로 검색된 참고 자료입니다.</p><div className="mt-3 grid gap-2">{evaluation.references.slice(0, 6).map((reference) => <div key={`${reference.source_table}:${reference.metadata.title}`} className="border border-outline-soft bg-surface p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-ink">{reference.metadata.title ?? reference.source_table}</p><span className="font-mono text-xs font-bold text-muted">{Math.round(reference.similarity * 100)}%</span></div><p className="mt-1 text-xs text-muted">{reference.metadata.source ?? reference.source_table}</p>{reference.metadata.url && <a href={reference.metadata.url} target="_blank" rel="noreferrer" className="mt-2 block truncate text-xs font-bold text-ink underline">원문 보기</a>}</div>)}</div></section>}
+      {!!evaluation.references?.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">평가 근거</h3><p className="mt-2 text-xs leading-6 text-muted">이번 평가에서 실제로 검색된 참고 자료입니다.</p><div className="mt-3 grid gap-2">{evaluation.references.slice(0, 6).map((reference, index) => <div key={`${reference.source_table}:${reference.source_id ?? reference.metadata.url ?? reference.metadata.title ?? 'reference'}:${index}`} className="border border-outline-soft bg-surface p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-ink">{reference.metadata.title ?? reference.source_table}</p><span className="font-mono text-xs font-bold text-muted">{Math.round(reference.similarity * 100)}%</span></div><p className="mt-1 text-xs text-muted">{reference.metadata.source ?? reference.source_table}</p>{reference.metadata.url && <a href={reference.metadata.url} target="_blank" rel="noreferrer" className="mt-2 block truncate text-xs font-bold text-ink underline">원문 보기</a>}</div>)}</div></section>}
       {!evaluation.references?.length && <p className="border border-dashed border-outline-soft bg-white p-4 text-xs leading-6 text-muted">이번 평가에 직접 연결된 참고 자료가 없습니다. 시장성 평가는 제한적인 정보에 기반한 AI 추론입니다.</p>}
     </div>
   );

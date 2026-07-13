@@ -16,6 +16,7 @@ type SourceItem = {
   skills: string[];
   sourceRole: 'primary' | 'independent' | 'supporting' | 'context';
   sourceDomain: string | null;
+  sourceUrl: string | null;
   publishedAt: string | null;
 };
 
@@ -171,6 +172,9 @@ async function ingest(request: Request) {
         skills: cluster.skills,
         track: cluster.track,
         difficultyTarget: inferClusterDifficulty(cluster),
+        sourceBundle: cluster.sources
+          .filter((source) => source.sourceType !== 'trend_bundle')
+          .map((source) => ({ title: source.title, source_type: source.sourceType, source_role: source.sourceRole, url: source.sourceUrl, summary: source.summary })),
       });
       if (!draft.content_markdown.trim()) {
         errors += 1;
@@ -178,7 +182,11 @@ async function ingest(request: Request) {
         console.warn('Article draft generation returned empty content', cluster.id, cluster.title);
         return;
       }
-      const quality = validateGeneratedArticleDraft(draft, { mode, track: cluster.track });
+      const quality = validateGeneratedArticleDraft(draft, {
+        mode,
+        track: cluster.track,
+        allowedSourceUrls: cluster.sources.map((source) => source.sourceUrl).filter((url): url is string => Boolean(url)),
+      });
       if (!quality.ok) {
         skipped += 1;
         skipReasons.push(`${cluster.track}:${quality.reason}`);
@@ -238,10 +246,22 @@ async function ingest(request: Request) {
           `cluster_key:${cluster.id}`,
           `source_count:${cluster.sources.length}`,
           `source_types:${cluster.sourceTypes.join(',')}`,
+          `evidence_confidence:${draft.evidence?.confidence ?? 'low'}`,
+          `direct_metric_count:${draft.evidence?.direct_metric_count ?? 0}`,
+          ...(draft.evidence?.limitations ?? []).slice(0, 3).map((limitation) => `evidence_limitation:${limitation}`),
+          ...(draft.link_warnings ?? []).slice(0, 3).map((warning) => `link_warning:${warning}`),
           ...cluster.sources.slice(0, 10).map((source) => `source_key:${sourceKey(source)}`),
           ...draft.referenced_tools.slice(0, 4).map((tool) => `tool:${tool}`),
           ...draft.source_links.slice(0, 4).map((link) => `source:${link}`),
         ],
+        article_evidence: draft.evidence ?? null,
+        article_claims: draft.core_claims ?? [],
+        technical_limitations: draft.technical_limitations ?? [],
+        article_assumptions: draft.assumptions ?? [],
+        mvp_scope: draft.mvp_scope ?? [],
+        excluded_scope: draft.excluded_scope ?? [],
+        measurable_acceptance_criteria: draft.measurable_acceptance_criteria ?? [],
+        link_warnings: draft.link_warnings ?? [],
         ranked_at: now,
         published_at: now,
       });
@@ -339,6 +359,14 @@ async function upsertGeneratedArticle(supabase: NonNullable<ReturnType<typeof cr
     'personalization_hooks',
     'ranked_at',
     'quality_notes',
+    'article_evidence',
+    'article_claims',
+    'technical_limitations',
+    'article_assumptions',
+    'mvp_scope',
+    'excluded_scope',
+    'measurable_acceptance_criteria',
+    'link_warnings',
   ].some((column) => message.includes(column));
 
   if (!recommendationColumnError) return result;
@@ -365,6 +393,14 @@ async function upsertGeneratedArticle(supabase: NonNullable<ReturnType<typeof cr
     'personalization_hooks',
     'ranked_at',
     'quality_notes',
+    'article_evidence',
+    'article_claims',
+    'technical_limitations',
+    'article_assumptions',
+    'mvp_scope',
+    'excluded_scope',
+    'measurable_acceptance_criteria',
+    'link_warnings',
   ]) {
     delete fallbackPayload[key];
   }
@@ -451,6 +487,7 @@ function buildSources({
       publishedAt: new Date().toISOString(),
       sourceRole: 'context' as const,
       sourceDomain: null,
+      sourceUrl: null,
     }]
     : [];
 
@@ -472,6 +509,7 @@ function buildSources({
       publishedAt: item.published_at ?? null,
       sourceRole: classifySourceRole(item.source, item.original_url || item.source_url),
       sourceDomain: getSourceDomain(item.original_url || item.source_url),
+      sourceUrl: item.original_url || item.source_url || null,
     })),
     ...products.map((item) => ({
       sourceType: 'ai_product' as const,
@@ -489,6 +527,7 @@ function buildSources({
       publishedAt: item.created_at ?? null,
       sourceRole: 'primary' as const,
       sourceDomain: getSourceDomain(item.website_url || item.product_hunt_url),
+      sourceUrl: item.website_url || item.product_hunt_url || null,
     })),
     ...repos.filter(isUsableRepoSource).map((item) => ({
       sourceType: 'github' as const,
@@ -507,6 +546,7 @@ function buildSources({
       publishedAt: item.pushed_at ?? item.last_seen_at ?? null,
       sourceRole: 'primary' as const,
       sourceDomain: getSourceDomain(item.repo_url),
+      sourceUrl: item.repo_url || null,
     })),
     ...papers.filter(isUsablePaperSource).map((item) => ({
       sourceType: 'paper' as const,
@@ -525,6 +565,7 @@ function buildSources({
       publishedAt: item.published_at ?? null,
       sourceRole: 'primary' as const,
       sourceDomain: getSourceDomain(item.paper_url),
+      sourceUrl: item.paper_url || item.code_url || null,
     })),
   ];
 }

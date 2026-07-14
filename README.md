@@ -61,6 +61,8 @@ cp .env.example .env
 
 `npm install`이 설치하는 패키지는 `package.json`과 `package-lock.json`에 고정되어 있습니다. 별도로 전역 설치해야 하는 패키지는 없습니다.
 
+> GitHub에서 받은 코드만으로 화면을 띄우는 것은 가능하지만, 로그인·데이터 수집·AI 기능까지 실행하려면 아래의 Supabase 스키마와 환경변수 설정이 반드시 필요합니다. `.env`와 Cloudflare Secrets는 보안상 저장소에 포함하지 않습니다.
+
 ### 실행에 포함되는 주요 패키지
 
 `package.json`에 직접 등록된 런타임 패키지:
@@ -380,6 +382,14 @@ ADMIN_EMAILS
 NEXT_PUBLIC_ADMIN_EMAILS
 ```
 
+관리자 수집 기능도 배포 환경에서 사용할 경우 아래 값을 실제 서비스 도메인으로 설정합니다. `localhost` 주소를 넣으면 배포된 Worker가 자기 자신에게 요청하지 못합니다.
+
+```text
+INGEST_INTERNAL_URL=https://your-domain.example.com
+```
+
+`wrangler.jsonc`에는 여러 외부 API와 Supabase를 함께 호출하는 Worker의 실행 위치를 자동 최적화하도록 Smart Placement가 설정되어 있습니다. 이는 Supabase 등 백엔드 연결 지연을 줄이는 설정이며, OpenRouter 모델의 지역 제공 제한을 보장해 해결하는 기능은 아닙니다.
+
 배포 후 `NEXT_PUBLIC_SITE_URL`을 실제 Worker 주소로 바꾸고, Supabase Google OAuth 콜백에도 아래 주소를 추가합니다.
 
 ```text
@@ -400,6 +410,8 @@ OPENROUTER_ARTICLE_TIMEOUT_MS=120000
 ### 아이디어 평가에서 `평가 모델에 연결하지 못했습니다`가 표시됨
 
 대개 OpenRouter 모델의 일시적인 빈 응답, 요청 제한, 또는 응답 형식 오류입니다. `OPENROUTER_API_KEY`와 OpenRouter 크레딧을 확인한 뒤 잠시 후 다시 시도하세요. Seedup은 짧은 JSON 응답을 우선 요청하고 한 번 재시도하지만, 두 요청 모두 실패하면 임의의 0점 결과를 저장하지 않고 오류를 안내합니다.
+
+Cloudflare Worker 로그에 `This model is not available in your region`이라는 `403`이 표시되면 API 키나 호출 횟수 문제가 아니라, 해당 Worker 요청 위치에서 OpenRouter 모델을 제공하지 않는 경우입니다. OpenRouter에서 허용되는 다른 모델로 `OPENROUTER_MODEL`과 `OPENROUTER_FALLBACK_MODELS`를 변경하거나, AI 호출을 지원 지역의 별도 백엔드로 분리해야 합니다.
 
 ### `permission denied for table`
 

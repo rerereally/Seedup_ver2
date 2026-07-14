@@ -993,47 +993,29 @@ ${compactRules}
 참고 자료:
 ${input.context || '관련 자료를 찾지 못했다. 일반론을 최신 사실처럼 말하지 말고 불확실성을 표시하라.'}`,
       },
-    ], { models: getWritingModels(), jsonMode: true, temperature: 0, timeoutMs: 55_000, maxTokens: 1_800 });
+    ], { models: getIdeaEvaluationModels(), jsonMode: true, temperature: 0, timeoutMs: 20_000, maxTokens: 1_100 });
 
     return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter idea evaluation failed', error);
-    // The retry has the same small contract. Partial JSON is not a safe result
-    // to repair because it can silently turn missing scores into fabricated data.
-    try {
-      const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
-        { role: 'system', content: '너는 Seedup의 근거 기반 아이디어 평가 코치다. JSON 객체 하나만 반환하라. 마크다운과 설명 문장은 반환하지 마라.' },
-        {
-          role: 'user',
-          content: `다음 아이디어를 평가하고 JSON 객체 하나만 반환하라. 점수는 0~100 정수다. 참고 자료가 있으면 활용하고, 없는 사실은 만들지 마라.
-출력 JSON:
-${compactSchema}
-규칙:
-${compactRules}
-아이디어: ${truncate(input.idea, 2500)}
-참고 자료:
-${input.context || '관련 자료 없음'}`,
-        },
-    ], { models: getWritingModels(), jsonMode: true, temperature: 0, timeoutMs: 35_000, maxTokens: 1_500 });
-      return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
-    } catch (retryError) {
-      console.error('OpenRouter idea evaluation retry failed', retryError);
-      return {
-        evaluation: null,
-        model: null,
-        error: getIdeaEvaluationErrorMessage(retryError),
-      };
-    }
+    return {
+      evaluation: null,
+      model: null,
+      error: getIdeaEvaluationErrorMessage(error),
+    };
   }
 }
 
 function getIdeaEvaluationErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) return '배포 환경의 OpenRouter API 키를 확인해주세요.';
+  if (message.includes('404') || message.includes('not found') || message.includes('model not')) return '배포 환경의 AI 평가 모델 이름을 확인해주세요.';
   if (message.includes('abort') || message.includes('timeout')) return '평가 응답 시간이 초과되었습니다. 근거 자료를 줄여 다시 시도해주세요.';
   if (message.includes('429') || message.includes('rate') || message.includes('quota')) return 'AI 평가 요청이 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.';
   if (message.includes('empty content') || message.includes('empty response')) return '평가 모델이 빈 응답을 반환했습니다. 잠시 후 다시 시도해주세요.';
   if (message.includes('json') || message.includes('non-json')) return '평가 결과 형식을 처리하지 못했습니다. 다시 시도해주세요.';
-  return '평가 모델에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.';
+  if (message.includes('fetch failed') || message.includes('network')) return 'AI 평가 서버와 통신하지 못했습니다. 배포 환경의 외부 요청 설정을 확인해주세요.';
+  return 'AI 평가 요청을 처리하지 못했습니다. 배포 로그에서 OpenRouter 오류를 확인해주세요.';
 }
 
 export async function answerArticleQuestion(input: {
@@ -1091,7 +1073,10 @@ question: ${truncate(input.question, 500)}`,
     });
 
     if (typeof result.answer !== 'string' || result.answer.trim().length < 30) {
-      return { result: null, model, error: '글 도우미가 충분한 답변을 만들지 못했습니다.' };
+      const fallbackAnswer = getArticleQuestionFallback(input);
+      return fallbackAnswer
+        ? { result: { answer: fallbackAnswer }, model, error: null }
+        : { result: null, model, error: '글 도우미가 충분한 답변을 만들지 못했습니다.' };
     }
     if (hasUnsupportedSpecificClaim(result.answer, input)) {
       return { result: null, model, error: '본문 근거를 확인할 수 없는 답변이 생성되어 표시하지 않았습니다.' };
@@ -1099,17 +1084,29 @@ question: ${truncate(input.question, 500)}`,
     return { result: { answer: result.answer.trim() }, model };
   } catch (error) {
     console.error('OpenRouter article question failed', error);
-    return { result: null, model: null, error: getArticleQuestionErrorMessage(error) };
+    const fallbackAnswer = getArticleQuestionFallback(input);
+    return fallbackAnswer
+      ? { result: { answer: fallbackAnswer }, model: null, error: null }
+      : { result: null, model: null, error: getArticleQuestionErrorMessage(error) };
   }
 }
 
 function getArticleQuestionErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) return '배포 환경의 OpenRouter API 키를 확인해주세요.';
+  if (message.includes('404') || message.includes('not found') || message.includes('model not')) return '배포 환경의 글 도우미 모델 이름을 확인해주세요.';
   if (message.includes('abort') || message.includes('timeout')) return '답변 생성 시간이 초과되었습니다. 다시 시도해주세요.';
   if (message.includes('429') || message.includes('rate') || message.includes('quota')) return '글 도우미 요청이 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.';
   if (message.includes('empty content')) return '글 도우미가 빈 응답을 반환했습니다. 다시 시도해주세요.';
   if (message.includes('json')) return '글 도우미 응답 형식을 처리하지 못했습니다. 다시 시도해주세요.';
-  return '글 도우미 응답을 만들지 못했습니다. 잠시 후 다시 시도해주세요.';
+  if (message.includes('fetch failed') || message.includes('network')) return '글 도우미 서버와 통신하지 못했습니다. 배포 환경의 외부 요청 설정을 확인해주세요.';
+  return '글 도우미 요청을 처리하지 못했습니다. 배포 로그에서 OpenRouter 오류를 확인해주세요.';
+}
+
+function getArticleQuestionFallback(input: { title: string; summary: string; content: string; question: string; history?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+  const question = input.question.toLowerCase();
+  if (!/\bmcp\b|model context protocol|모델 컨텍스트 프로토콜|\brag\b|검색 증강|retrieval|에이전트|agent|쉽게|요약|핵심/.test(question)) return null;
+  return buildArticleQuestionFallback(input);
 }
 
 function formatArticleQuestionHistory(history: Array<{ role: 'user' | 'assistant'; content: string }> | undefined) {
@@ -1262,6 +1259,12 @@ function getWritingModels() {
     .map((model) => model.trim())
     .filter(Boolean)
     .filter((model, index, models) => models.indexOf(model) === index);
+}
+
+function getIdeaEvaluationModels() {
+  // Keep an interactive request bounded: the primary writing model plus one
+  // configured fallback. callOpenRouter tries them sequentially.
+  return getWritingModels().slice(0, 2);
 }
 
 function parseJsonResponse<T>(content: string) {

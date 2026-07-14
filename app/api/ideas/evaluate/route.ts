@@ -65,13 +65,15 @@ export async function POST(request: Request) {
     }
   }
 
-  const references = await retrieveIdeaContext(idea, { maxReferences: 6, syncMissing: true, maxSyncDocuments: 8 });
+  // Interactive requests must stay inside a serverless request budget. Missing
+  // embeddings are filled by the ingestion flow, not while the user is waiting.
+  const references = await retrieveIdeaContext(idea, { maxReferences: 4, syncMissing: false });
   const ragContext = references.map((reference, index) => [
     `[근거 ${index + 1}] ${reference.metadata.title ?? reference.source_table}`,
     `출처: ${reference.metadata.source ?? reference.source_table}`,
     `유사도: ${reference.similarity.toFixed(2)}`,
     `URL: ${reference.metadata.url ?? '없음'}`,
-    reference.content.slice(0, 1_200),
+    reference.content.slice(0, 700),
   ].join('\n')).join('\n\n');
   const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
   if (!rawEvaluation) {

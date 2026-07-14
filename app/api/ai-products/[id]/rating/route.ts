@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sum = ratings.reduce((total, item) => total + Number(item.rating ?? 0), 0);
   const average = count ? Number((sum / count).toFixed(2)) : 0;
   const { error: aggregateError } = await admin.from('ai_products').update({
-    score: average,
+    user_rating_average: average,
     user_score_sum: sum,
     rating_count: count,
   }).eq('id', productId);

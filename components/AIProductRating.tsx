@@ -7,10 +7,9 @@ import { useEffect, useState } from 'react';
 type RatingUpdate = { productId: string; average: number; ratingCount: number; userRating: number };
 const RATING_EVENT = 'seedup:ai-product-rating';
 
-function toDisplayRating(score: number | null, count: number | null) {
-  const raw = Number(score ?? 0);
-  if (!raw) return 0;
-  return count && count > 0 ? Math.max(0, Math.min(5, raw)) : Math.max(0, Math.min(5, raw > 10 ? raw / 20 : raw / 2));
+function toDisplayRating(average: number | null, count: number | null) {
+  if (!count || count < 1) return 0;
+  return Math.max(0, Math.min(5, Number(average ?? 0)));
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -18,8 +17,8 @@ function Stars({ rating }: { rating: number }) {
   return <div className="flex items-center gap-0.5" aria-label={`${rating.toFixed(1)}점`}>{Array.from({ length: 5 }).map((_, index) => <Star key={index} className={`h-4 w-4 ${index < rounded ? 'fill-ink text-ink' : 'text-muted'}`} />)}</div>;
 }
 
-export function ProductRatingSummary({ productId, score, ratingCount }: { productId: string; score: number | null; ratingCount: number | null }) {
-  const [state, setState] = useState(() => ({ average: toDisplayRating(score, ratingCount), count: Number(ratingCount ?? 0) }));
+export function ProductRatingSummary({ productId, ratingAverage, ratingCount }: { productId: string; ratingAverage: number | null; ratingCount: number | null }) {
+  const [state, setState] = useState(() => ({ average: toDisplayRating(ratingAverage, ratingCount), count: Number(ratingCount ?? 0) }));
 
   useEffect(() => {
     const update = (event: Event) => {

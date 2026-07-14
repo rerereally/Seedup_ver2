@@ -135,7 +135,8 @@ html {
 }
 
 body {
-  @apply min-w-0 overflow-x-hidden bg-surface font-sans text-ink;
+  @apply min-w-0 bg-surface font-sans text-ink;
+  overflow-x: clip;
 }
 
 button,

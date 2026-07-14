@@ -44,7 +44,7 @@ export async function sendManualNewsletter() {
     service.from('user_onboarding').select('email, newsletter_subscribed, answers').eq('newsletter_subscribed', true).not('email', 'is', null),
     service.from('news_items').select('*').not('content', 'is', null).order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
     service.from('research_papers').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(12),
-    service.from('ai_products').select('*').order('score', { ascending: false }).limit(4),
+    service.from('ai_products').select('*').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('launch_date', { ascending: false, nullsFirst: false }).limit(4),
     service.from('github_trends').select('*').order('stars', { ascending: false }).limit(4),
     service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(4),
   ]);

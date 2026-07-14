@@ -250,6 +250,7 @@ create table if not exists public.ai_products (
   short_summary text,
   score numeric(3, 1),
   rating_count integer default 0,
+  user_rating_average numeric(3, 2),
   status text,
   website_url text,
   source text,
@@ -719,6 +720,15 @@ alter table public.ai_products add column if not exists view_count integer not n
 alter table public.ai_products add column if not exists like_count integer not null default 0;
 alter table public.ai_products add column if not exists dislike_count integer not null default 0;
 alter table public.ai_products add column if not exists user_score_sum integer not null default 0;
+alter table public.ai_products add column if not exists user_rating_average numeric(3, 2);
+
+-- Legacy ratings were temporarily stored in score. Keep their displayed average,
+-- but do not let a 1-5 user rating replace the product's editorial sort score.
+update public.ai_products
+set user_rating_average = score
+where rating_count > 0
+  and user_rating_average is null
+  and score between 1 and 5;
 alter table public.research_papers add column if not exists code_url text;
 alter table public.research_papers add column if not exists review_type text;
 alter table public.research_papers add column if not exists beginner_summary text;

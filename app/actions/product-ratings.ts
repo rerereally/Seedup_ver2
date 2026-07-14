@@ -34,7 +34,7 @@ export async function rateAIProduct(formData: FormData) {
     const ratings = data ?? [];
     const sum = ratings.reduce((total, item) => total + Number(item.rating ?? 0), 0);
     await admin.from('ai_products').update({
-      score: ratings.length ? Number((sum / ratings.length).toFixed(2)) : null,
+      user_rating_average: ratings.length ? Number((sum / ratings.length).toFixed(2)) : null,
       user_score_sum: sum,
       rating_count: ratings.length,
     }).eq('id', productId);
@@ -90,7 +90,7 @@ export async function submitAIProductReview(formData: FormData) {
     const ratings = data ?? [];
     const sum = ratings.reduce((total, item) => total + Number(item.rating ?? 0), 0);
     await admin.from('ai_products').update({
-      score: ratings.length ? Number((sum / ratings.length).toFixed(2)) : null,
+      user_rating_average: ratings.length ? Number((sum / ratings.length).toFixed(2)) : null,
       user_score_sum: sum,
       rating_count: ratings.length,
     }).eq('id', productId);

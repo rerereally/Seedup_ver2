@@ -178,7 +178,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
               </section>
             </div>
 
-            <aside className="w-full lg:sticky lg:top-24 lg:w-80 lg:shrink-0">
+            <aside className="w-full lg:sticky lg:top-20 lg:w-80 lg:shrink-0 lg:self-start">
               <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} />
               <RelatedPapersToggle links={relatedPapers} />
             </aside>

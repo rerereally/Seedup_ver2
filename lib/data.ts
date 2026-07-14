@@ -161,6 +161,7 @@ export type AIProduct = {
   score: number | null;
   rating_count: number | null;
   user_score_sum?: number | null;
+  user_rating_average?: number | null;
   status: string | null;
   website_url: string | null;
   product_hunt_url?: string | null;
@@ -784,7 +785,12 @@ function normalizeTrendCategory(value: string | null | undefined) {
 export async function getAIProducts() {
   const supabase = await createClient();
   if (!supabase) return [];
-  const { data, error } = await supabase.from('ai_products').select('*').order('score', { ascending: false });
+  const { data, error } = await supabase
+    .from('ai_products')
+    .select('*')
+    .order('newsletter_priority', { ascending: false, nullsFirst: false })
+    .order('launch_date', { ascending: false, nullsFirst: false })
+    .order('score', { ascending: false, nullsFirst: false });
 
   if (error) {
     handleReadError(error);

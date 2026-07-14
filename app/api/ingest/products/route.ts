@@ -56,7 +56,7 @@ async function ingest(request: Request) {
         const metadata = buildProductNewsletterMetadata(analysis, source.quality ?? 78);
         const { data: existing } = await supabase
           .from('ai_products')
-          .select('score,rating_count,user_score_sum')
+          .select('score,rating_count,user_score_sum,user_rating_average')
           .eq('product_hunt_url', productUrl)
           .maybeSingle();
 
@@ -68,6 +68,7 @@ async function ingest(request: Request) {
             score: existing?.score ?? null,
             rating_count: existing?.rating_count ?? 0,
             user_score_sum: existing?.user_score_sum ?? 0,
+            user_rating_average: existing?.user_rating_average ?? null,
             status: analysis.status,
             website_url: productUrl,
             source: source.name,
@@ -130,6 +131,7 @@ async function upsertProduct(supabase: NonNullable<ReturnType<typeof createAdmin
     'buildability_score',
     'project_connect_score',
     'recommendation_reasons',
+    'user_rating_average',
   ].some((column) => message.includes(column));
 
   if (!metadataColumnError) return result;
@@ -153,6 +155,7 @@ async function upsertProduct(supabase: NonNullable<ReturnType<typeof createAdmin
     'buildability_score',
     'project_connect_score',
     'recommendation_reasons',
+    'user_rating_average',
   ]) {
     delete fallbackPayload[key];
   }

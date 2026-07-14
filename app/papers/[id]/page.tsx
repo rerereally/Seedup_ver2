@@ -209,7 +209,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </section>
             </div>
 
-            <aside className="w-full lg:sticky lg:top-24 lg:w-80 lg:shrink-0">
+            <aside className="w-full lg:sticky lg:top-20 lg:w-80 lg:shrink-0 lg:self-start">
               <ArticleAssistant title={paper.title} summary={heroSummary} content={paperMarkdown} />
 
               {(paper.implementation_idea || paper.service_idea) && (

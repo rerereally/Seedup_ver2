@@ -114,7 +114,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
             </div>
 
             <div className="mt-7 grid gap-4 border-t border-outline-soft pt-5 md:grid-cols-4">
-              <ProductRatingSummary productId={product.id} score={product.score} ratingCount={product.rating_count} />
+              <ProductRatingSummary productId={product.id} ratingAverage={product.user_rating_average ?? null} ratingCount={product.rating_count} />
               <div>
                 <p className="text-xs font-bold uppercase text-muted">리뷰</p>
                 <p className="mt-2 text-3xl font-black text-ink">{reviews.length}</p>

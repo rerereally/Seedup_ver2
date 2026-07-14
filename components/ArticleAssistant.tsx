@@ -1,7 +1,7 @@
 'use client';
 
 import { Bot, Loader2, Send } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -25,14 +25,25 @@ export default function ArticleAssistant({
     },
   ]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const controllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
   const lastQuestion = messages.filter((message) => message.role === 'user').at(-1)?.content;
   const hasConversation = messages.some((message) => message.role === 'user');
+
+  useEffect(() => () => controllerRef.current?.abort(), []);
 
   const ask = async (preset?: string) => {
     const nextQuestion = (preset ?? question).trim();
     if (!nextQuestion || status === 'loading') return;
 
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setStatus('loading');
+    setErrorMessage('');
     setQuestion('');
     setMessages((current) => [...current, { role: 'user', content: nextQuestion }]);
     const history = messages
@@ -45,24 +56,36 @@ export default function ArticleAssistant({
       response = await fetch('/api/articles/ask', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({ title, summary, content, question: nextQuestion, history }),
       });
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+      setErrorMessage(error instanceof Error ? error.message : '요청을 보내지 못했습니다.');
       setStatus('error');
       return;
     }
 
     if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      if (requestId !== requestIdRef.current) return;
+      setErrorMessage(typeof errorBody?.error === 'string' ? errorBody.error : '답변 생성에 실패했습니다.');
       setStatus('error');
       return;
     }
 
     const json = await response.json();
+    if (requestId !== requestIdRef.current) return;
+    if (typeof json.answer !== 'string' || !json.answer.trim()) {
+      setErrorMessage('글 도우미가 비어 있는 답변을 반환했습니다.');
+      setStatus('error');
+      return;
+    }
     setMessages((current) => [
       ...current,
       {
         role: 'assistant',
-        content: json.answer ?? '답변을 만들지 못했습니다. 질문을 조금 더 구체적으로 적어주세요.',
+        content: json.answer.trim(),
       },
     ]);
     setStatus('idle');
@@ -133,7 +156,7 @@ export default function ArticleAssistant({
       </div>
       {status === 'error' && (
         <div className="border-t border-outline-soft bg-surface px-4 py-3">
-          <p className="text-xs font-semibold text-muted">답변 생성에 실패했습니다.</p>
+          <p className="text-xs font-semibold text-muted">{errorMessage || '답변 생성에 실패했습니다.'}</p>
           {lastQuestion && (
             <button type="button" onClick={() => ask(lastQuestion)} className="mt-2 border border-outline-soft bg-white px-3 py-1.5 text-xs font-bold text-ink hover:border-ink">
               다시 시도

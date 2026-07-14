@@ -334,6 +334,8 @@ AI / LLM
 
 아이디어 평가에서는 최신 뉴스, 논문, GitHub, AI 제품 데이터를 Supabase에서 검색해 근거로 사용합니다. RAG 임베딩을 사용할 때는 `RAG_EMBEDDING_MODEL`과 OpenRouter 크레딧이 필요합니다.
 
+평가 모델은 종합 점수, 항목별 점수, 강점·약점, MVP 범위처럼 검증 가능한 핵심 판단만 짧은 JSON으로 반환합니다. 위험 요소, 다음 실행 단계, 점수별 근거, 신뢰도는 서버가 RAG 참고 자료 수와 출처 다양성 규칙을 적용해 구성합니다. 모델 응답이 길어져 JSON이 잘리는 문제를 줄이고, 같은 기준으로 결과를 보여주기 위한 구조입니다.
+
 ## 뉴스레터
 
 관리자 페이지에서 수동 발송합니다. 수신자는 온보딩 프로필과 추천 점수를 기준으로 개인별로 달라집니다.
@@ -394,6 +396,10 @@ https://your-domain.example.com/auth/callback
 OPENROUTER_TIMEOUT_MS=60000
 OPENROUTER_ARTICLE_TIMEOUT_MS=120000
 ```
+
+### 아이디어 평가에서 `평가 모델에 연결하지 못했습니다`가 표시됨
+
+대개 OpenRouter 모델의 일시적인 빈 응답, 요청 제한, 또는 응답 형식 오류입니다. `OPENROUTER_API_KEY`와 OpenRouter 크레딧을 확인한 뒤 잠시 후 다시 시도하세요. Seedup은 짧은 JSON 응답을 우선 요청하고 한 번 재시도하지만, 두 요청 모두 실패하면 임의의 0점 결과를 저장하지 않고 오류를 안내합니다.
 
 ### `permission denied for table`
 

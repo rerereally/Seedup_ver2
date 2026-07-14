@@ -25,6 +25,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Article title and question are required' }, { status: 400 });
   }
 
-  const { result, model } = await answerArticleQuestion({ title, summary, content, question, history });
+  const { result, model, error } = await answerArticleQuestion({ title, summary, content, question, history });
+  if (!result) {
+    return NextResponse.json({ error: error ?? '글 도우미 응답을 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
+  }
   return NextResponse.json({ ok: true, ...result, model });
 }

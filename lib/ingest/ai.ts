@@ -934,15 +934,7 @@ export async function evaluateIdea(input: { idea: string; context?: string }) {
 
   if (!apiKey) return { evaluation: null, model: null, error: '평가 모델 설정이 없습니다.' };
 
-  try {
-    const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
-      { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 동일한 아이디어와 동일한 근거에는 항상 같은 평가 기준과 점수 체계를 적용한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
-      {
-        role: 'user',
-        content: `아래 프로젝트 아이디어를 평가하라. 참고 자료가 있으면 경쟁 제품, 기술 선택, 시장성, 트렌드 판단에 반드시 활용하라. 참고 자료의 URL을 직접 열었다고 주장하지 말고, 자료에 없는 수치나 사실은 만들지 마라.
-
-출력 JSON:
-{
+  const compactSchema = `{
   "score": 0,
   "verdict": "한 문장 총평",
   "portfolio_value": "포트폴리오 가치",
@@ -952,15 +944,29 @@ export async function evaluateIdea(input: { idea: string; context?: string }) {
   "strengths": ["확인된 강점"],
   "weaknesses": ["확인된 약점"],
   "recommended_technologies": [{"name": "기술명", "category": "required | optional | scale", "reason": "이유"}],
-  "structured_risks": [{"title": "위험 제목", "severity": "high | medium | low", "impact": "영향", "mitigation": "대응 방법"}],
-  "structured_next_steps": [{"order": 1, "title": "단계", "description": "작업", "deliverable": "산출물", "done_when": "완료 조건"}],
-  "confidence": {"level": "high | medium | low", "reason": "근거 충분도"},
   "missing_data": ["추가 검증이 필요한 데이터"],
   "user_stated": ["사용자가 직접 입력한 사실만"],
-  "inferred_assumptions": ["참고 자료 또는 AI가 확장한 가설, 확정 사실처럼 쓰지 않음"],
-  "mvp_scope": {"team_size": "1~2명", "duration_weeks": 2, "core_user_flow": "핵심 사용자 흐름 1개", "excluded_scope": ["이번 MVP에서 제외할 범위"]},
-  "score_reasons": {"feasibility": {"positive": ["긍정 요인"], "deductions": ["감점 요인"], "evidence": ["근거 또는 근거 부족"]}}
-}
+  "inferred_assumptions": ["참고 자료 또는 AI가 확장한 가설"],
+  "mvp_scope": {"team_size": "1~2명", "duration_weeks": 2, "core_user_flow": "핵심 사용자 흐름 1개", "excluded_scope": ["이번 MVP에서 제외할 범위"]}
+}`;
+  const compactRules = `
+- 세부 점수는 0~100 정수다. 종합 점수는 feasibility 25%, differentiation 20%, market 20%, portfolio 20%, mvp_clarity 15% 가중 평균이다.
+- 문제, 대상 사용자, 해결 방식 중 둘 이상이 불명확하면 MVP 명확성과 시장성은 40점 이하로 둔다. 시장·경쟁 근거가 없으면 market은 59점 이하로 둔다.
+- user_stated에는 사용자 입력 사실만, inferred_assumptions에는 검증 전 가설만 적는다. MVP는 1~2명이 2~4주 안에 만들 수 있는 흐름 하나로 제한한다.
+- required 기술은 최대 4개다. Neo4j, LangChain, LlamaIndex, OCR, 벡터 DB는 직접 근거가 없으면 optional 또는 scale로 둔다.
+- 각 문자열은 80자 이하, strengths·weaknesses·missing_data·user_stated·inferred_assumptions은 각각 최대 2개, 추천 기술은 최대 4개다.
+- verdict, portfolio_value, market_fit은 각각 한 문장만 쓴다. JSON 외의 문장이나 마크다운을 절대 추가하지 않는다.
+- 위험, 다음 단계, 신뢰도, 점수 사유는 서버가 근거 기준으로 만들므로 출력하지 않는다. JSON을 끝까지 닫는 것이 가장 중요하다.`;
+
+  try {
+    const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
+      { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 동일한 아이디어와 동일한 근거에는 항상 같은 평가 기준과 점수 체계를 적용한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
+      {
+        role: 'user',
+        content: `아래 프로젝트 아이디어를 평가하라. 참고 자료가 있으면 경쟁 제품, 기술 선택, 시장성, 트렌드 판단에 반드시 활용하라. 참고 자료의 URL을 직접 열었다고 주장하지 말고, 자료에 없는 수치나 사실은 만들지 마라.
+
+출력 JSON:
+${compactSchema}
 
 idea: ${truncate(input.idea, 2500)}
 
@@ -980,31 +986,35 @@ idea: ${truncate(input.idea, 2500)}
 - 결과는 한국어로 작성하고 기술명만 원문 표기를 유지한다.
 - 응답을 짧고 구조적으로 유지한다. verdict, portfolio_value, market_fit은 각각 2문장 이하, 배열은 각각 최대 3개(추천 기술은 최대 4개), 각 배열 항목은 120자 이하로 작성한다.
 - structured_risks는 최대 2개, structured_next_steps는 최대 3개만 작성한다. 각 항목의 impact, mitigation, description, deliverable, done_when은 한 문장으로 제한한다.
-- 출력 JSON에는 위에 선언한 필드만 포함하고, 빈 배열이나 빈 문자열도 생략하지 않는다. JSON을 끝까지 닫을 수 없으면 더 짧게 작성한다.
+- 위 JSON 스키마에 없는 structured_risks, structured_next_steps, confidence, score_reasons는 출력하지 않는다. 화면용 위험, 다음 단계, 신뢰도, 점수 사유는 서버가 근거 기준으로 만든다.
+- JSON을 끝까지 닫는 것이 가장 중요하다. 위의 compactRules를 우선 적용하고, 빈 배열 대신 짧은 항목을 채운다.
+${compactRules}
 
 참고 자료:
 ${input.context || '관련 자료를 찾지 못했다. 일반론을 최신 사실처럼 말하지 말고 불확실성을 표시하라.'}`,
       },
-    ], { models: getWritingModels(), jsonMode: true, temperature: 0, timeoutMs: 65_000, maxTokens: 3_000 });
+    ], { models: getWritingModels(), jsonMode: true, temperature: 0, timeoutMs: 55_000, maxTokens: 1_800 });
 
     return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
   } catch (error) {
     console.error('OpenRouter idea evaluation failed', error);
-    // Some OpenRouter providers ignore json_object mode. Give the same
-    // prompt one repair attempt without response_format before failing.
+    // The retry has the same small contract. Partial JSON is not a safe result
+    // to repair because it can silently turn missing scores into fabricated data.
     try {
       const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
         { role: 'system', content: '너는 Seedup의 근거 기반 아이디어 평가 코치다. JSON 객체 하나만 반환하라. 마크다운과 설명 문장은 반환하지 마라.' },
         {
           role: 'user',
-          content: `다음 아이디어를 평가하고 아래 필드를 포함한 JSON 객체 하나만 반환하라. 점수는 0~100 정수다. 참고 자료가 있으면 활용하고, 없는 사실은 만들지 마라.
-필수 필드: score, verdict, portfolio_value, difficulty, market_fit, score_breakdown, strengths, weaknesses, recommended_technologies, structured_risks, structured_next_steps, confidence, missing_data, user_stated, inferred_assumptions, mvp_scope, score_reasons
-모든 문자열은 120자 이하, 배열은 최대 3개(추천 기술 최대 4개), structured_risks는 최대 2개, structured_next_steps는 최대 3개로 제한한다.
+          content: `다음 아이디어를 평가하고 JSON 객체 하나만 반환하라. 점수는 0~100 정수다. 참고 자료가 있으면 활용하고, 없는 사실은 만들지 마라.
+출력 JSON:
+${compactSchema}
+규칙:
+${compactRules}
 아이디어: ${truncate(input.idea, 2500)}
 참고 자료:
 ${input.context || '관련 자료 없음'}`,
         },
-    ], { models: getWritingModels(), temperature: 0, timeoutMs: 40_000, maxTokens: 2_400 });
+    ], { models: getWritingModels(), jsonMode: true, temperature: 0, timeoutMs: 35_000, maxTokens: 1_500 });
       return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
     } catch (retryError) {
       console.error('OpenRouter idea evaluation retry failed', retryError);
@@ -1021,6 +1031,7 @@ function getIdeaEvaluationErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   if (message.includes('abort') || message.includes('timeout')) return '평가 응답 시간이 초과되었습니다. 근거 자료를 줄여 다시 시도해주세요.';
   if (message.includes('429') || message.includes('rate') || message.includes('quota')) return 'AI 평가 요청이 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.';
+  if (message.includes('empty content') || message.includes('empty response')) return '평가 모델이 빈 응답을 반환했습니다. 잠시 후 다시 시도해주세요.';
   if (message.includes('json') || message.includes('non-json')) return '평가 결과 형식을 처리하지 못했습니다. 다시 시도해주세요.';
   return '평가 모델에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.';
 }
@@ -1032,10 +1043,9 @@ export async function answerArticleQuestion(input: {
   question: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }) {
-  const fallback: ArticleQuestionAnswer = { answer: buildArticleQuestionFallback(input) };
   const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!apiKey) return { result: fallback, model: null };
+  if (!apiKey) return { result: null, model: null, error: '글 도우미 모델 설정이 없습니다.' };
 
   try {
     const { result, model } = await callOpenRouter<ArticleQuestionAnswer>(apiKey, [
@@ -1051,6 +1061,7 @@ export async function answerArticleQuestion(input: {
 - 글에 없는 수치·제품 기능·최신 사실은 추측하지 않는다. 글에 근거가 부족하면 모르는 부분만 명확히 밝히되, 이미 설명 가능한 부분은 답한다.
 - 사용자가 "더 짧게", "요약해줘"처럼 후속 요청을 하면 대화 맥락의 직전 답변만 1~2문장으로 압축한다. 새 기술, 일정, 성능 수치, 구현 계획을 추가하지 않는다.
 - 본문에 특정 절 이후 내용이 없다고 말한 경우, 그 이후의 구현 방법·평가 결과·일정을 본문에 있다고 단정하지 않는다.
+- 아래 question은 이번 요청의 최우선 질문이다. 이전 대화는 "더 짧게" 같은 후속 질문을 해석할 때만 참고하며, 새 질문에는 이전 답변을 반복하지 말고 해당 질문에 직접 답한다.
 
 출력 JSON:
 {
@@ -1079,14 +1090,26 @@ question: ${truncate(input.question, 500)}`,
       maxTokens: 700,
     });
 
-    const answer = typeof result.answer === 'string' && result.answer.trim().length >= 30 && !hasUnsupportedSpecificClaim(result.answer, input)
-      ? result.answer.trim()
-      : fallback.answer;
-    return { result: { answer }, model };
+    if (typeof result.answer !== 'string' || result.answer.trim().length < 30) {
+      return { result: null, model, error: '글 도우미가 충분한 답변을 만들지 못했습니다.' };
+    }
+    if (hasUnsupportedSpecificClaim(result.answer, input)) {
+      return { result: null, model, error: '본문 근거를 확인할 수 없는 답변이 생성되어 표시하지 않았습니다.' };
+    }
+    return { result: { answer: result.answer.trim() }, model };
   } catch (error) {
     console.error('OpenRouter article question failed', error);
-    return { result: fallback, model: null };
+    return { result: null, model: null, error: getArticleQuestionErrorMessage(error) };
   }
+}
+
+function getArticleQuestionErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (message.includes('abort') || message.includes('timeout')) return '답변 생성 시간이 초과되었습니다. 다시 시도해주세요.';
+  if (message.includes('429') || message.includes('rate') || message.includes('quota')) return '글 도우미 요청이 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.';
+  if (message.includes('empty content')) return '글 도우미가 빈 응답을 반환했습니다. 다시 시도해주세요.';
+  if (message.includes('json')) return '글 도우미 응답 형식을 처리하지 못했습니다. 다시 시도해주세요.';
+  return '글 도우미 응답을 만들지 못했습니다. 잠시 후 다시 시도해주세요.';
 }
 
 function formatArticleQuestionHistory(history: Array<{ role: 'user' | 'assistant'; content: string }> | undefined) {
@@ -1798,6 +1821,13 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
   const technologies = normalizeRecommendedTechnologies(result.recommended_technologies, result.recommended_stack);
   const structuredRisks = normalizeRisks(result.structured_risks, result.risks);
   const structuredNextSteps = normalizeNextSteps(result.structured_next_steps, result.next_steps);
+  const strengths = normalizeStringList(result.strengths, fallback.strengths);
+  const weaknesses = normalizeStringList(result.weaknesses, fallback.weaknesses);
+  const missingData = normalizeStringList(result.missing_data, fallback.missing_data);
+  const mvpScope = normalizeMvpScope(result.mvp_scope, fallback.mvp_scope, fallback.user_stated?.[0]);
+  const derivedRisks = structuredRisks.length ? structuredRisks : buildFallbackEvaluationRisks(weaknesses, missingData);
+  const derivedNextSteps = structuredNextSteps.length ? structuredNextSteps : buildFallbackEvaluationNextSteps(mvpScope, missingData);
+  const scoreReasons = normalizeScoreReasons(result.score_reasons);
   return {
     score: weightedIdeaScore(scoreBreakdown),
     verdict: result.verdict ?? fallback.verdict,
@@ -1807,22 +1837,55 @@ function normalizeIdeaEvaluation(result: Partial<IdeaEvaluation>, fallback: Idea
     recommended_stack: technologies.length
       ? technologies.filter((item) => item.category === 'required').map((item) => item.name)
       : (Array.isArray(result.recommended_stack) ? result.recommended_stack.slice(0, 4) : fallback.recommended_stack),
-    risks: Array.isArray(result.risks) ? result.risks : fallback.risks,
-    next_steps: Array.isArray(result.next_steps) ? result.next_steps : fallback.next_steps,
+    risks: derivedRisks.map((risk) => risk.title),
+    next_steps: derivedNextSteps.map((step) => step.title),
     score_breakdown: scoreBreakdown,
-    strengths: Array.isArray(result.strengths) ? result.strengths.filter((item): item is string => typeof item === 'string') : fallback.strengths,
-    weaknesses: Array.isArray(result.weaknesses) ? result.weaknesses.filter((item): item is string => typeof item === 'string') : fallback.weaknesses,
+    strengths,
+    weaknesses,
     recommended_technologies: technologies.length ? technologies : fallback.recommended_technologies,
-    structured_risks: structuredRisks.length ? structuredRisks : fallback.structured_risks,
-    structured_next_steps: structuredNextSteps.length ? structuredNextSteps : fallback.structured_next_steps,
+    structured_risks: derivedRisks,
+    structured_next_steps: derivedNextSteps,
     confidence: result.confidence ?? fallback.confidence,
     evidence: Array.isArray(result.evidence) ? result.evidence : fallback.evidence,
-    missing_data: Array.isArray(result.missing_data) ? result.missing_data.filter((item): item is string => typeof item === 'string') : fallback.missing_data,
+    missing_data: missingData,
     user_stated: normalizeStringList(result.user_stated, fallback.user_stated),
     inferred_assumptions: normalizeStringList(result.inferred_assumptions, fallback.inferred_assumptions),
-    mvp_scope: normalizeMvpScope(result.mvp_scope, fallback.mvp_scope, fallback.user_stated?.[0]),
-    score_reasons: normalizeScoreReasons(result.score_reasons),
+    mvp_scope: mvpScope,
+    score_reasons: Object.keys(scoreReasons).length ? scoreReasons : buildFallbackScoreReasons(scoreBreakdown, strengths, weaknesses, missingData),
   };
+}
+
+function buildFallbackEvaluationRisks(weaknesses: string[], missingData: string[]): EvaluationRisk[] {
+  const candidates = [...weaknesses, ...missingData.map((item) => `${item} 검증 부족`)].filter(Boolean).slice(0, 2);
+  return (candidates.length ? candidates : ['핵심 가설 검증 부족']).map((title, index) => ({
+    title,
+    severity: index === 0 ? 'medium' : 'low',
+    impact: '핵심 사용자 흐름과 범위가 불명확해 구현 비용이 커질 수 있습니다.',
+    mitigation: '대표 사용자 3명에게 문제와 핵심 흐름을 먼저 확인한 뒤 범위를 고정합니다.',
+  }));
+}
+
+function buildFallbackEvaluationNextSteps(scope: EvaluationMvpScope, missingData: string[]): EvaluationNextStep[] {
+  const validationTarget = missingData[0] ?? '핵심 사용자 흐름';
+  return [
+    { order: 1, title: '문제와 대상 사용자 고정', description: '대표 사용자와 해결할 문제를 한 문장으로 정리합니다.', deliverable: '문제 정의 1장', done_when: '대상 사용자 3명에게 문제 정의를 확인받고 의견 3건을 기록' },
+    { order: 2, title: '핵심 흐름 프로토타입', description: scope.core_user_flow, deliverable: '대표 흐름 프로토타입 1개', done_when: '테스트 입력 3건이 오류 없이 결과 화면까지 도달' },
+    { order: 3, title: `${validationTarget} 검증`, description: '가장 불확실한 가설을 작은 사용자 테스트로 검증합니다.', deliverable: '검증 결과 메모', done_when: '사용자 피드백 3건과 다음 개선 우선순위 1개를 기록' },
+  ];
+}
+
+function buildFallbackScoreReasons(breakdown: ScoreBreakdown, strengths: string[], weaknesses: string[], missingData: string[]): Partial<Record<keyof ScoreBreakdown, EvaluationScoreReason>> {
+  const positive = strengths.length ? strengths.slice(0, 1) : ['입력된 문제를 작은 MVP 흐름으로 제한할 수 있습니다.'];
+  const deductions = weaknesses.length ? weaknesses.slice(0, 1) : ['추가 검증 자료가 부족합니다.'];
+  const evidence = missingData.length ? [`추가 확인 필요: ${missingData.slice(0, 2).join(', ')}`] : ['사용자 입력과 검색된 참고 자료를 기반으로 한 예비 판단입니다.'];
+  return (['feasibility', 'differentiation', 'market', 'portfolio', 'mvp_clarity'] as Array<keyof ScoreBreakdown>).reduce((reasons, dimension) => {
+    reasons[dimension] = {
+      positive: dimension === 'market' && missingData.length ? [] : positive,
+      deductions: dimension === 'market' && missingData.length ? ['시장·경쟁 근거가 충분하지 않습니다.'] : deductions,
+      evidence: [`${Math.round(Number(breakdown[dimension] ?? 0))}점 기준. ${evidence[0]}`],
+    };
+    return reasons;
+  }, {} as Partial<Record<keyof ScoreBreakdown, EvaluationScoreReason>>);
 }
 
 export function applyIdeaEvidencePolicy(evaluation: IdeaEvaluation, input: { referenceCount: number; sourceTypeCount: number; marketEvidenceCount: number }) {

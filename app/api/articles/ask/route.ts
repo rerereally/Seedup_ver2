@@ -1,12 +1,21 @@
 import { answerArticleQuestion } from '@/lib/ingest/ai';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const MAX_TITLE_LENGTH = 200;
+
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  if (!data.user) {
+    return NextResponse.json({ error: '로그인 후 사용할 수 있습니다.' }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
-  const title = typeof body?.title === 'string' ? body.title : '';
+  const title = typeof body?.title === 'string' ? body.title.slice(0, MAX_TITLE_LENGTH) : '';
   const summary = typeof body?.summary === 'string' ? body.summary : '';
   const content = typeof body?.content === 'string' ? body.content : '';
   const question = typeof body?.question === 'string' ? body.question.trim() : '';

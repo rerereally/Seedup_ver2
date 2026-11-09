@@ -4,20 +4,36 @@ import { isAdminEmail } from '@/lib/auth/admin';
 import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper } from '@/lib/data';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
 import { buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { createServiceClient } from '@/lib/supabase/service';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-type Recipient = {
-  email: string | null;
+type Subscriber = {
+  user_id: string;
   newsletter_subscribed: boolean | null;
   answers?: Record<string, unknown> | null;
 };
 
+const AUTH_USERS_PAGE_SIZE = 1000;
+const SEND_INTERVAL_MS = 600;
+
 function errorParam(message: string) {
   return encodeURIComponent(message.replace(/\s+/g, ' ').slice(0, 180));
+}
+
+// Addresses come from Supabase Auth because users can edit their own user_onboarding row.
+async function getAuthEmails(service: NonNullable<ReturnType<typeof createAdminClient>>) {
+  const emails = new Map<string, string>();
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage: AUTH_USERS_PAGE_SIZE });
+    if (error) throw error;
+    for (const user of data.users) {
+      if (user.email) emails.set(user.id, user.email);
+    }
+    if (data.users.length < AUTH_USERS_PAGE_SIZE) return emails;
+  }
 }
 
 export async function sendManualNewsletter() {
@@ -28,7 +44,7 @@ export async function sendManualNewsletter() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const service = createServiceClient();
+  const service = createAdminClient();
   if (!service) redirect('/admin/ingest?newsletter=missing-service-key');
 
   const resendApiKey = process.env.RESEND_API_KEY;
@@ -40,13 +56,14 @@ export async function sendManualNewsletter() {
   const protocol = headerStore.get('x-forwarded-proto') ?? 'http';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
 
-  const [{ data: recipients }, newsResult, { data: papers }, { data: products }, { data: repos }, { data: projects }] = await Promise.all([
-    service.from('user_onboarding').select('email, newsletter_subscribed, answers').eq('newsletter_subscribed', true).not('email', 'is', null),
+  const [{ data: subscribers }, newsResult, { data: papers }, { data: products }, { data: repos }, { data: projects }, authEmails] = await Promise.all([
+    service.from('user_onboarding').select('user_id, newsletter_subscribed, answers').eq('newsletter_subscribed', true),
     service.from('news_items').select('*').not('content', 'is', null).order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
     service.from('research_papers').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(12),
     service.from('ai_products').select('*').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('launch_date', { ascending: false, nullsFirst: false }).limit(4),
     service.from('github_trends').select('*').order('stars', { ascending: false }).limit(4),
     service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(4),
+    getAuthEmails(service),
   ]);
   const news = newsResult.error
     ? (await service.from('news_items').select('*').not('content', 'is', null).order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(24)).data
@@ -54,12 +71,18 @@ export async function sendManualNewsletter() {
   const publishedNews = (news ?? []).filter((item) => isRecommendableNewsItem(item as NewsItem));
 
   const recipientList = Array.from(
-    new Map(((recipients ?? []) as Recipient[]).filter((item) => item.email).map((item) => [item.email, item])).values(),
+    new Map(((subscribers ?? []) as Subscriber[]).flatMap((subscriber) => {
+      const email = authEmails.get(subscriber.user_id);
+      return email ? [[email, { ...subscriber, email }] as const] : [];
+    })).values(),
   );
   if (!recipientList.length) redirect('/admin/ingest?newsletter=no-recipients');
 
+  // Resend keeps idempotency keys for 24 hours, so a same-day rerun skips delivered recipients.
+  const issueDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
   let sent = 0;
   let skippedNoContent = 0;
+  let skippedDuplicates = 0;
   for (const recipient of recipientList) {
     const profile = buildRecommendationProfile(recipient.answers);
     const scored = scoreNewsletterItems(toNewsletterContentItems({
@@ -116,6 +139,7 @@ export async function sendManualNewsletter() {
         headers: {
           Authorization: `Bearer ${resendApiKey}`,
           'Content-Type': 'application/json',
+          'Idempotency-Key': `newsletter-${issueDate}-${recipient.user_id}`,
         },
         body: JSON.stringify({
           from,
@@ -130,6 +154,12 @@ export async function sendManualNewsletter() {
       const message = error instanceof Error ? error.message : 'Resend API에 연결하지 못했습니다.';
       revalidatePath('/admin/ingest');
       redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(`메일 서비스 연결 실패: ${message}`)}`);
+    }
+
+    // 409 means this recipient already has an email for today's idempotency key.
+    if (response.status === 409) {
+      skippedDuplicates += 1;
+      continue;
     }
 
     if (!response.ok) {
@@ -147,9 +177,10 @@ export async function sendManualNewsletter() {
       redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(message || `Resend ${response.status}`)}`);
     }
     sent += 1;
+    await new Promise((resolve) => setTimeout(resolve, SEND_INTERVAL_MS));
   }
 
-  if (!sent) redirect(`/admin/ingest?newsletter=no-content&skipped=${skippedNoContent}`);
+  if (!sent) redirect(`/admin/ingest?newsletter=no-content&skipped=${skippedNoContent + skippedDuplicates}`);
   revalidatePath('/admin/ingest');
   redirect(`/admin/ingest?newsletter=success&sent=${sent}`);
 }

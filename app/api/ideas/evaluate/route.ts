@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 110;
 
 const EVALUATION_CACHE_HOURS = 24;
+const DAILY_EVALUATION_LIMIT = 20;
 const EVALUATION_CRITERIA_VERSION = 'v5';
 
 export async function POST(request: Request) {
@@ -24,6 +25,10 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   const user = userResult.data.user;
+
+  if (!supabase || !user) {
+    return NextResponse.json({ error: '로그인 후 아이디어를 평가할 수 있습니다.' }, { status: 401 });
+  }
 
   if (supabase && user) {
     const cacheAfter = new Date(Date.now() - EVALUATION_CACHE_HOURS * 60 * 60 * 1000).toISOString();
@@ -63,6 +68,17 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ ok: true, evaluation, model: cachedResult.model ?? null, references: cachedReferences, saved: true, cached: true });
     }
+  }
+
+  const limitWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: recentEvaluations } = await supabase
+    .from('idea_evaluations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('created_at', limitWindowStart);
+
+  if ((recentEvaluations ?? 0) >= DAILY_EVALUATION_LIMIT) {
+    return NextResponse.json({ error: '오늘 사용할 수 있는 평가 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.' }, { status: 429 });
   }
 
   // Interactive requests must stay inside a serverless request budget. Missing

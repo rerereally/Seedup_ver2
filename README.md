@@ -30,7 +30,7 @@ Seedup은 개발자에게 필요한 최신 기술 신호를 모아, 읽을 만�
 | 영역 | 사용 기술 |
 | --- | --- |
 | 웹 프레임워크 | Next.js 16 App Router, React 19, TypeScript |
-| UI | Tailwind CSS 4, Lucide React, Motion |
+| UI | Tailwind CSS 4, Lucide React |
 | 데이터베이스 | Supabase PostgreSQL, Row Level Security, pgvector 선택 지원 |
 | 인증 | Supabase Auth, Google OAuth |
 | AI | OpenRouter API |
@@ -67,13 +67,11 @@ cp .env.example .env
 
 `package.json`에 직접 등록된 런타임 패키지:
 
-- `@google/genai`
-- `@hookform/resolvers`
 - `@opennextjs/cloudflare`
 - `@supabase/ssr`, `@supabase/supabase-js`
-- `autoprefixer`, `postcss`
-- `class-variance-authority`, `clsx`, `tailwind-merge`
-- `lucide-react`, `motion`
+- `postcss`
+- `clsx`, `tailwind-merge`
+- `lucide-react`
 - `next`, `react`, `react-dom`
 - `rss-parser`
 
@@ -82,7 +80,7 @@ cp .env.example .env
 - `@tailwindcss/postcss`, `@tailwindcss/typography`
 - `@types/node`, `@types/react`, `@types/react-dom`
 - `eslint`, `eslint-config-next`
-- `tailwindcss`, `tw-animate-css`
+- `tailwindcss`
 - `typescript`
 - `wrangler`
 
@@ -106,7 +104,6 @@ OPENROUTER_FALLBACK_MODELS=openrouter/free
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 INGEST_SECRET=change-this-secret
 ADMIN_EMAILS=you@example.com
-NEXT_PUBLIC_ADMIN_EMAILS=you@example.com
 ```
 
 ### 선택 환경변수
@@ -137,7 +134,7 @@ INGEST_INTERNAL_URL=http://localhost:3000
 - `OPENROUTER_FALLBACK_MODELS`: 작성 모델 장애 시 사용할 보조 모델
 - `RAG_EMBEDDING_MODEL`: 아이디어 평가 RAG 임베딩에 사용할 OpenRouter 임베딩 모델
 
-테스트 중 무료 모델을 쓰려면 `OPENROUTER_MODEL`에 `:free` 모델이나 `openrouter/free`를 지정합니다. `OPENROUTER_PREPROCESS_MODELS`를 비워두면 전처리도 같은 무료 모델을 사용합니다. 임베딩은 별도 설정이므로 `RAG_EMBEDDING_MODEL`의 요금은 따로 확인하세요.
+테스트 중 무료 모델을 쓰려면 `OPENROUTER_MODEL`에 `:free` 모델이나 `openrouter/free`를 지정합니다. `OPENROUTER_PREPROCESS_MODELS`를 비워두면 전처리도 같은 무료 모델을 사용합니다. `OPENROUTER_FREE_ONLY=true`를 설정하면 임베딩을 포함한 모든 유료 모델 호출이 차단됩니다. 무료 임베딩은 1536차원을 지원하는 모델만 사용할 수 있습니다.
 
 위 무료 모델은 테스트용입니다. 운영에서는 `OPENROUTER_MODEL=anthropic/claude-sonnet-5`, `OPENROUTER_FALLBACK_MODELS=google/gemini-3.5-flash`처럼 유료 모델로 바꿉니다. 소스 목록은 항상 `.env.example`의 최신 내용을 기준으로 입력하세요.
 
@@ -257,6 +254,10 @@ curl -X POST "$BASE_URL/api/ingest/article-drafts?secret=$SECRET&mode=deep-dive"
 ```bash
 curl -X POST "$BASE_URL/api/ingest/all?secret=$SECRET"
 ```
+
+### 자동 수집
+
+`.github/workflows/scheduled-ingest.yml`이 매일 06:00(KST)에 수집과 트렌드 집계를 실행합니다. 저장소의 Actions Secrets에 배포 주소 `SEEDUP_SITE_URL`과 `SEEDUP_INGEST_SECRET`을 등록해야 하며, 스케줄은 기본 브랜치에 병합된 뒤부터 동작합니다. Actions 화면의 `Run workflow`로 수동 실행할 수도 있습니다.
 
 ## 수집 소스
 
@@ -381,7 +382,6 @@ OPENROUTER_FALLBACK_MODELS
 NEXT_PUBLIC_SITE_URL
 INGEST_SECRET
 ADMIN_EMAILS
-NEXT_PUBLIC_ADMIN_EMAILS
 ```
 
 관리자 수집 기능도 배포 환경에서 사용할 경우 아래 값을 실제 서비스 도메인으로 설정합니다. `localhost` 주소를 넣으면 배포된 Worker가 자기 자신에게 요청하지 못합니다.

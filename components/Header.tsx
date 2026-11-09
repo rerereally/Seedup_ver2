@@ -38,13 +38,16 @@ export default function Header() {
   useEffect(() => {
     const supabase = createClient();
     if (!supabase) return;
-    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean);
     const updateAuthState = (email?: string | null) => {
       setIsLoggedIn(Boolean(email));
-      setIsAdmin(Boolean(email && adminEmails.includes(email.toLowerCase())));
+      if (!email) {
+        setIsAdmin(false);
+        return;
+      }
+      fetch('/api/auth/is-admin')
+        .then((response) => (response.ok ? response.json() : { isAdmin: false }))
+        .then((result: { isAdmin?: boolean }) => setIsAdmin(Boolean(result.isAdmin)))
+        .catch(() => setIsAdmin(false));
     };
 
     supabase.auth.getUser().then(({ data }) => updateAuthState(data.user?.email));

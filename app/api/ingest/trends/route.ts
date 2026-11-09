@@ -164,12 +164,12 @@ const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
 const IMPLEMENTATION_PATTERNS: Array<[RegExp, string, TrendEntityType]> = [
   [/\bmcp\b|model context protocol/i, 'MCP Server Design', 'architecture'],
   [/\brag\b|retrieval augmented|retrieval-augmented/i, 'RAG Evaluation', 'pattern'],
-  [/agent memory|memory/i, 'Agent Memory', 'pattern'],
-  [/tool calling|function calling|tools/i, 'Tool Calling', 'pattern'],
+  [/agent memory|long[-\s]term memory|memory layer/i, 'Agent Memory', 'pattern'],
+  [/tool calling|function calling/i, 'Tool Calling', 'pattern'],
   [/vector search|vector database|embedding search/i, 'Vector Search', 'architecture'],
   [/observability|tracing|telemetry/i, 'LLM Observability', 'architecture'],
-  [/prompt caching|cache/i, 'Prompt Caching', 'pattern'],
-  [/streaming ui|streaming response|stream/i, 'Streaming UI', 'pattern'],
+  [/prompt caching|semantic cach/i, 'Prompt Caching', 'pattern'],
+  [/streaming ui|streaming response/i, 'Streaming UI', 'pattern'],
   [/structured output|json schema|schema output/i, 'Structured Output', 'pattern'],
   [/browser automation|browser agent|computer use/i, 'Browser Automation', 'pattern'],
   [/multi[-\s]?agent|orchestration/i, 'Multi-Agent Workflow', 'architecture'],
@@ -733,10 +733,10 @@ function extractBuildIdeas(value: string | null | undefined) {
   if (/\bmcp\b|model context protocol/i.test(text)) ideas.add('MCP 서버 만들기');
   if (/code review|pull request|github pr|pr summary|코드 리뷰|pr 요약/i.test(text)) ideas.add('AI 코드 리뷰 봇');
   if (/\brag\b|retrieval|vector/i.test(text)) ideas.add('RAG 품질 평가 대시보드');
-  if (/news|curation|newsletter|뉴스|큐레이션/i.test(text)) ideas.add('AI 뉴스 큐레이션 에이전트');
+  if (/news curation|news aggregator|newsletter|큐레이션/i.test(text)) ideas.add('AI 뉴스 큐레이션 에이전트');
   if (/figma|design to code|디자인/i.test(text)) ideas.add('Figma to Code 워크플로우');
   if (/document|knowledge base|문서|검색/i.test(text)) ideas.add('개인 문서 기반 AI 검색 앱');
-  if (/browser|qa|computer use/i.test(text)) ideas.add('브라우저 자동화 QA 에이전트');
+  if (/browser automation|browser agent|qa agent|computer use/i.test(text)) ideas.add('브라우저 자동화 QA 에이전트');
   if (/cost|pricing|token|latency|비용/i.test(text)) ideas.add('LLM 비용 모니터링 대시보드');
   if (/product hunt|ai product|제품/i.test(text)) ideas.add('AI 제품 비교 대시보드');
   if (/paper|research|논문/i.test(text)) ideas.add('논문 to 프로젝트 추천기');

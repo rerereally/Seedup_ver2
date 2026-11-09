@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 
 export function assertIngestAuth(request: Request) {
   const secrets = [process.env.INGEST_SECRET, process.env.CRON_SECRET].filter((value): value is string => Boolean(value));
-  if (!secrets.length) return null;
+  if (!secrets.length) {
+    return NextResponse.json({ error: 'Ingestion secret is not configured' }, { status: 503 });
+  }
 
   const url = new URL(request.url);
   const authorization = request.headers.get('authorization');

@@ -1,3 +1,4 @@
+import { enforceFreeOnlyModels, isFreeOpenRouterModel } from './openrouter-models';
 import { fallbackSummary, truncate } from './text';
 import type { ContentType, NewsletterSection } from '@/lib/recommendations';
 
@@ -309,6 +310,9 @@ const DEFAULT_WRITING_MODEL = 'anthropic/claude-sonnet-5';
 const DEFAULT_PREPROCESS_MODEL = 'google/gemini-3.5-flash';
 const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
 const ARTICLE_OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_ARTICLE_TIMEOUT_MS ?? 75_000);
+// Free models are mostly reasoning models: reasoning spends max_tokens before the answer starts.
+const FREE_MODEL_REASONING_TOKENS = 4_000;
+const FREE_MODEL_MIN_TIMEOUT_MS = 45_000;
 
 const REPO_ANALYSIS_JSON_SCHEMA = {
   type: 'object',
@@ -1156,13 +1160,15 @@ async function callOpenRouter<T>(
     jsonSchema?: { name: string; schema: Record<string, unknown> };
   },
 ) {
-  const models = options?.models?.length ? options.models : getWritingModels();
+  const models = enforceFreeOnlyModels(options?.models?.length ? options.models : getWritingModels());
   const errors: string[] = [];
   const maxTokens = options?.maxTokens ?? 2400;
 
   for (const model of models) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? OPENROUTER_TIMEOUT_MS);
+    const isFreeModel = isFreeOpenRouterModel(model);
+    const timeoutMs = options?.timeoutMs ?? OPENROUTER_TIMEOUT_MS;
+    const timeout = setTimeout(() => controller.abort(), isFreeModel ? Math.max(timeoutMs, FREE_MODEL_MIN_TIMEOUT_MS) : timeoutMs);
 
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -1178,7 +1184,7 @@ async function callOpenRouter<T>(
           model,
           messages,
           temperature: options?.temperature ?? 0.2,
-          max_tokens: maxTokens,
+          max_tokens: isFreeModel ? maxTokens + FREE_MODEL_REASONING_TOKENS : maxTokens,
           ...(options?.jsonSchema
             ? {
                 response_format: {
@@ -1242,10 +1248,6 @@ function parseModelList(value: string | undefined) {
     .filter(Boolean);
 }
 
-function isFreeModel(model: string) {
-  return model.endsWith(':free') || model === 'openrouter/free';
-}
-
 function getWritingModels() {
   const primary = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_WRITING_MODEL;
   return [...new Set([primary, ...parseModelList(process.env.OPENROUTER_FALLBACK_MODELS)])];
@@ -1257,7 +1259,7 @@ function getPreprocessModels() {
 
   // A free writing model means a test setup, so never fall through to the paid default.
   const writingModels = getWritingModels();
-  return isFreeModel(writingModels[0]) ? writingModels : [DEFAULT_PREPROCESS_MODEL];
+  return isFreeOpenRouterModel(writingModels[0]) ? writingModels : [DEFAULT_PREPROCESS_MODEL];
 }
 
 function getIdeaEvaluationModels() {

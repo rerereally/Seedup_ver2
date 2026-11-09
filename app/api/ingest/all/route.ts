@@ -33,11 +33,14 @@ async function ingestAll(request: Request) {
   const results: Array<{ step: string; ok: boolean; status: number; detail: unknown }> = [];
 
   for (const [step, path] of INGEST_STEPS) {
-    const separator = path.includes('?') ? '&' : '?';
-    const url = `${origin}${path}${secret ? `${separator}secret=${encodeURIComponent(secret)}` : ''}`;
+    const url = `${origin}${path}`;
 
     try {
-      const response = await fetch(url, { method: 'POST', cache: 'no-store' });
+      const response = await fetch(url, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: secret ? { 'x-ingest-secret': secret } : undefined,
+      });
       const contentType = response.headers.get('content-type') ?? '';
       const detail = contentType.includes('application/json') ? await response.json() : await response.text();
       results.push({ step, ok: response.ok, status: response.status, detail });

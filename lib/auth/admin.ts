@@ -1,5 +1,5 @@
 export function isAdminEmail(email?: string | null) {
-  const allowlist = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+  const allowlist = (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);

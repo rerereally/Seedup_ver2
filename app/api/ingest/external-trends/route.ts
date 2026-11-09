@@ -50,6 +50,7 @@ type Signal = {
 };
 
 const FETCH_TIMEOUT_MS = 18_000;
+const SOURCE_CONCURRENCY = 6;
 
 const TOOL_MODEL_NAMES = [
   'Codex',
@@ -94,12 +95,12 @@ const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
 const PATTERN_ENTITIES: Array<[RegExp, string, TrendEntityType]> = [
   [/\bmcp\b|model context protocol/i, 'MCP Server Design', 'architecture'],
   [/\brag\b|retrieval augmented|retrieval-augmented/i, 'RAG Evaluation', 'pattern'],
-  [/agent memory|memory/i, 'Agent Memory', 'pattern'],
-  [/tool calling|function calling|tools/i, 'Tool Calling', 'pattern'],
+  [/agent memory|long[-\s]term memory|memory layer/i, 'Agent Memory', 'pattern'],
+  [/tool calling|function calling/i, 'Tool Calling', 'pattern'],
   [/vector search|vector database|embedding search/i, 'Vector Search', 'architecture'],
   [/observability|tracing|telemetry/i, 'LLM Observability', 'architecture'],
-  [/prompt caching|cache/i, 'Prompt Caching', 'pattern'],
-  [/streaming ui|streaming response|stream/i, 'Streaming UI', 'pattern'],
+  [/prompt caching|semantic cach/i, 'Prompt Caching', 'pattern'],
+  [/streaming ui|streaming response/i, 'Streaming UI', 'pattern'],
   [/structured output|json schema|schema output/i, 'Structured Output', 'pattern'],
   [/browser automation|browser agent|computer use/i, 'Browser Automation', 'pattern'],
   [/multi[-\s]?agent|orchestration/i, 'Multi-Agent Workflow', 'architecture'],
@@ -133,19 +134,24 @@ async function ingest(request: Request) {
   let errors = 0;
   let skipped = 0;
 
-  for (const source of sources) {
-    try {
-      const items = await fetchExternalItems(source);
-      for (const item of items) {
-        const itemSignals = buildSignalsForItem(item);
-        if (!itemSignals.length) skipped += 1;
-        signals.push(...itemSignals);
+  let nextSourceIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(SOURCE_CONCURRENCY, sources.length) }, async () => {
+    while (nextSourceIndex < sources.length) {
+      const source = sources[nextSourceIndex];
+      nextSourceIndex += 1;
+      try {
+        const items = await fetchExternalItems(source);
+        for (const item of items) {
+          const itemSignals = buildSignalsForItem(item);
+          if (!itemSignals.length) skipped += 1;
+          signals.push(...itemSignals);
+        }
+      } catch (error) {
+        errors += 1;
+        console.error('External trend source failed', source.name, error);
       }
-    } catch (error) {
-      errors += 1;
-      console.error('External trend source failed', source.name, error);
     }
-  }
+  }));
 
   const deduped = dedupeSignals(signals);
   let inserted = 0;
@@ -259,14 +265,14 @@ function withStackExchangeKey(url: string) {
 }
 
 async function fetchNpmItems(source: SourceConfig): Promise<ExternalItem[]> {
-  const json = await fetchJson<{ objects?: Array<{ package?: { name?: string; description?: string; links?: { npm?: string; repository?: string }; keywords?: string[] }; score?: { final?: number } }> }>(source.url);
+  const json = await fetchJson<{ objects?: Array<{ package?: { name?: string; description?: string; links?: { npm?: string; repository?: string }; keywords?: string[]; date?: string }; score?: { final?: number } }> }>(source.url);
   return (json.objects ?? []).map((item) => ({
     title: item.package?.name ?? '',
     url: item.package?.links?.npm ?? item.package?.links?.repository ?? null,
     description: item.package?.description ?? '',
     tags: item.package?.keywords ?? [],
     score: Math.round(Number(item.score?.final ?? 0.4) * 100),
-    detectedAt: new Date().toISOString(),
+    detectedAt: item.package?.date ?? new Date().toISOString(),
     sourceName: source.name,
     sourceType: source.sourceType,
   })).filter((item) => item.title);
@@ -369,6 +375,20 @@ async function fetchHuggingFaceItems(source: SourceConfig): Promise<ExternalItem
     }).filter((item) => item.title);
   }
 
+  if (source.url.includes('/api/papers')) {
+    const json = await fetchJson<Array<{ id?: string; title?: string; summary?: string; upvotes?: number; publishedAt?: string }>>(source.url);
+    return json.map((item) => ({
+      title: item.title ?? '',
+      url: item.id ? `https://huggingface.co/papers/${item.id}` : source.url,
+      description: (item.summary ?? '').slice(0, 500),
+      tags: ['paper'],
+      score: Number(item.upvotes ?? 0),
+      detectedAt: item.publishedAt ?? new Date().toISOString(),
+      sourceName: source.name,
+      sourceType: source.sourceType,
+    })).filter((item) => item.title);
+  }
+
   const html = await fetchText(source.url);
   const cardMatches = Array.from(html.matchAll(/href="\/(models|spaces)\/([^"]+)"[\s\S]{0,500}?<[^>]+>([^<]{2,120})<\/[^>]+>/gi)).slice(0, 30);
   if (cardMatches.length) {
@@ -464,10 +484,10 @@ function extractBuildIdeas(text: string) {
   if (/\bmcp\b|model context protocol/i.test(lower)) ideas.add('MCP 서버 만들기');
   if (/code review|pull request|github pr|pr summary|코드 리뷰|pr 요약/i.test(lower)) ideas.add('AI 코드 리뷰 봇');
   if (/\brag\b|retrieval|vector/i.test(lower)) ideas.add('RAG 품질 평가 대시보드');
-  if (/news|curation|newsletter|뉴스|큐레이션/i.test(lower)) ideas.add('AI 뉴스 큐레이션 에이전트');
+  if (/news curation|news aggregator|newsletter|큐레이션/i.test(lower)) ideas.add('AI 뉴스 큐레이션 에이전트');
   if (/figma|design to code|디자인/i.test(lower)) ideas.add('Figma to Code 워크플로우');
   if (/document|knowledge base|문서|검색/i.test(lower)) ideas.add('개인 문서 기반 AI 검색 앱');
-  if (/browser|qa|computer use/i.test(lower)) ideas.add('브라우저 자동화 QA 에이전트');
+  if (/browser automation|browser agent|qa agent|computer use/i.test(lower)) ideas.add('브라우저 자동화 QA 에이전트');
   if (/cost|pricing|token|latency|비용/i.test(lower)) ideas.add('LLM 비용 모니터링 대시보드');
   if (/product hunt|ai product|제품/i.test(lower)) ideas.add('AI 제품 비교 대시보드');
   if (/paper|research|논문/i.test(lower)) ideas.add('논문 to 프로젝트 추천기');

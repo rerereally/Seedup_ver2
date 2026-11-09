@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 function handleReadError(error: { code?: string; message?: string }) {
   if (error.code === '42501' || error.code === 'PGRST205') {
@@ -431,6 +431,8 @@ export type ArticleFeedItem = {
   created_at?: string | null;
 };
 
+const NEWS_LIST_LIMIT = 300;
+
 export async function getNewsItems() {
   const supabase = await createClient();
   if (!supabase) return [];
@@ -438,14 +440,16 @@ export async function getNewsItems() {
     .from('news_items')
     .select('*')
     .order('daily_rank_score', { ascending: false, nullsFirst: false })
-    .order('published_at', { ascending: false });
+    .order('published_at', { ascending: false })
+    .limit(NEWS_LIST_LIMIT);
 
   if (!rankedResult.error) return (rankedResult.data ?? []) as NewsItem[];
 
   const { data, error } = await supabase
     .from('news_items')
     .select('*')
-    .order('published_at', { ascending: false });
+    .order('published_at', { ascending: false })
+    .limit(NEWS_LIST_LIMIT);
 
   if (error) {
     handleReadError(error);
@@ -951,7 +955,7 @@ export async function getGitHubTrend(id: string) {
 }
 
 export async function getIngestRuns() {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('ingest_runs')
@@ -967,7 +971,7 @@ export async function getIngestRuns() {
 }
 
 export async function getIngestRejections(limit = 40) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('ingest_rejections')
@@ -1029,7 +1033,7 @@ export async function getIngestQualitySummary() {
 }
 
 export async function getRecommendationQuality() {
-  const supabase = createServiceClient() ?? await createClient();
+  const supabase = createAdminClient() ?? await createClient();
   if (!supabase) return { impressions: 0, clicks: 0, clickRate: 0, useful: 0, notRelevant: 0 };
   const [{ data: events }, { data: feedback }] = await Promise.all([
     supabase.from('recommendation_impressions').select('event_type').limit(10000),

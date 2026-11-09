@@ -7,6 +7,8 @@ const ABUSIVE_LANGUAGE = [
 
 const IDEA_SIGNALS = /(?:앱|서비스|도구|봇|프로젝트|플랫폼|대시보드|에이전트|자동화|추천|분석|관리|검색|연결|구현|만들|개발|큐레이션|슬랙|팀|사용자|문제|기능|api|sdk|cli|saas|agent|dashboard|report|github|issue|workflow|product\s*hunt|slack|curation|user|problem|feature)/i;
 
+const MAX_IDEA_LENGTH = 2_000;
+
 export type IdeaInputValidation =
   | { ok: true; idea: string; key: string }
   | { ok: false; message: string };
@@ -17,6 +19,10 @@ export function validateIdeaInput(value: string): IdeaInputValidation {
 
   if (ABUSIVE_LANGUAGE.some((pattern) => pattern.test(idea))) {
     return { ok: false, message: '욕설이나 비하 표현은 평가할 수 없습니다. 해결할 문제와 대상 사용자를 적어주세요.' };
+  }
+
+  if (idea.length > MAX_IDEA_LENGTH) {
+    return { ok: false, message: `아이디어는 ${MAX_IDEA_LENGTH.toLocaleString('ko-KR')}자 이내로 적어주세요.` };
   }
 
   if (idea.length < 8 || words.length < 2) {

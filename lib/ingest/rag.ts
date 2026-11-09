@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { enforceFreeOnlyModels } from '@/lib/ingest/openrouter-models';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export type RagReference = {
@@ -24,6 +25,8 @@ type RagDocument = {
 };
 
 const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small';
+// Must match the vector(1536) column in supabase/schema.sql.
+const EMBEDDING_DIMENSIONS = 1536;
 // Keep evaluation requests bounded. New embeddings are synced lazily, so a
 // large historical table should not consume the whole request timeout.
 const MAX_DOCUMENTS_PER_SOURCE = 18;
@@ -188,6 +191,7 @@ async function syncMissingEmbeddings(
 }
 
 async function createEmbeddings(apiKey: string, input: string[]): Promise<number[][]> {
+  const [model] = enforceFreeOnlyModels([EMBEDDING_MODEL]);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
@@ -200,7 +204,7 @@ async function createEmbeddings(apiKey: string, input: string[]): Promise<number
       'x-title': 'Seedup',
     },
     signal: controller.signal,
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
+    body: JSON.stringify({ model, input, dimensions: EMBEDDING_DIMENSIONS }),
   });
   if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
   const json = await response.json() as { data?: Array<{ embedding?: number[] }> };

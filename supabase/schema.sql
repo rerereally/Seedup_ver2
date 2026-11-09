@@ -815,8 +815,8 @@ grant select on public.news_items to anon, authenticated;
 grant select on public.trends to anon, authenticated;
 grant select on public.keyword_signals to anon, authenticated;
 grant select on public.trend_snapshots to anon, authenticated;
-grant select on public.ingest_runs to authenticated;
-grant select on public.ingest_rejections to authenticated;
+revoke select on public.ingest_runs from authenticated;
+revoke select on public.ingest_rejections from authenticated;
 grant select on public.ai_products to anon, authenticated;
 grant select on public.project_ideas to anon, authenticated;
 grant select on public.github_trends to anon, authenticated;
@@ -869,7 +869,8 @@ drop policy if exists "Users can read own recommendation impressions" on public.
 create policy "Users can read own recommendation impressions"
   on public.recommendation_impressions for select
   using (auth.uid() = user_id);
-grant select, insert on public.idea_evaluations to anon, authenticated;
+revoke select, insert on public.idea_evaluations from anon;
+grant select, insert on public.idea_evaluations to authenticated;
 grant select on public.ai_model_snapshots to anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update on public.user_onboarding to authenticated;
@@ -905,15 +906,9 @@ create policy "Trend snapshots are publicly readable"
   on public.trend_snapshots for select
   using (true);
 
+-- Ingest logs are read only through the server-side secret key on the admin page.
 drop policy if exists "Authenticated users can read ingest runs" on public.ingest_runs;
-create policy "Authenticated users can read ingest runs"
-  on public.ingest_runs for select
-  using (auth.role() = 'authenticated');
-
 drop policy if exists "Authenticated users can read ingest rejections" on public.ingest_rejections;
-create policy "Authenticated users can read ingest rejections"
-  on public.ingest_rejections for select
-  using (auth.role() = 'authenticated');
 
 drop policy if exists "AI products are publicly readable" on public.ai_products;
 create policy "AI products are publicly readable"
@@ -1041,9 +1036,10 @@ create policy "Users can read own idea evaluations"
 
 drop policy if exists "Anyone can create pending idea evaluations" on public.idea_evaluations;
 drop policy if exists "Anyone can create idea evaluations" on public.idea_evaluations;
-create policy "Anyone can create idea evaluations"
+drop policy if exists "Users can create own idea evaluations" on public.idea_evaluations;
+create policy "Users can create own idea evaluations"
   on public.idea_evaluations for insert
-  with check (user_id is null or auth.uid() = user_id);
+  with check (auth.uid() = user_id);
 
 drop policy if exists "Public can read AI model snapshots" on public.ai_model_snapshots;
 create policy "Public can read AI model snapshots"

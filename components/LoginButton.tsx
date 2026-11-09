@@ -11,11 +11,12 @@ export default function LoginButton() {
       return;
     }
     const origin = window.location.origin;
+    const next = new URLSearchParams(window.location.search).get('next') ?? '/';
 
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback?next=/`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
   };

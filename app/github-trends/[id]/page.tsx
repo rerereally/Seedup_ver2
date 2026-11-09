@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
@@ -9,6 +10,10 @@ import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, ArrowRight, Code2, ExternalLink, GitFork, Github, Lightbulb, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '오픈소스 상세',
+};
 
 export default async function GitHubTrendDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +28,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
           <Link href="/github-trends" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />

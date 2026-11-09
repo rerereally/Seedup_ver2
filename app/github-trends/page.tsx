@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -7,6 +8,10 @@ import { getGitHubTrends, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, ArrowRight, Code2, ExternalLink, GitFork, Github, Star } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: '오픈소스',
+};
 
 const PAGE_SIZE = 10;
 
@@ -31,7 +36,7 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Open Source Radar"

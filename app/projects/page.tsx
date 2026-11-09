@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -7,6 +8,10 @@ import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowRight, Calendar, CheckCircle2, Code2, Filter, TerminalSquare, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: '프로젝트',
+};
 
 const FILTERS = ['전체', '초급', '중급', '빠른 MVP', '트렌드 연동'];
 const PAGE_SIZE = 9;
@@ -39,7 +44,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Projects"

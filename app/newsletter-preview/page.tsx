@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
@@ -13,6 +14,10 @@ import {
 } from '@/lib/recommendations';
 import { MailCheck } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: '뉴스레터 미리보기',
+};
 
 const SECTION_LABELS = [
   ['dailyBriefing', '오늘의 핵심 뉴스'],
@@ -54,7 +59,7 @@ export default async function NewsletterPreviewPage({
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Newsletter Preview"

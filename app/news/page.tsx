@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import ArticleHeroCarousel from '@/components/ArticleHeroCarousel';
 import ContentEngagement from '@/components/ContentEngagement';
@@ -7,6 +8,10 @@ import Header from '@/components/Header';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
 import { ArrowLeft, ArrowRight, FileText, Lightbulb, Newspaper } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: '아티클',
+};
 
 const PAGE_SIZE = 10;
 
@@ -184,7 +189,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-5 md:px-10 md:py-6">
           <section className="border-b border-outline-soft pb-4">
             <div className="inline-flex items-center gap-2 border border-outline-soft bg-white px-3 py-1 text-xs font-bold uppercase text-ink">

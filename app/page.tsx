@@ -76,7 +76,7 @@ function LoggedInHome({
   const topProducts = aiProducts.slice(0, 4);
 
   return (
-    <main className="grow bg-surface">
+    <main id="main-content" className="grow bg-surface">
       <section className="border-b border-ink bg-white">
         <div className="mx-auto max-w-6xl px-4 py-4 md:px-8 md:py-6">
           {/* 상단: 타이틀 + 배지 */}
@@ -262,7 +262,7 @@ export default async function Home() {
   return (
     <>
       <Header />
-      <main className="grow overflow-hidden">
+      <main id="main-content" className="grow overflow-hidden">
         <section className="relative border-b border-ink bg-white">
           <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10 lg:py-12">
             <div className="mb-7 flex flex-col gap-3 border-b border-outline-soft pb-4 md:flex-row md:items-center md:justify-between">
@@ -294,18 +294,20 @@ export default async function Home() {
                 </Link>
               </div>
 
-              <div className="mt-7 grid max-w-2xl grid-cols-3 border-y border-outline-soft py-4">
-                {[
-                  [`${trends.length}개`, '트렌드 분석 중'],
-                  [`${projects.length}개`, '프로젝트 아이디어'],
-                  [`${publishedNews.length}개`, '발행된 아티클'],
-                ].map(([value, label], index) => (
-                  <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft pl-4'}>
-                    <div className="text-3xl font-black leading-none text-ink md:text-4xl">{value}</div>
-                    <div className="mt-2 text-xs font-bold uppercase text-muted md:text-sm">{label}</div>
-                  </div>
-                ))}
-              </div>
+              {trends.length > 0 && projects.length > 0 && publishedNews.length > 0 && (
+                <div className="mt-7 grid max-w-2xl grid-cols-3 border-y border-outline-soft py-4">
+                  {[
+                    [`${trends.length}개`, '트렌드 분석 중'],
+                    [`${projects.length}개`, '프로젝트 아이디어'],
+                    [`${publishedNews.length}개`, '발행된 아티클'],
+                  ].map(([value, label], index) => (
+                    <div key={label} className={index === 0 ? '' : 'border-l border-outline-soft pl-4'}>
+                      <div className="text-3xl font-black leading-none text-ink md:text-4xl">{value}</div>
+                      <div className="mt-2 text-xs font-bold uppercase text-muted md:text-sm">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-7 grid max-w-2xl gap-3 sm:grid-cols-3">
                 {START_CARDS.map((card) => (

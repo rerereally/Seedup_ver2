@@ -70,14 +70,13 @@ cp .env.example .env
 - `@opennextjs/cloudflare`
 - `@supabase/ssr`, `@supabase/supabase-js`
 - `postcss`
-- `clsx`, `tailwind-merge`
 - `lucide-react`
 - `next`, `react`, `react-dom`
 - `rss-parser`
 
 `package.json`에 직접 등록된 개발·배포 패키지:
 
-- `@tailwindcss/postcss`, `@tailwindcss/typography`
+- `@tailwindcss/postcss`
 - `@types/node`, `@types/react`, `@types/react-dom`
 - `eslint`, `eslint-config-next`
 - `tailwindcss`

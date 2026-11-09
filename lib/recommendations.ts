@@ -417,29 +417,6 @@ export function isRecommendableNewsItem(item: NewsItem) {
   return true;
 }
 
-export function recommendResearchPapers(items: ResearchPaper[], profile: RecommendationProfile, limit = 3): RecommendedItem<ResearchPaper>[] {
-  return items
-    .filter(isRecommendableResearchPaper)
-    .map((item) => {
-      const text = articleText(item);
-      const freshness = freshnessScore(item);
-      const match = profileMatchScore(text, profile);
-      const relevance = Math.min(Number(item.relevance_score ?? 0) * 0.2, 20);
-      const build = item.implementation_idea || item.service_idea || item.code_url ? 12 : 0;
-      const depth = Math.min(Number(item.research_depth_score ?? 0) + Number(item.buildability_score ?? 0), 14);
-      const engagement = Math.min(Number(item.like_count ?? 0) * 2, 8) - Math.min(Number(item.dislike_count ?? 0) * 2, 6);
-      const score = freshness + match + relevance + build + depth + engagement;
-
-      return {
-        item,
-        score,
-        reasons: recommendationReasons(item, profile, text, { freshness, match, relevance, build }),
-      };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
-}
-
 export function isRecommendableResearchPaper(item: ResearchPaper) {
   const visible = [item.beginner_summary, item.expert_summary, item.why_it_matters, item.implementation_idea, item.service_idea].join('\n');
   const text = [item.title, item.abstract, visible, ...(item.categories ?? []), ...(item.related_skills ?? [])].join(' ').toLowerCase();

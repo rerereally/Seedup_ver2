@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import ArticleAssistant from '@/components/ArticleAssistant';
 import ContentEngagement from '@/components/ContentEngagement';
@@ -12,6 +13,10 @@ import { ArrowLeft, ArrowRight, ExternalLink, Lightbulb } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '아티클 상세',
+};
 
 const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
   daily_briefing: '핵심 뉴스',
@@ -64,7 +69,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
           <Link href="/news" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />

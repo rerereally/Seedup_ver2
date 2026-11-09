@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
@@ -21,6 +22,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '프로젝트 상세',
+};
 
 /** "Day N: 작업 | 도구: X | 언어: Y | 방법: Z" 형태의 plan 항목을 파싱 */
 function parsePlanStep(raw: string) {
@@ -113,7 +118,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
 
           {/* 뒤로가기 */}

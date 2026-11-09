@@ -1,8 +1,13 @@
+import type { Metadata } from 'next';
 import OnboardingForm from '@/components/OnboardingForm';
 import type { OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '온보딩',
+};
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
@@ -25,7 +30,7 @@ export default async function OnboardingPage() {
     .maybeSingle();
 
   return (
-    <main className="min-h-screen bg-surface px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10">
+    <main id="main-content" className="min-h-screen bg-surface px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10">
       <div className="mx-auto max-w-[960px]">
         <div className="mb-6 flex items-center justify-between gap-4 sm:mb-8">
           <Link href="/" className="text-2xl font-bold tracking-tight text-brand-primary">

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -7,6 +8,10 @@ import { getAIProducts, getScrapKeySet } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import { ArrowRight, Bot, Code2, ImageIcon, Search, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'AI 제품',
+};
 
 const PAGE_SIZE = 9;
 
@@ -91,7 +96,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
           <section className="border-b border-outline-soft pb-7">
             <div className="mb-4 text-xs font-black uppercase text-muted">directory</div>

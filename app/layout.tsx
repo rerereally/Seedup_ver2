@@ -30,7 +30,12 @@ export const viewport: Viewport = {
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="ko">
+      <head>
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossOrigin="anonymous" />
+      </head>
       <body className="antialiased font-sans flex flex-col min-h-screen" suppressHydrationWarning>
+        <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
         {children}
       </body>
     </html>

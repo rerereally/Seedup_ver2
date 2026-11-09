@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAIProducts, getArticleFeedItems, getGitHubTrends, getProjectIdeas } from '@/lib/data';
@@ -6,6 +7,10 @@ import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowRight, Bot, FileText, Github, Lightbulb, Search } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+
+export const metadata: Metadata = {
+  title: '검색',
+};
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const params = await searchParams;
@@ -29,7 +34,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
           <section className="border border-outline-soft bg-white">
             <div className="border-b border-outline-soft p-5 md:p-7">

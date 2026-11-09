@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { runFullIngest, runManualIngest } from '@/app/actions/ingest';
 import { sendManualNewsletter } from '@/app/actions/newsletter';
 import EmptyState from '@/components/EmptyState';
@@ -9,6 +10,10 @@ import { isAdminEmail } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { Activity, CheckCircle2, Clock3, DatabaseZap, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '수집 관리',
+};
 
 const TASKS = [
   { key: 'rss', label: '뉴스/RSS 전처리', stage: 'collect', description: '기술 뉴스와 블로그 RSS를 파싱해 짧은 요약, 태그, 뉴스레터 메타데이터만 저장합니다. 긴 글은 만들지 않습니다.' },
@@ -70,7 +75,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-8 px-4 py-12 md:px-10 md:py-16">
           <section className="flex flex-col gap-4 border-b border-outline-soft pb-6 md:flex-row md:items-end md:justify-between">
             <div>

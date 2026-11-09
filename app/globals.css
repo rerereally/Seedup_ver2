@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: "Pretendard";
-  src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/woff2/PretendardVariable.woff2") format("woff2");
-  font-weight: 45 920;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
   font-family: "Geist Mono";
   src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
   font-weight: 100 900;
@@ -17,7 +9,7 @@
 }
 
 @theme {
-  --font-sans: "Geist Mono", "Pretendard", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --color-brand-primary: #0a0a0a;
   --color-brand-secondary: #2f2f2f;
@@ -31,6 +23,7 @@
   --color-ink: #0a0a0a;
   --color-muted: #666666;
   --color-outline-soft: #d8d8d8;
+  --color-outline-strong: #858585;
   --color-tertiary: #3f3f3f;
 }
 
@@ -132,6 +125,34 @@
 
 html {
   overflow-x: hidden;
+  scroll-padding-top: 5rem;
+}
+
+/* Unlayered so these win over Tailwind utilities such as outline-none and border-outline-soft. */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+:where(input:not([type="checkbox"], [type="radio"], [type="hidden"]), textarea, select) {
+  border-color: var(--color-outline-strong);
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--color-ink);
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 body {
@@ -166,7 +187,7 @@ textarea {
 }
 
 .page-intro-eyebrow {
-  @apply mb-3 inline-flex items-center gap-2 border border-outline-soft bg-white px-3 py-1 text-xs font-bold uppercase text-ink;
+  @apply mb-3 inline-flex items-center gap-2 border border-outline-soft bg-white px-3 py-1 font-mono text-xs font-bold uppercase text-ink;
 }
 
 .page-intro-title {
@@ -247,5 +268,13 @@ textarea {
   textarea,
   select {
     font-size: 16px;
+  }
+
+  :where(button, select, a.inline-flex, a.flex, input:not([type="checkbox"], [type="radio"], [type="hidden"])) {
+    min-height: 44px;
+  }
+
+  :where(button) {
+    min-width: 44px;
   }
 }

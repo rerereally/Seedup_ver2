@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { submitAIProductReview } from '@/app/actions/product-ratings';
 import { AIProductRatingControl, ProductRatingSummary } from '@/components/AIProductRating';
 import ScrapButton from '@/components/ScrapButton';
@@ -11,6 +12,10 @@ import { createClient } from '@/lib/supabase/server';
 import { ArrowLeft, Bookmark, Bot, Code2, ExternalLink, ImageIcon, MessageSquare, SquareTerminal, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: 'AI 제품 상세',
+};
 
 function productTags(product: AIProduct) {
   return [product.category, product.pricing_type, product.target_user, ...(product.use_cases ?? [])]
@@ -64,7 +69,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-12">
           <Link href="/ai-products" className="mb-6 inline-flex items-center gap-2 text-xs font-bold uppercase text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />

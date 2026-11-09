@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { signOut, updateNewsletterSubscription, updateProfileSettings } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -8,6 +9,10 @@ import { Bell, CheckCircle2, LogOut, Mail, Settings, SlidersHorizontal, UserCirc
 import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '내 프로필',
+};
 
 function notice(status?: string) {
   if (status === 'saved') return '프로필이 저장되었습니다.';
@@ -44,7 +49,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   return (
     <>
       <Header />
-      <main className="grow bg-surface-low">
+      <main id="main-content" className="grow bg-surface-low">
         <div className="mx-auto max-w-[1040px] px-4 py-8 md:px-8 md:py-10">
           <section className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>

@@ -1,10 +1,15 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import LoginButton from '@/components/LoginButton';
 import { Lightbulb, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 
+export const metadata: Metadata = {
+  title: '로그인',
+};
+
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen bg-[#fff8f7] text-[#201a19]">
+    <main id="main-content" className="flex min-h-screen bg-[#fff8f7] text-[#201a19]">
       <section className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-[#f4eaea] p-16 md:flex">
         <div className="absolute inset-0 opacity-30 dot-grid" />
         <Link href="/" className="relative z-10 text-2xl font-bold tracking-tight text-brand-primary">

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -6,6 +7,10 @@ import { getContentHref } from '@/lib/content-targets';
 import { getScraps } from '@/lib/data';
 import { ArrowRight, Bookmark, Bot, Code2, FileText, Github, Lightbulb, Search } from 'lucide-react';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: '내 보관함',
+};
 
 const iconMap = {
   news: FileText,
@@ -63,7 +68,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Saved Queue"

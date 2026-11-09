@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import ContentEngagement from '@/components/ContentEngagement';
 import ArticleAssistant from '@/components/ArticleAssistant';
@@ -10,6 +11,10 @@ import { getExistingScrap, getResearchPaper } from '@/lib/data';
 import { ArrowLeft, ArrowRight, Code2, ExternalLink, FlaskConical, Lightbulb } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '논문 리뷰',
+};
 
 function formatDate(value: string | null) {
   if (!value) return '';
@@ -73,7 +78,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
           <Link href="/news?tab=paper" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />

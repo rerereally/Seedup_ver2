@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { deleteScrap } from '@/app/actions/scraps';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -6,6 +7,10 @@ import { getScrap } from '@/lib/data';
 import { ArrowLeft, ArrowRight, Bookmark, Lightbulb, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: '보관함 상세',
+};
 
 const TYPE_LABELS: Record<string, string> = {
   news: '아티클',
@@ -29,7 +34,7 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <article className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-10">
           <Link href="/scrap" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />

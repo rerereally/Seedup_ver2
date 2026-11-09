@@ -3,7 +3,7 @@
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { createClient } from '@/lib/supabase/client';
-import { Bot, CheckCircle2, Lightbulb, Loader2, RotateCcw, Send, X } from 'lucide-react';
+import { CheckCircle2, Lightbulb, Loader2, RotateCcw, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type RecentIdea = {
@@ -144,10 +144,30 @@ export default function Ideas() {
     }
   };
 
+  const isIdle = !activeRun && status !== 'saving' && status !== 'error';
+  const composer = (
+    <div className={`bg-white p-4 md:p-5 ${isIdle ? 'border-b' : 'border-t'} border-outline-soft`}>
+      <div className="overflow-hidden border border-ink bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-soft bg-surface px-4 py-2.5">
+          <label htmlFor="idea-chat-input" className="text-xs font-black text-ink">어떤 아이디어를 검토할까요?</label>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Seedup data context on</span>
+        </div>
+        <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} aria-label="평가받을 프로젝트 아이디어" placeholder="누가 겪는 어떤 문제를 어떻게 해결할지 적어주세요.&#10;&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="h-32 min-h-32 w-full resize-none bg-white px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted/70 sm:h-28 sm:min-h-28" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
+        <div className="flex flex-col gap-3 border-t border-outline-soft bg-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <p className="text-xs leading-5 text-muted">시장성 · 차별성 · 구현 난이도 · 포트폴리오 · MVP 계획</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-[11px] text-muted">Cmd/Ctrl + Enter</span>
+            <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"><Send className="h-4 w-4" />{status === 'saving' ? '분석 중...' : '평가하기'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
           <div className="mb-6 flex flex-col gap-3 sm:mb-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
@@ -159,13 +179,12 @@ export default function Ideas() {
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
             <section className="overflow-hidden border border-outline-soft bg-white">
-              <div className="min-h-[320px] p-4 sm:p-5 md:p-8">
-                {!activeRun && status !== 'saving' && status !== 'error' && (
-                  <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
-                    <span className="flex h-16 w-16 items-center justify-center border border-ink bg-ink text-white"><Bot className="h-8 w-8" /></span>
-                    <h2 className="mt-6 text-2xl font-black leading-snug text-ink md:text-3xl">만들고 싶은 아이디어를 평가해보세요.</h2>
-                    <p className="mt-3 text-sm leading-7 text-muted">아이디어를 입력하면 포트폴리오 가치와 실행 가능성을 함께 검토해드려요.</p>
-                    <div className="mt-10 grid w-full max-w-3xl gap-3 md:grid-cols-3">
+              {isIdle && composer}
+              <div className={`p-4 sm:p-5 md:p-8 ${isIdle ? '' : 'min-h-[320px]'}`}>
+                {isIdle && (
+                  <div>
+                    <h2 className="text-sm font-black text-ink">예시로 시작하기</h2>
+                    <div className="mt-4 grid w-full gap-3 md:grid-cols-3">
                       {EXAMPLE_IDEAS.map((example) => (
                         <button key={example.title} type="button" onClick={() => setIdea(example.description)} className="group border border-outline-soft bg-surface p-5 text-left transition-colors hover:border-ink hover:bg-white">
                           <span className="block font-mono text-[11px] font-bold uppercase tracking-wider text-muted">{example.category}</span>
@@ -190,22 +209,7 @@ export default function Ideas() {
                 {status === 'error' && <div className="flex min-h-[240px] items-center justify-center text-center"><div><p className="text-sm font-bold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="mt-4 bg-ink px-4 py-2 text-xs font-bold text-white">다시 시도</button></div></div>}
               </div>
 
-              <div className="border-t border-outline-soft bg-white p-4 md:p-5">
-                <div className="overflow-hidden border border-ink bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-soft bg-surface px-4 py-2.5">
-                    <label htmlFor="idea-chat-input" className="text-xs font-black text-ink">어떤 아이디어를 검토할까요?</label>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Seedup data context on</span>
-                  </div>
-                  <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} aria-label="평가받을 프로젝트 아이디어" placeholder="누가 겪는 어떤 문제를 어떻게 해결할지 적어주세요.&#10;&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="h-32 min-h-32 w-full resize-none bg-white px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted/70 sm:h-28 sm:min-h-28" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
-                  <div className="flex flex-col gap-3 border-t border-outline-soft bg-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-                    <p className="text-xs leading-5 text-muted">시장성 · 차별성 · 구현 난이도 · 포트폴리오 · MVP 계획</p>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <span className="text-[11px] text-muted">Cmd/Ctrl + Enter</span>
-                      <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"><Send className="h-4 w-4" />{status === 'saving' ? '분석 중...' : '평가하기'}</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {!isIdle && composer}
             </section>
 
             <aside className="space-y-4">

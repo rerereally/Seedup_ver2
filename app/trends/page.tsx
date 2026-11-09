@@ -1,9 +1,14 @@
+import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import TrendAccordion from '@/components/TrendAccordion';
 import { getModelIntelligence, getTrends } from '@/lib/data';
 import { Radio } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: '트렌드',
+};
 
 export default async function Trends() {
   const [trends, models] = await Promise.all([getTrends(), getModelIntelligence()]);
@@ -13,7 +18,7 @@ export default async function Trends() {
   return (
     <>
       <Header />
-      <main className="grow bg-surface">
+      <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
             eyebrow="Trend Radar"

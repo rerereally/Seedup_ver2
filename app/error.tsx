@@ -5,7 +5,7 @@ import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+    <main id="main-content" className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
       <section className="w-full max-w-xl rounded-xl border border-outline-soft bg-white p-8 text-center shadow-sm">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
           <AlertTriangle className="h-7 w-7" />

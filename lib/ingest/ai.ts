@@ -305,14 +305,10 @@ export type PaperAnalysisResult = {
   qualityReason?: string;
 };
 
-const DEFAULT_MODEL = 'anthropic/claude-sonnet-5';
-const FALLBACK_MODEL = 'anthropic/claude-sonnet-5';
+const DEFAULT_WRITING_MODEL = 'anthropic/claude-sonnet-5';
+const DEFAULT_PREPROCESS_MODEL = 'google/gemini-3.5-flash';
 const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
 const ARTICLE_OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_ARTICLE_TIMEOUT_MS ?? 75_000);
-const MODEL_ROUTES = {
-  preprocess: ['google/gemini-3.5-flash'],
-  writing: ['anthropic/claude-sonnet-5'],
-};
 
 const REPO_ANALYSIS_JSON_SCHEMA = {
   type: 'object',
@@ -400,7 +396,7 @@ source_language: ${input.sourceLanguage ?? 'unknown'}
 title: ${input.title}
 content: ${truncate(input.content, 5200)}`,
       },
-    ], { models: MODEL_ROUTES.preprocess, jsonMode: true });
+    ], { models: getPreprocessModels(), jsonMode: true });
 
     return { analysis: normalizeNewsAnalysis(result, fallback), model };
   } catch (error) {
@@ -449,7 +445,7 @@ language: ${input.language ?? ''}
 topics: ${input.topics.join(', ')}`,
       },
     ], {
-      models: MODEL_ROUTES.preprocess,
+      models: getPreprocessModels(),
       maxTokens: 1200,
       jsonMode: true,
       jsonSchema: {
@@ -503,7 +499,7 @@ name: ${input.name}
 url: ${input.url ?? ''}
 content: ${truncate(input.content, 2500)}`,
       },
-    ], { models: MODEL_ROUTES.preprocess });
+    ], { models: getPreprocessModels() });
 
     return { analysis: { ...fallback, ...result }, model };
   } catch (error) {
@@ -577,7 +573,7 @@ categories: ${input.categories.join(', ')}
 has_code: ${input.hasCode}
 abstract: ${truncate(input.abstract, 5000)}`,
       },
-    ], { models: MODEL_ROUTES.preprocess, jsonMode: true, maxTokens: 6500 });
+    ], { models: getPreprocessModels(), jsonMode: true, maxTokens: 6500 });
 
     const analysis = normalizePaperAnalysis(result, fallback);
     const quality = validatePaperAnalysisQuality(analysis, input);
@@ -1160,7 +1156,7 @@ async function callOpenRouter<T>(
     jsonSchema?: { name: string; schema: Record<string, unknown> };
   },
 ) {
-  const models = options?.models?.length ? options.models : getOpenRouterModels();
+  const models = options?.models?.length ? options.models : getWritingModels();
   const errors: string[] = [];
   const maxTokens = options?.maxTokens ?? 2400;
 
@@ -1239,26 +1235,29 @@ async function callOpenRouter<T>(
   throw new Error(`All OpenRouter models failed. ${errors.join(' | ')}`);
 }
 
-function getOpenRouterModels() {
-  return [
-    process.env.OPENROUTER_MODEL,
-    ...(process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(','),
-    DEFAULT_MODEL,
-    FALLBACK_MODEL,
-  ]
-    .map((model) => model?.trim())
-    .filter((model): model is string => Boolean(model))
-    .filter((model, index, models) => models.indexOf(model) === index);
+function parseModelList(value: string | undefined) {
+  return (value ?? '')
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+function isFreeModel(model: string) {
+  return model.endsWith(':free') || model === 'openrouter/free';
 }
 
 function getWritingModels() {
-  return [
-    ...MODEL_ROUTES.writing,
-    ...(process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(','),
-  ]
-    .map((model) => model.trim())
-    .filter(Boolean)
-    .filter((model, index, models) => models.indexOf(model) === index);
+  const primary = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_WRITING_MODEL;
+  return [...new Set([primary, ...parseModelList(process.env.OPENROUTER_FALLBACK_MODELS)])];
+}
+
+function getPreprocessModels() {
+  const configured = parseModelList(process.env.OPENROUTER_PREPROCESS_MODELS);
+  if (configured.length) return [...new Set(configured)];
+
+  // A free writing model means a test setup, so never fall through to the paid default.
+  const writingModels = getWritingModels();
+  return isFreeModel(writingModels[0]) ? writingModels : [DEFAULT_PREPROCESS_MODEL];
 }
 
 function getIdeaEvaluationModels() {

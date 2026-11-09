@@ -132,10 +132,12 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 `OPENROUTER_API_KEY` 하나로 전처리와 글 작성, 아이디어 평가를 모두 호출합니다. 현재 모델 역할은 다음과 같습니다.
 
-- 전처리: `google/gemini-3.5-flash`
-- 아티클 작성과 Deep Dive, 아이디어 평가: `anthropic/claude-sonnet-5`
+- 아티클 작성과 Deep Dive, 아이디어 평가: `OPENROUTER_MODEL`, 기본값 `anthropic/claude-sonnet-5`
+- 전처리: `OPENROUTER_PREPROCESS_MODELS`, 기본값 `google/gemini-3.5-flash`
 - `OPENROUTER_FALLBACK_MODELS`: 작성 모델 장애 시 사용할 보조 모델
 - `RAG_EMBEDDING_MODEL`: 아이디어 평가 RAG 임베딩에 사용할 OpenRouter 임베딩 모델
+
+테스트 중 무료 모델을 쓰려면 `OPENROUTER_MODEL`에 `:free` 모델이나 `openrouter/free`를 지정합니다. `OPENROUTER_PREPROCESS_MODELS`를 비워두면 전처리도 같은 무료 모델을 사용합니다. 임베딩은 별도 설정이므로 `RAG_EMBEDDING_MODEL`의 요금은 따로 확인하세요.
 
 실제 운영값과 소스 목록은 항상 `.env.example`의 최신 내용을 기준으로 입력하세요.
 

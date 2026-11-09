@@ -7,7 +7,7 @@ export default function LoginButton() {
   const handleLogin = async () => {
     const supabase = createClient();
     if (!supabase) {
-      window.alert('Supabase URL과 anon key를 .env에 먼저 설정해주세요.');
+      window.alert('Supabase URL과 publishable key를 .env에 먼저 설정해주세요.');
       return;
     }
     const origin = window.location.origin;

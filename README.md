@@ -96,12 +96,12 @@ cp .env.example .env
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your-key
+SUPABASE_SECRET_KEY=sb_secret_your-key
 
 OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=anthropic/claude-sonnet-5
-OPENROUTER_FALLBACK_MODELS=google/gemini-3.5-flash
+OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free
+OPENROUTER_FALLBACK_MODELS=openrouter/free
 
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 INGEST_SECRET=change-this-secret
@@ -139,7 +139,7 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 테스트 중 무료 모델을 쓰려면 `OPENROUTER_MODEL`에 `:free` 모델이나 `openrouter/free`를 지정합니다. `OPENROUTER_PREPROCESS_MODELS`를 비워두면 전처리도 같은 무료 모델을 사용합니다. 임베딩은 별도 설정이므로 `RAG_EMBEDDING_MODEL`의 요금은 따로 확인하세요.
 
-실제 운영값과 소스 목록은 항상 `.env.example`의 최신 내용을 기준으로 입력하세요.
+위 무료 모델은 테스트용입니다. 운영에서는 `OPENROUTER_MODEL=anthropic/claude-sonnet-5`, `OPENROUTER_FALLBACK_MODELS=google/gemini-3.5-flash`처럼 유료 모델로 바꿉니다. 소스 목록은 항상 `.env.example`의 최신 내용을 기준으로 입력하세요.
 
 ## 데이터베이스 설정
 
@@ -179,7 +179,7 @@ ingest_runs               수집·생성 실행 로그
 ingest_rejections         품질 기준으로 제외된 원천 데이터
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY`는 서버에서만 사용합니다. 브라우저 코드나 GitHub 저장소에 노출하면 안 됩니다.
+키는 Supabase 대시보드의 `Settings > API Keys`에서 확인합니다. `SUPABASE_SECRET_KEY`는 서버에서만 사용합니다. 브라우저 코드나 GitHub 저장소에 노출하면 안 됩니다.
 
 ## 로컬 실행
 
@@ -373,8 +373,8 @@ Cloudflare Workers의 Variables and Secrets에 `.env`의 서버 환경변수를 
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
 OPENROUTER_API_KEY
 OPENROUTER_MODEL
 OPENROUTER_FALLBACK_MODELS
@@ -417,7 +417,7 @@ Cloudflare Worker 로그에 `This model is not available in your region`이라�
 
 ### `permission denied for table`
 
-Supabase SQL Editor에서 `supabase/schema.sql` 전체를 다시 실행하고 `SUPABASE_SERVICE_ROLE_KEY`가 서버 환경변수에 있는지 확인합니다.
+Supabase SQL Editor에서 `supabase/schema.sql` 전체를 다시 실행하고 `SUPABASE_SECRET_KEY`가 서버 환경변수에 있는지 확인합니다.
 
 ### `ON CONFLICT` 제약조건 오류
 

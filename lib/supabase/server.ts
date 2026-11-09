@@ -10,7 +10,7 @@ export async function createClient() {
     return null;
   }
 
-  return createServerClient(config.url, config.anonKey, {
+  return createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -3,13 +3,13 @@ import { getSupabaseConfig } from './config';
 
 export function createAdminClient() {
   const config = getSupabaseConfig();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
 
-  if (!config || !serviceRoleKey) {
+  if (!config || !secretKey) {
     return null;
   }
 
-  return createSupabaseClient(config.url, serviceRoleKey, {
+  return createSupabaseClient(config.url, secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

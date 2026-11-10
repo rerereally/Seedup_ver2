@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
-import { DevTag } from '@/components/ui/DevCard';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
 import {
   DEMO_NEWSLETTER_PROFILES,
@@ -22,10 +21,10 @@ export const metadata: Metadata = {
 const SECTION_LABELS = [
   ['dailyBriefing', '오늘의 핵심 뉴스'],
   ['productRadar', '오늘의 AI 제품'],
-  ['githubPick', '오늘의 GitHub Pick'],
-  ['buildIdea', '오늘의 Build Idea'],
-  ['careerTip', '오늘의 Career Tip'],
-  ['deepDive', '추천 Deep Dive'],
+  ['githubPick', '오늘의 저장소'],
+  ['buildIdea', '만들어 볼 것'],
+  ['careerTip', '커리어'],
+  ['deepDive', '깊이 읽을 글'],
   ['paperToProject', '논문에서 프로젝트로'],
 ] as const;
 
@@ -62,24 +61,9 @@ export default async function NewsletterPreviewPage({
       <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
-            eyebrow="Newsletter Preview"
-            title="내 커리어에 맞춘 개발 뉴스레터"
-            description="최근 7~14일 동안 수집된 뉴스, AI 제품, GitHub 저장소, 논문, 프로젝트 아이디어를 프로필별로 다시 점수화해 뉴스레터 구성을 미리 보여줍니다."
-            icon={MailCheck}
-            meta={(
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  [`${lookbackDays}일`, '조회 범위'],
-                  [`${scored.length}개`, '추천 후보'],
-                  [`${selectedCount}개`, '선택된 콘텐츠'],
-                ].map(([value, label]) => (
-                  <div key={label} className="border border-outline-soft bg-white px-4 py-3">
-                    <p className="text-2xl font-black text-ink">{value}</p>
-                    <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            title="뉴스레터 미리보기"
+            description="같은 자료라도 읽는 사람에 따라 고르는 글이 달라집니다. 예시 프로필 세 개로 어떻게 달라지는지 보여 줍니다."
+            meta={<>최근 <span className="num text-ink">{lookbackDays}</span>일 · 후보 <span className="num text-ink">{scored.length}</span>개 중 <span className="num text-ink">{selectedCount}</span>개를 골랐습니다</>}
           />
 
           <section className="grid gap-4 lg:grid-cols-3">
@@ -89,15 +73,16 @@ export default async function NewsletterPreviewPage({
                 <Link
                   key={demoProfile.user_id}
                   href={`/newsletter-preview?profile=${demoProfile.user_id}`}
-                  className={`border p-5 transition-colors ${active ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-ink hover:border-ink'}`}
+                  aria-current={active ? 'true' : undefined}
+                  className={`card block p-5 transition-colors md:p-6 ${active ? 'border-ink' : 'hover:border-outline-strong'}`}
                 >
-                  <div className={`text-xs font-bold uppercase ${active ? 'text-white/70' : 'text-muted'}`}>{demoProfile.frequency}</div>
-                  <h2 className="mt-2 text-xl font-black">{demoProfile.label}</h2>
-                  <p className={`mt-3 text-sm leading-6 ${active ? 'text-white/75' : 'text-muted'}`}>
+                  <p className="text-[13px] text-muted">{demoProfile.frequency === 'weekly' ? '매주' : '매일'}{active ? ' · 지금 보는 프로필' : ''}</p>
+                  <h2 className="mt-1.5 text-lg font-bold text-ink">{demoProfile.label}</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted">
                     {demoProfile.level} · {demoProfile.goals.slice(0, 2).join(' / ')}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {demoProfile.interests.slice(0, 3).map((tag) => <DevTag key={tag} active={active}>{tag}</DevTag>)}
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {demoProfile.interests.slice(0, 3).map((tag) => <span key={tag} className="chip">{tag}</span>)}
                   </div>
                 </Link>
               );
@@ -105,23 +90,22 @@ export default async function NewsletterPreviewPage({
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-            <div className="space-y-5">
+            <div className="space-y-9">
               {SECTION_LABELS.map(([key, label]) => (
                 sections[key].length ? <NewsletterSection key={key} title={label} items={sections[key]} /> : null
               ))}
             </div>
 
-            <aside className="h-fit border border-outline-soft bg-white p-5">
-              <div className="text-xs font-bold uppercase text-muted">newsletter_copy.preview</div>
-              <h2 className="mt-3 text-2xl font-black leading-tight text-ink">{profile.label}를 위한 이번 주 개발 브리핑</h2>
-              <p className="mt-4 text-sm leading-7 text-muted">
-                {profile.interests.join(', ')} 관심사와 {profile.goals.join(', ')} 목표를 기준으로 오늘 읽을 콘텐츠를 골랐습니다.
-                뉴스는 짧게 훑고, 프로젝트로 연결 가능한 항목은 Build Idea 섹션에 따로 모았습니다.
+            <aside className="card h-fit p-5 md:p-6">
+              <h2 className="label">받는 사람에게 보이는 머리말</h2>
+              <p className="mt-2 text-xl font-extrabold leading-snug tracking-tight text-ink">{profile.label}를 위한 이번 주 개발 브리핑</p>
+              <p className="mt-3 text-sm leading-7 text-muted">
+                {profile.interests.join(', ')} 관심사와 {profile.goals.join(', ')} 목표에 맞춰 골랐습니다. 뉴스는 짧게 훑고, 만들어 볼 수 있는 것은 따로 모았습니다.
               </p>
-              <div className="mt-5 border-t border-outline-soft pt-5">
-                <div className="text-xs font-bold uppercase text-muted">selected_profile</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {[profile.level, ...profile.preferred_stack.slice(0, 3), ...profile.preferred_roles.slice(0, 2)].map((tag) => <DevTag key={tag}>{tag}</DevTag>)}
+              <div className="mt-5 border-t border-outline-soft pt-4">
+                <h3 className="label">이 프로필</h3>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {[profile.level, ...profile.preferred_stack.slice(0, 3)].map((tag) => <span key={tag} className="chip">{tag}</span>)}
                 </div>
               </div>
             </aside>
@@ -135,29 +119,22 @@ export default async function NewsletterPreviewPage({
 
 function NewsletterSection({ title, items }: { title: string; items: ScoredNewsletterItem[] }) {
   return (
-    <section className="border border-outline-soft bg-white p-5">
-      <div className="mb-5 flex items-end justify-between gap-4 border-b border-outline-soft pb-4">
-        <div>
-          <div className="text-xs font-bold uppercase text-muted">personalized_section</div>
-          <h2 className="mt-1 text-2xl font-black text-ink">{title}</h2>
-        </div>
-        <DevTag active>{items.length} picks</DevTag>
-      </div>
-      <div className="grid gap-3">
+    <section>
+      <h2 className="flex items-baseline gap-2 text-xl font-extrabold tracking-tight text-ink">{title} <span className="num text-base font-medium text-muted">{items.length}</span></h2>
+      <div className="mt-3 grid gap-3">
         {items.map(({ content, score, reasons }) => (
-          <Link key={content.id} href={content.href} className="border border-outline-soft bg-surface-lowest p-4 transition-colors hover:border-ink">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-2">
-                <DevTag active>{content.sourceLabel}</DevTag>
-                <DevTag>{Math.round(score)}점</DevTag>
-              </div>
-              <span className="text-xs font-bold uppercase text-muted">{content.metadata.newsletter_section}</span>
-            </div>
-            <h3 className="mt-3 text-lg font-black leading-snug text-ink">{content.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-muted">{content.metadata.short_summary}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {reasons.map((reason) => <DevTag key={reason}>{reason}</DevTag>)}
-            </div>
+          <Link key={content.id} href={content.href} className="card block p-5 transition-colors hover:border-outline-strong md:p-6">
+            <p className="flex items-center justify-between gap-3 text-[13px] text-muted">
+              <span className="font-bold text-ink">{content.sourceLabel}</span>
+              <span>맞춤 점수 <span className="num text-ink">{Math.round(score)}</span></span>
+            </p>
+            <h3 className="mt-2 text-lg font-bold leading-snug text-ink">{content.title}</h3>
+            <p className="mt-2 text-[15px] leading-7 text-muted">{content.metadata.short_summary}</p>
+            {reasons.length > 0 && (
+              <ul className="mt-3 border-l-2 border-outline-strong pl-3 text-[13px] leading-6 text-muted">
+                {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            )}
           </Link>
         ))}
       </div>

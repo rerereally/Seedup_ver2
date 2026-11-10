@@ -1,72 +1,76 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Sprout } from 'lucide-react';
 import LoginButton from '@/components/LoginButton';
-import { Lightbulb, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
+import { getOpportunities, toStageOpportunities } from '@/lib/opportunities/data';
 
 export const metadata: Metadata = {
   title: '로그인',
 };
 
-export default function LoginPage() {
+// Tilt and offset for each testimony on the brand side, so the stack reads as the same pile as the home stage.
+const CHIP_LAYOUT = [
+  'rotate-[-5deg]',
+  'ml-10 rotate-[3deg]',
+  'ml-3 rotate-[-2deg]',
+  'ml-16 rotate-[6deg]',
+  'ml-6 rotate-[-4deg]',
+];
+
+const BENEFITS = [
+  ['담은 근거가 보관함에 남습니다', '어느 기기에서든 이어서 볼 수 있습니다.'],
+  ['근거로 PRD를 만듭니다', '원문 증언만 근거로 쓰고, AI 코딩 도구용 파일로 받습니다.'],
+  ['관심사에 맞춰 추천합니다', '처음 한 번, 다섯 가지만 여쭙니다.'],
+];
+
+export default async function LoginPage() {
+  const { opportunities } = await getOpportunities();
+  const chips = toStageOpportunities(opportunities)
+    .flatMap((item) => item.quotes.slice(0, 1).map((quote) => ({ id: quote.id, text: quote.quote, bg: item.bg, fg: item.fg })))
+    .slice(0, CHIP_LAYOUT.length);
+
   return (
-    <main id="main-content" className="flex min-h-screen bg-[#fff8f7] text-[#201a19]">
-      <section className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-[#f4eaea] p-16 md:flex">
-        <div className="absolute inset-0 opacity-30 dot-grid" />
-        <Link href="/" className="relative z-10 text-2xl font-bold tracking-tight text-brand-primary">
+    <main id="main-content" className="grid min-h-dvh bg-surface text-ink lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <section className="relative hidden flex-col justify-between overflow-hidden rounded-[28px] bg-[radial-gradient(120%_90%_at_50%_0%,#1b1b20_0%,#101013_60%)] p-12 shadow-[inset_0_0_0_1px_rgba(255,255,255,.07)] lg:m-2.5 lg:flex">
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 self-start text-[19px] font-extrabold tracking-tight">
+          <Sprout className="h-[22px] w-[22px] text-hot" aria-hidden="true" />
           Seedup
         </Link>
-        <div className="relative z-10 max-w-md">
-          <h1 className="mb-6 text-5xl font-bold leading-tight">
-            개발 흐름을
-            <br />
-            <span className="text-brand-primary">내 성장 루틴으로</span>
-            <br />
-            연결하다
-          </h1>
-          <p className="mb-10 text-lg leading-8 text-[#534341]">
-            아티클, 논문, 오픈소스, AI 제품 흐름을 읽고 저장하고, 실제 포트폴리오 프로젝트로 발전시키는 가장 빠른 방법.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg border border-[#f5dfdb] bg-white p-5">
-              <TrendingUp className="mb-3 h-6 w-6 text-brand-primary" />
-              <div className="text-sm font-semibold">개발 트렌드 개인화</div>
-            </div>
-            <div className="rounded-lg border border-[#f5dfdb] bg-white p-5">
-              <Lightbulb className="mb-3 h-6 w-6 text-brand-primary" />
-              <div className="text-sm font-semibold">아이디어 평가와 실행 플랜</div>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-[clamp(40px,4.4vw,64px)] font-extrabold leading-[1.08] tracking-tight">만들기 전에<br />사람들의 말부터.</h1>
+          <p className="mt-5 max-w-[26em] text-lg leading-8 text-muted">개발자들이 실제로 남긴 불만을 원문과 대조해 모으고, 근거가 붙은 PRD까지 이어갑니다.</p>
         </div>
-        <div className="relative z-10 text-xs text-[#534341]">© 2026 Seedup. All rights reserved.</div>
+        <ul className="flex flex-col items-start gap-2.5" aria-label="실제 증언 일부">
+          {chips.map((chip, index) => (
+            <li key={chip.id} lang="en" className={`max-w-[min(420px,80%)] truncate rounded-full px-5 py-3 text-[15px] font-bold shadow-[0_10px_30px_rgba(0,0,0,.35)] ${CHIP_LAYOUT[index]}`} style={{ background: chip.bg, color: chip.fg }}>
+              {chip.text}
+            </li>
+          ))}
+        </ul>
       </section>
 
-      <section className="flex w-full flex-col justify-center px-5 py-10 md:w-1/2 md:px-16">
-        <Link href="/" className="absolute left-5 top-8 text-2xl font-bold tracking-tight text-brand-primary md:hidden">
-          Seedup
-        </Link>
-        <div className="mx-auto w-full max-w-[400px]">
-          <div className="mb-12 text-center">
-            <h2 className="mb-2 text-3xl font-semibold">환영합니다</h2>
-            <p className="text-[#534341]">Seedup 계정으로 로그인하세요</p>
+      <section className="flex flex-col justify-center px-5 py-12 sm:px-10">
+        <div className="mx-auto w-full max-w-[380px]">
+          <Link href="/" className="mb-12 inline-flex min-h-11 items-center gap-2 text-[19px] font-extrabold tracking-tight lg:hidden">
+            <Sprout className="h-[22px] w-[22px] text-hot" aria-hidden="true" />
+            Seedup
+          </Link>
+          <h2 className="text-[32px] font-extrabold leading-tight tracking-tight">로그인</h2>
+          <p className="mt-2 text-muted [text-wrap:balance] [word-break:keep-all]">Google 계정 하나면 됩니다. 비밀번호를 새로 만들지 않습니다.</p>
+
+          <div className="mt-8">
+            <LoginButton />
           </div>
 
-          <LoginButton />
-
-          <div className="mt-8 rounded-lg border border-[#f5dfdb] bg-white p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-brand-primary">
-              <ShieldCheck className="h-4 w-4" />
-              Google OAuth 로그인
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[#534341]">Seedup은 Supabase Auth의 Google OAuth로 로그인합니다. 처음 로그인하면 5문항 맞춤 추천 설정이 표시됩니다.</p>
-          </div>
-
-          <div className="mt-4 rounded-lg border border-[#f5dfdb] bg-white p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-brand-primary">
-              <Sparkles className="h-4 w-4" />
-              로그인 후 가능한 기능
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[#534341]">아티클, 논문, 오픈소스, AI 제품, 프로젝트를 저장하고 아이디어 평가 기록과 개인화 추천을 이어볼 수 있습니다.</p>
-          </div>
+          <ul className="mt-8 border-t border-outline-soft">
+            {BENEFITS.map(([title, detail]) => (
+              <li key={title} className="border-b border-outline-soft py-4">
+                <p className="font-bold">{title}</p>
+                <p className="mt-0.5 text-sm leading-6 text-muted">{detail}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-6 text-[13px] leading-6 text-muted">로그인하지 않아도 기회와 증언은 모두 볼 수 있습니다. <Link href="/" className="font-bold text-ink underline-offset-4 hover:underline">둘러보기</Link></p>
         </div>
       </section>
     </main>

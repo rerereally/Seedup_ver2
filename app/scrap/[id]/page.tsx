@@ -42,7 +42,7 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
           </Link>
 
           <section className="border border-outline-soft bg-white p-5 md:p-7">
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
               <span className="inline-flex items-center gap-1 border border-outline-soft bg-surface px-2 py-1 text-ink">
                 <Bookmark className="h-3.5 w-3.5 fill-ink" />
                 SAVED_ITEM
@@ -51,25 +51,25 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
               {item.tag && <span>{item.tag}</span>}
             </div>
 
-            <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">{item.title}</h1>
+            <h1 className="text-3xl font-extrabold leading-tight text-ink md:text-5xl">{item.title}</h1>
             {item.description && <p className="mt-5 text-base leading-8 text-muted">{item.description}</p>}
           </section>
 
           <section className="mt-4 border border-outline-soft bg-white p-5">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="border border-outline-soft bg-surface p-4">
-                <p className="text-xs font-bold uppercase text-muted">저장일</p>
+                <p className="text-[13px] font-medium text-muted">저장일</p>
                 <p className="mt-2 text-sm font-bold leading-6 text-ink">{savedAt}</p>
               </div>
               <div className="border border-outline-soft bg-surface p-4">
-                <p className="text-xs font-bold uppercase text-muted">다음 행동</p>
+                <p className="text-[13px] font-medium text-muted">다음 행동</p>
                 <p className="mt-2 text-sm font-bold leading-6 text-ink">원 콘텐츠를 열거나 프로젝트 후보로 이어보세요.</p>
               </div>
             </div>
           </section>
 
           <section className="mt-4 border border-outline-soft bg-white p-5">
-            <div className="mb-4 text-sm font-black uppercase text-ink">Actions</div>
+            <div className="mb-4 text-[15px] font-bold text-ink">할 수 있는 것</div>
             <div className="grid gap-3 sm:grid-cols-3">
               <Link href={contentHref} className="flex items-center justify-between gap-3 bg-ink p-3 text-sm font-bold text-white">
                 원 콘텐츠로 이동

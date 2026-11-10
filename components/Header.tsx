@@ -1,39 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { Search, Menu, X, UserCircle, TerminalSquare } from 'lucide-react';
-import type { FormEvent } from 'react';
-import { useEffect, useId, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ChevronDown, Menu, Search, Sprout, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const GUEST_NAV_LINKS = [
-  { name: '아티클', href: '/news' },
-  { name: '오픈소스', href: '/github-trends' },
-  { name: 'AI 제품', href: '/ai-products' },
-  { name: '트렌드', href: '/trends' },
-];
-
-const MEMBER_NAV_LINKS = [
-  { name: '트렌드', href: '/trends' },
-  { name: '아티클', href: '/news' },
-  { name: '오픈소스', href: '/github-trends' },
-  { name: '프로젝트', href: '/projects' },
-  { name: 'AI 제품', href: '/ai-products' },
+const PRIMARY_LINKS = [
+  { name: '기회', href: '/opportunities' },
+  { name: '오늘 읽을 것', href: '/news' },
   { name: '아이디어 평가', href: '/ideas' },
-  { name: '내 보관함', href: '/scrap' },
+  { name: '보관함', href: '/scrap' },
 ];
 
-export default function Header() {
+const MORE_LINKS = [
+  { name: '트렌드', href: '/trends' },
+  { name: '오픈소스', href: '/github-trends' },
+  { name: 'AI 제품', href: '/ai-products' },
+  { name: '프로젝트', href: '/projects' },
+];
+
+const pill = 'inline-flex min-h-9 items-center rounded-full px-3.5 text-sm transition-colors';
+
+export default function Header({ overlay = false }: { overlay?: boolean }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const desktopSearchId = useId();
-  const mobileSearchId = useId();
   const mobileMenuId = useId();
+  const moreMenuId = useId();
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -59,147 +56,117 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    if (!isMobileMenuOpen) return;
+    if (!isMobileMenuOpen && !isMoreOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+        setIsMoreOpen(false);
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!moreRef.current?.contains(event.target as Node)) setIsMoreOpen(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMobileMenuOpen]);
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isMobileMenuOpen, isMoreOpen]);
 
-  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = query.trim();
-    router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
-    setIsMobileMenuOpen(false);
-  };
-  const navLinks = isLoggedIn ? MEMBER_NAV_LINKS : GUEST_NAV_LINKS;
+  const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
+  const account = isLoggedIn ? { href: '/profile', label: '프로필' } : { href: '/login', label: '로그인' };
+  const position = overlay
+    ? 'pointer-events-none absolute inset-x-0 top-0 z-[60]'
+    : 'sticky top-0 z-50 border-b border-outline-soft bg-surface/90 backdrop-blur';
 
   return (
-    <header className="sticky top-0 z-50 border-b border-ink bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-[1480px] items-center justify-between px-4 md:px-10">
-        <div className="flex h-full items-center gap-7 lg:gap-9">
-          <Link href="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-ink">
-            <TerminalSquare className="h-5 w-5" />
-            Seedup
-          </Link>
-          
-          <nav className="hidden h-full items-center gap-5 lg:flex">
-            {navLinks.map((link) => {
-              const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
-              
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={`relative inline-flex h-full items-center px-1 text-xs font-bold uppercase transition-colors ${
-                    isActuallyActive ? 'text-ink' : 'text-muted hover:text-ink'
-                  }`}
-                >
-                  {link.name}
-                  {isActuallyActive && (
-                    <span className="absolute bottom-0 left-0 h-[2px] w-full bg-ink" />
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+    <header className={position}>
+      <div className="mx-auto flex min-h-16 w-full items-center justify-between gap-3 px-5 py-3 md:px-6 [&>*]:pointer-events-auto">
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-[19px] font-extrabold tracking-tight text-ink">
+          <Sprout className="h-[22px] w-[22px] text-hot" aria-hidden="true" />
+          Seedup
+        </Link>
 
-        <div className="hidden items-center gap-3 lg:flex">
-          <form onSubmit={handleSearch} className="relative">
-            <label htmlFor={desktopSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              id={desktopSearchId}
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="검색"
-              className="h-10 w-40 border border-outline-soft bg-white py-2 pl-9 pr-4 text-xs font-bold outline-none transition-all placeholder:text-muted/70 focus:w-52 focus:border-ink"
-            />
-          </form>
-          {isLoggedIn ? (
-            <>
-              {isAdmin && (
-                <Link href="/admin/ingest" className="inline-flex h-10 items-center border border-outline-soft px-4 text-xs font-bold uppercase text-ink transition-colors hover:border-ink">
-                  관리
-                </Link>
-              )}
-              <Link href="/profile" className="inline-flex h-10 items-center gap-2 bg-ink px-4 text-xs font-bold uppercase text-white transition-opacity hover:opacity-90">
-                <UserCircle className="h-4 w-4" />
-                프로필
-              </Link>
-            </>
-          ) : (
-            <Link href="/login" className="inline-flex h-10 items-center bg-ink px-4 text-xs font-bold uppercase text-white transition-opacity hover:opacity-90">
-              로그인
+        <nav className="hidden items-center gap-0.5 rounded-full bg-[rgba(255,255,255,.05)] p-1 shadow-[inset_0_0_0_1px_rgba(255,255,255,.09)] lg:flex" aria-label="주요 메뉴">
+          {PRIMARY_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={isActive(link.href) ? 'page' : undefined}
+              className={`${pill} ${isActive(link.href) ? 'bg-surface-high text-ink' : 'text-muted hover:text-ink'}`}
+            >
+              {link.name}
             </Link>
+          ))}
+          <div className="relative" ref={moreRef}>
+            <button
+              type="button"
+              className={`${pill} gap-1 text-muted hover:text-ink`}
+              aria-expanded={isMoreOpen}
+              aria-controls={moreMenuId}
+              onClick={() => setIsMoreOpen((open) => !open)}
+            >
+              더보기
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+            {isMoreOpen && (
+              <div id={moreMenuId} className="absolute right-0 top-full mt-2 flex w-40 flex-col gap-0.5 rounded-2xl border border-outline-soft bg-surface-lowest p-1.5 shadow-xl">
+                {MORE_LINKS.map((link) => (
+                  <Link key={link.href} href={link.href} onClick={() => setIsMoreOpen(false)} className="flex min-h-10 items-center rounded-xl px-3 text-sm text-muted hover:bg-surface-mid hover:text-ink">
+                    {link.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link href="/search" aria-label="검색" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-mid hover:text-ink">
+            <Search className="h-[18px] w-[18px]" aria-hidden="true" />
+          </Link>
+          {isAdmin && (
+            <Link href="/admin/ingest" className="inline-flex h-10 items-center rounded-full px-3 text-sm text-muted hover:text-ink">관리</Link>
           )}
+          <Link href={account.href} className="inline-flex h-10 items-center rounded-full bg-ink px-[18px] text-sm font-bold text-white transition-opacity hover:opacity-90">
+            {account.label}
+          </Link>
         </div>
 
-        <button 
+        <button
           type="button"
-          className="inline-flex h-11 w-11 items-center justify-center text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink lg:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full text-ink lg:hidden"
           aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
           aria-controls={mobileMenuId}
           aria-expanded={isMobileMenuOpen}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
-          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {isMobileMenuOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
         </button>
       </div>
 
       {isMobileMenuOpen && (
-        <div id={mobileMenuId} className="absolute left-0 top-14 flex max-h-[calc(100dvh-3.5rem)] w-full flex-col gap-4 overflow-y-auto border-b border-ink bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lg lg:hidden">
-          <form onSubmit={handleSearch} className="relative w-full">
-            <label htmlFor={mobileSearchId} className="sr-only">Seedup 콘텐츠 검색</label>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              id={mobileSearchId}
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="검색"
-              className="h-11 w-full border border-outline-soft bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-ink"
-            />
-          </form>
+        <div id={mobileMenuId} className="pointer-events-auto absolute inset-x-2 top-16 flex max-h-[calc(100dvh-5rem)] flex-col gap-1 overflow-y-auto rounded-3xl border border-outline-soft bg-surface-lowest p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] shadow-2xl lg:hidden">
           <nav className="flex flex-col gap-1" aria-label="모바일 주요 메뉴">
-            {navLinks.map((link) => {
-              const isActuallyActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
-              
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex min-h-11 items-center border p-3 text-sm font-bold ${
-                    isActuallyActive ? 'border-ink bg-ink text-white' : 'border-outline-soft text-muted'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              );
-            })}
-          </nav>
-          {isLoggedIn ? (
-            <>
-              {isAdmin && (
-                <Link href="/admin/ingest" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center border border-outline-soft py-2 text-center text-sm font-bold text-ink">
-                  관리
-                </Link>
-              )}
-              <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex min-h-11 w-full items-center justify-center bg-ink py-2 text-center text-sm font-bold text-white">
-                프로필
+            {[...PRIMARY_LINKS, ...MORE_LINKS, { name: '검색', href: '/search' }].map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive(link.href) ? 'page' : undefined}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex min-h-11 items-center rounded-2xl px-4 text-[15px] ${isActive(link.href) ? 'bg-surface-high font-bold text-ink' : 'text-muted'}`}
+              >
+                {link.name}
               </Link>
-            </>
-          ) : (
-            <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center bg-ink py-2 text-center text-sm font-bold text-white">
-              로그인
-            </Link>
-          )}
+            ))}
+            {isAdmin && <Link href="/admin/ingest" onClick={() => setIsMobileMenuOpen(false)} className="flex min-h-11 items-center rounded-2xl px-4 text-[15px] text-muted">관리</Link>}
+          </nav>
+          <Link href={account.href} onClick={() => setIsMobileMenuOpen(false)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-ink text-sm font-bold text-white">
+            {account.label}
+          </Link>
         </div>
       )}
     </header>

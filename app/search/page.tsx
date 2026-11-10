@@ -4,7 +4,8 @@ import Header from '@/components/Header';
 import { getAIProducts, getArticleFeedItems, getGitHubTrends, getProjectIdeas } from '@/lib/data';
 import { getContentHref } from '@/lib/content-targets';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowRight, Bot, FileText, Github, Lightbulb, Search } from 'lucide-react';
+import { getOpportunities } from '@/lib/opportunities/data';
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -12,11 +13,13 @@ export const metadata: Metadata = {
   title: '검색',
 };
 
+const EXAMPLES = ['MCP', '에이전트', 'RAG', 'CLI'];
+
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const params = await searchParams;
   const rawQuery = params.q?.trim() ?? '';
   const query = rawQuery.toLowerCase();
-  const [articles, repos, products, projects] = await Promise.all([getArticleFeedItems(), getGitHubTrends(), getAIProducts(), getProjectIdeas()]);
+  const [articles, repos, products, projects, { opportunities }] = await Promise.all([getArticleFeedItems(), getGitHubTrends(), getAIProducts(), getProjectIdeas(), getOpportunities()]);
   const articleResults = query
     ? articles.filter((item) => [item.title, item.summary, item.category, item.source, ...(item.related_skills ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 12)
     : [];
@@ -29,68 +32,61 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const productResults = query
     ? products.filter((product) => [product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? []), ...(product.topic_tags ?? []), ...(product.skill_tags ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 8)
     : [];
-  const totalResults = articleResults.length + repoResults.length + productResults.length + projectResults.length;
+  const opportunityResults = query
+    ? opportunities.filter((item) => [item.name, item.problem, item.gap, ...item.keywords].some((value) => value?.toLowerCase().includes(query))).slice(0, 6)
+    : [];
+  const totalResults = opportunityResults.length + articleResults.length + repoResults.length + productResults.length + projectResults.length;
 
   return (
     <>
       <Header />
       <main id="main-content" className="grow bg-surface">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
-          <section className="border border-outline-soft bg-white">
-            <div className="border-b border-outline-soft p-5 md:p-7">
-              <div className="mb-4 inline-flex items-center gap-2 border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-muted">
-                <Search className="h-4 w-4" />
-                콘텐츠 검색
-              </div>
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <h1 className="text-3xl font-black leading-tight text-ink sm:text-4xl md:text-5xl">무엇을 찾고 있나요?</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">Seedup에서 정리한 아티클, 오픈소스, AI 제품, 프로젝트 아이디어를 한 번에 찾아보세요.</p>
-                </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-muted">{rawQuery ? `${totalResults}개 결과` : '검색어를 입력하세요'}</p>
-              </div>
-            </div>
-
-            <form action="/search" className="flex gap-2 border-b border-outline-soft p-4 md:p-5">
-              <label htmlFor="search-page-query" className="sr-only">Seedup 콘텐츠 검색</label>
-              <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                <input id="search-page-query" name="q" defaultValue={rawQuery} placeholder="예: MCP, RAG, React, AI 에이전트" className="h-11 w-full border border-outline-soft bg-surface pl-10 pr-3 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-ink" />
-              </div>
-              <button type="submit" className="min-h-11 shrink-0 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90">검색</button>
+        <div className="page-shell page-stack max-w-[880px]">
+          <header>
+            <h1 className="page-intro-title">검색</h1>
+            <form action="/search" role="search" className="mt-6 flex h-14 items-center gap-3 rounded-full border border-outline-soft bg-white pl-5 pr-2 transition-colors focus-within:border-ink">
+              <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
+              <label htmlFor="search-page-query" className="sr-only">Seedup 검색</label>
+              <input id="search-page-query" name="q" defaultValue={rawQuery} placeholder="기회, 글, 저장소, 제품, 프로젝트" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-base text-ink placeholder:text-muted" style={{ outline: 'none' }} />
+              <button type="submit" className="btn shrink-0">찾기</button>
             </form>
-          </section>
+            {rawQuery
+              ? <p className="page-intro-meta">‘{rawQuery}’ 결과 <span className="num text-ink">{totalResults}</span>건</p>
+              : (
+                <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
+                  이런 말로 찾아보세요
+                  {EXAMPLES.map((example) => <Link key={example} href={`/search?q=${encodeURIComponent(example)}`} className="chip transition-colors hover:bg-outline-strong">{example}</Link>)}
+                </p>
+              )}
+          </header>
 
-          {!rawQuery ? (
-            <section className="mt-6 border border-dashed border-outline-soft bg-white p-8 md:p-12">
-              <p className="text-sm font-black text-ink">검색으로 다음 콘텐츠를 찾을 수 있습니다.</p>
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <SearchHint icon={<FileText className="h-4 w-4" />} label="아티클·논문" text="기술 흐름과 연구 내용을 찾아보세요." />
-                <SearchHint icon={<Github className="h-4 w-4" />} label="오픈소스" text="저장소 이름, 언어, 토픽으로 검색하세요." />
-                <SearchHint icon={<Bot className="h-4 w-4" />} label="AI 제품" text="제품명, 사용 사례와 기술로 검색하세요." />
-                <SearchHint icon={<Lightbulb className="h-4 w-4" />} label="프로젝트" text="만들어볼 아이디어와 기술 스택을 찾아보세요." />
-              </div>
-            </section>
-          ) : (
-            <div className="mt-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-              <ResultSection title="아티클·논문" count={articleResults.length} icon={<FileText className="h-4 w-4" />}>
+          {rawQuery && !totalResults && <p className="empty-state">찾는 말이 들어간 것이 없습니다. 더 짧은 말이나 영어 이름으로 찾아보세요.</p>}
+
+          {totalResults > 0 && (
+            <div className="flex flex-col gap-9">
+              <ResultSection title="기회" count={opportunityResults.length}>
+                {opportunityResults.map((item) => (
+                  <ResultRow key={item.slug} href={`/opportunities/${item.slug}`} label={`근거 ${item.evidence.length}건`} title={item.name} description={item.problem} />
+                ))}
+              </ResultSection>
+              <ResultSection title="글과 논문" count={articleResults.length}>
                 {articleResults.map((item) => (
-                  <ResultRow key={`${item.type}-${item.id}`} href={item.type === 'paper' ? `/papers/${item.id}` : `/news/${item.id}`} label={item.type === 'paper' ? '논문' : item.category ?? '아티클'} title={item.title} description={item.summary} />
+                  <ResultRow key={`${item.type}-${item.id}`} href={item.type === 'paper' ? `/papers/${item.id}` : `/news/${item.id}`} label={item.type === 'paper' ? '논문' : item.category ?? '글'} title={item.title} description={item.summary} />
                 ))}
               </ResultSection>
-              <ResultSection title="오픈소스" count={repoResults.length} icon={<Github className="h-4 w-4" />}>
+              <ResultSection title="오픈소스" count={repoResults.length}>
                 {repoResults.map((repo) => (
-                  <ResultRow key={repo.id} href={getContentHref('github', repo.id)} label={repo.language ?? 'Open Source'} title={repo.repo_full_name} description={repo.beginner_summary ?? repo.description} />
+                  <ResultRow key={repo.id} href={getContentHref('github', repo.id)} label={repo.language ?? ''} title={repo.repo_full_name} description={repo.beginner_summary ?? repo.description} />
                 ))}
               </ResultSection>
-              <ResultSection title="AI 제품" count={productResults.length} icon={<Bot className="h-4 w-4" />}>
+              <ResultSection title="AI 제품" count={productResults.length}>
                 {productResults.map((product) => (
-                  <ResultRow key={product.id} href={getContentHref('ai_product', product.id)} label={product.category ?? 'AI Product'} title={product.name} description={product.short_summary ?? product.description} />
+                  <ResultRow key={product.id} href={getContentHref('ai_product', product.id)} label={product.category ?? ''} title={product.name} description={product.short_summary ?? product.description} />
                 ))}
               </ResultSection>
-              <ResultSection title="프로젝트" count={projectResults.length} icon={<Lightbulb className="h-4 w-4" />}>
+              <ResultSection title="프로젝트" count={projectResults.length}>
                 {projectResults.map((project) => (
-                  <ResultRow key={project.id} href={getContentHref('project', project.id)} label={project.level ?? 'Project'} title={cleanProjectTitle(project.title)} description={project.description} />
+                  <ResultRow key={project.id} href={getContentHref('project', project.id)} label={project.level ?? ''} title={cleanProjectTitle(project.title)} description={project.description} />
                 ))}
               </ResultSection>
             </div>
@@ -102,31 +98,25 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   );
 }
 
-function SearchHint({ icon, label, text }: { icon: ReactNode; label: string; text: string }) {
-  return <div className="border border-outline-soft bg-surface p-4"><div className="flex items-center gap-2 text-sm font-black text-ink">{icon}{label}</div><p className="mt-2 text-xs leading-6 text-muted">{text}</p></div>;
-}
-
-function ResultSection({ title, count, icon, children }: { title: string; count: number; icon: ReactNode; children: ReactNode }) {
+// A group with nothing in it is left out, so the page is only as long as what was found.
+function ResultSection({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  if (!count) return null;
   return (
-    <section className="border border-outline-soft bg-white">
-      <div className="flex items-center justify-between border-b border-outline-soft px-4 py-4">
-        <h2 className="flex items-center gap-2 text-base font-black text-ink">{icon}{title}</h2>
-        <span className="text-xs font-bold text-muted">{count}개</span>
-      </div>
-      {count ? <div className="divide-y divide-outline-soft">{children}</div> : <div className="p-5 text-sm leading-6 text-muted">이 영역에는 검색 결과가 없습니다.</div>}
+    <section>
+      <h2 className="label">{title} <span className="num">{count}</span></h2>
+      <div className="mt-2 divide-y divide-outline-soft border-y border-outline-soft">{children}</div>
     </section>
   );
 }
 
 function ResultRow({ href, label, title, description }: { href: string; label: string; title: string; description?: string | null }) {
   return (
-    <Link href={href} className="group block p-4 transition-colors hover:bg-surface">
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{label}</span>
-        <ArrowRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-ink" />
-      </div>
-      <h3 className="mt-2 line-clamp-2 text-sm font-black leading-6 text-ink">{title}</h3>
-      {description && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{description}</p>}
+    <Link href={href} className="group flex items-baseline gap-4 py-4">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[17px] font-bold leading-snug text-ink group-hover:underline group-hover:underline-offset-4">{title}</span>
+        {description && <span className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{description}</span>}
+      </span>
+      {label && <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{label}</span>}
     </Link>
   );
 }

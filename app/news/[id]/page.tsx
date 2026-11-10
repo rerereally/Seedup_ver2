@@ -9,7 +9,7 @@ import RelatedPapersToggle from '@/components/RelatedPapersToggle';
 import ShareButton from '@/components/ShareButton';
 import { getExistingScrap, getNewsItem, getRelatedPapersForNews } from '@/lib/data';
 import ViewTracker from '@/components/ViewTracker';
-import { ArrowLeft, ArrowRight, ExternalLink, Lightbulb } from 'lucide-react';
+import { ArrowRight, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -66,129 +66,126 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
   const readingPoints = item.source === 'Seedup' && item.key_points?.length ? item.key_points : legacyReadingPoints;
   const evidenceLabel = item.article_evidence?.confidence === 'high' ? '근거 충분' : item.article_evidence?.confidence === 'medium' ? '근거 보통' : '근거 제한적';
 
+  const scopeGroups: Array<[string, string[] | null | undefined]> = [
+    ['한계와 주의점', item.technical_limitations],
+    ['현실적인 MVP 범위', item.mvp_scope],
+    ['이번에는 빼는 것', item.excluded_scope],
+    ['끝나는 기준', item.measurable_acceptance_criteria],
+  ];
+  const tags = [...new Set([...(item.skill_tags ?? []), ...(item.topic_tags ?? []), ...(item.intent_tags ?? [])])].slice(0, 6);
+  const meta = [item.category ?? '글', newsletterLabel, item.source ?? 'Seedup', publishedAt, item.difficulty].filter(Boolean);
+  const nextActions = [
+    { label: item.project_idea ? '이 아이디어 평가하기' : '아이디어로 바꿔 평가하기', href: `/ideas?idea=${encodeURIComponent(projectPrompt)}` },
+    { label: '관련 기회 살펴보기', href: '/opportunities' },
+    { label: item.category ? `${item.category} 글 더 읽기` : '글 더 읽기', href: categoryQuery },
+  ];
+
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
-          <Link href="/news" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
-            <ArrowLeft className="h-4 w-4" />
-            아티클 목록으로
-          </Link>
-          <div className="flex flex-col gap-7 lg:flex-row lg:items-start">
-            <div className="min-w-0 flex-1">
-              <div className="border border-outline-soft bg-white p-5 md:p-7">
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
-                  <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.category ?? 'ARTICLE'}</span>
-                  {newsletterLabel && <span className="border border-outline-soft bg-ink px-2 py-1 text-white">{newsletterLabel}</span>}
-                  {Number(item.newsletter_priority ?? 0) >= 40 && <span>우선순위 {Math.round(Number(item.newsletter_priority))}</span>}
-                  <span>{item.source ?? 'Seedup'}</span>
-                  {publishedAt && <span>{publishedAt}</span>}
-                  {item.difficulty && <span>{item.difficulty}</span>}
-                </div>
-                <h1 className="max-w-4xl text-3xl font-black leading-tight text-ink md:text-5xl">{item.title}</h1>
-                {summary && <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">{summary}</p>}
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {[...(item.skill_tags ?? []), ...(item.topic_tags ?? []), ...(item.intent_tags ?? [])].slice(0, 6).map((tag) => (
-                    <span key={tag} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{tag}</span>
+      <main id="main-content" className="page-shell grow">
+        <Link href="/news" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">←</span> 글 목록</Link>
+        <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <article className="min-w-0">
+            <p className="text-sm text-muted"><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
+            <h1 className="page-intro-title mt-3 md:text-[44px] md:leading-[1.14]">{item.title}</h1>
+            {summary && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{summary}</p>}
+            {tags.length > 0 && <div className="mt-5 flex flex-wrap gap-1.5">{tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}</div>}
+
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {externalUrl && (
+                <Link href={externalUrl} target="_blank" rel="noreferrer" className="btn">
+                  원문 보기
+                  <ExternalLink aria-hidden="true" className="h-4 w-4" />
+                </Link>
+              )}
+              <ScrapButton itemType="news" itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'news'} initialSaved={Boolean(existingScrap)} className="btn-quiet" />
+              <ShareButton title={item.title} url={externalUrl} />
+            </div>
+
+            {!!readingPoints.length && (
+              <section className="mt-10">
+                <h2 className="label">읽을 때 볼 것</h2>
+                <ol className="mt-1 divide-y divide-outline-soft">
+                  {readingPoints.map((point, index) => (
+                    <li key={String(point)} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
+                      <span className="num w-4 shrink-0 text-muted">{index + 1}</span>
+                      <p>{point}</p>
+                    </li>
                   ))}
-                </div>
+                </ol>
+              </section>
+            )}
+
+            {item.image_url && (
+              <div className="relative mt-8 h-56 overflow-hidden rounded-[20px] border border-outline-soft">
+                <Image src={item.image_url} alt="" fill sizes="820px" className="object-cover" />
               </div>
+            )}
 
-              <div className="mt-4 border border-outline-soft bg-white">
-                <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <ScrapButton itemType="news" itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'news'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
-                  {externalUrl && (
-                    <Link href={externalUrl} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
-                      <ExternalLink className="h-4 w-4" />
-                      원문
-                    </Link>
-                  )}
-                  <ShareButton title={item.title} url={externalUrl} />
-                </div>
-                <div className="p-3">
-                  <ViewTracker itemType="news" itemId={item.id} />
-                  <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
-                </div>
-              </div>
-
-              {!!readingPoints.length && (
-                <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="mb-4 text-sm font-black uppercase text-ink">Reading Points</div>
-                  <div className="grid gap-3">
-                    {readingPoints.map((point, index) => (
-                      <div key={String(point)} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
-                        <span className="font-black text-ink">#{index + 1}</span>
-                        <p>{point}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {item.source === 'Seedup' && (item.article_evidence || item.technical_limitations?.length || item.mvp_scope?.length || item.article_claims?.length) && (
-                <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-sm font-black uppercase text-ink">Evidence & Scope</h2>
-                      <p className="mt-1 text-xs leading-5 text-muted">수집 자료를 바탕으로 작성한 글의 근거 범위와 구현 제약입니다.</p>
-                    </div>
-                    {item.article_evidence && <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-ink">{evidenceLabel} · 출처 {item.article_evidence.source_count ?? 0}개</span>}
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    {!!item.technical_limitations?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">한계와 주의점</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.technical_limitations.slice(0, 3).map((value, index) => <li key={`limitation-${index}`}>- {value}</li>)}</ul></div>}
-                    {!!item.mvp_scope?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">현실적인 MVP 범위</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.mvp_scope.slice(0, 3).map((value, index) => <li key={`scope-${index}`}>- {value}</li>)}</ul></div>}
-                    {!!item.excluded_scope?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">이번 단계에서 제외</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.excluded_scope.slice(0, 3).map((value, index) => <li key={`excluded-${index}`}>- {value}</li>)}</ul></div>}
-                    {!!item.measurable_acceptance_criteria?.length && <div className="border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">완료 조건</p><ul className="mt-2 grid gap-1 text-xs leading-5 text-muted">{item.measurable_acceptance_criteria.slice(0, 3).map((value, index) => <li key={`acceptance-${index}`}>- {value}</li>)}</ul></div>}
-                  </div>
-                  {!!item.article_claims?.length && <div className="mt-3 border border-outline-soft bg-surface p-3"><p className="text-xs font-black text-ink">주장 구분</p><div className="mt-2 grid gap-2">{item.article_claims.slice(0, 3).map((claim, index) => <div key={`claim-${index}`} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-xs leading-5 text-muted"><span className="font-bold text-ink">{claim.evidence_type === 'source' ? '수집 근거' : claim.evidence_type === 'inference' ? '해석·제안' : '일반 해설'}</span><span>{claim.claim}</span></div>)}</div></div>}
-                </section>
-              )}
-
-              {item.image_url && (
-                <div className="relative my-5 h-56 overflow-hidden border border-outline-soft bg-ink text-white">
-                  <Image src={item.image_url} alt={item.title} fill sizes="980px" className="object-cover" />
-                </div>
-              )}
-
+            <div className="mt-8">
               {item.content ? (
                 <MarkdownContent content={item.content} />
               ) : (
-                <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                  <div className="mb-3 text-sm font-black uppercase text-ink">Preprocessed Briefing</div>
-                  <p className="text-sm leading-7 text-muted">
-                    이 항목은 RSS 수집 후 뉴스레터 추천용 메타데이터로 전처리된 상태입니다. 긴 Deep Dive 글이나 Build Idea 글은 관리자 콘솔의 통합 글 생성 단계에서 별도로 생성됩니다.
-                  </p>
-                  {summary && <p className="mt-4 border border-outline-soft bg-surface p-4 text-sm leading-7 text-ink">{summary}</p>}
-                </section>
+                <p className="empty-state">이 글은 아직 한국어 본문이 만들어지지 않았습니다. 위 요약과 원문을 먼저 봐 주세요.</p>
               )}
-
-              <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">
-                  <Lightbulb className="h-4 w-4" />
-                  Next Actions
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {[
-                    { label: item.project_idea ? '이 아이디어 평가하기' : '프로젝트 아이디어 만들기', href: `/ideas?idea=${encodeURIComponent(projectPrompt)}` },
-                    { label: item.related_skills?.[0] ? `${item.related_skills[0]} 프로젝트 보기` : '관련 프로젝트 보기', href: '/projects' },
-                    { label: item.category ? `${item.category} 더 읽기` : '아티클 더 보기', href: categoryQuery },
-                  ].map((action) => (
-                    <Link key={action.label} href={action.href} className="flex items-center justify-between gap-3 border border-outline-soft bg-surface p-3 text-sm font-bold text-ink hover:border-ink">
-                      {action.label}
-                      <ArrowRight className="h-4 w-4 shrink-0" />
-                    </Link>
-                  ))}
-                </div>
-              </section>
             </div>
 
-            <aside className="w-full lg:sticky lg:top-20 lg:w-80 lg:shrink-0 lg:self-start">
-              <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} />
-              <RelatedPapersToggle links={relatedPapers} />
-            </aside>
-          </div>
-        </article>
+            {item.source === 'Seedup' && (item.article_evidence || scopeGroups.some(([, values]) => values?.length) || item.article_claims?.length) && (
+              <section className="mt-10">
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <h2 className="text-xl font-extrabold tracking-tight text-ink">근거와 범위</h2>
+                  {item.article_evidence && <p className="text-[13px] text-muted">{evidenceLabel} · 출처 <span className="num text-ink">{item.article_evidence.source_count ?? 0}</span>개</p>}
+                </div>
+                <div className="mt-4 grid gap-x-10 gap-y-6 md:grid-cols-2">
+                  {scopeGroups.map(([title, values]) => values?.length ? (
+                    <div key={title}>
+                      <h3 className="label">{title}</h3>
+                      <ul className="mt-1 divide-y divide-outline-soft">{values.slice(0, 3).map((value, index) => <li key={`${title}-${index}`} className="py-2.5 text-sm leading-6 text-ink">{value}</li>)}</ul>
+                    </div>
+                  ) : null)}
+                </div>
+                {!!item.article_claims?.length && (
+                  <div className="mt-6">
+                    <h3 className="label">이 글의 주장은 어디서 왔나</h3>
+                    <ul className="mt-1 divide-y divide-outline-soft">
+                      {item.article_claims.slice(0, 3).map((claim, index) => (
+                        <li key={`claim-${index}`} className="flex gap-3 py-2.5 text-sm leading-6">
+                          <span className="w-20 shrink-0 text-muted">{claim.evidence_type === 'source' ? '수집한 근거' : claim.evidence_type === 'inference' ? '해석·제안' : '일반 해설'}</span>
+                          <span className="text-ink">{claim.claim}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="mt-10">
+              <h2 className="label">다음에 할 수 있는 것</h2>
+              <ul className="mt-1 divide-y divide-outline-soft border-b border-outline-soft">
+                {nextActions.map((action) => (
+                  <li key={action.label}>
+                    <Link href={action.href} className="group flex items-center justify-between gap-3 py-3.5 text-[15px] font-bold text-ink">
+                      <span className="group-hover:underline group-hover:underline-offset-4">{action.label}</span>
+                      <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <div className="mt-6">
+              <ViewTracker itemType="news" itemId={item.id} />
+              <ContentEngagement itemType="news" itemId={item.id} returnTo={`/news/${item.id}`} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
+            </div>
+          </article>
+
+          <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+            <ArticleAssistant title={item.title} summary={item.beginner_summary ?? item.summary} content={item.content} />
+            <RelatedPapersToggle links={relatedPapers} />
+          </aside>
+        </div>
       </main>
       <Footer />
     </>

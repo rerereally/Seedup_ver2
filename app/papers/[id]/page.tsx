@@ -88,13 +88,13 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
           <div className="flex flex-col gap-7 lg:flex-row lg:items-start">
             <div className="min-w-0 flex-1">
               <div className="border border-outline-soft bg-white p-5 md:p-7">
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
-                  <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{paper.review_type ?? 'PAPER'}</span>
-                  {paper.has_code && <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">CODE</span>}
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
+                  <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{paper.review_type ?? '논문'}</span>
+                  {paper.has_code && <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">코드 공개</span>}
                   {paper.difficulty && <span>{paper.difficulty}</span>}
                   {publishedAt && <span>{publishedAt}</span>}
                 </div>
-                <h1 className="text-3xl font-black leading-tight text-ink md:text-5xl">{paper.title}</h1>
+                <h1 className="text-3xl font-extrabold leading-tight text-ink md:text-5xl">{paper.title}</h1>
                 {heroSummary && <p className="mt-4 text-lg leading-8 text-muted">{heroSummary}</p>}
               </div>
 
@@ -122,12 +122,12 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </div>
 
               <section className="mt-5 border border-outline-soft bg-white p-5">
-                <div className="mb-4 text-sm font-black uppercase text-ink">Paper Signals</div>
+                <div className="mb-4 text-[15px] font-bold text-ink">논문 정보</div>
                 <div className="grid gap-3 sm:grid-cols-4">
                   {scoreCards.map(([label, value]) => (
                     <div key={label} className="border border-outline-soft bg-surface p-3">
-                      <p className="text-xs font-bold uppercase text-muted">{label}</p>
-                      <p className="mt-2 text-2xl font-black text-ink">{value}</p>
+                      <p className="text-[13px] font-medium text-muted">{label}</p>
+                      <p className="mt-2 text-2xl font-extrabold text-ink">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -135,11 +135,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               {!!readingPoints.length && (
                 <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="mb-4 text-sm font-black uppercase text-ink">Reading Points</div>
+                  <div className="mb-4 text-[15px] font-bold text-ink">읽을 때 볼 것</div>
                   <div className="grid gap-3">
                     {readingPoints.map((point, index) => (
                       <div key={String(point)} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
-                        <span className="font-black text-ink">#{index + 1}</span>
+                        <span className="font-extrabold text-ink">#{index + 1}</span>
                         <p>{point}</p>
                       </div>
                     ))}
@@ -151,11 +151,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               {!!paper.key_points?.length && (
                 <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                  <h2 className="mb-4 text-sm font-black uppercase text-ink">Key Points</h2>
+                  <h2 className="mb-4 text-[15px] font-bold text-ink">핵심 내용</h2>
                   <div className="grid gap-3">
                     {paper.key_points.map((point, index) => (
                       <div key={point} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
-                        <span className="font-black text-ink">#{index + 1}</span>
+                        <span className="font-extrabold text-ink">#{index + 1}</span>
                         <p>{point}</p>
                       </div>
                     ))}
@@ -164,7 +164,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               )}
 
               <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">
+                <div className="mb-4 flex items-center gap-2 text-[15px] font-bold text-ink">
                   <FlaskConical className="h-5 w-5" />
                   PAPER_INFO.TS
                 </div>
@@ -172,11 +172,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                   {[
                     ['추천 독자', paper.target_reader ?? 'AI/개발 트렌드를 공부하는 개발자'],
                     ['난이도', paper.difficulty ?? '-'],
-                    ['출처', paper.source ?? 'Research'],
+                    ['출처', paper.source ?? '연구'],
                     ['발행', publishedAt || '-'],
                   ].map(([label, value]) => (
                     <div key={label} className="flex items-start justify-between gap-4 border-t border-outline-soft py-3">
-                      <dt className="text-xs font-bold uppercase text-muted">{label}</dt>
+                      <dt className="text-[13px] font-medium text-muted">{label}</dt>
                       <dd className="max-w-xs text-right font-semibold leading-6 text-ink">{value}</dd>
                     </div>
                   ))}
@@ -184,7 +184,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
                 {!!paper.related_skills?.length && (
                   <div className="mt-2 border-t border-outline-soft pt-4">
-                    <h3 className="mb-3 text-xs font-black uppercase text-ink">연관 기술</h3>
+                    <h3 className="mb-3 text-[13px] font-bold text-ink">연관 기술</h3>
                     <div className="flex flex-wrap gap-2">
                       {paper.related_skills.map((skill) => (
                         <span key={skill} className="border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted">{skill}</span>
@@ -195,7 +195,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </section>
 
               <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-ink">
+                <div className="mb-4 flex items-center gap-2 text-[15px] font-bold text-ink">
                   <Lightbulb className="h-4 w-4" />
                   Next Actions
                 </div>
@@ -219,7 +219,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               {(paper.implementation_idea || paper.service_idea) && (
                 <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase text-ink">
+                  <div className="mb-3 flex items-center gap-2 text-[15px] font-bold text-ink">
                     <Lightbulb className="h-5 w-5" />
                     Build Direction
                   </div>

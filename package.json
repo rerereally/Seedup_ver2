@@ -9,13 +9,17 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "engine": "tsx --env-file=.env scripts/run-opportunity-engine.ts",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.16",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "lucide-react": "^0.553.0",
+    "matter-js": "^0.20.0",
     "next": "16.4.5",
     "postcss": "^8.5.12",
     "react": "^19.2.1",
@@ -24,12 +28,14 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",
+    "@types/matter-js": "^0.19.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "9.39.1",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "4.1.11",
+    "tsx": "^4.20.6",
     "typescript": "5.9.3",
     "wrangler": "^4.108.0"
   }

@@ -6,7 +6,8 @@ import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
-import { ArrowLeft, ArrowRight, FileText, Lightbulb, Newspaper } from 'lucide-react';
+import PageIntro from '@/components/PageIntro';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -28,10 +29,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
   daily_briefing: '핵심 뉴스',
   ai_product_radar: 'AI 제품',
-  github_project_pick: 'GitHub Pick',
-  build_idea: 'Build Idea',
-  career_tip: 'Career Tip',
-  deep_dive: 'Deep Dive',
+  github_project_pick: 'GitHub 추천',
+  build_idea: '만들어 볼 것',
+  career_tip: '커리어',
+  deep_dive: '깊이 읽기',
   paper_to_project: '논문→프로젝트',
 };
 
@@ -41,7 +42,7 @@ function formatDate(value: string | null) {
 }
 
 function categoryLabel(value: string | null) {
-  if (!value) return '아티클';
+  if (!value) return '글';
   return CATEGORY_LABELS[value] ?? value;
 }
 
@@ -91,67 +92,37 @@ function buildHref(params: { tab: string; page?: number; category?: string; q?: 
 
 function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string }) {
   const itemType = item.type === 'paper' ? 'paper' : 'news';
-  const recommendedFor = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
-  const trustLabel = item.published_at ? `수집 기준 ${formatDate(item.published_at)}` : item.source ? `출처 ${item.source}` : 'Seedup 검토';
-  const newsletterLabel = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : '브리핑 후보';
-  const scoreLabel = Number(item.newsletter_priority ?? 0) >= 40
-    ? `우선순위 ${Math.round(Number(item.newsletter_priority))}`
-    : Number(item.daily_rank_score ?? 0) >= 40
-      ? `랭킹 ${Math.round(Number(item.daily_rank_score))}`
-      : null;
+  const section = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
-  const reasons = item.recommendation_reasons?.length
-    ? item.recommendation_reasons
-    : item.personalization_hooks?.length
-      ? item.personalization_hooks
-      : item.project_convertible
-        ? ['프로젝트로 확장 가능']
-        : [];
+  const audience = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
+  const tags = [...new Set([...(item.skill_tags ?? []), ...(item.related_skills ?? []), ...(item.topic_tags ?? [])])].slice(0, 3);
+  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean);
 
   return (
-    <article className="group border border-outline-soft bg-white p-5 transition-colors hover:border-ink">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold uppercase text-muted">
-        <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category)}</span>
-        <span className="border border-outline-soft bg-ink px-2 py-1 text-white">{newsletterLabel}</span>
-        {scoreLabel && <span>{scoreLabel}</span>}
-        <span>{item.source ?? 'Seedup'}</span>
-        <span>{formatDate(item.published_at)}</span>
-      </div>
-      <Link href={itemHref(item)}>
-        <h3 className="line-clamp-2 text-xl font-black leading-snug text-ink transition-colors group-hover:underline">{item.title}</h3>
+    <article className="card flex flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
+      <p className="text-[13px] text-muted"><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
+      <Link href={itemHref(item)} className="mt-2.5 block">
+        <h3 className="line-clamp-2 text-[19px] font-bold leading-snug text-ink">{item.title}</h3>
       </Link>
-      {summary && (
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{summary}</p>
+      {summary && <p className="mt-2.5 line-clamp-3 text-[15px] leading-7 text-muted">{summary}</p>}
+      {item.why_it_matters && (
+        <p className="mt-4 line-clamp-2 border-l-2 border-outline-strong pl-3 text-sm leading-6 text-ink">
+          <span className="text-muted">왜 중요한가 · </span>{item.why_it_matters}
+        </p>
       )}
-      <div className="mt-4 grid gap-3 border border-outline-soft bg-surface p-4 text-sm leading-6">
-        <div>
-          <div className="text-xs font-bold uppercase text-ink">왜 중요한가</div>
-          <p className="mt-1 line-clamp-2 text-muted">{item.why_it_matters ?? '개발 흐름을 이해하고 다음 프로젝트 주제를 고르는 데 참고할 수 있습니다.'}</p>
+      {(tags.length > 0 || audience) && (
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          {tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}
+          {audience && <span className="text-[13px] text-muted">{tags.length > 0 ? '· ' : ''}{audience}</span>}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <div className="text-xs font-bold uppercase text-ink">추천 대상</div>
-            <p className="mt-1 line-clamp-1 text-muted">{recommendedFor || (item.type === 'paper' ? '논문을 프로젝트로 연결하고 싶은 개발자' : '트렌드를 빠르게 파악하고 싶은 개발자')}</p>
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase text-ink">추천 이유</div>
-            <p className="mt-1 line-clamp-1 text-muted">{reasons[0] ?? item.project_idea ?? '뉴스레터 추천 후보'}</p>
-          </div>
-        </div>
-      </div>
-      <div className="mt-5 flex flex-wrap gap-2">
-        {[...(item.skill_tags ?? []), ...(item.related_skills ?? []), ...(item.topic_tags ?? [])].slice(0, 3).map((skill) => (
-          <span key={skill} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-semibold text-muted">{skill}</span>
-        ))}
-        <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-semibold text-muted">{trustLabel}</span>
-      </div>
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-outline-soft pt-4">
+      )}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-5">
         <ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
         <div className="flex gap-2">
-          <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-xs font-bold text-ink hover:border-ink" />
-          <Link href={itemHref(item)} className="inline-flex h-10 items-center gap-1 bg-ink px-3 text-xs font-bold text-white transition-opacity hover:opacity-90">
+          <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />
+          <Link href={itemHref(item)} className="btn">
             읽기
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Link>
         </div>
       </div>
@@ -186,126 +157,86 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const paginatedArticles = sortedArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const currentHref = buildHref({ tab, page: currentPage, category: selectedCategory, q: params.q?.trim() });
 
+  const tabs = [
+    { key: 'new', label: '최신' },
+    { key: 'popular', label: '인기' },
+    { key: 'news', label: '뉴스·글' },
+    { key: 'paper', label: '논문' },
+  ];
+  const linkTo = (target: number) => buildHref({ tab, page: target, category: selectedCategory, q: params.q?.trim() });
+
   return (
     <>
       <Header />
       <main id="main-content" className="grow bg-surface">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-5 md:px-10 md:py-6">
-          <section className="border-b border-outline-soft pb-4">
-            <div className="inline-flex items-center gap-2 border border-outline-soft bg-white px-3 py-1 text-xs font-bold uppercase text-ink">
-              <Newspaper className="h-4 w-4" />
-              Article Feed
-            </div>
-            <h1 className="mt-4 text-3xl font-black leading-tight text-ink md:text-[38px]">오늘 읽을 기술 브리핑</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted md:text-base">
-              뉴스, 논문, 개발 흐름을 한국어로 압축해 읽고 바로 다음 판단으로 이어갈 수 있게 정리합니다.
-            </p>
-          </section>
+        <div className="page-shell page-stack">
+          <PageIntro
+            title="오늘 읽을 것"
+            description="뉴스와 논문을 한국어로 줄여 두었습니다. 읽고 나서 무엇을 만들지 정할 수 있게, 왜 중요한지를 함께 적습니다."
+            meta={articles.length ? <>글 <span className="num text-ink">{articles.length}</span>편</> : undefined}
+          />
 
           {featuredArticles.length > 0 && (
-            <section className="flex flex-col gap-5 lg:h-[520px] lg:flex-row">
-              <div className="min-w-0 flex-1">
-                <ArticleHeroCarousel items={featuredArticles} label="오늘 인기" />
-              </div>
-              <aside className="lg:w-72 lg:shrink-0">
-                <section className="flex h-full flex-col border border-outline-soft bg-white p-5">
-                  <h2 className="mb-3 flex shrink-0 items-center gap-2 text-sm font-black uppercase text-ink">
-                    <FileText className="h-4 w-4 text-ink" />
-                    이번 주 인기 글 Top 5
-                  </h2>
-                  <div className="grid min-h-0 flex-1 grid-rows-5 gap-2">
-                    {popularArticles.map((item, index) => (
-                      <Link key={item.id} href={itemHref(item)} className="group flex min-h-0 items-start gap-3 overflow-hidden border border-outline-soft bg-surface p-2.5 transition-colors hover:border-ink">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink text-xs font-black text-white">
-                          {index + 1}
-                        </span>
-                        <div className="min-w-0 overflow-hidden">
-                          <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-5 text-ink transition-colors group-hover:underline">{item.title}</h3>
-                          <p className="mt-0.5 text-xs text-muted">{item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category)}</p>
-                        </div>
+            <section className="grid gap-5 lg:h-[440px] lg:grid-cols-[minmax(0,1fr)_320px]">
+              <ArticleHeroCarousel items={featuredArticles} label="오늘 가장 많이 읽힌 글" />
+              <aside className="card flex min-h-0 flex-col p-5 md:p-6">
+                <h2 className="label">이번 주 많이 읽힌 글</h2>
+                <ol className="mt-1 flex min-h-0 flex-1 flex-col divide-y divide-outline-soft">
+                  {popularArticles.map((item, index) => (
+                    <li key={item.id} className="flex min-h-0 flex-1 items-center">
+                      <Link href={itemHref(item)} className="group flex w-full items-baseline gap-3 py-2">
+                        <span className="num w-4 shrink-0 text-sm text-muted">{index + 1}</span>
+                        <span className="line-clamp-2 min-w-0 text-sm font-bold leading-5 text-ink group-hover:underline group-hover:underline-offset-4">{item.title}</span>
                       </Link>
-                    ))}
-                  </div>
-                </section>
+                    </li>
+                  ))}
+                </ol>
               </aside>
             </section>
           )}
 
-          <section>
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4 border border-outline-soft bg-white p-4 md:flex-row md:items-center md:justify-between">
-                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar md:mx-0 md:px-0 md:pb-0">
-                  {[
-                    { key: 'new', label: 'New' },
-                    { key: 'popular', label: 'Popular' },
-                    { key: 'news', label: '뉴스/글' },
-                    { key: 'paper', label: '논문' },
-                  ].map((item) => (
-                    <Link
-                      key={item.key}
-                      href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })}
-                      scroll={false}
-                      className={`inline-flex h-11 shrink-0 items-center px-4 text-sm font-bold transition-colors ${tab === item.key ? 'bg-ink text-white' : 'bg-surface text-muted hover:text-ink'}`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-                <div className="self-start text-sm font-semibold text-muted md:self-auto">총 {sortedArticles.length}개 아티클</div>
+          <section className="flex flex-col gap-5">
+            <nav aria-label="글 분류" className="tabs self-start">
+              {tabs.map((item) => (
+                <Link key={item.key} href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })} scroll={false} aria-current={tab === item.key ? 'page' : undefined} className="tab">
+                  {item.label}
+                  {tab === item.key && <span className="num">{sortedArticles.length}</span>}
+                </Link>
+              ))}
+            </nav>
+
+            {paginatedArticles.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {paginatedArticles.map((item) => {
+                  const itemType = item.type === 'paper' ? 'paper' : 'news';
+                  return <ArticleCard key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} />;
+                })}
               </div>
+            ) : (
+              <EmptyState
+                title={articles.length ? '조건에 맞는 글이 없습니다' : '아직 정리된 글이 없습니다'}
+                description={articles.length ? '분류를 바꿔 보세요.' : '수집이 한 번 돌고 나면 여기에 한국어로 정리된 글이 올라옵니다.'}
+                actionHref={articles.length ? '/news' : '/opportunities'}
+                actionLabel={articles.length ? '전체 보기' : '기회부터 보기'}
+              />
+            )}
 
-              {paginatedArticles.length ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {paginatedArticles.map((item) => {
-                    const itemType = item.type === 'paper' ? 'paper' : 'news';
-
-                    return (
-                      <ArticleCard key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} />
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  title={articles.length ? '조건에 맞는 아티클이 없습니다' : '아직 수집된 아티클이 없습니다'}
-                  description={articles.length ? '필터를 바꿔보세요.' : '관리자 수집 콘솔에서 RSS/논문 수집을 실행하면 아티클이 표시됩니다.'}
-                  actionHref={articles.length ? '/news' : '/admin/ingest'}
-                  actionLabel={articles.length ? '필터 초기화' : '수집 콘솔 열기'}
-                />
-              )}
-
-              {sortedArticles.length > PAGE_SIZE && (
-                <nav className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                  <Link
-                    href={buildHref({ tab, page: Math.max(1, currentPage - 1), category: selectedCategory, q: params.q?.trim() })}
-                    className={`inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-sm font-semibold ${currentPage === 1 ? 'pointer-events-none opacity-40' : 'hover:border-ink hover:text-ink'}`}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    이전
-                  </Link>
-                  {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => {
-                    const pageNumber = index + 1;
-                    return (
-                      <Link
-                        key={pageNumber}
-                        href={buildHref({ tab, page: pageNumber, category: selectedCategory, q: params.q?.trim() })}
-                        className={`inline-flex h-10 w-10 items-center justify-center text-sm font-bold ${currentPage === pageNumber ? 'bg-ink text-white' : 'border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}
-                      >
-                        {pageNumber}
-                      </Link>
-                    );
-                  })}
-                  <Link
-                    href={buildHref({ tab, page: Math.min(totalPages, currentPage + 1), category: selectedCategory, q: params.q?.trim() })}
-                    className={`inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-sm font-semibold ${currentPage === totalPages ? 'pointer-events-none opacity-40' : 'hover:border-ink hover:text-ink'}`}
-                  >
-                    다음
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </nav>
-              )}
-            </div>
+            {sortedArticles.length > PAGE_SIZE && (
+              <nav aria-label="쪽 이동" className="pager pt-2">
+                <Link href={linkTo(Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>
+                  <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                  이전
+                </Link>
+                {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
+                  <Link key={index + 1} href={linkTo(index + 1)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+                ))}
+                <Link href={linkTo(Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>
+                  다음
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </Link>
+              </nav>
+            )}
           </section>
-
         </div>
       </main>
       <Footer />

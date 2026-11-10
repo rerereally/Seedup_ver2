@@ -41,19 +41,19 @@ export default function ContentEngagement({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-      <span className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold">
-        <Eye className="h-4 w-4" />
-        {counts.views}
+    <div className="flex items-center gap-1 text-sm text-muted">
+      <span className="num inline-flex h-10 items-center gap-1.5 pr-3">
+        <Eye aria-hidden="true" className="h-4 w-4" />
+        <span className="sr-only">조회 </span>{counts.views}
       </span>
-      <button type="button" disabled={pending} onClick={() => void react('like')} className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold hover:border-ink hover:text-ink disabled:opacity-50">
-          <ThumbsUp className="h-4 w-4" />
-          {counts.likes}
-        </button>
-      <button type="button" disabled={pending} onClick={() => void react('dislike')} className="inline-flex h-10 items-center gap-1 border border-outline-soft bg-white px-3 font-semibold hover:border-ink hover:text-ink disabled:opacity-50">
-          <ThumbsDown className="h-4 w-4" />
-          {counts.dislikes}
-        </button>
+      <button type="button" disabled={pending} onClick={() => void react('like')} aria-label={`도움이 됐어요 ${counts.likes}`} className="num inline-flex h-10 items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-surface-high hover:text-ink disabled:opacity-50">
+        <ThumbsUp aria-hidden="true" className="h-4 w-4" />
+        {counts.likes}
+      </button>
+      <button type="button" disabled={pending} onClick={() => void react('dislike')} aria-label={`별로예요 ${counts.dislikes}`} className="num inline-flex h-10 items-center gap-1.5 rounded-full px-3 transition-colors hover:bg-surface-high hover:text-ink disabled:opacity-50">
+        <ThumbsDown aria-hidden="true" className="h-4 w-4" />
+        {counts.dislikes}
+      </button>
     </div>
   );
 }

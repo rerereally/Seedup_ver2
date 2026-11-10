@@ -31,13 +31,13 @@ export function ProductRatingSummary({ productId, ratingAverage, ratingCount }: 
 
   return (
     <>
-      <div>
-        <p className="text-xs font-bold uppercase text-muted">평균 평점</p>
-        <div className="mt-2 flex items-center gap-3"><p className="text-3xl font-black text-ink">{state.count ? state.average.toFixed(1) : '-'}</p><Stars rating={state.average} /></div>
+      <div className="px-5 py-4">
+        <dt className="label">평균 평점</dt>
+        <dd className="mt-1 flex items-center gap-2.5"><span className="num text-[28px] font-semibold leading-tight text-ink">{state.count ? state.average.toFixed(1) : '–'}</span>{state.count > 0 && <Stars rating={state.average} />}</dd>
       </div>
-      <div>
-        <p className="text-xs font-bold uppercase text-muted">평가 참여</p>
-        <p className="mt-2 text-3xl font-black text-ink">{state.count}</p>
+      <div className="border-l border-outline-soft px-5 py-4">
+        <dt className="label">평가한 사람</dt>
+        <dd className="num mt-1 text-[28px] font-semibold leading-tight text-ink">{state.count}</dd>
       </div>
     </>
   );
@@ -67,14 +67,14 @@ export function AIProductRatingControl({ productId, isLoggedIn }: { productId: s
     }
   };
 
-  if (!isLoggedIn) return <Link href="/login" className="inline-flex h-11 items-center border border-outline-soft bg-ink px-4 text-sm font-bold text-white">로그인하고 평점 남기기</Link>;
+  if (!isLoggedIn) return <Link href="/login" className="btn-quiet">로그인하고 평점 남기기</Link>;
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        {[1, 2, 3, 4, 5].map((rating) => <button key={rating} type="button" disabled={pendingRating !== null} onClick={() => void submitRating(rating)} aria-pressed={selectedRating === rating} className={`inline-flex h-10 items-center gap-1 border px-3 text-sm font-bold transition-colors disabled:cursor-wait disabled:opacity-55 ${selectedRating === rating ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-ink hover:border-ink'}`}><Star className={`h-4 w-4 ${selectedRating === rating ? 'fill-white' : ''}`} />{pendingRating === rating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : rating}</button>)}
+        {[1, 2, 3, 4, 5].map((rating) => <button key={rating} type="button" disabled={pendingRating !== null} onClick={() => void submitRating(rating)} aria-pressed={selectedRating === rating} className={`num inline-flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors disabled:cursor-wait disabled:opacity-55 ${selectedRating === rating ? 'border-ink bg-ink text-white' : 'border-outline-soft text-ink hover:border-outline-strong'}`}><Star className={`h-4 w-4 ${selectedRating === rating ? 'fill-white' : ''}`} />{pendingRating === rating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : rating}</button>)}
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">한 제품에는 한 번의 평점만 저장되며, 다시 누르면 내 평점이 변경됩니다.</p>
+      <p className="mt-3 text-[13px] leading-5 text-muted">한 제품에 평점은 하나만 남습니다. 다시 누르면 바뀝니다.</p>
       {error && <p className="mt-2 text-xs font-semibold text-red-700">{error}</p>}
     </div>
   );

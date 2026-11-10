@@ -1,34 +1,29 @@
 import Link from 'next/link';
 
+const LINKS = [
+  { name: '기회', href: '/opportunities' },
+  { name: '오늘 읽을 것', href: '/news' },
+  { name: '트렌드', href: '/trends' },
+  { name: '오픈소스', href: '/github-trends' },
+  { name: '프로젝트', href: '/projects' },
+  { name: 'AI 제품', href: '/ai-products' },
+  { name: '아이디어 평가', href: '/ideas' },
+  { name: '보관함', href: '/scrap' },
+];
+
 export default function Footer() {
   return (
-    <footer className="mt-auto border-t border-ink bg-white py-10 text-ink">
-      <div className="mx-auto flex max-w-[1480px] flex-col gap-8 px-4 md:px-10">
-        <div className="flex flex-col items-start justify-between gap-5 md:flex-row md:items-center">
-          <div>
-            <Link href="/" className="text-2xl font-black tracking-tight text-ink">
-              Seedup
-            </Link>
-            <p className="mt-2 text-xs font-bold uppercase text-muted">
-              © 2026 Seedup System. Curating news into code.
-            </p>
-          </div>
-
-          <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-bold uppercase text-muted">
-            <Link href="/trends" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">트렌드</Link>
-            <Link href="/news" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">아티클</Link>
-            <Link href="/github-trends" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">오픈소스</Link>
-            <Link href="/projects" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">프로젝트</Link>
-            <Link href="/ai-products" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">AI 제품</Link>
-            <Link href="/ideas" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">아이디어 평가</Link>
-            <Link href="/scrap" className="inline-flex min-h-10 items-center transition-colors hover:text-ink">내 보관함</Link>
-          </nav>
+    <footer className="mt-auto border-t border-outline-soft py-10 text-ink">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-5 px-5 sm:px-6 md:flex-row md:items-center md:px-8">
+        <div>
+          <Link href="/" className="text-xl font-extrabold tracking-tight text-ink">Seedup</Link>
+          <p className="mt-1 text-sm text-muted">만들기 전에 사람들의 말부터.</p>
         </div>
-        <div className="grid gap-4 border-t border-outline-soft pt-6 text-xs font-bold uppercase text-muted md:grid-cols-3">
-          <div className="border border-outline-soft bg-surface p-3">System Status: Online</div>
-          <div className="border border-outline-soft bg-surface p-3">Deployment: Weekly Digest</div>
-          <div className="border border-outline-soft bg-surface p-3">Signal/Noise: High</div>
-        </div>
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted" aria-label="하단 메뉴">
+          {LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="inline-flex min-h-10 items-center transition-colors hover:text-ink">{link.name}</Link>
+          ))}
+        </nav>
       </div>
     </footer>
   );

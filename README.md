@@ -4,12 +4,15 @@ KNU_LLM BootCamp 8조
 - 김가남 : 오류 분석 및 테스트
 - 정지훈 : 개발 과정 전담
 
-Seedup은 개발자에게 필요한 최신 기술 신호를 모아, 읽을 만한 한국어 아티클과 프로젝트 아이디어로 연결하는 서비스입니다.
+Seedup은 개발자들이 실제로 남긴 불만을 원문과 대조해 모으고, 이미 있는 도구를 확인한 뒤 근거가 연결된 PRD까지 이어주는 서비스입니다. 최신 개발 소식도 함께 읽을 수 있습니다.
 
 뉴스와 기술 블로그, 논문, GitHub 저장소, AI 제품, 개발자 커뮤니티 데이터를 먼저 수집합니다. 수집한 원천 데이터는 전처리와 중복 제거를 거쳐 Supabase에 저장되고, 서로 관련 있는 자료를 묶은 뒤에만 아티클과 추천 콘텐츠를 생성합니다.
 
 ## 주요 기능
 
+- 입력한 아이디어에 실제 개발자 증언이 반응하는 인터랙티브 홈
+- 소스별 액터로 수집하고 인용문을 원문과 대조하는 기회 엔진
+- 담은 근거만 인용하는 PRD 생성과 AI 코딩 도구용 AGENTS.md 내보내기
 - RSS와 기술 블로그에서 개발 뉴스 수집
 - arXiv와 Hugging Face Papers에서 AI·개발 관련 논문 수집 및 한국어 리뷰 생성
 - Product Hunt에서 AI 제품 수집 및 제품 평가
@@ -141,9 +144,10 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 1. Supabase Dashboard에서 새 프로젝트를 만듭니다.
 2. SQL Editor에서 [supabase/schema.sql](supabase/schema.sql)의 전체 내용을 실행합니다.
-3. 필요하면 테스트 데이터는 `supabase/dummy.sql`로 넣고, 삭제할 때는 `supabase/delete_dummy.sql`을 사용합니다.
-4. Supabase의 `Authentication > Providers > Google`에서 Google 로그인을 켭니다.
-5. Google OAuth와 Supabase에 다음 콜백 주소를 등록합니다.
+3. 기회 엔진과 보관함을 쓰려면 이미 운영 중인 프로젝트에서는 [supabase/opportunities_2026_11.sql](supabase/opportunities_2026_11.sql)을 실행합니다. 새 프로젝트는 `schema.sql`에 포함되어 있습니다.
+4. 필요하면 테스트 데이터는 `supabase/dummy.sql`로 넣고, 삭제할 때는 `supabase/delete_dummy.sql`을 사용합니다.
+5. Supabase의 `Authentication > Providers > Google`에서 Google 로그인을 켭니다.
+6. Google OAuth와 Supabase에 다음 콜백 주소를 등록합니다.
 
 ```text
 http://localhost:3000/auth/callback
@@ -296,6 +300,26 @@ INGEST_RSS_SOURCES="OpenAI News|https://openai.com/news/rss.xml|en
 - 모델 인텔리전스: OpenRouter 공개 모델 목록과 벤치마크 필드
 
 YouTube API는 현재 사용하지 않습니다.
+
+## 기회 엔진
+
+개발자들이 공개적으로 남긴 불만에서 만들 만한 기회를 찾습니다. 전체 실행에 수십 분이 걸리므로 Worker가 아니라 로컬 또는 GitHub Actions에서 돌립니다.
+
+```bash
+npm run engine
+```
+
+`lib/opportunities/data/`의 스냅샷만 갱신합니다. DB 테이블이 비어 있으면 화면은 이 스냅샷을 사용합니다.
+
+```bash
+npm run engine -- --persist
+```
+
+Supabase에도 게시합니다. `.github/workflows/opportunity-engine.yml`이 매주 월요일 같은 작업을 실행합니다.
+
+수집은 소스별 액터로 나뉘어 있습니다(`lib/opportunities/actors.ts`). 액터마다 호출 간격, 재시도, 실행 결과를 따로 관리하므로 한 소스가 실패해도 나머지는 계속됩니다.
+
+인용문은 서버가 원문과 대조해 일치할 때만 남깁니다. 기준 통과는 서로 다른 게시글 3건 이상, 플랫폼 2종 이상입니다.
 
 ## 품질 기준
 
@@ -457,7 +481,9 @@ open-next.config.ts    OpenNext 설정
 ```bash
 npm run dev       # 개발 서버
 npm run lint      # ESLint 검사
-npx tsc --noEmit  # TypeScript 검사
+npm run typecheck # TypeScript 검사
+npm test          # 단위 테스트
+npm run engine    # 기회 엔진 실행
 npm run build     # 프로덕션 빌드
 npm run start     # 프로덕션 서버
 npm run preview   # Cloudflare 로컬 미리보기

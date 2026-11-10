@@ -38,7 +38,7 @@ export default function OnboardingModal({ userId, email }: { userId: string; ema
       <section className="relative z-10 flex max-h-[min(720px,calc(100dvh-40px))] w-full max-w-[560px] flex-col overflow-hidden rounded-xl border border-outline-soft bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-outline-soft bg-white p-5">
           <div>
-            <div className="mb-2 inline-flex rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">Onboarding</div>
+            <div className="mb-2 inline-flex rounded-full bg-brand-primary/10 px-3 py-1 text-xs font-bold text-brand-primary">처음 설정</div>
             <h1 className="text-xl font-bold text-ink">맞춤 추천 설정</h1>
             <p className="mt-1 text-sm leading-6 text-muted">5문항으로 관심 분야와 목표에 맞는 콘텐츠 흐름을 맞춰드릴게요.</p>
           </div>

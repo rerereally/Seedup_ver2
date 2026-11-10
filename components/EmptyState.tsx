@@ -12,11 +12,11 @@ export default function EmptyState({
   actionLabel?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-outline-soft bg-white p-10 text-center">
-      <h2 className="text-xl font-semibold text-ink">{title}</h2>
-      <p className="mx-auto mt-3 max-w-xl leading-7 text-muted">{description}</p>
+    <div className="empty-state">
+      <h2 className="text-xl font-extrabold text-ink">{title}</h2>
+      <p className="mx-auto mt-2 max-w-[32em] leading-7 text-muted">{description}</p>
       {actionHref && actionLabel && (
-        <Link href={actionHref} className="mt-6 inline-flex rounded-lg bg-brand-primary px-5 py-3 text-sm font-semibold text-white">
+        <Link href={actionHref} className="mt-6 inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90">
           {actionLabel}
         </Link>
       )}

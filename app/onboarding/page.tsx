@@ -36,7 +36,7 @@ export default async function OnboardingPage() {
           <Link href="/" className="text-2xl font-bold tracking-tight text-brand-primary">
             Seedup
           </Link>
-          <span className="rounded-full border border-outline-soft bg-white px-3 py-1 text-xs font-semibold text-muted">Onboarding</span>
+          <span className="rounded-full border border-outline-soft bg-white px-3 py-1 text-xs font-semibold text-muted">처음 설정</span>
         </div>
 
         <section className="mb-6 border border-outline-soft bg-white p-5 sm:mb-8 sm:p-6 md:p-8">

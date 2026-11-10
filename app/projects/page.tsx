@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowRight, Calendar, CheckCircle2, Code2, Filter, TerminalSquare, TrendingUp } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -47,33 +47,22 @@ export default async function Projects({ searchParams }: { searchParams: Promise
       <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
-            eyebrow="Projects"
-            title="오늘 시작할 수 있는 실전 프로젝트"
-            description="뉴스, 논문, 오픈소스에서 나온 신호를 작게 배포 가능한 프로젝트로 바꿔 정리했습니다. 난이도와 기간을 보고 바로 고르세요."
-            icon={TerminalSquare}
+            title="만들어 볼 프로젝트"
+            description="뉴스, 논문, 오픈소스에서 본 것을 작게 배포할 수 있는 크기로 줄였습니다. 난이도와 기간을 보고 고르세요."
+            meta={projects.length ? <>프로젝트 <span className="num text-ink">{projects.length}</span>개 · 초급 <span className="num text-ink">{beginnerProjects}</span>개</> : undefined}
           />
 
-          <section className="border border-outline-soft bg-white p-4 md:p-5">
-            <div className="mb-4 flex flex-col gap-3 border-b border-outline-soft pb-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2 text-sm font-black uppercase text-ink">
-                <Filter className="h-4 w-4" />
-                build_filter
-              </div>
-              <div className="text-xs font-bold uppercase text-muted">
-                {filteredProjects.length} results / {beginnerProjects} beginner friendly
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((filter) => (
-                <Link key={filter} href={buildHref(filter)} className={`inline-flex h-10 items-center border px-3 text-sm font-bold transition-colors ${activeFilter === filter ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-surface text-muted hover:border-ink hover:text-ink'}`}>
-                  {filter}
-                </Link>
-              ))}
-            </div>
-          </section>
+          {projects.length > 0 && <nav aria-label="프로젝트 조건" className="tabs self-start">
+            {FILTERS.map((filter) => (
+              <Link key={filter} href={buildHref(filter)} aria-current={activeFilter === filter ? 'page' : undefined} className="tab">
+                {filter}
+                {activeFilter === filter && <span className="num">{filteredProjects.length}</span>}
+              </Link>
+            ))}
+          </nav>}
 
           {!filteredProjects.length ? (
-            <EmptyState title={projects.length ? '조건에 맞는 프로젝트가 없습니다' : '아직 등록된 프로젝트가 없습니다'} description={projects.length ? '필터를 바꾸거나 전체 프로젝트를 확인해보세요.' : 'Supabase의 project_ideas 테이블에 데이터를 넣으면 프로젝트 카드가 자동으로 표시됩니다.'} />
+            <EmptyState title={projects.length ? '조건에 맞는 프로젝트가 없습니다' : '아직 정리된 프로젝트가 없습니다'} description={projects.length ? '조건을 바꾸거나 전체를 확인해 보세요.' : '수집이 한 번 돌고 나면 여기에 프로젝트가 올라옵니다.'} />
           ) : (
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {paginatedProjects.map((project) => {
@@ -84,75 +73,44 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                   : (project.plan ?? []).slice(0, 3);
                 const durationLabel = project.duration_estimate?.minimum_days && project.duration_estimate.maximum_days
                   ? `${project.duration_estimate.minimum_days}~${project.duration_estimate.maximum_days}일`
-                  : project.duration_days ? `${project.duration_days}일` : '기간 미정';
+                  : project.duration_days ? `${project.duration_days}일` : null;
+                const meta = [project.level, durationLabel, project.related_trend].filter(Boolean);
 
                 return (
-                  <article key={project.id} className="group flex min-h-96 flex-col border border-outline-soft bg-white transition-colors hover:border-ink">
-                    <div className="border-b border-outline-soft p-5">
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex h-7 items-center border border-ink bg-ink px-2 text-xs font-black uppercase text-white">{project.level ?? '추천'}</span>
-                          {durationLabel && (
-                            <span className="inline-flex h-7 items-center gap-1 border border-outline-soft bg-surface px-2 text-xs font-bold text-muted">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {durationLabel}
-                            </span>
-                          )}
-                        </div>
-                        <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={isScrapped} iconOnly className="inline-flex h-10 w-10 items-center justify-center border border-outline-soft bg-white text-ink transition-colors hover:border-ink" />
-                      </div>
-                      <Link href={`/projects/${project.id}`} className="block">
-                        <h2 className="line-clamp-2 text-2xl font-black leading-tight text-ink group-hover:underline">{displayTitle}</h2>
-                      </Link>
-                      {project.description && <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted">{project.description}</p>}
+                  <article key={project.id} className="card flex flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 pt-2.5 text-[13px] text-muted">{meta.length ? <><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</> : '프로젝트'}</p>
+                      <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={isScrapped} iconOnly className="-mr-2 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-high hover:text-ink" />
                     </div>
+                    <Link href={`/projects/${project.id}`} className="mt-1 block">
+                      <h2 className="line-clamp-2 text-xl font-bold leading-snug text-ink">{displayTitle}</h2>
+                    </Link>
+                    {project.description && <p className="mt-2.5 line-clamp-3 text-[15px] leading-7 text-muted">{project.description}</p>}
 
-                    <div className="grid grid-cols-2 border-b border-outline-soft">
-                      <div className="border-r border-outline-soft p-4">
-                        <div className="text-xs font-bold uppercase text-muted">output</div>
-                        <p className="mt-1 line-clamp-2 text-sm font-bold leading-5 text-ink">{project.portfolio_value ?? '배포 가능한 MVP와 README'}</p>
-                      </div>
-                      <div className="p-4">
-                        <div className="text-xs font-bold uppercase text-muted">target</div>
-                        <p className="mt-1 text-sm font-bold text-ink">{project.level ?? '초급'} 개발자</p>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 p-5">
-                      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase text-muted">
-                        <CheckCircle2 className="h-4 w-4" />
-                        first_steps
-                      </div>
-                      <div className="space-y-2">
-                        {(planPreview.length ? planPreview : ['문제 정의와 핵심 화면 정리', '데이터 구조 설계', 'MVP 기능 구현']).map((step, index) => (
-                          <div key={`${project.id}-${step}`} className="grid grid-cols-[2rem_1fr] gap-2 text-sm leading-6">
-                            <span className="font-black text-ink">{index + 1}</span>
-                            <span className="line-clamp-1 text-muted">{step}</span>
-                          </div>
-                        ))}
-                      </div>
-
+                    {planPreview.length > 0 && (
                       <div className="mt-5">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-muted">
-                          <Code2 className="h-4 w-4" />
-                          stack
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {(project.stack?.length ? project.stack : ['Next.js', 'Supabase']).slice(0, 5).map((tech, techIndex) => (
-                            <span key={`${project.id}-${tech}-${techIndex}`} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{tech}</span>
+                        <h3 className="label">처음 세 단계</h3>
+                        <ol className="mt-1 divide-y divide-outline-soft">
+                          {planPreview.map((step, index) => (
+                            <li key={`${project.id}-${step}-${index}`} className="flex gap-3 py-2 text-sm leading-6">
+                              <span className="num w-4 shrink-0 text-muted">{index + 1}</span>
+                              <span className="line-clamp-1 text-ink">{step}</span>
+                            </li>
                           ))}
-                        </div>
+                        </ol>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center justify-between gap-3 border-t border-outline-soft p-4">
-                      <span className="inline-flex min-w-0 items-center gap-1 text-xs font-bold uppercase text-muted">
-                        <TrendingUp className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{project.related_trend ?? 'trend signal'}</span>
-                      </span>
-                      <Link href={`/projects/${project.id}`} className="inline-flex h-10 shrink-0 items-center gap-1 bg-ink px-3 text-sm font-bold text-white transition-opacity hover:opacity-90">
-                        플랜 보기
-                        <ArrowRight className="h-4 w-4" />
+                    {!!project.stack?.length && (
+                      <div className="mt-4 flex flex-wrap gap-1.5">
+                        {project.stack.slice(0, 5).map((tech, techIndex) => <span key={`${project.id}-${tech}-${techIndex}`} className="chip">{tech}</span>)}
+                      </div>
+                    )}
+
+                    <div className="mt-auto pt-5">
+                      <Link href={`/projects/${project.id}`} className="btn-quiet">
+                        계획 보기
+                        <ArrowRight aria-hidden="true" className="h-4 w-4" />
                       </Link>
                     </div>
                   </article>
@@ -162,21 +120,12 @@ export default async function Projects({ searchParams }: { searchParams: Promise
           )}
 
           {filteredProjects.length > PAGE_SIZE && (
-            <nav className="flex justify-center gap-2">
-              <Link href={buildHref(activeFilter, Math.max(1, currentPage - 1))} className={`inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-sm font-bold ${currentPage === 1 ? 'pointer-events-none opacity-40' : 'hover:border-ink hover:text-ink'}`}>
-                이전
-              </Link>
-              {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => {
-                const pageNumber = index + 1;
-                return (
-                  <Link key={pageNumber} href={buildHref(activeFilter, pageNumber)} className={`inline-flex h-10 w-10 items-center justify-center text-sm font-bold ${currentPage === pageNumber ? 'bg-ink text-white' : 'border border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}>
-                    {pageNumber}
-                  </Link>
-                );
-              })}
-              <Link href={buildHref(activeFilter, Math.min(totalPages, currentPage + 1))} className={`inline-flex h-10 items-center gap-1 border border-outline-soft px-3 text-sm font-bold ${currentPage === totalPages ? 'pointer-events-none opacity-40' : 'hover:border-ink hover:text-ink'}`}>
-                다음
-              </Link>
+            <nav aria-label="쪽 이동" className="pager">
+              <Link href={buildHref(activeFilter, Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>이전</Link>
+              {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
+                <Link key={index + 1} href={buildHref(activeFilter, index + 1)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+              ))}
+              <Link href={buildHref(activeFilter, Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>다음</Link>
             </nav>
           )}
         </div>

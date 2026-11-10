@@ -1,7 +1,7 @@
 'use client';
 
 import type { ArticleFeedItem } from '@/lib/data';
-import { ArrowRight, Newspaper } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -14,7 +14,7 @@ function itemHref(item: ArticleFeedItem) {
   return item.type === 'paper' ? `/papers/${item.id}` : `/news/${item.id}`;
 }
 
-export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }: { items: ArticleFeedItem[]; label?: string }) {
+export default function ArticleHeroCarousel({ items, label = '추천 글' }: { items: ArticleFeedItem[]; label?: string }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const active = items[activeIndex];
 
@@ -28,52 +28,39 @@ export default function ArticleHeroCarousel({ items, label = 'Featured Brief' }:
 
   if (!active) return null;
 
+  const kind = active.type === 'paper' ? '논문 리뷰' : active.source === 'Seedup' ? 'Seedup 편집' : '원문 브리핑';
+
   return (
-    <section className="flex h-full flex-col overflow-hidden border border-outline-soft bg-white">
-      <div className="min-h-0 flex-1 border-b border-outline-soft p-5 md:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
-            <Newspaper className="h-4 w-4" />
-            {label}
-          </div>
-          <span className="text-xs font-bold uppercase text-muted">{active.type === 'paper' ? 'PAPER' : active.category ?? 'ARTICLE'}</span>
-        </div>
-        <Link href={itemHref(active)} className="mt-5 block">
-          <h2 className="line-clamp-3 text-2xl font-black leading-tight text-ink sm:text-3xl md:text-4xl">{active.title}</h2>
+    <section className="card flex h-full flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 p-6 md:p-8">
+        <p className="label">{label}</p>
+        <Link href={itemHref(active)} className="mt-4 block">
+          <h2 className="line-clamp-3 text-2xl font-extrabold leading-[1.2] tracking-tight text-ink sm:text-3xl md:text-[34px]" style={{ textWrap: 'balance' }}>{active.title}</h2>
           {(active.summary ?? active.beginner_summary) && (
-            <p className="mt-4 line-clamp-4 max-w-3xl text-base leading-7 text-muted">{active.summary ?? active.beginner_summary}</p>
+            <p className="mt-4 line-clamp-4 max-w-[40em] text-base leading-7 text-muted">{active.summary ?? active.beginner_summary}</p>
           )}
         </Link>
+        <p className="mt-5 text-[13px] text-muted">{[active.source ?? 'Seedup', formatDate(active.published_at), kind].filter(Boolean).join(' · ')}</p>
       </div>
 
-      <div className="grid shrink-0 gap-0 border-b border-outline-soft md:grid-cols-3">
-        {[
-          [active.source ?? 'Seedup', 'source'],
-          [formatDate(active.published_at) || '-', 'collected'],
-          [active.type === 'paper' ? '논문 리뷰' : active.source === 'Seedup' ? 'Seedup 편집' : '원문 브리핑', 'format'],
-        ].map(([value, label]) => (
-          <div key={label} className="border-b border-outline-soft p-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-            <p className="truncate text-xl font-black text-ink">{value}</p>
-            <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 p-5 md:p-6">
-        <div className="flex gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-outline-soft px-6 py-4 md:px-8">
+        <div className="flex items-center gap-1.5">
           {items.map((item, index) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setActiveIndex(index)}
-              className={`h-2 transition-all ${index === activeIndex ? 'w-8 bg-ink' : 'w-2 bg-surface-high'}`}
-              aria-label={`추천 아티클 ${index + 1}`}
-            />
+              aria-label={`추천 글 ${index + 1}`}
+              aria-current={index === activeIndex}
+              className="flex h-6 min-h-0 min-w-0 items-center"
+            >
+              <span className={`block h-1.5 rounded-full transition-all ${index === activeIndex ? 'w-7 bg-ink' : 'w-1.5 bg-surface-high'}`} />
+            </button>
           ))}
         </div>
-        <Link href={itemHref(active)} className="inline-flex min-h-11 items-center gap-2 bg-ink px-4 text-sm font-bold text-white">
+        <Link href={itemHref(active)} className="btn">
           읽기
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       </div>
     </section>

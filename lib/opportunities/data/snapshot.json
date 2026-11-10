@@ -1,0 +1,1500 @@
+{
+ "generatedAt": "2026-11-10T01:47:48.183Z",
+ "stats": {
+  "collected": 332,
+  "sampled": 332,
+  "batchesOk": 20,
+  "batchesTotal": 42,
+  "painsVerified": 19,
+  "quotesRejected": 6,
+  "candidates": 14,
+  "qualified": 3,
+  "llmCalls": 259,
+  "llmFailures": 169,
+  "supplyCoverage": [
+   "github",
+   "npm",
+   "show_hn",
+   "vscode"
+  ],
+  "actors": [
+   {
+    "id": "devto-discussions",
+    "status": "ok",
+    "items": 20,
+    "errors": 0,
+    "durationMs": 1048
+   },
+   {
+    "id": "lobsters-ask",
+    "status": "ok",
+    "items": 4,
+    "errors": 0,
+    "durationMs": 2849
+   },
+   {
+    "id": "hn-pain-comments",
+    "status": "ok",
+    "items": 31,
+    "errors": 0,
+    "durationMs": 4822
+   },
+   {
+    "id": "hn-ask",
+    "status": "ok",
+    "items": 68,
+    "errors": 0,
+    "durationMs": 5298
+   },
+   {
+    "id": "stackoverflow-unanswered",
+    "status": "ok",
+    "items": 75,
+    "errors": 0,
+    "durationMs": 9307
+   },
+   {
+    "id": "github-feature-requests",
+    "status": "ok",
+    "items": 134,
+    "errors": 0,
+    "durationMs": 3004805
+   }
+  ]
+ },
+ "opportunities": [
+  {
+   "slug": "agentic-coding-autonomy",
+   "name": "에이전트 코딩 가드",
+   "problem": "LLM 에이전트가 SSH와 데이터베이스에 접근할 때 매번 수동 확인 없이 정책 기반 자율 제어가 필요하다.",
+   "gap": "기존 제품은 LLM 에이전트가 SSH 및 데이터베이스에 접근할 때 매 명령을 수동으로 검토하지 않으면서도 정책 기반 자율성을 보장하고 개발자의 몰입(flow)을 유지하는 기능을 제공하지 않는다.",
+   "keywords": [
+    "agentic coding",
+    "llm agent",
+    "ssh access",
+    "database access",
+    "policy based",
+    "autonomy",
+    "코딩 에이전트",
+    "자율성",
+    "보안 정책",
+    "확인 피로",
+    "safe autonomy",
+    "developer flow"
+   ],
+   "status": "open",
+   "qualified": true,
+   "platforms": [
+    "github",
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_81163db4b705365c",
+     "platform": "github",
+     "quote": "Told to reboot a server, it destroyed systemd, destroyed containers, ran random scripts, cost me $10,000+",
+     "quoteKo": "서버 재부팅을 지시했더니 systemd를 파괴하고, 컨테이너를 파괴하고, 무작위 스크립트를 실행해서 1만 달러 이상의 손해를 봤습니다.",
+     "url": "https://github.com/openai/codex/issues/59060",
+     "score": 3491,
+     "postedAt": "2026-11-03T04:46:15Z"
+    },
+    {
+     "id": "ev_19dcbec5161f1fd5",
+     "platform": "hn",
+     "quote": "I wish I could give the agent some more autonomy.",
+     "quoteKo": "에이전트에게 더 많은 자율성을 부여할 수 있으면 좋겠어요.",
+     "url": "https://news.ycombinator.com/item?id=46620990",
+     "score": 190,
+     "postedAt": "2026-01-14T19:06:23Z"
+    },
+    {
+     "id": "ev_3780a6021c932d56",
+     "platform": "hn",
+     "quote": "Those very small wait times do not let me reach a concentration state.",
+     "quoteKo": "아주 짧은 대기 시간 때문에 집중 상태에 도달할 수 없어요.",
+     "url": "https://news.ycombinator.com/item?id=47356614",
+     "score": 24,
+     "postedAt": "2026-03-12T20:29:48Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "Cline",
+     "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of t",
+     "popularity": 5886544,
+     "url": "https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev",
+     "createdAt": "2024-07-10T11:28:18.653+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Blackbox Agent - Coding Copilot",
+     "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of t",
+     "popularity": 2933597,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Blackboxapp.blackboxagent",
+     "createdAt": "2024-11-21T14:45:19.757+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "earendil-works/pi",
+     "description": "AI agent toolkit: unified LLM API, agent loop, TUI, coding agent CLI",
+     "popularity": 121081,
+     "url": "https://github.com/earendil-works/pi",
+     "createdAt": "2025-08-09T14:03:50Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Plandex v2 – open source AI coding agent for large projects and tasks",
+     "description": "",
+     "popularity": 257,
+     "url": "https://news.ycombinator.com/item?id=43710576",
+     "createdAt": "2025-04-16T21:26:42Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Yolobox – Run AI coding agents with full sudo without nuking home dir",
+     "description": "",
+     "popularity": 122,
+     "url": "https://news.ycombinator.com/item?id=46592344",
+     "createdAt": "2026-01-12T18:34:02Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: CyberCage – Security platform for AI tools and MCP servers",
+     "description": "",
+     "popularity": 6,
+     "url": "https://news.ycombinator.com/item?id=46235072",
+     "createdAt": "2025-12-11T18:29:15Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Golf Scanner – OSS tool to find and audit every MCP server",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47296417",
+     "createdAt": "2026-03-08T11:16:35Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@explyt/ai-agent",
+     "description": "Explyt AI Agent: a terminal AI coding agent",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@explyt/ai-agent",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-01-14T19:06:23Z",
+   "followersAfterSignal": 1
+  },
+  {
+   "slug": "unified-llm-interface",
+   "name": "통합 LLM 인터페이스",
+   "problem": "개발자가 여러 LLM 모델 간에 쉽게 전환하고 통합할 수 있는 범용 AI 인터페이스가 부족합니다.",
+   "gap": "기존 제품들은 SDK, VS Code 확장, 자체 호스팅 게이트웨이 등 플랫폼별로 분산되어 있어 모든 개발 환경에서 통일된 단일 인터페이스를 제공하지 못한다.",
+   "keywords": [
+    "llm",
+    "ai gateway",
+    "model router",
+    "bedrock",
+    "통합",
+    "연동",
+    "인터페이스",
+    "하네스",
+    "orchestrator",
+    "agnostic",
+    "멀티모델",
+    "api"
+   ],
+   "status": "closed",
+   "qualified": true,
+   "platforms": [
+    "github",
+    "hn",
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_c9463c0d82dd3933",
+     "platform": "github",
+     "quote": "users currently need to manually list all available models in their `opencode.json` configuration.",
+     "quoteKo": "현재 사용자는 `opencode.json` 구성에서 사용 가능한 모든 모델을 수동으로 나열해야 합니다.",
+     "url": "https://github.com/anomalyco/opencode/issues/6231",
+     "score": 263,
+     "postedAt": "2025-12-27T03:52:26Z"
+    },
+    {
+     "id": "ev_ffce47e877ef75f4",
+     "platform": "hn",
+     "quote": "I need my harness to be agnostic.",
+     "quoteKo": "내 하네스는 특정 기술에 구애받지 않아야 합니다.",
+     "url": "https://news.ycombinator.com/item?id=48821642",
+     "score": 20,
+     "postedAt": "2026-07-07T18:28:53Z"
+    },
+    {
+     "id": "ev_90cfab0564e210c8",
+     "platform": "stackoverflow",
+     "quote": "How can I standardize Amazon Bedrock model invocation parameters when each provider and model uses different request schemas?",
+     "quoteKo": "각 제공업체와 모델이 서로 다른 요청 스키마를 사용할 때, Amazon Bedrock 모델 호출 매개변수를 어떻게 표준화할 수 있나요?",
+     "url": "https://stackoverflow.com/questions/79843685/how-can-i-standardize-amazon-bedrock-model-invocation-parameters-when-each-provi",
+     "score": 0,
+     "postedAt": "2025-12-11T06:57:09.000Z"
+    },
+    {
+     "id": "ev_0480f2d9424f4c34",
+     "platform": "hn",
+     "quote": "Switching models means rewriting code.",
+     "quoteKo": "모델을 전환한다는 것은 코드를 다시 작성한다는 의미입니다.",
+     "url": "https://news.ycombinator.com/item?id=46215002",
+     "score": 0,
+     "postedAt": "2025-12-10T07:15:35Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "BerriAI/litellm",
+     "description": "The fastest, litest AI Gateway. Rust core with Python SDK. Call 100+ LLM APIs in OpenAI (or native) format with cost tracking, guardrails, load balancing, and l",
+     "popularity": 62996,
+     "url": "https://github.com/BerriAI/litellm",
+     "createdAt": "2023-07-27T00:09:52Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "QuantumNous/new-api",
+     "description": "Open-source AI gateway. Self-hosted LLM gateway with OpenAI-, Claude- and Gemini-compatible APIs, model routing, access control, usage tracking and cost account",
+     "popularity": 51638,
+     "url": "https://github.com/QuantumNous/new-api",
+     "createdAt": "2023-11-10T19:33:36Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "Portkey-AI/gateway",
+     "description": "A blazing fast AI Gateway with integrated guardrails. Route to 1,600+ LLMs, 50+ AI Guardrails with 1 fast & friendly API.",
+     "popularity": 13354,
+     "url": "https://github.com/Portkey-AI/gateway",
+     "createdAt": "2023-08-23T11:52:47Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "maximhq/bifrost",
+     "description": "Open-source, high-performance AI gateway that works as your LLM gateway, MCP gateway and agent gateway. One OpenAI-compatible API for 10,000+ models, with failo",
+     "popularity": 9458,
+     "url": "https://github.com/maximhq/bifrost",
+     "createdAt": "2025-03-19T07:21:26Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "coaidev/coai",
+     "description": "🚀 Next Gen Multi-tenant AI One-Stop Solution. Builtin Admin & Billing System. Enterprise-Grade Unified LLM Gateway Support for 200+ Models And 35+ Providers, L",
+     "popularity": 9344,
+     "url": "https://github.com/coaidev/coai",
+     "createdAt": "2023-07-17T18:09:57Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "GitHub Copilot API Gateway",
+     "description": "Free & open-source universal API Gateway for all VS Code language models. Auto-discovers GitHub Copilot, Gemini, Ollama & any AI extension — exposing them via l",
+     "popularity": 8163,
+     "url": "https://marketplace.visualstudio.com/items?itemName=SuhaibBinYounis.github-copilot-api-vscode",
+     "createdAt": "2025-12-11T21:14:40.367+00:00",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "zhnt/loushang",
+     "description": "AI-native agent harness for coding workflows by python: multi-model LLM orchestration, stateful sessions, tool governance, traceable delivery, and provider rout",
+     "popularity": 2026,
+     "url": "https://github.com/zhnt/loushang",
+     "createdAt": "2026-05-29T17:25:11Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "Router Models",
+     "description": "Use custom AI models in GitHub Copilot Chat — OpenRouter, Ollama, LM Studio, Groq, OpenAI or any OpenAI-compatible API. BYOK with multiple keys and auto rotatio",
+     "popularity": 240,
+     "url": "https://marketplace.visualstudio.com/items?itemName=alireza-yaghouti.router-models",
+     "createdAt": "2026-09-13T08:22:13.64+00:00",
+     "relation": "direct"
+    }
+   ],
+   "directCount": 17,
+   "firstSeenAt": "2025-12-10T07:15:35Z",
+   "followersAfterSignal": 13
+  },
+  {
+   "slug": "agent-tool-discovery",
+   "name": "에이전트 도구 관리",
+   "problem": "AI 에이전트가 도구를 발견하고 선택하는 위치를 표준화하고 측정하기 어렵다.",
+   "gap": "기존 제품들은 개별 에이전트 도구 레지스트리나 게이트웨이를 제공하지만, AI 에이전트가 도구를 발견하고 선택하는 위치를 표준화하고 측정하는 통합 관측 계층은 해결하지 못한다.",
+   "keywords": [
+    "ai agent",
+    "agent tool",
+    "tool discovery",
+    "skill management",
+    "에이전트",
+    "도구 발견",
+    "스킬 관리",
+    "ai 에이전트",
+    "tool registry",
+    "agent symlink"
+   ],
+   "status": "closed",
+   "qualified": true,
+   "platforms": [
+    "github",
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_ee2badfe202fbc4e",
+     "platform": "github",
+     "quote": "requiring each project to put them in a different folder and create symlinks",
+     "quoteKo": "각 프로젝트를 서로 다른 폴더에 넣고 심볼릭 링크를 생성하도록 요구하는 것",
+     "url": "https://github.com/agentskills/agentskills/issues/15",
+     "score": 271,
+     "postedAt": "2025-12-19T14:18:58Z"
+    },
+    {
+     "id": "ev_466579b4aae42cba",
+     "platform": "hn",
+     "quote": "How do you know if AI agents will choose your tool?",
+     "quoteKo": "AI 에이전트가 여러분의 도구를 선택할지 어떻게 알 수 있나요?",
+     "url": "https://news.ycombinator.com/item?id=47127532",
+     "score": 57,
+     "postedAt": "2026-02-23T19:32:01Z"
+    },
+    {
+     "id": "ev_a8ae4ab4ac632680",
+     "platform": "hn",
+     "quote": "Measuring this is extremely hard, if not impossible.",
+     "quoteKo": "이를 측정하는 것은 매우 어렵고, 불가능할 수도 있습니다.",
+     "url": "https://news.ycombinator.com/item?id=47167686",
+     "score": 0,
+     "postedAt": "2026-02-26T15:50:12Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "sickn33/agentic-awesome-skills",
+     "description": "2,955+ reusable AI agent skills for Claude Code, Codex, Cursor and Gemini CLI. AAS Core adds local catalog discovery, agent-owned selection and plan preview. CL",
+     "popularity": 49420,
+     "url": "https://github.com/sickn33/agentic-awesome-skills",
+     "createdAt": "2026-01-14T17:48:09Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "superdesigndev/treg",
+     "description": "OpenRouter for agent tools. Join community here: https://discord.gg/6mQYYfFMAn",
+     "popularity": 7725,
+     "url": "https://github.com/superdesigndev/treg",
+     "createdAt": "2026-07-15T13:38:07Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "IBM/mcp-context-forge",
+     "description": "An AI Gateway, registry, and proxy that sits in front of any MCP, A2A, or REST/gRPC APIs, exposing a unified endpoint with centralized discovery, guardrails and",
+     "popularity": 4780,
+     "url": "https://github.com/IBM/mcp-context-forge",
+     "createdAt": "2025-05-08T08:16:59Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "ascending-llc/jarvis-registry",
+     "description": "Connect any AI copilot or autonomous agent to your enterprise tools — through a single, secure MCP/Agent gateway with built-in identity, access control, and ful",
+     "popularity": 3883,
+     "url": "https://github.com/ascending-llc/jarvis-registry",
+     "createdAt": "2025-10-04T01:52:24Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "agentic-community/mcp-gateway-registry",
+     "description": "Enterprise-ready MCP Gateway & Registry that centralizes AI development tools with secure OAuth authentication, dynamic tool discovery, and unified access for b",
+     "popularity": 1042,
+     "url": "https://github.com/agentic-community/mcp-gateway-registry",
+     "createdAt": "2025-05-29T18:23:37Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "Skillsmith",
+     "description": "A registry for sharing, scanning, and tracking agent skills across teams.",
+     "popularity": 124,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Skillsmith.skillsmith-vscode",
+     "createdAt": "2026-03-28T20:33:09.79+00:00",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Enact – A package manager for AI agent tools",
+     "description": "",
+     "popularity": 6,
+     "url": "https://news.ycombinator.com/item?id=46435383",
+     "createdAt": "2025-12-30T17:07:18Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: ClawFinder, an open-source discovery and negotiation layer for agents",
+     "description": "",
+     "popularity": 5,
+     "url": "https://news.ycombinator.com/item?id=47518755",
+     "createdAt": "2026-03-25T15:32:01Z",
+     "relation": "direct"
+    }
+   ],
+   "directCount": 13,
+   "firstSeenAt": "2025-12-19T14:18:58Z",
+   "followersAfterSignal": 12
+  },
+  {
+   "slug": "ai-training-license",
+   "name": "AI학습방지라이선스",
+   "problem": "개발자가 공개 코드의 LLM 학습 및 AI 사용을 막을 라이선스가 없습니다.",
+   "gap": "공개된 코드에 대한 LLM 학습 및 AI 사용을 방지하는 라이선스 기반 솔루션이 부재합니다.",
+   "keywords": [
+    "ai training",
+    "llm",
+    "license",
+    "code sharing",
+    "오픈소스",
+    "라이선스",
+    "인공지능 학습",
+    "코드 보호",
+    "ai opt-out",
+    "llm scraping"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_e8fd33045148742c",
+     "platform": "hn",
+     "quote": "I'd like to keep sharing code online but would like to limit it's usage to prevent LLM training and usage on it.",
+     "quoteKo": "온라인에 코드를 계속 공유하고 싶지만, LLM 학습 및 해당 코드 사용을 방지하기 위해 사용을 제한하고 싶습니다.",
+     "url": "https://news.ycombinator.com/item?id=47000737",
+     "score": 39,
+     "postedAt": "2026-02-13T09:22:42Z"
+    },
+    {
+     "id": "ev_bdcc6d3e976c491c",
+     "platform": "hn",
+     "quote": "are there any licenses that would prevent LLMs from ingesting it into their training?",
+     "quoteKo": "LLM이 학습 데이터로 흡수하는 것을 방지하는 라이선스가 있을까요?",
+     "url": "https://news.ycombinator.com/item?id=49628792",
+     "score": 15,
+     "postedAt": "2026-09-09T16:07:33Z"
+    },
+    {
+     "id": "ev_a825d6c49ce5099b",
+     "platform": "hn",
+     "quote": "we can’t practically prevent the LLM companies from training on it",
+     "quoteKo": "실제로는 LLM 회사들이 해당 코드로 학습하는 것을 막을 수 없습니다.",
+     "url": "https://news.ycombinator.com/item?id=48121991",
+     "score": 0,
+     "postedAt": "2026-05-13T13:59:24Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-02-13T09:22:42Z",
+   "followersAfterSignal": 0
+  },
+  {
+   "slug": "mcp-llm-streaming",
+   "name": "MCP LLM 스트리밍",
+   "problem": "개발자가 MCP를 통해 LLM 응답을 청크 단위로 스트리밍할 수 없어 전체 응답 완료까지 기다려야 한다.",
+   "gap": "기존 제품들은 MCP를 통한 LLM 응답을 청크 단위로 실시간 스트리밍하는 기능을 직접 제공하지 못한다.",
+   "keywords": [
+    "mcp",
+    "llm",
+    "streaming",
+    "chunk",
+    "proxy",
+    "미들웨어",
+    "스트리밍",
+    "응답",
+    "청크",
+    "gateway"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow",
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_5332add903674faf",
+     "platform": "stackoverflow",
+     "quote": "I don't want to wait for the completed response and return the whole text",
+     "quoteKo": "완성된 응답을 기다렸다가 전체 텍스트를 반환하고 싶지 않아요",
+     "url": "https://stackoverflow.com/questions/79850215/is-there-a-way-in-mcp-to-stream-a-llm-response-chunk-by-chunk-back-to-the-client",
+     "score": 4,
+     "postedAt": "2025-12-18T10:40:51.000Z"
+    },
+    {
+     "id": "ev_58b5fbf4669ff4e1",
+     "platform": "hn",
+     "quote": "Every MCP tool call requires a full round-trip — generation stops, wait for external tool",
+     "quoteKo": "모든 MCP 도구 호출에는 전체 왕복이 필요합니다 — 생성이 중지되고 외부 도구를 기다립니다",
+     "url": "https://news.ycombinator.com/item?id=46878126",
+     "score": 0,
+     "postedAt": "2026-02-03T22:17:53Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "MissionSquad/mcp-api",
+     "description": "MCP Proxy Server. Streaming. Node/Python. OAuth w/ DCR.",
+     "popularity": 15,
+     "url": "https://github.com/MissionSquad/mcp-api",
+     "createdAt": "2025-03-01T08:03:54Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "punkpeye/mcp-proxy",
+     "description": "A TypeScript streamable HTTP and SSE proxy for MCP servers that use stdio transport.",
+     "popularity": 293,
+     "url": "https://github.com/punkpeye/mcp-proxy",
+     "createdAt": "2024-12-29T20:14:41Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "matthewhand/mcp-openapi-proxy",
+     "description": "MCP server that dynamically exposes REST APIs defined by OpenAPI specs. Dual-stack MCP 1.x/2.x with native Streamable HTTP.",
+     "popularity": 157,
+     "url": "https://github.com/matthewhand/mcp-openapi-proxy",
+     "createdAt": "2025-02-11T09:15:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "pyroprompts/mcp-stdio-to-streamable-http-adapter",
+     "description": "Proxy through a STDIO MCP Server to interact with Streamable HTTP MCP Servers",
+     "popularity": 26,
+     "url": "https://github.com/pyroprompts/mcp-stdio-to-streamable-http-adapter",
+     "createdAt": "2025-05-01T04:07:40Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "two35s/reclaude",
+     "description": "Claude.ai in your terminal: streaming chat, OpenAI proxy, MCP server. No API key.",
+     "popularity": 26,
+     "url": "https://github.com/two35s/reclaude",
+     "createdAt": "2026-10-13T14:42:30Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "mcp-proxy",
+     "description": "A TypeScript SSE proxy for MCP servers that use stdio transport.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/mcp-proxy",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@modelcontextprotocol/sdk",
+     "description": "Model Context Protocol implementation for TypeScript",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@modelcontextprotocol/sdk",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@modelcontextprotocol/client",
+     "description": "Model Context Protocol implementation for TypeScript - Client package",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@modelcontextprotocol/client",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2025-12-18T10:40:51.000Z",
+   "followersAfterSignal": 1
+  },
+  {
+   "slug": "serverless-cost-visibility",
+   "name": "서버리스 비용 가시화",
+   "problem": "서버리스 함수가 트래픽 없이도 자동 스케일링과 과도한 프로비저닝으로 예기치 못한 과금이 발생합니다.",
+   "gap": "기존 제품들은 비용 모니터링이나 인프라 배포에 그칠 뿐, 트래픽이 제로인 상태에서 자동 스케일링과 과도한 리소스 할당으로 인해 서버리스 함수에 예기치 않은 요금이 발생하는 근본 원인을 해결하지 못한다.",
+   "keywords": [
+    "serverless",
+    "cost visibility",
+    "cloud run",
+    "lambda",
+    "함수 요금",
+    "예상 과금",
+    "autoscaling cost",
+    "서버리스 요금",
+    "클라우드 비용",
+    "billing shock"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_85d73d3237d61423",
+     "platform": "hn",
+     "quote": "Google Cloud Run cost me $4,676 in 6 weeks with zero traff",
+     "quoteKo": "Google Cloud Run이 6주 동안 4,676달러를 청구했는데 트래픽이 전혀 없었음",
+     "url": "https://news.ycombinator.com/item?id=46378065",
+     "score": 88,
+     "postedAt": "2025-12-24T18:43:15Z"
+    },
+    {
+     "id": "ev_fca84374756c6e14",
+     "platform": "hn",
+     "quote": "almost no traffic (few requests per day), on free trier and YET I had to pay",
+     "quoteKo": "거의 트래픽이 없음 (하루에 몇 건의 요청)이고 무료 티어였는데도 불구하고 요금을 지불해야 했음",
+     "url": "https://news.ycombinator.com/item?id=48826447",
+     "score": 0,
+     "postedAt": "2026-07-08T01:43:12Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "show_hn",
+     "name": "SHOW HN: A usage circuit breaker for Cloudflare Workers",
+     "description": "",
+     "popularity": 29,
+     "url": "https://news.ycombinator.com/item?id=47322794",
+     "createdAt": "2026-03-10T13:09:00Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "OjoOluwagbenga700/aws-cost-monitoring",
+     "description": "Serverless aws cost monitoring with AWS lambda, AWS Budget and SNS",
+     "popularity": 14,
+     "url": "https://github.com/OjoOluwagbenga700/aws-cost-monitoring",
+     "createdAt": "2025-07-07T09:55:58Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@datadog/serverless-compat",
+     "description": "Datadog Serverless Compatibility Layer to Enable Tracing and Metrics in Node.js",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@datadog/serverless-compat",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "oci-optimizer",
+     "description": "OCI NodeJS client for Optimizer Service",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/oci-optimizer",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2025-12-24T18:43:15Z",
+   "followersAfterSignal": 1
+  },
+  {
+   "slug": "legacy-activex-privilege-risk",
+   "name": "레거시 액티브엑스 위험",
+   "problem": "레거시 IE/ActiveX 클라이언트가 작동하려면 관리자 권한이 필요해 보안 취약점이 발생합니다.",
+   "gap": "기존 제품은 레거시 IE/ActiveX 클라이언트가 로컬 관리자 권한 없이 실행되도록 하거나 일반 사용자의 보안 위험을 줄이는 문제를 해결하지 못한다.",
+   "keywords": [
+    "activex",
+    "legacy activex",
+    "admin rights",
+    "administrator privileges",
+    "ie activex",
+    "보안 취약점",
+    "권한 상승",
+    "레거시 액티브엑스",
+    "local admin",
+    "privilege escalation"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_bbc975dc85f12f59",
+     "platform": "hn",
+     "quote": "It only functions correctly if run with local administrator privileges.",
+     "quoteKo": "로컬 관리자 권한으로 실행해야만 정상적으로 작동합니다.",
+     "url": "https://news.ycombinator.com/item?id=47486365",
+     "score": 34,
+     "postedAt": "2026-03-23T07:20:50Z"
+    },
+    {
+     "id": "ev_c6d6db9214ab9bc9",
+     "platform": "hn",
+     "quote": "Are there any reliable open-source PAM alternatives or privilege elevation tools for Windows",
+     "quoteKo": "Windows에서 신뢰할 수 있는 오픈소스 PAM 대안이나 권한 상승 도구가 있나요?",
+     "url": "https://news.ycombinator.com/item?id=47535420",
+     "score": 0,
+     "postedAt": "2026-03-26T20:40:24Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-03-23T07:20:50Z",
+   "followersAfterSignal": 0
+  },
+  {
+   "slug": "llm-code-validation",
+   "name": "AI코드검증기",
+   "problem": "개발자가 LLM 생성 코드의 성능, 아키텍처, 숨은 기술 부채를 검증하기 어렵다.",
+   "gap": "기존 제품들은 LLM이 생성한 코드의 성능, 아키텍처, 숨은 기술 부채를 검증하는 기능을 제공하지 않습니다.",
+   "keywords": [
+    "llm",
+    "ai",
+    "코드",
+    "검증",
+    "리뷰",
+    "static analysis",
+    "technical debt",
+    "성능",
+    "아키텍처",
+    "코드 품질",
+    "generated code",
+    "코드리뷰"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_82435864a62bc739",
+     "platform": "hn",
+     "quote": "how do you validate the performance or architectural quality of the outcome?",
+     "quoteKo": "결과물의 성능이나 아키텍처 품질을 어떻게 검증하나요?",
+     "url": "https://news.ycombinator.com/item?id=46992895",
+     "score": 28,
+     "postedAt": "2026-02-12T18:27:03Z"
+    },
+    {
+     "id": "ev_4417b131a5a24085",
+     "platform": "hn",
+     "quote": "architectural oopsies, performance issues, duplicated code, and other problems",
+     "quoteKo": "아키텍처 실수, 성능 문제, 중복 코드 등 기타 문제",
+     "url": "https://news.ycombinator.com/item?id=50048689",
+     "score": 0,
+     "postedAt": "2026-10-11T22:38:47Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "WAVE AI Code Review & Analysis",
+     "description": "AI-powered Code Review and Analysis inside VS Code to help developers identify issues early, improve code quality and streamline the review process",
+     "popularity": 230711,
+     "url": "https://marketplace.visualstudio.com/items?itemName=devprod.vulnerability-extension",
+     "createdAt": "2022-01-14T04:49:11.403+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "ChatGPT - Unfold AI",
+     "description": "Catch agent failures early, recover safely, and review what Cursor, Copilot, Claude Code, and Codex changed before you commit.",
+     "popularity": 102704,
+     "url": "https://marketplace.visualstudio.com/items?itemName=TalDennis-UnfoldAI-ChatGPT-Copilot.unfoldai",
+     "createdAt": "2023-03-28T00:23:55.903+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Github Copilot Code Reviewer",
+     "description": "Review source code changes in Git using GitHub Copilot",
+     "popularity": 67719,
+     "url": "https://marketplace.visualstudio.com/items?itemName=JakubKozera.github-copilot-code-reviewer",
+     "createdAt": "2025-07-28T12:42:17.82+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "tirth8205/code-review-graph",
+     "description": "Local-first code intelligence graph for MCP and CLI. Builds a persistent map of your codebase so AI coding tools read only what matters, with benchmarked contex",
+     "popularity": 32673,
+     "url": "https://github.com/tirth8205/code-review-graph",
+     "createdAt": "2026-02-26T17:25:13Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "DeepSource Autofix™ AI",
+     "description": "Improve code quality with static analysis and AI.",
+     "popularity": 12150,
+     "url": "https://marketplace.visualstudio.com/items?itemName=DeepSourceCorp.deepsource-vscode",
+     "createdAt": "2023-08-03T00:44:36.87+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "arm/metis",
+     "description": "Metis is an open-source, AI-driven tool for deep security code review",
+     "popularity": 892,
+     "url": "https://github.com/arm/metis",
+     "createdAt": "2025-07-07T08:58:46Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "Nikita-Filonov/ai-review",
+     "description": "🚀 AI-powered code review tool for GitHub, GitLab, Bitbucket Cloud, Bitbucket Server, Azure DevOps and Gitea — built with LLMs like OpenAI, Claude, Gemini, Olla",
+     "popularity": 605,
+     "url": "https://github.com/Nikita-Filonov/ai-review",
+     "createdAt": "2025-09-10T19:18:07Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "CyberMoose — OWASP Security Scanner",
+     "description": "Automated OWASP security scanning for VS Code. Covers OWASP Top 10 2025, LLM Top 10 2025, and API Security Top 10 2023 using Semgrep, Trivy, Checkov, Bandit, an",
+     "popularity": 96,
+     "url": "https://marketplace.visualstudio.com/items?itemName=CyberMoose.cybermoose-security-scanner",
+     "createdAt": "2026-04-14T20:56:25.24+00:00",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-02-12T18:27:03Z",
+   "followersAfterSignal": 5
+  },
+  {
+   "slug": "semantic-retrieval-accuracy",
+   "name": "의미검색 정확도",
+   "problem": "청크된 YAML 데이터베이스 메타데이터의 벡터 필드 의미 검색 정확도를 높이기 어렵다.",
+   "gap": "기존 제품들은 청크된 YAML 데이터베이스 메타데이터의 벡터 필드를 질의할 때 의미적 검색 정확도를 높이는 문제를 직접 해결하지 못한다.",
+   "keywords": [
+    "qdrant",
+    "vector search",
+    "semantic search",
+    "rag",
+    "metadata filtering",
+    "retrieval accuracy",
+    "의미 검색",
+    "벡터 데이터베이스",
+    "메타데이터 필터링",
+    "검색 정확도"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_44f23afd265f0c2d",
+     "platform": "stackoverflow",
+     "quote": "How to improve Qdrant retrieval accuracy for chunked database semantic YAML models (RAG on DB Metadata)?",
+     "quoteKo": "청크된 데이터베이스 의미론적 YAML 모델에 대한 Qdrant 검색 정확도 향상 방법 (DB 메타데이터 기반 RAG)?",
+     "url": "https://stackoverflow.com/questions/79971546/how-to-improve-qdrant-retrieval-accuracy-for-chunked-database-semantic-yaml-mode",
+     "score": 1,
+     "postedAt": "2026-06-30T05:46:25.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "pathwaycom/serviette",
+     "description": "A no-code RAG server that keeps answers in sync with your documents. Works with 8 vector databases. Built on Pathway.",
+     "popularity": 58720,
+     "url": "https://github.com/pathwaycom/serviette",
+     "createdAt": "2023-07-19T08:43:37Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "qdrant/qdrant",
+     "description": "Qdrant - High-performance, massive-scale Vector Database and Vector Search Engine for the next generation of AI. Also available in the cloud https://cloud.qdran",
+     "popularity": 35488,
+     "url": "https://github.com/qdrant/qdrant",
+     "createdAt": "2020-05-30T21:37:01Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "orneryd/NornicDB",
+     "description": "Nornicdb is a distributed low-latency, Graph+Vector, Temporal MVCC with all sub-ms HNSW search, graph traversal, and writes. Using Neo4j Bolt/Cypher and qdrant'",
+     "popularity": 924,
+     "url": "https://github.com/orneryd/NornicDB",
+     "createdAt": "2025-12-06T15:46:33Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "qdrant/qdrant-js",
+     "description": "JavaScript/Typescript SDK for Qdrant Vector Database",
+     "popularity": 472,
+     "url": "https://github.com/qdrant/qdrant-js",
+     "createdAt": "2023-03-29T08:50:14Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Qdrant DB Workbench",
+     "description": "Developer console for Qdrant vector databases. Manage collections and inspect embeddings natively.",
+     "popularity": 348,
+     "url": "https://marketplace.visualstudio.com/items?itemName=HarishKaparwan.qdrant-db",
+     "createdAt": "2026-06-06T23:45:18.93+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "datadrivenconstruction/OpenConstructionEstimate-DDC-CWICR",
+     "description": "Open multilingual construction cost database for AI Agents - 55K+ work items, 27K+ resources, 30 regions. Semantic search via Qdrant vector DB",
+     "popularity": 277,
+     "url": "https://github.com/datadrivenconstruction/OpenConstructionEstimate-DDC-CWICR",
+     "createdAt": "2025-12-09T06:19:41Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "watat83/document-chat-system",
+     "description": "Open-source document chat platform with semantic search, RAG (Retrieval Augmented Generation), and multi-provider AI support (OpenRouter, OpenAI, ImageRouter).",
+     "popularity": 149,
+     "url": "https://github.com/watat83/document-chat-system",
+     "createdAt": "2025-10-01T05:51:24Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "6v17/VideoSeek",
+     "description": "Offline video material retrieval platform for semantic search, subtitle search, Agent API, and AI-assisted editing.",
+     "popularity": 114,
+     "url": "https://github.com/6v17/VideoSeek",
+     "createdAt": "2026-03-14T12:02:24Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-06-30T05:46:25.000Z",
+   "followersAfterSignal": 1
+  },
+  {
+   "slug": "ssd-wear-comparison",
+   "name": "SSD마모비교",
+   "problem": "베타 소프트웨어 설치 전 SSD 과다 쓰기(마모)를 비교할 공개 사이트가 없다.",
+   "gap": "베타 소프트웨어 설치 전 SSD 마모도를 비교할 수 있는 공개 사이트가 존재하지 않는다.",
+   "keywords": [
+    "ssd",
+    "wear",
+    "write",
+    "beta",
+    "disk",
+    "lifespan",
+    "마모",
+    "쓰기",
+    "비교",
+    "모니터링",
+    "수명",
+    "과다쓰기"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_709b0a79196735a6",
+     "platform": "hn",
+     "quote": "Is there a website that tracks excessive writes to SSDs in OS/app betas?",
+     "quoteKo": "OS나 앱 베타 버전에서 SSD에 과도한 쓰기를 추적하는 웹사이트가 있나요?",
+     "url": "https://news.ycombinator.com/item?id=49022990",
+     "score": 61,
+     "postedAt": "2026-07-23T15:16:31Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-07-23T15:16:31Z",
+   "followersAfterSignal": 0
+  },
+  {
+   "slug": "sdk-resource-definition",
+   "name": "SDK 리소스 정의",
+   "problem": "SDK에서 게시물 모음 같은 리소스를 정의하고 반환하는 명확한 방법이 없습니다.",
+   "gap": "기존 제품들은 OpenAPI 기반 SDK 생성에 집중할 뿐, 게시물 모음과 같은 리소스를 SDK에서 정의하고 반환하는 명확한 방법을 제공하지 않는다.",
+   "keywords": [
+    "sdk",
+    "api",
+    "resource",
+    "definition",
+    "openapi",
+    "codegen",
+    "리소스",
+    "정의",
+    "게시물",
+    "컬렉션",
+    "인터페이스",
+    "스펙"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_4dc1bd4936d41da5",
+     "platform": "stackoverflow",
+     "quote": "I'm having a hard time figuring out how to return my collection of posts.",
+     "quoteKo": "게시물 모음을 어떻게 반환해야 할지 파악하는 데 어려움을 겪고 있습니다.",
+     "url": "https://stackoverflow.com/questions/79850211/how-to-define-the-content-of-a-resource",
+     "score": 0,
+     "postedAt": "2025-12-18T10:38:50.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "OpenAPITools/openapi-generator",
+     "description": "OpenAPI Generator allows generation of API client libraries (SDK generation), server stubs, documentation and configuration automatically given an OpenAPI Spec ",
+     "popularity": 26855,
+     "url": "https://github.com/OpenAPITools/openapi-generator",
+     "createdAt": "2018-05-12T09:57:56Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "settrade-python-sdk-snippet",
+     "description": "Settrade OpenAPI Python SDK Code Snippet Generator",
+     "popularity": 1912,
+     "url": "https://marketplace.visualstudio.com/items?itemName=theerapatcha.settrade-python-sdk-snippet",
+     "createdAt": "2020-12-18T09:10:04.027+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "crescat-io/saloon-sdk-generator",
+     "description": "Generate Saloon SDKs from Postman Collections and OpenAPI Specifications.",
+     "popularity": 138,
+     "url": "https://github.com/crescat-io/saloon-sdk-generator",
+     "createdAt": "2023-08-10T14:56:53Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "landgraf-dev/openapi-delphi-generator",
+     "description": "Generate Delphi client SDKs for any REST API defined with the OpenAPI specification.",
+     "popularity": 92,
+     "url": "https://github.com/landgraf-dev/openapi-delphi-generator",
+     "createdAt": "2022-07-25T02:23:12Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "rust-codegen-group/openapi-nexus",
+     "description": "OpenAPI 3.x code generator for deterministic, type-safe SDKs and API tooling across languages and runtimes.",
+     "popularity": 92,
+     "url": "https://github.com/rust-codegen-group/openapi-nexus",
+     "createdAt": "2025-10-25T19:00:33Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: An opinionated and statically-typed TypeScript SDK generator",
+     "description": "",
+     "popularity": 81,
+     "url": "https://news.ycombinator.com/item?id=32664877",
+     "createdAt": "2022-08-31T16:47:36Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "workos/oagen",
+     "description": "A framework for building custom SDK generators from OpenAPI",
+     "popularity": 79,
+     "url": "https://github.com/workos/oagen",
+     "createdAt": "2026-03-04T22:13:24Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "wrml/wrml",
+     "description": "WRML, the Web Resource Modeling Language, is a domain-specific modeling language that's oriented toward the design of REST APIs.",
+     "popularity": 55,
+     "url": "https://github.com/wrml/wrml",
+     "createdAt": "2011-10-29T00:31:37Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2025-12-18T10:38:50.000Z",
+   "followersAfterSignal": 1
+  },
+  {
+   "slug": "cuda-llm-static-analysis",
+   "name": "CUDA 정적분석",
+   "problem": "CUDA 커널의 정적 루프 및 메모리 접근 특성을 추출해 LLM 기반 최적화에 활용하기 어렵다.",
+   "gap": "기존 제품은 CUDA 소스 코드에서 정적 루프와 메모리 접근 기능을 추출하여 LLM 기반 최적화에 활용하는 기능을 제공하지 않는다.",
+   "keywords": [
+    "cuda",
+    "nvidia",
+    "gpu",
+    "static analysis",
+    "llm",
+    "optimization",
+    "커널",
+    "정적 분석",
+    "최적화",
+    "거대 언어 모델",
+    "loop analysis",
+    "memory access"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_a26781a1af2cd18a",
+     "platform": "stackoverflow",
+     "quote": "How to extract nested loop features from CUDA kernels for LLM-based optimization?",
+     "quoteKo": "LLM 기반 최적화를 위해 CUDA 커널에서 중첩 루프 특징을 추출하는 방법",
+     "url": "https://stackoverflow.com/questions/79829976/how-to-extract-nested-loop-features-from-cuda-kernels-for-llm-based-optimization",
+     "score": 0,
+     "postedAt": "2025-11-25T16:34:02.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "NVIDIA/TensorRT-LLM",
+     "description": "TensorRT LLM provides users with an easy-to-use Python API to define Large Language Models (LLMs) and supports state-of-the-art optimizations to perform inferen",
+     "popularity": 15049,
+     "url": "https://github.com/NVIDIA/TensorRT-LLM",
+     "createdAt": "2023-08-16T17:14:27Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "zhihu/ZhiLight",
+     "description": "A highly optimized LLM inference acceleration engine for Llama and its variants.",
+     "popularity": 906,
+     "url": "https://github.com/zhihu/ZhiLight",
+     "createdAt": "2024-12-06T11:28:17Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2025-11-25T16:34:02.000Z",
+   "followersAfterSignal": 0
+  },
+  {
+   "slug": "shared-context-memory",
+   "name": "개발맥락메모",
+   "problem": "개발 도구 간 공유 맥락이 없어 배경을 반복 설명하고 설계 근거와 변경 이력을 잃게 됩니다.",
+   "gap": "기존 제품 대부분이 AI 세션 및 클라이언트 간 개발 맥락과 설계 rationale을 지속적으로 공유하는 메모리 기능을 제공하지 못한다.",
+   "keywords": [
+    "shared context",
+    "context retention",
+    "개발 맥락",
+    "지식 관리",
+    "ai memory",
+    "architecture rationale",
+    "문서화 자동화",
+    "developer knowledge",
+    "맥락 손실",
+    "context rot"
+   ],
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_7cc5f1a71330efe0",
+     "platform": "hn",
+     "quote": "The major time cost for me is to re-explaining context and past decisions",
+     "quoteKo": "제게 가장 큰 시간 소모는 맥락과 과거 결정을 반복해서 설명하는 데 드는 것입니다.",
+     "url": "https://news.ycombinator.com/item?id=50403153",
+     "score": 122,
+     "postedAt": "2026-11-07T10:01:48Z"
+    },
+    {
+     "id": "ev_8ab264bae02b265a",
+     "platform": "hn",
+     "quote": "Every solution requires someone to manually write something. Nobody does.",
+     "quoteKo": "모든 해결책은 누군가가 직접 뭔가를 작성해야 합니다. 하지만 아무도 하지 않습니다.",
+     "url": "https://news.ycombinator.com/item?id=47368874",
+     "score": 105,
+     "postedAt": "2026-03-13T19:48:03Z"
+    },
+    {
+     "id": "ev_72981dd2488f1026",
+     "platform": "hn",
+     "quote": "the full picture lives nowhere, so bit rot just keeps creeping in.",
+     "quoteKo": "전체 그림을 담고 있는 곳이 없으므로, 비트 로트가 계속 스며듭니다.",
+     "url": "https://news.ycombinator.com/item?id=46693985",
+     "score": 63,
+     "postedAt": "2026-01-20T16:40:36Z"
+    },
+    {
+     "id": "ev_5a3dc06a0a7e428d",
+     "platform": "hn",
+     "quote": "Architectural decisions change over time, but the history, rationale, and context behind those changes usually get lost.",
+     "quoteKo": "아키텍처 결정은 시간이 지나면서 바뀌지만, 그 변경의 배경과 이유, 맥락은 보통 사라집니다.",
+     "url": "https://news.ycombinator.com/item?id=46678158",
+     "score": 1,
+     "postedAt": "2026-01-19T12:17:35Z"
+    },
+    {
+     "id": "ev_f1b0849f88c94e3b",
+     "platform": "hn",
+     "quote": "context did not carry over well. We kept re-explaining the same project",
+     "quoteKo": "맥락이 잘 전달되지 않았습니다. 우리는 같은 프로젝트를 계속 반복해서 설명해야 했습니다.",
+     "url": "https://news.ycombinator.com/item?id=47674530",
+     "score": 0,
+     "postedAt": "2026-04-07T12:51:01Z"
+    },
+    {
+     "id": "ev_56a11cc774cee77d",
+     "platform": "hn",
+     "quote": "Every Claude session starts from zero. No memory of what you worked on yesterday",
+     "quoteKo": "모든 Claude 세션은 0에서 시작합니다. 어제 무엇을 작업했는지에 대한 기억이 전혀 없습니다.",
+     "url": "https://news.ycombinator.com/item?id=47021314",
+     "score": 0,
+     "postedAt": "2026-02-15T05:30:29Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "Hrithik-Gavankar/brainstack",
+     "description": "Persistent context for AI coding assistants — personal (`engineer-brain`) and team (`team-brain`). Self-updating BRAIN.md profile + shared crew memory on Jira. ",
+     "popularity": 24,
+     "url": "https://github.com/Hrithik-Gavankar/brainstack",
+     "createdAt": "2026-07-13T13:58:45Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Bind.ly – Persistent memory for AI across tools",
+     "description": "",
+     "popularity": 2,
+     "url": "https://news.ycombinator.com/item?id=46528730",
+     "createdAt": "2026-01-07T16:49:37Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "toga-ai",
+     "description": "TOGA Technology Team Claude Knowledge System — shared AI coding harness with skills, knowledge base CLI, and project installer for Claude Code.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/toga-ai",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "deepset-ai/haystack",
+     "description": "Open-source AI orchestration framework for building context-engineered, production-ready LLM applications. Design modular pipelines and agent workflows with exp",
+     "popularity": 26968,
+     "url": "https://github.com/deepset-ai/haystack",
+     "createdAt": "2019-11-14T09:05:28Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Yamlink",
+     "description": "Turn Markdown notes into editable live tables — change a cell, it writes back to the file. Plus a knowledge graph, calendar, vault intelligence, and CLI/API/ter",
+     "popularity": 208,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Yamlink.yamlink",
+     "createdAt": "2026-03-05T20:45:53+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Authord Extension",
+     "description": "Documentation-as-code in Visual Studio Code. Provide an efficient and structured workflow for managing technical documentation within your development environme",
+     "popularity": 152,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Nivora.vscode-authord",
+     "createdAt": "2025-03-16T15:58:01.953+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Obsidian Sync for Dropbox | Obsidian Dropbox 同步 | مزامنة Obsidian مع Dropbox",
+     "description": "🚀 Sync Obsidian vault with Dropbox seamlessly. Perfect knowledge base sync & backup solution. 完美的 Obsidian 知识库同步备份方案。8-language support, auto-sync, secure tran",
+     "popularity": 89,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Note2Link.obsidian-sync-for-dropbox",
+     "createdAt": "2025-09-16T08:40:28.73+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Anemona Vault",
+     "description": "Manage notes, passwords, API keys, tasks, commands and snippets from a unified sidebar inside Visual Studio Code.",
+     "popularity": 10,
+     "url": "https://marketplace.visualstudio.com/items?itemName=mygnet.anemona-vault",
+     "createdAt": "2026-06-08T19:47:37.397+00:00",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 3,
+   "firstSeenAt": "2026-01-19T12:17:35Z",
+   "followersAfterSignal": 6
+  },
+  {
+   "slug": "multi-step-elicitation-ui",
+   "name": "다단계 입력 UI",
+   "problem": "엘리케이션 UI가 평면 폼만 지원해 다단계 시각적 상호작용을 구현하기 어렵다.",
+   "gap": "",
+   "keywords": [
+    "elicitation",
+    "multi step form",
+    "wizard ui",
+    "conditional logic",
+    "동적 폼",
+    "단계별 입력",
+    "시각적 피커",
+    "form builder",
+    "developer tool",
+    "ui kit"
+   ],
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "github"
+   ],
+   "evidence": [
+    {
+     "id": "ev_69ee55e63cf719b7",
+     "platform": "github",
+     "quote": "emit declarative UI specs (forms, selects, confirms, progress indicators)",
+     "quoteKo": "선언형 UI 사양을 내보냅니다(폼, 선택, 확인, 진행 표시기)",
+     "url": "https://github.com/anomalyco/opencode/issues/6330",
+     "score": 26,
+     "postedAt": "2025-12-29T02:22:38Z"
+    },
+    {
+     "id": "ev_6c02bfdcd0c227af",
+     "platform": "github",
+     "quote": "This makes elicitation unsuitable for interactions that require rich UI — multi-step flows, visual pickers, data tables, custom confirmation",
+     "quoteKo": "이는 풍부한 UI가 필요한 상호 작용(다단계 흐름, 시각적 선택기, 데이터 테이블, 커스텀 확인)에는 유도 방식이 적합하지 않음을 의미합니다.",
+     "url": "https://github.com/modelcontextprotocol/ext-apps/issues/511",
+     "score": 11,
+     "postedAt": "2026-02-27T17:12:18Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "Remy349/shadcn-ui-multi-form",
+     "description": "Shadcn UI Multi Form is a modern, visual form builder for React that lets you craft single and multi-step flows with shadcn/ui, React Hook Form, and Zod.",
+     "popularity": 74,
+     "url": "https://github.com/Remy349/shadcn-ui-multi-form",
+     "createdAt": "2025-01-29T03:00:04Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "apurvathakker9/form-builder-react",
+     "description": "This application is a drag & drop form builder built in React and bundled with Webpack. It allows you to create multi-step forms by adding containers, with each",
+     "popularity": 44,
+     "url": "https://github.com/apurvathakker9/form-builder-react",
+     "createdAt": "2023-05-23T15:01:20Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "hamdi-islam/blitz-form-builder",
+     "description": "blitz-form-builder simplifies the process of creating single & multi step forms",
+     "popularity": 17,
+     "url": "https://github.com/hamdi-islam/blitz-form-builder",
+     "createdAt": "2025-01-18T16:51:24Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Open-source multi-step form builder",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=43116262",
+     "createdAt": "2025-02-20T15:58:51Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I built an open source infra for multi-step forms [MIT]",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=35784967",
+     "createdAt": "2023-05-02T08:59:36Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Multi-step form component for Framer with a JSON-driven wizard",
+     "description": "",
+     "popularity": 2,
+     "url": "https://news.ycombinator.com/item?id=47519362",
+     "createdAt": "2026-03-25T16:11:29Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "gms-form-builder",
+     "description": "Dynamic, multi-step form builder component library built with React and Tailwind CSS.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/gms-form-builder",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I built an open-source alternative to TypeForm [MIT]",
+     "description": "",
+     "popularity": 7,
+     "url": "https://news.ycombinator.com/item?id=35772612",
+     "createdAt": "2023-05-01T13:37:47Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 7,
+   "firstSeenAt": "2025-12-29T02:22:38Z",
+   "followersAfterSignal": 1
+  }
+ ]
+}

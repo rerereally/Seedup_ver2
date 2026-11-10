@@ -2,29 +2,23 @@
 
 import type { ModelIntelligence, Trend, TrendSnapshot } from '@/lib/data';
 import ModelIntelligencePanel from '@/components/ModelIntelligencePanel';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowDown, ArrowRight, ArrowUp, ChevronsUpDown, Code2, FileText, PackageSearch, Radio, Sparkles } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Code2, FileText, PackageSearch, Radio } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
-const CATEGORY_TABS = ['개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어', '모델 인텔리전스'] as const;
+const ALL = '전체';
+const MODELS = '모델 인텔리전스';
+const CATEGORY_TABS = [ALL, '개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어', '모델 인텔리전스'] as const;
 
-const TREND_TYPE_LABELS: Record<string, string> = {
-  development_method: '개발 워크플로우',
-  workflow: '개발 워크플로우',
-  ai_tool: 'AI 도구',
-  ai_model: 'AI 모델',
-  tool: 'AI 도구',
-  model: 'AI 모델',
-  protocol: '구현 패턴',
-  architecture: '구현 패턴',
-  skill: '구현 패턴',
-  pattern: '구현 패턴',
-  framework: '구현 패턴',
-  open_source_project: '오픈소스 프로젝트',
-  product_category: '제품 카테고리',
-  project_idea: 'Build Idea',
-  build_idea: 'Build Idea',
+// What the ranking step decided about a topic, in the words a reader would use.
+const STATUS: Record<string, { label: string; dot: string }> = {
+  hot: { label: '가장 뜨거움', dot: 'bg-hot' },
+  rising: { label: '오르는 중', dot: 'bg-[#3ddc84]' },
+  new: { label: '새로 등장', dot: 'bg-[#6ea8ff]' },
+  steady: { label: '꾸준함', dot: 'bg-outline-strong' },
+  cooling: { label: '식는 중', dot: 'bg-outline-strong' },
+  watch: { label: '지켜보는 중', dot: 'bg-outline-strong' },
 };
 
 function numberValue(value: number | null | undefined) {
@@ -50,23 +44,11 @@ function categoryOf(trend: Trend) {
   return '구현 패턴';
 }
 
-function statusLabel(status: string | null) {
-  if (!status) return 'WATCH';
-  return status.toUpperCase();
-}
-
-function directionIcon(direction: string | null | undefined) {
-  if (direction === 'up') return <ArrowUp className="h-4 w-4" />;
-  if (direction === 'down') return <ArrowDown className="h-4 w-4" />;
-  if (direction === 'new') return <Sparkles className="h-4 w-4" />;
-  return <ChevronsUpDown className="h-4 w-4" />;
-}
-
 function sourceLabel(type: string) {
-  if (type === 'news' || type === 'rss') return 'News/Blog';
+  if (type === 'news' || type === 'rss') return '뉴스·블로그';
   if (type === 'product' || type === 'product_hunt') return 'Product Hunt';
   if (type === 'github') return 'GitHub';
-  if (type === 'paper') return 'Paper';
+  if (type === 'paper') return '논문';
   if (type === 'hackernews') return 'Hacker News';
   if (type === 'devto') return 'DEV.to';
   if (type === 'stackoverflow') return 'Stack Overflow';
@@ -89,14 +71,6 @@ function SourceIcon({ type }: { type: string }) {
   return <Radio className="h-4 w-4" />;
 }
 
-function directionForSnapshots(items: TrendSnapshot[], index: number) {
-  if (index === 0) return '-';
-  const diff = items[index].score - items[index - 1].score;
-  if (diff > 1) return '▲';
-  if (diff < -1) return '▼';
-  return '→';
-}
-
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -114,15 +88,15 @@ function compactMix(trend: Trend) {
     numberValue(sourceMix.devto) ? `DEV.to ${sourceMix.devto}` : null,
     numberValue(sourceMix.stackoverflow) ? `Stack Overflow ${sourceMix.stackoverflow}` : null,
     numberValue(sourceMix.rss) ? `RSS ${sourceMix.rss}` : null,
-    numberValue(sourceMix.paper) ? `Paper ${sourceMix.paper}` : null,
+    numberValue(sourceMix.paper) ? `논문 ${sourceMix.paper}` : null,
   ].filter(Boolean).join(' · ');
   if (richMix) return richMix;
 
   return [
     numberValue(trend.github_repo_count) ? `GitHub ${trend.github_repo_count}` : null,
-    numberValue(trend.news_count) ? `News ${trend.news_count}` : null,
-    numberValue(trend.product_count) ? `Product ${trend.product_count}` : null,
-    numberValue(trend.paper_count) ? `Paper ${trend.paper_count}` : null,
+    numberValue(trend.news_count) ? `뉴스 ${trend.news_count}` : null,
+    numberValue(trend.product_count) ? `제품 ${trend.product_count}` : null,
+    numberValue(trend.paper_count) ? `논문 ${trend.paper_count}` : null,
   ].filter(Boolean).join(' · ') || '신호 집계 중';
 }
 
@@ -135,272 +109,222 @@ function isMeaningfulTrend(trend: Trend) {
 }
 
 function InterestBars({ snapshots }: { snapshots: TrendSnapshot[] }) {
+  if (!snapshots.length) return <p className="mt-3 text-sm leading-6 text-muted">아직 기록이 없습니다. 집계가 한 번 더 돌면 채워집니다.</p>;
+
   const max = Math.max(1, ...snapshots.map((item) => item.score));
   const first = snapshots[0];
   const last = snapshots[snapshots.length - 1];
-  const growth = first && last && first.score > 0 ? Math.round(((last.score - first.score) / first.score) * 100) : 0;
 
   return (
-    <div className="border border-outline-soft bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-black uppercase text-ink">7D Interest</h3>
-          <p className="mt-1 text-xs font-bold text-muted">
-            Score: {first?.score ?? '-'} → {last?.score ?? '-'} · Signals: {first?.signal_count ?? '-'} → {last?.signal_count ?? '-'} · Growth: {growth >= 0 ? '▲' : '▼'} {growth}%
-          </p>
-        </div>
-      </div>
-      <div className="flex h-24 items-end gap-2 border-b border-outline-soft pb-2">
-        {snapshots.map((item) => (
-          <div key={item.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-            <div className="w-full bg-ink" style={{ height: `${Math.max(8, Math.round((item.score / max) * 100))}%` }} />
-            <span className="text-[10px] font-bold text-muted">{formatDate(item.date)}</span>
+    <>
+      <div className="mt-3 flex h-24 items-end gap-1.5">
+        {snapshots.map((item, index) => (
+          <div key={item.date} title={`${formatDate(item.date)} · ${item.score}점`} className="flex h-full min-w-0 max-w-10 flex-1 flex-col justify-end">
+            <div className={`w-full rounded-t-[5px] ${index === snapshots.length - 1 ? 'bg-ink' : 'bg-surface-high'}`} style={{ height: `${Math.max(6, Math.round((item.score / max) * 100))}%` }} />
           </div>
         ))}
       </div>
-      {snapshots.length < 7 && (
-        <p className="mt-3 text-xs font-semibold leading-5 text-muted">아직 추이 데이터가 부족합니다. 며칠 더 수집하면 상승/하락 추이를 볼 수 있습니다.</p>
+      <div className="mt-2 flex justify-between border-t border-outline-soft pt-2 text-xs text-muted">
+        <span>{formatDate(first.date)}</span>
+        {snapshots.length > 1 && <span>{formatDate(last.date)}</span>}
+      </div>
+      <p className="mt-2 text-[13px] leading-5 text-muted">
+        {snapshots.length > 1
+          ? <>점수 <span className="num text-ink">{first.score} → {last.score}</span> · 신호 <span className="num text-ink">{first.signal_count} → {last.signal_count}</span></>
+          : '아직 하루치뿐입니다. 며칠 더 모이면 흐름이 보입니다.'}
+      </p>
+    </>
+  );
+}
+
+function signalRows(trend: Trend) {
+  const sourceMix = trend.source_mix ?? {};
+  return [
+    { type: 'GitHub', count: numberValue(sourceMix.github ?? trend.github_repo_count), meaning: '직접 만들어 올린 사람이 있습니다' },
+    { type: 'npm', count: numberValue(sourceMix.npm), meaning: '패키지로 쓰이고 있습니다' },
+    { type: 'Product Hunt', count: numberValue(sourceMix.product_hunt ?? trend.product_count), meaning: '제품으로 출시됐습니다' },
+    { type: 'Hugging Face', count: numberValue(sourceMix.huggingface), meaning: '모델이나 데모가 올라왔습니다' },
+    { type: 'Hacker News', count: numberValue(sourceMix.hackernews), meaning: '개발자들이 이야기합니다' },
+    { type: 'DEV.to', count: numberValue(sourceMix.devto), meaning: '따라 하는 글이 나왔습니다' },
+    { type: 'Stack Overflow', count: numberValue(sourceMix.stackoverflow), meaning: '쓰다가 막힌 질문이 있습니다' },
+    { type: '뉴스·블로그', count: numberValue(sourceMix.rss ?? trend.news_count), meaning: '기사로 다뤄졌습니다' },
+    { type: '논문', count: numberValue(sourceMix.paper ?? trend.paper_count), meaning: '연구 근거가 있습니다' },
+  ].filter((row) => row.count > 0);
+}
+
+function Block({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
+  return (
+    <section className={className}>
+      <h3 className="label">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
+  const snapshots = trend.recent_snapshots ?? [];
+  const sources = trend.detected_sources ?? trend.source_refs ?? [];
+  const extraSources = Math.max(0, sources.length - 5);
+  const signals = signalRows(trend);
+  const related = [...(trend.related_skills ?? []), ...(trend.related_tools ?? [])].slice(0, 14);
+  const reasons = (trend.why_trending?.length ? trend.why_trending : ['여러 출처에 얼마나 겹쳐 나왔는지, 얼마나 최근인지를 합쳐 점수를 냈습니다.']).slice(0, 5);
+  const roles = trend.target_roles?.length ? trend.target_roles : ['AI 앱 빌더', '풀스택 개발자'];
+  // An idea that only repeats the topic's own name says nothing, so those are dropped before falling back.
+  const name = (trend.display_name ?? trend.keyword).trim();
+  const ideas = [...new Set((trend.project_ideas ?? []).map((item) => item.trim()))].filter((item) => item && item !== name && item !== trend.keyword);
+  const nextActions = ideas.length ? ideas : [`이 주제가 무엇인지 한 문단으로 정리하기`, '근거가 된 저장소 하나를 직접 돌려 보기', '작은 예제를 만들어 막히는 지점 적어 두기'];
+
+  return (
+    <div id={id} className="grid gap-x-12 gap-y-8 border-t border-outline-soft px-5 py-6 md:px-7 md:py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="grid content-start gap-8">
+        <p className="max-w-[40em] text-[15px] leading-7 text-ink">{trend.summary ?? '최근 모인 개발 신호에서 감지된 주제입니다.'}</p>
+
+        <Block title="왜 지금 올라왔나">
+          <ul className="mt-2 divide-y divide-outline-soft">
+            {reasons.map((item) => <li key={item} className="py-2.5 text-sm leading-6 text-ink">{item}</li>)}
+          </ul>
+        </Block>
+
+        <Block title="다음에 해볼 것">
+          <ol className="mt-2 divide-y divide-outline-soft">
+            {nextActions.slice(0, 5).map((item, index) => (
+              <li key={`${item}-${index}`} className="flex gap-4 py-2.5 text-sm leading-6 text-ink">
+                <span className="num w-4 shrink-0 text-muted">{index + 1}</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ol>
+        </Block>
+      </div>
+
+      <div className="grid content-start gap-8">
+        <Block title="최근 7일 점수"><InterestBars snapshots={snapshots} /></Block>
+
+        {!!signals.length && (
+          <Block title="신호가 나온 곳">
+            <dl className="mt-2 divide-y divide-outline-soft">
+              {signals.map((row) => (
+                <div key={row.type} className="flex items-baseline gap-3 py-2.5 text-sm">
+                  <dt className="w-28 shrink-0 font-bold text-ink">{row.type}</dt>
+                  <dd className="min-w-0 flex-1 text-muted">{row.meaning}</dd>
+                  <dd className="num text-ink">{row.count}</dd>
+                </div>
+              ))}
+            </dl>
+          </Block>
+        )}
+
+        {!!related.length && (
+          <Block title="함께 보는 기술">
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {related.map((item) => <span key={item} className="rounded-full bg-surface-high px-2.5 py-1 text-xs text-ink">{item}</span>)}
+            </div>
+          </Block>
+        )}
+
+        <Block title="이런 분께 맞습니다">
+          <p className="mt-2 text-sm leading-6 text-ink">{roles.join(' · ')}</p>
+        </Block>
+      </div>
+
+      {!!sources.length && (
+        <Block title={`근거가 된 글${extraSources ? ` · 외 ${extraSources}건` : ''}`} className="lg:col-span-2">
+          <ul className="mt-2 divide-y divide-outline-soft">
+            {sources.slice(0, 5).map((ref) => (
+              <li key={`${ref.type}-${ref.id}`}>
+                <Link href={signalHref(ref)} className="group flex items-center gap-3 py-3">
+                  <span className="shrink-0 text-muted"><SourceIcon type={ref.type} /></span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink group-hover:underline group-hover:underline-offset-4">{ref.title}</span>
+                  <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{sourceLabel(ref.type)}{ref.source_name && ref.source_name !== sourceLabel(ref.type) ? ` · ${ref.source_name}` : ''}</span>
+                  <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Block>
       )}
     </div>
   );
 }
 
-function SignalBreakdownTable({ trend }: { trend: Trend }) {
-  const sourceMix = trend.source_mix ?? {};
-  const rows = [
-    { type: 'GitHub', count: numberValue(sourceMix.github ?? trend.github_repo_count), weight: 'High', meaning: '오픈소스 구현/활동 신호' },
-    { type: 'npm', count: numberValue(sourceMix.npm), weight: 'High', meaning: '패키지 채택 신호' },
-    { type: 'Product Hunt', count: numberValue(sourceMix.product_hunt ?? trend.product_count), weight: 'High', meaning: '제품 출시/시장성 신호' },
-    { type: 'Hugging Face', count: numberValue(sourceMix.huggingface), weight: 'High', meaning: '모델/Space/데모 신호' },
-    { type: 'Hacker News', count: numberValue(sourceMix.hackernews), weight: 'Medium-High', meaning: '개발자 커뮤니티 관심 신호' },
-    { type: 'DEV.to', count: numberValue(sourceMix.devto), weight: 'Medium', meaning: '구현 튜토리얼 신호' },
-    { type: 'Stack Overflow', count: numberValue(sourceMix.stackoverflow), weight: 'Medium', meaning: '실제 개발 문제/질문 신호' },
-    { type: 'RSS/News', count: numberValue(sourceMix.rss ?? trend.news_count), weight: 'Medium', meaning: '산업/제품/기술 변화 신호' },
-    { type: 'Paper', count: numberValue(sourceMix.paper ?? trend.paper_count), weight: 'Medium-High', meaning: '연구/구현 패턴 근거' },
-  ].filter((row) => row.count > 0);
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Source Type</TableHead>
-          <TableHead>Count</TableHead>
-          <TableHead>Weight</TableHead>
-          <TableHead>Meaning</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row) => (
-          <TableRow key={row.type}>
-            <TableCell className="font-black">{row.type}</TableCell>
-            <TableCell>{row.count}</TableCell>
-            <TableCell>{row.weight}</TableCell>
-            <TableCell className="text-muted">{row.meaning}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function TrendDetail({ trend }: { trend: Trend }) {
-  const snapshots = trend.recent_snapshots ?? [];
-  const sources = trend.detected_sources ?? trend.source_refs ?? [];
-  const extraSources = Math.max(0, sources.length - 5);
-  const nextActions = trend.project_ideas?.length
-    ? trend.project_ideas
-    : [`${trend.keyword} 개념 이해하기`, `작은 ${trend.keyword} 예제 만들어보기`, '외부 API 또는 DB 연결하기', '포트폴리오 프로젝트로 확장하기'];
-
-  return (
-    <div className="border-t border-outline-soft bg-surface p-4 md:p-5">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="border border-outline-soft bg-white p-4">
-          <h3 className="text-sm font-black uppercase text-ink">Summary</h3>
-          <p className="mt-3 text-sm leading-7 text-muted">{trend.summary ?? '최근 수집된 개발 신호를 바탕으로 감지된 트렌드입니다.'}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{categoryOf(trend)}</span>
-            <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{TREND_TYPE_LABELS[String(trend.entity_type ?? trend.trend_type ?? '')] ?? trend.entity_type ?? trend.trend_type ?? 'Entity'}</span>
-            <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{compactMix(trend)}</span>
-          </div>
-        </section>
-
-        <InterestBars snapshots={snapshots} />
-
-        <section className="border border-outline-soft bg-white p-4 lg:col-span-2">
-          <h3 className="mb-3 text-sm font-black uppercase text-ink">7D Interest Trend Table</h3>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead>Signals</TableHead>
-                <TableHead>News</TableHead>
-                <TableHead>GitHub</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Papers</TableHead>
-                <TableHead>Direction</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {snapshots.map((item, index) => (
-                <TableRow key={item.date}>
-                  <TableCell className="font-bold">{formatDate(item.date)}</TableCell>
-                  <TableCell>{item.score}</TableCell>
-                  <TableCell>{item.signal_count}</TableCell>
-                  <TableCell>{item.news_count}</TableCell>
-                  <TableCell>{item.github_repo_count}</TableCell>
-                  <TableCell>{item.product_count}</TableCell>
-                  <TableCell>{item.paper_count}</TableCell>
-                  <TableCell>{directionForSnapshots(snapshots, index)}</TableCell>
-                </TableRow>
-              ))}
-              {!snapshots.length && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-muted">아직 추이 데이터가 없습니다. 트렌드 집계를 한 번 더 실행해주세요.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4 lg:col-span-2">
-          <h3 className="mb-3 text-sm font-black uppercase text-ink">Signal Breakdown</h3>
-          <SignalBreakdownTable trend={trend} />
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4">
-          <h3 className="text-sm font-black uppercase text-ink">Why Trending</h3>
-          <div className="mt-3 grid gap-2">
-            {(trend.why_trending?.length ? trend.why_trending : ['출처 다양성, 최근성, 실행 가능성을 합쳐 점수화했습니다.']).slice(0, 5).map((item) => (
-              <p key={item} className="border border-outline-soft bg-surface px-3 py-2 text-sm font-semibold leading-6 text-muted">{item}</p>
-            ))}
-          </div>
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4">
-          <h3 className="text-sm font-black uppercase text-ink">Related Skills & Tools</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {[...(trend.related_skills ?? []), ...(trend.related_tools ?? [])].slice(0, 14).map((item) => (
-              <span key={item} className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-muted">{item}</span>
-            ))}
-            {!(trend.related_skills?.length || trend.related_tools?.length) && <span className="text-sm text-muted">관련 스킬 데이터를 집계 중입니다.</span>}
-          </div>
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4">
-          <h3 className="text-sm font-black uppercase text-ink">Recommended For</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(trend.target_roles?.length ? trend.target_roles : ['AI 앱 빌더', '풀스택 개발자']).map((role) => (
-              <span key={role} className="border border-ink bg-ink px-2 py-1 text-xs font-bold text-white">{role}</span>
-            ))}
-          </div>
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4">
-          <h3 className="text-sm font-black uppercase text-ink">Next Actions</h3>
-          <ol className="mt-3 grid gap-2">
-            {nextActions.slice(0, 5).map((item, index) => (
-              <li key={`${item}-${index}`} className="flex gap-3 border border-outline-soft bg-surface px-3 py-2 text-sm font-semibold leading-6 text-muted">
-                <span className="font-black text-ink">{index + 1}</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="border border-outline-soft bg-white p-4 lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-black uppercase text-ink">Detected Sources</h3>
-            {!!extraSources && <span className="text-xs font-bold text-muted">+{extraSources} more</span>}
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {sources.slice(0, 5).map((ref) => (
-              <Link key={`${ref.type}-${ref.id}`} href={signalHref(ref)} className="flex items-start gap-3 border border-outline-soft bg-surface p-3 hover:border-ink">
-                <span className="mt-0.5 text-ink"><SourceIcon type={ref.type} /></span>
-                <span className="min-w-0">
-                  <span className="block text-xs font-bold uppercase text-muted">{sourceLabel(ref.type)} {ref.source_name ? `· ${ref.source_name}` : ''}</span>
-                  <span className="mt-1 block line-clamp-2 text-sm font-semibold leading-6 text-ink">{ref.title}</span>
-                </span>
-                <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-muted" />
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
+type Category = (typeof CATEGORY_TABS)[number];
 
 export default function TrendAccordion({ trends, models = [] }: { trends: Trend[]; models?: ModelIntelligence[] }) {
-  const [category, setCategory] = useState<(typeof CATEGORY_TABS)[number]>('개발 워크플로우');
+  const [category, setCategory] = useState<Category>(ALL);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const visibleTrends = useMemo(() => {
-    return trends
-      .filter(isMeaningfulTrend)
-      .filter((trend) => categoryOf(trend) === category)
-      .sort((a, b) => scoreOf(b) - scoreOf(a))
-      .slice(0, 30);
-  }, [category, trends]);
+  const ranked = useMemo(() => trends.filter(isMeaningfulTrend).sort((a, b) => scoreOf(b) - scoreOf(a)), [trends]);
+  const counts = useMemo(() => {
+    const result: Record<string, number> = { [ALL]: ranked.length };
+    for (const trend of ranked) result[categoryOf(trend)] = (result[categoryOf(trend)] ?? 0) + 1;
+    return result;
+  }, [ranked]);
+  const visibleTrends = useMemo(() => ranked.filter((trend) => category === ALL || categoryOf(trend) === category).slice(0, 30), [category, ranked]);
+  const top = Math.max(1, ...visibleTrends.map(scoreOf));
 
   return (
     <section className="grid gap-5">
-      <div className="flex flex-wrap gap-2">
+      <div className="tabs justify-self-start">
         {CATEGORY_TABS.map((item) => (
           <button
             key={item}
             type="button"
+            aria-pressed={category === item}
             onClick={() => {
               setCategory(item);
               setOpenId(null);
             }}
-            className={`min-h-11 border px-3 text-xs font-black ${category === item ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-white text-muted hover:border-ink hover:text-ink'}`}
+            className="tab"
           >
             {item}
+            {item !== MODELS && <span className="num">{counts[item] ?? 0}</span>}
           </button>
         ))}
       </div>
 
-      {category === '모델 인텔리전스' ? <ModelIntelligencePanel models={models} /> : <div className="grid gap-3">
-        {visibleTrends.map((trend, index) => {
-          const isOpen = openId === trend.id;
-          const growth = numberValue(trend.weekly_growth_rate);
-          return (
-            <article key={trend.id} className="border border-outline-soft bg-white">
-              <button type="button" onClick={() => setOpenId(isOpen ? null : trend.id)} className="grid w-full gap-4 p-4 text-left hover:bg-surface sm:p-5 md:grid-cols-[5rem_1fr_6rem] md:items-center">
-                <div className="text-2xl font-black text-muted/70 md:text-3xl">
-                  {String(index + 1).padStart(2, '0')}
-                </div>
-                <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className="border border-emerald-500/40 bg-emerald-50 px-2 py-1 text-xs font-black uppercase text-emerald-700">{statusLabel(trend.status)}</span>
-                    <span className="text-xs font-black uppercase tracking-[0.24em] text-muted">{TREND_TYPE_LABELS[String(trend.entity_type ?? trend.trend_type ?? '')] ?? trend.entity_type ?? trend.trend_type ?? categoryOf(trend)}</span>
-                  </div>
-                  <h2 className="line-clamp-2 text-2xl font-black leading-tight text-ink md:truncate md:text-3xl">{trend.display_name ?? trend.keyword}</h2>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold uppercase text-muted">
-                    <span className="inline-flex items-center gap-1">{directionIcon(trend.trend_direction)} {growth >= 0 ? '+' : ''}{growth}%</span>
-                    <span>·</span>
-                    <span>{compactMix(trend)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-3 md:justify-end">
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-muted">점수</div>
-                    <div className="text-4xl font-black text-emerald-500">{scoreOf(trend)}</div>
-                  </div>
-                  <span className="text-muted">{isOpen ? <ArrowUp className="h-5 w-5" /> : <ArrowDown className="h-5 w-5" />}</span>
-                </div>
-              </button>
-              {isOpen && <TrendDetail trend={trend} />}
-            </article>
-          );
-        })}
-        {!visibleTrends.length && (
-          <div className="border border-dashed border-outline-soft bg-white p-8 text-sm font-semibold text-muted">
-            이 카테고리의 트렌드는 아직 집계되지 않았습니다. 트렌드 집계를 다시 실행하면 새 분류 기준으로 채워집니다.
-          </div>
-        )}
-      </div>}
+      {category === MODELS ? <ModelIntelligencePanel models={models} /> : visibleTrends.length ? (
+        <ol className="card overflow-hidden">
+          {visibleTrends.map((trend, index) => {
+            const isOpen = openId === trend.id;
+            const growth = Math.round(numberValue(trend.weekly_growth_rate));
+            const status = STATUS[String(trend.status ?? 'watch').toLowerCase()] ?? STATUS.watch;
+            const score = scoreOf(trend);
+            const detailId = `trend-${trend.id}`;
+            return (
+              <li key={trend.id} className="border-t border-outline-soft first:border-t-0">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  aria-controls={detailId}
+                  onClick={() => setOpenId(isOpen ? null : trend.id)}
+                  className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 px-5 py-4 text-left transition-colors hover:bg-surface-low md:grid-cols-[2.25rem_minmax(0,1fr)_auto] md:px-7"
+                >
+                  <span className="num text-sm text-muted">{index + 1}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[17px] font-bold leading-snug text-ink">{trend.display_name ?? trend.keyword}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted">
+                      <span className="inline-flex items-center gap-1.5 text-ink"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>
+                      {trend.trend_direction !== 'new' && growth !== 0 && <span className="num">{growth > 0 ? '▲' : '▼'} {Math.abs(growth)}%</span>}
+                      {category === ALL && <span>{categoryOf(trend)}</span>}
+                      <span className="truncate">{compactMix(trend)}</span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-3 md:gap-4">
+                    <span aria-hidden="true" className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-surface-high sm:block">
+                      <span className={`block h-full rounded-full ${index === 0 ? 'bg-hot' : 'bg-ink'}`} style={{ width: `${Math.max(4, Math.round((score / top) * 100))}%` }} />
+                    </span>
+                    <span className={`num w-9 text-right text-xl font-semibold ${index === 0 ? 'text-hot' : 'text-ink'}`}><span className="sr-only">점수 </span>{score}</span>
+                    <ChevronDown aria-hidden="true" className={`h-4 w-4 text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </span>
+                </button>
+                {isOpen && <TrendDetail trend={trend} id={detailId} />}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="empty-state">이 분류에는 아직 모인 주제가 없습니다.</p>
+      )}
     </section>
   );
 }

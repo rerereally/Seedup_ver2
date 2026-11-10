@@ -1,11 +1,13 @@
 import { answerArticleQuestion } from '@/lib/ingest/ai';
 import { createClient } from '@/lib/supabase/server';
+import { consumeDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const MAX_TITLE_LENGTH = 200;
+const DAILY_ASK_LIMIT = 40;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -32,6 +34,10 @@ export async function POST(request: Request) {
 
   if (!title || !question) {
     return NextResponse.json({ error: 'Article title and question are required' }, { status: 400 });
+  }
+
+  if (supabase && !(await consumeDailyUsage(supabase, 'article_ask', DAILY_ASK_LIMIT))) {
+    return NextResponse.json({ error: `글 도우미는 하루 ${DAILY_ASK_LIMIT}번까지 사용할 수 있습니다.` }, { status: 429 });
   }
 
   const { result, model, error } = await answerArticleQuestion({ title, summary, content, question, history });

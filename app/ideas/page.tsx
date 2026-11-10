@@ -3,7 +3,8 @@
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { createClient } from '@/lib/supabase/client';
-import { CheckCircle2, Lightbulb, Loader2, RotateCcw, Send, X } from 'lucide-react';
+import PageIntro from '@/components/PageIntro';
+import { ArrowRight, Loader2, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type RecentIdea = {
@@ -58,9 +59,9 @@ type EvaluationRun = {
 };
 
 const EXAMPLE_IDEAS = [
-  { category: 'AI AUTOMATION', title: 'GitHub 이슈 데일리 리포트 봇', description: '개발팀이 놓치는 이슈 변경을 줄이기 위해, 저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구를 만들고 싶어요.' },
-  { category: 'RAG SERVICE', title: '논문 기반 구현 아이디어 생성기', description: 'AI를 공부하는 개발자가 논문 초록을 넣으면 핵심을 작은 실험과 구현 가능한 프로젝트로 바꿔주는 웹앱을 만들고 싶어요.' },
-  { category: 'DEVELOPER TOOL', title: 'Product Hunt 팀 큐레이션', description: '제품팀이 신제품을 빠르게 검토하도록 Product Hunt 제품을 분석해 매일 팀 Slack에 공유하는 대시보드를 만들고 싶어요.' },
+  { category: '자동화', title: 'GitHub 이슈 데일리 리포트 봇', description: '개발팀이 놓치는 이슈 변경을 줄이기 위해, 저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구를 만들고 싶어요.' },
+  { category: 'RAG 서비스', title: '논문 기반 구현 아이디어 생성기', description: 'AI를 공부하는 개발자가 논문 초록을 넣으면 핵심을 작은 실험과 구현 가능한 프로젝트로 바꿔주는 웹앱을 만들고 싶어요.' },
+  { category: '개발자 도구', title: 'Product Hunt 팀 큐레이션', description: '제품팀이 신제품을 빠르게 검토하도록 Product Hunt 제품을 분석해 매일 팀 Slack에 공유하는 대시보드를 만들고 싶어요.' },
 ];
 
 export default function Ideas() {
@@ -146,19 +147,14 @@ export default function Ideas() {
 
   const isIdle = !activeRun && status !== 'saving' && status !== 'error';
   const composer = (
-    <div className={`bg-white p-4 md:p-5 ${isIdle ? 'border-b' : 'border-t'} border-outline-soft`}>
-      <div className="overflow-hidden border border-ink bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-soft bg-surface px-4 py-2.5">
-          <label htmlFor="idea-chat-input" className="text-xs font-black text-ink">어떤 아이디어를 검토할까요?</label>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Seedup data context on</span>
-        </div>
-        <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} aria-label="평가받을 프로젝트 아이디어" placeholder="누가 겪는 어떤 문제를 어떻게 해결할지 적어주세요.&#10;&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="h-32 min-h-32 w-full resize-none bg-white px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted/70 sm:h-28 sm:min-h-28" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
-        <div className="flex flex-col gap-3 border-t border-outline-soft bg-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-          <p className="text-xs leading-5 text-muted">시장성 · 차별성 · 구현 난이도 · 포트폴리오 · MVP 계획</p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="text-[11px] text-muted">Cmd/Ctrl + Enter</span>
-            <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 bg-ink px-5 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"><Send className="h-4 w-4" />{status === 'saving' ? '분석 중...' : '평가하기'}</button>
-          </div>
+    <div className="card overflow-hidden transition-colors focus-within:border-ink">
+      <label htmlFor="idea-chat-input" className="label block px-5 pt-4">무엇을 만들려고 하나요?</label>
+      <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="block h-32 w-full resize-none rounded-none border-0 bg-transparent px-5 py-3 text-base leading-7 text-ink placeholder:text-muted/60" style={{ outline: 'none' }} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
+      <div className="flex flex-col gap-3 border-t border-outline-soft px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] leading-5 text-muted">시장성, 차별성, 구현 난이도, 포트폴리오 가치, MVP 계획을 봅니다.</p>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-xs text-muted sm:inline">⌘/Ctrl + Enter</span>
+          <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn w-full disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">{status === 'saving' ? '분석 중…' : '평가하기'}<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>
         </div>
       </div>
     </div>
@@ -168,75 +164,88 @@ export default function Ideas() {
     <>
       <Header />
       <main id="main-content" className="grow bg-surface">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8 md:py-12">
-          <div className="mb-6 flex flex-col gap-3 sm:mb-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-black tracking-tight text-ink">아이디어 평가</h1>
-              <span className="border border-ink bg-white px-3 py-1 text-xs font-black text-ink">IDEA REVIEW</span>
-            </div>
-            <p className="max-w-2xl text-sm leading-7 text-muted">아이디어의 시장성, 구현 가능성, 차별성, 포트폴리오 가치를 분석합니다.</p>
-          </div>
+        <div className="page-shell page-stack">
+          <PageIntro title="아이디어 평가" description="만들려는 것을 적어 주세요. 모아 둔 뉴스, 논문, 오픈소스, 제품 자료에 비춰 어디가 강하고 어디가 비었는지 짚습니다." />
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="overflow-hidden border border-outline-soft bg-white">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <section className="flex min-w-0 flex-col gap-6">
               {isIdle && composer}
-              <div className={`p-4 sm:p-5 md:p-8 ${isIdle ? '' : 'min-h-[320px]'}`}>
-                {isIdle && (
-                  <div>
-                    <h2 className="text-sm font-black text-ink">예시로 시작하기</h2>
-                    <div className="mt-4 grid w-full gap-3 md:grid-cols-3">
-                      {EXAMPLE_IDEAS.map((example) => (
-                        <button key={example.title} type="button" onClick={() => setIdea(example.description)} className="group border border-outline-soft bg-surface p-5 text-left transition-colors hover:border-ink hover:bg-white">
-                          <span className="block font-mono text-[11px] font-bold uppercase tracking-wider text-muted">{example.category}</span>
-                          <span className="mt-3 block text-sm font-bold leading-6 text-ink">{example.title}</span>
-                          <span className="mt-2 block text-xs leading-5 text-muted">{example.description}</span>
-                          <span className="mt-4 block text-xs font-bold text-ink">이 아이디어로 시작하기 <span className="inline-block transition-transform group-hover:translate-x-1">-&gt;</span></span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {activeRun && <div className="space-y-5">
-                  <div className="ml-auto max-w-[94%] bg-ink px-4 py-3 text-sm leading-7 text-white sm:max-w-[88%] sm:px-5 sm:py-4">{activeRun.idea}</div>
-                  <div className="max-w-full border border-outline-soft bg-surface p-4 sm:max-w-[96%] sm:p-5">
-                    <p className="mb-4 text-xs font-black uppercase tracking-wider text-ink">평가 결과</p>
-                    <EvaluationPanel run={activeRun} />
+              {isIdle && (
+                <div>
+                  <h2 className="label">예시로 시작하기</h2>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    {EXAMPLE_IDEAS.map((example) => (
+                      <button key={example.title} type="button" onClick={() => setIdea(example.description)} className="group rounded-[20px] border border-outline-soft p-5 text-left transition-colors hover:border-outline-strong hover:bg-white">
+                        <span className="block text-[13px] text-muted">{example.category}</span>
+                        <span className="mt-1.5 block text-[15px] font-bold leading-6 text-ink">{example.title}</span>
+                        <span className="mt-2 block text-[13px] leading-6 text-muted">{example.description}</span>
+                      </button>
+                    ))}
                   </div>
-                </div>}
+                </div>
+              )}
 
-                {status === 'saving' && <div className="flex min-h-[240px] items-center justify-center"><div className="text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-ink" /><p className="mt-4 text-sm font-bold text-ink">아이디어를 분석하고 있어요.</p><p className="mt-2 text-xs text-muted">최신 Seedup 데이터를 참고해 실행 가능성을 검토합니다.</p></div></div>}
-                {status === 'error' && <div className="flex min-h-[240px] items-center justify-center text-center"><div><p className="text-sm font-bold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="mt-4 bg-ink px-4 py-2 text-xs font-bold text-white">다시 시도</button></div></div>}
-              </div>
+              {activeRun && (
+                <>
+                  <p className="ml-auto max-w-[88%] rounded-[20px] rounded-br-md bg-surface-high px-5 py-3.5 text-[15px] leading-7 text-ink">{activeRun.idea}</p>
+                  <div className="card p-5 md:p-7"><EvaluationPanel run={activeRun} /></div>
+                </>
+              )}
+
+              {status === 'saving' && <div className="card flex min-h-[260px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-ink" /><p className="mt-4 font-bold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
+              {status === 'error' && <div className="card flex min-h-[260px] items-center justify-center p-6 text-center"><div><p className="font-bold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
 
               {!isIdle && composer}
             </section>
 
-            <aside className="space-y-4">
-              <div className="border border-outline-soft bg-white p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-black text-ink">최근 평가</h2><div className="flex items-center gap-3"><button type="button" onClick={() => setIsRecentModalOpen(true)} disabled={recentIdeas.length <= 3} className="min-h-10 text-xs font-bold text-muted underline underline-offset-4 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40">더보기</button><button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-ink"><RotateCcw className="h-3.5 w-3.5" /> 새로 시작</button></div></div>
-                <div className="mt-4 grid gap-2">
-                  {recentIdeas.length ? recentIdeas.slice(0, 3).map((item) => <button key={item.id} type="button" onClick={() => openRecent(item)} className="border border-outline-soft bg-surface p-3 text-left text-xs font-bold leading-5 text-muted transition-colors hover:border-ink hover:bg-white hover:text-ink"><span className="line-clamp-2">{item.idea_text}</span><span className="mt-1 block text-[10px] font-black uppercase text-muted">{item.score ?? '-'} score</span></button>) : <p className="text-xs leading-6 text-muted">로그인하면 최근 평가가 여기에 저장됩니다.</p>}
+            <aside className="flex flex-col gap-5">
+              <div className="card p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="label">최근 평가</h2>
+                  <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
                 </div>
+                {recentIdeas.length ? (
+                  <ul className="mt-2 divide-y divide-outline-soft">
+                    {recentIdeas.slice(0, 3).map((item) => (
+                      <li key={item.id}>
+                        <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-3 py-3 text-left">
+                          <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
+                          <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-muted">{isLoggedIn ? '아직 평가한 아이디어가 없습니다.' : '로그인하면 평가한 아이디어가 여기에 남습니다.'}</p>
+                )}
+                {recentIdeas.length > 3 && <button type="button" onClick={() => setIsRecentModalOpen(true)} className="mt-2 text-[13px] text-muted underline underline-offset-4 hover:text-ink">전체 {recentIdeas.length}개 보기</button>}
               </div>
-              <div className="border border-ink bg-ink p-5 text-white"><p className="text-xs font-black uppercase tracking-wider text-white/60">Seedup Evidence</p><p className="mt-3 text-sm leading-7 text-white/90">평가할 때 최신 뉴스, 논문, 오픈소스와 제품 데이터를 함께 참고합니다.</p></div>
+              <p className="px-1 text-[13px] leading-6 text-muted">점수는 참고용입니다. 근거로 삼은 자료가 없으면 결과 아래에 그렇게 적습니다.</p>
             </aside>
           </div>
         </div>
         {isRecentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">
-            <div className="w-full max-w-2xl border border-ink bg-white">
-              <div className="flex items-center justify-between border-b border-outline-soft px-5 py-4">
-                <div><h2 id="recent-evaluations-title" className="text-base font-black text-ink">최근 평가 전체 보기</h2><p className="mt-1 text-xs text-muted">이전에 평가받은 아이디어와 점수를 확인할 수 있습니다.</p></div>
-                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-11 w-11 items-center justify-center text-ink hover:bg-surface"><X className="h-5 w-5" /></button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">
+            <div className="card w-full max-w-2xl overflow-hidden">
+              <div className="flex items-center justify-between border-b border-outline-soft px-6 py-4">
+                <h2 id="recent-evaluations-title" className="text-lg font-extrabold tracking-tight text-ink">최근 평가</h2>
+                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-high hover:text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
               </div>
-              <div className="max-h-[70vh] space-y-2 overflow-y-auto p-5">
-                {recentIdeas.map((item) => <button key={item.id} type="button" onClick={() => openRecent(item)} className="w-full border border-outline-soft bg-surface p-4 text-left transition-colors hover:border-ink hover:bg-white"><div className="flex items-start justify-between gap-4"><span className="text-sm font-bold leading-6 text-ink">{item.idea_text}</span><span className="shrink-0 text-xs font-black text-muted">{item.score ?? '-'}점</span></div><span className="mt-2 block text-xs text-muted">{item.status === 'completed' ? '평가 완료' : item.status}</span></button>)}
-              </div>
+              <ul className="max-h-[70vh] divide-y divide-outline-soft overflow-y-auto px-6">
+                {recentIdeas.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-4 py-4 text-left">
+                      <span className="min-w-0 flex-1 text-[15px] leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
+                      <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}점</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         )}
-  </main>
+      </main>
       <Footer />
     </>
   );
@@ -290,46 +299,169 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
   const nextSteps = evaluation.structured_next_steps ?? [];
   const scoreReasonLabels: Record<string, string> = { feasibility: '구현 가능성', differentiation: '차별성', market: '시장성', portfolio: '포트폴리오', mvp_clarity: 'MVP 명확성' };
 
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryMetric label="종합 점수" value={`${evaluation.score} / 100`} />
-        <SummaryMetric label="구현 난이도" value={evaluation.difficulty} />
-        {evaluation.confidence && <SummaryMetric label="평가 신뢰도" value={evaluation.confidence.level === 'high' ? '높음' : evaluation.confidence.level === 'medium' ? '보통' : '낮음'} />}
-      </div>
+  const severityLabel = { high: '높음', medium: '보통', low: '낮음' } as const;
+  const confidenceLabel = evaluation.confidence ? severityLabel[evaluation.confidence.level] ?? evaluation.confidence.level : null;
+  const techGroups = ([['required', 'MVP에 필요'], ['optional', '있으면 좋음'], ['scale', '커진 뒤에']] as const)
+    .map(([category, label]) => ({ label, items: technologies.filter((item) => item.category === category) }))
+    .filter((group) => group.items.length);
 
-      <section className="border border-outline-soft bg-white p-4">
-        <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-black text-ink">핵심 판단</h3><span className="font-mono text-[11px] font-bold text-muted">VERDICT</span></div>
-        <p className="mt-3 max-w-[75ch] text-sm leading-7 text-muted">{evaluation.verdict}</p>
-        {!!evaluation.strengths?.length && <DetailList title="좋은 점" items={evaluation.strengths} />}
-        {!!evaluation.weaknesses?.length && <DetailList title="보완할 점" items={evaluation.weaknesses} />}
+  return (
+    <div className="divide-y divide-outline-soft [&>section]:py-7 [&>section:first-child]:pt-0 [&>section:last-child]:pb-0">
+      <section>
+        <dl className="flex flex-wrap gap-x-12 gap-y-5">
+          <div><dt className="label">종합 점수</dt><dd className="num mt-1 text-[44px] font-semibold leading-none text-hot">{evaluation.score}<span className="ml-1 text-base font-normal text-muted">/ 100</span></dd></div>
+          <div><dt className="label">구현 난이도</dt><dd className="mt-2 text-xl font-bold text-ink">{evaluation.difficulty}</dd></div>
+          {confidenceLabel && <div><dt className="label">평가 신뢰도</dt><dd className="mt-2 text-xl font-bold text-ink">{confidenceLabel}</dd></div>}
+        </dl>
+        <p className="mt-6 max-w-[42em] text-[17px] leading-8 text-ink">{evaluation.verdict}</p>
+        {(!!evaluation.strengths?.length || !!evaluation.weaknesses?.length) && (
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {!!evaluation.strengths?.length && <DetailList title="좋은 점" items={evaluation.strengths} />}
+            {!!evaluation.weaknesses?.length && <DetailList title="보완할 점" items={evaluation.weaknesses} />}
+          </div>
+        )}
       </section>
 
-      {(evaluation.user_stated?.length || evaluation.inferred_assumptions?.length) && <div className="grid gap-4 md:grid-cols-2"><section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">사용자가 말한 내용</h3><p className="mt-2 text-xs leading-6 text-muted">입력에서 직접 확인된 사실입니다.</p><DetailList title="" items={evaluation.user_stated ?? []} /></section><section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">확장 가설</h3><p className="mt-2 text-xs leading-6 text-muted">Seedup 자료와 AI가 연결한 검증 전 가설입니다.</p><DetailList title="" items={evaluation.inferred_assumptions ?? []} /></section></div>}
+      {(!!evaluation.user_stated?.length || !!evaluation.inferred_assumptions?.length) && (
+        <section className="grid gap-6 md:grid-cols-2">
+          <DetailList title="직접 적어 주신 내용" items={evaluation.user_stated ?? []} />
+          <DetailList title="AI가 덧붙인 가정 · 아직 검증 전" items={evaluation.inferred_assumptions ?? []} />
+        </section>
+      )}
 
-      {!!scoreItems.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">점수 근거</h3><div className="mt-3 grid gap-3 sm:grid-cols-2">{scoreItems.map(([label, value]) => { const key = Object.entries(scoreReasonLabels).find(([, currentLabel]) => currentLabel === label)?.[0] as keyof NonNullable<IdeaEvaluationResult['score_reasons']> | undefined; const reason = key ? evaluation.score_reasons?.[key] : undefined; return <div key={label} className="border border-outline-soft bg-surface p-3"><div className="flex justify-between gap-3 text-xs font-bold text-muted"><span>{label}</span><span className="font-mono text-ink">{value}</span></div><div className="mt-2 h-1 bg-outline-soft"><div className="h-1 bg-ink" style={{ width: `${value}%` }} /></div>{reason && <div className="mt-3 grid gap-2 text-xs leading-5 text-muted"><p><strong className="text-ink">긍정:</strong> {reason.positive.join(' · ') || '명시된 근거 없음'}</p><p><strong className="text-ink">감점:</strong> {reason.deductions.join(' · ') || '명시된 감점 없음'}</p><p><strong className="text-ink">근거:</strong> {reason.evidence.join(' · ') || '직접 근거 없음'}</p></div>}</div>; })}</div></section>}
+      {!!scoreItems.length && (
+        <section>
+          <h3 className="label">점수 근거</h3>
+          <div className="mt-3 grid gap-x-10 gap-y-6 sm:grid-cols-2">
+            {scoreItems.map(([label, value]) => {
+              const key = Object.entries(scoreReasonLabels).find(([, currentLabel]) => currentLabel === label)?.[0] as keyof NonNullable<IdeaEvaluationResult['score_reasons']> | undefined;
+              const reason = key ? evaluation.score_reasons?.[key] : undefined;
+              return (
+                <div key={label}>
+                  <div className="flex items-baseline justify-between gap-3"><span className="text-[15px] font-bold text-ink">{label}</span><span className="num text-ink">{value}</span></div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-high"><div className="h-full rounded-full bg-ink" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
+                  {reason && (
+                    <dl className="mt-3 grid gap-1 text-[13px] leading-6 text-muted">
+                      {!!reason.positive.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">더한 이유</dt><dd>{reason.positive.join(' · ')}</dd></div>}
+                      {!!reason.deductions.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">깎은 이유</dt><dd>{reason.deductions.join(' · ')}</dd></div>}
+                      {!!reason.evidence.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">근거</dt><dd>{reason.evidence.join(' · ')}</dd></div>}
+                    </dl>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-6 md:grid-cols-2">
         <TextSection title="포트폴리오 가치" content={evaluation.portfolio_value} />
-        <TextSection title="시장성 및 경쟁 환경" content={evaluation.market_fit} />
-      </div>
+        <TextSection title="시장과 경쟁" content={evaluation.market_fit} />
+      </section>
 
-      {!!technologies.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">추천 MVP 기술 스택</h3><div className="mt-3 grid gap-2">{(['required', 'optional', 'scale'] as const).map((category) => { const items = technologies.filter((item) => item.category === category); if (!items.length) return null; return <div key={category}><p className="font-mono text-[11px] font-bold uppercase text-muted">{category === 'required' ? 'MVP 필수' : category === 'optional' ? '선택 사항' : '확장 단계'}</p><div className="mt-2 grid gap-2">{items.map((item) => <div key={`${category}-${item.name}`} className="border border-outline-soft bg-surface p-3"><p className="text-sm font-bold text-ink">{item.name}</p><p className="mt-1 text-xs leading-5 text-muted">{item.reason}</p></div>)}</div></div>; })}</div></section>}
+      {!!techGroups.length && (
+        <section>
+          <h3 className="label">추천 기술</h3>
+          <div className="mt-1 divide-y divide-outline-soft">
+            {techGroups.flatMap((group) => group.items.map((item, index) => (
+              <div key={`${group.label}-${item.name}`} className="grid gap-x-4 gap-y-0.5 py-3 sm:grid-cols-[7rem_10rem_minmax(0,1fr)] sm:items-baseline">
+                <span className="text-[13px] text-muted">{index === 0 ? group.label : ''}</span>
+                <span className="text-[15px] font-bold text-ink">{item.name}</span>
+                <span className="text-sm leading-6 text-muted">{item.reason}</span>
+              </div>
+            )))}
+          </div>
+        </section>
+      )}
 
-      {risks.length > 0 && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">위험 요소와 대응</h3><div className="mt-3 grid gap-2">{risks.slice(0, 5).map((risk) => <div key={risk.title} className="border border-outline-soft bg-surface p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-ink">{risk.title}</p><span className="font-mono text-[11px] font-bold uppercase text-muted">{risk.severity}</span></div><p className="mt-2 text-xs leading-5 text-muted"><strong className="text-ink">영향:</strong> {risk.impact}</p><p className="mt-1 text-xs leading-5 text-muted"><strong className="text-ink">대응:</strong> {risk.mitigation}</p></div>)}</div></section>}
+      {risks.length > 0 && (
+        <section>
+          <h3 className="label">위험과 대응</h3>
+          <div className="mt-1 divide-y divide-outline-soft">
+            {risks.slice(0, 5).map((risk) => (
+              <div key={risk.title} className="py-4">
+                <p className="flex items-baseline justify-between gap-3"><span className="text-[15px] font-bold text-ink">{risk.title}</span><span className="shrink-0 text-[13px] text-muted">위험도 {severityLabel[risk.severity] ?? risk.severity}</span></p>
+                <p className="mt-1.5 text-sm leading-6 text-muted">{risk.impact}</p>
+                <p className="mt-1 text-sm leading-6 text-ink"><span className="text-muted">대응 · </span>{risk.mitigation}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {nextSteps.length > 0 && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">MVP 실행 계획</h3><div className="mt-3 grid gap-2">{nextSteps.slice(0, 5).map((step) => <div key={`${step.order}-${step.title}`} className="border border-outline-soft bg-surface p-3"><p className="text-sm font-bold text-ink"><span className="mr-2 font-mono text-muted">{String(step.order).padStart(2, '0')}</span>{step.title}</p><p className="mt-2 text-xs leading-5 text-muted">{step.description}</p><p className="mt-2 text-xs leading-5 text-muted"><strong className="text-ink">산출물:</strong> {step.deliverable}</p><p className="mt-1 text-xs leading-5 text-muted"><strong className="text-ink">완료 조건:</strong> {step.done_when}</p></div>)}</div></section>}
+      {nextSteps.length > 0 && (
+        <section>
+          <h3 className="label">MVP 실행 순서</h3>
+          <ol className="mt-1 divide-y divide-outline-soft">
+            {nextSteps.slice(0, 5).map((step) => (
+              <li key={`${step.order}-${step.title}`} className="flex gap-4 py-4">
+                <span className="num w-5 shrink-0 text-muted">{step.order}</span>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-bold text-ink">{step.title}</p>
+                  {step.description !== step.title && <p className="mt-1 text-sm leading-6 text-muted">{step.description}</p>}
+                  <p className="mt-1 text-[13px] leading-6 text-muted"><span className="text-ink">산출물</span> {step.deliverable} · <span className="text-ink">끝나는 기준</span> {step.done_when}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
-      {evaluation.mvp_scope && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">MVP 범위</h3><div className="mt-3 grid gap-3 text-sm leading-6 text-muted sm:grid-cols-3"><p><strong className="block text-xs text-ink">팀과 기간</strong>{evaluation.mvp_scope.team_size} · {evaluation.mvp_scope.duration_weeks}주</p><p><strong className="block text-xs text-ink">핵심 흐름</strong>{evaluation.mvp_scope.core_user_flow}</p><p><strong className="block text-xs text-ink">이번 MVP 제외</strong>{evaluation.mvp_scope.excluded_scope.join(' · ') || '추가 범위 없음'}</p></div></section>}
+      {evaluation.mvp_scope && (
+        <section>
+          <h3 className="label">MVP 범위</h3>
+          <dl className="mt-3 grid gap-5 text-sm leading-6 text-ink sm:grid-cols-3">
+            <div><dt className="text-[13px] text-muted">팀과 기간</dt><dd className="mt-0.5">{evaluation.mvp_scope.team_size} · {evaluation.mvp_scope.duration_weeks}주</dd></div>
+            <div><dt className="text-[13px] text-muted">핵심 흐름</dt><dd className="mt-0.5">{evaluation.mvp_scope.core_user_flow}</dd></div>
+            <div><dt className="text-[13px] text-muted">이번에는 빼는 것</dt><dd className="mt-0.5">{evaluation.mvp_scope.excluded_scope.join(' · ') || '없음'}</dd></div>
+          </dl>
+        </section>
+      )}
 
-      {evaluation.confidence && <section className="border border-outline-soft bg-white p-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-black text-ink">평가 신뢰도</h3><span className="font-mono text-xs font-bold text-muted">{evaluation.confidence.level.toUpperCase()}</span></div><p className="mt-2 text-xs leading-6 text-muted">{evaluation.confidence.reason}</p>{!!evaluation.missing_data?.length && <DetailList title="추가 검증 필요" items={evaluation.missing_data} />}</section>}
+      {evaluation.confidence && (
+        <section>
+          <h3 className="label">이 평가를 얼마나 믿어도 되나</h3>
+          <p className="mt-2 max-w-[42em] text-sm leading-7 text-ink">{evaluation.confidence.reason}</p>
+          {!!evaluation.missing_data?.length && <div className="mt-5"><DetailList title="더 확인해야 할 것" items={evaluation.missing_data} /></div>}
+        </section>
+      )}
 
-      {!!evaluation.references?.length && <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">평가 근거</h3><p className="mt-2 text-xs leading-6 text-muted">이번 평가에서 실제로 검색된 참고 자료입니다.</p><div className="mt-3 grid gap-2">{evaluation.references.slice(0, 6).map((reference, index) => <div key={`${reference.source_table}:${reference.source_id ?? reference.metadata.url ?? reference.metadata.title ?? 'reference'}:${index}`} className="border border-outline-soft bg-surface p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-ink">{reference.metadata.title ?? reference.source_table}</p><span className="font-mono text-xs font-bold text-muted">{Math.round(reference.similarity * 100)}%</span></div><p className="mt-1 text-xs text-muted">{reference.metadata.source ?? reference.source_table}</p>{reference.metadata.url && <a href={reference.metadata.url} target="_blank" rel="noreferrer" className="mt-2 block truncate text-xs font-bold text-ink underline">원문 보기</a>}</div>)}</div></section>}
-      {!evaluation.references?.length && <p className="border border-dashed border-outline-soft bg-white p-4 text-xs leading-6 text-muted">이번 평가에 직접 연결된 참고 자료가 없습니다. 시장성 평가는 제한적인 정보에 기반한 AI 추론입니다.</p>}
+      <section>
+        <h3 className="label">참고한 자료</h3>
+        {evaluation.references?.length ? (
+          <ul className="mt-1 divide-y divide-outline-soft">
+            {evaluation.references.slice(0, 6).map((reference, index) => {
+              const title = reference.metadata.title ?? reference.source_table;
+              return (
+                <li key={`${reference.source_table}:${reference.source_id ?? reference.metadata.url ?? reference.metadata.title ?? 'reference'}:${index}`} className="flex items-baseline gap-3 py-3 text-sm">
+                  {reference.metadata.url
+                    ? <a href={reference.metadata.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-ink underline-offset-4 hover:underline">{title}</a>
+                    : <span className="min-w-0 flex-1 truncate text-ink">{title}</span>}
+                  <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{reference.metadata.source ?? reference.source_table}</span>
+                  <span className="num shrink-0 text-[13px] text-muted">{Math.round(reference.similarity * 100)}%</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm leading-7 text-muted">이번 평가에 직접 연결된 자료가 없습니다. 시장성 판단은 모델의 추론이므로 그대로 믿지 마세요.</p>
+        )}
+      </section>
     </div>
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) { return <div className="border border-outline-soft bg-white p-3"><p className="font-mono text-[11px] font-bold uppercase text-muted">{label}</p><p className="mt-2 text-xl font-black text-ink">{value}</p></div>; }
-function TextSection({ title, content }: { title: string; content: string }) { return <section className="border border-outline-soft bg-white p-4"><h3 className="text-sm font-black text-ink">{title}</h3><p className="mt-3 max-w-[65ch] text-sm leading-7 text-muted">{content}</p></section>; }
-function DetailList({ title, items }: { title: string; items: string[] }) { return <div className="mt-4"><p className="text-xs font-black text-ink">{title}</p><ul className="mt-2 grid gap-1">{items.slice(0, 4).map((item) => <li key={item} className="flex gap-2 text-xs leading-5 text-muted"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink" />{item}</li>)}</ul></div>; }
+function TextSection({ title, content }: { title: string; content: string }) {
+  return <div><h3 className="label">{title}</h3><p className="mt-2 text-sm leading-7 text-ink">{content}</p></div>;
+}
+
+function DetailList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <h3 className="label">{title}</h3>
+      <ul className="mt-1 divide-y divide-outline-soft">
+        {items.slice(0, 4).map((item) => <li key={item} className="py-2.5 text-sm leading-6 text-ink">{item}</li>)}
+      </ul>
+    </div>
+  );
+}

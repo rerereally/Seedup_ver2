@@ -4,7 +4,6 @@ import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
 import TrendAccordion from '@/components/TrendAccordion';
 import { getModelIntelligence, getTrends } from '@/lib/data';
-import { Radio } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: '트렌드',
@@ -12,7 +11,6 @@ export const metadata: Metadata = {
 
 export default async function Trends() {
   const [trends, models] = await Promise.all([getTrends(), getModelIntelligence()]);
-  const topTrend = trends[0];
   const totalSignals = trends.reduce((sum, trend) => sum + Number(trend.sources_count ?? 0), 0);
 
   return (
@@ -21,24 +19,9 @@ export default async function Trends() {
       <main id="main-content" className="grow bg-surface">
         <div className="page-shell page-stack">
           <PageIntro
-            eyebrow="Trend Radar"
-            title="카테고리별 개발 트렌드 Top 30"
-            description="뉴스, AI 제품, GitHub, 논문 신호를 카테고리별로 다르게 추출해 개발 워크플로우, AI 도구·모델, 구현 패턴, 오픈소스 프로젝트, 빌드 아이디어를 점수화합니다."
-            icon={Radio}
-            meta={(
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  [`${trends.length}개`, '분석된 트렌드'],
-                  [topTrend?.keyword ?? '-', '최상위 트렌드'],
-                  [`${totalSignals || '-'}개`, '누적 신호'],
-                ].map(([value, label]) => (
-                  <div key={label} className="border border-outline-soft bg-white px-4 py-3">
-                    <p className="text-2xl font-black text-ink">{value}</p>
-                    <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            title="개발 트렌드"
+            description="기사, AI 제품, GitHub, 논문에서 같은 주제가 얼마나 겹쳐 나오는지 세어 순위를 매겼습니다."
+            meta={trends.length ? <>주제 <span className="num text-ink">{trends.length}</span>개 · 겹친 신호 <span className="num text-ink">{totalSignals}</span>건</> : undefined}
           />
 
           <TrendAccordion trends={trends} models={models} />

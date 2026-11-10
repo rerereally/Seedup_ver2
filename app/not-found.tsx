@@ -1,26 +1,21 @@
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
 import Link from 'next/link';
-import { FileQuestion } from 'lucide-react';
 
 export default function NotFoundPage() {
   return (
-    <main id="main-content" className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
-      <section className="w-full max-w-xl rounded-xl border border-outline-soft bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand-primary/10 text-brand-primary">
-          <FileQuestion className="h-7 w-7" />
+    <>
+      <Header />
+      <main id="main-content" className="page-shell flex grow flex-col items-start justify-center py-20 md:py-28">
+        <p className="num text-sm text-muted">404</p>
+        <h1 className="page-intro-title mt-2">찾는 페이지가 없습니다</h1>
+        <p className="page-intro-description">주소가 바뀌었거나, 수집 주기가 지나면서 내려간 글일 수 있습니다.</p>
+        <div className="mt-8 flex flex-wrap gap-2">
+          <Link href="/opportunities" className="btn">기회 살펴보기</Link>
+          <Link href="/" className="btn-quiet">홈으로</Link>
         </div>
-        <h1 className="text-3xl font-bold text-ink">페이지를 찾을 수 없습니다</h1>
-        <p className="mt-3 leading-7 text-muted">
-          요청한 글이 없거나, 아직 Supabase에 데이터가 등록되지 않았을 수 있습니다.
-        </p>
-        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/news" className="inline-flex items-center justify-center rounded-lg bg-brand-primary px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-            아티클 목록으로
-          </Link>
-          <Link href="/" className="inline-flex items-center justify-center rounded-lg border border-outline-soft bg-surface px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-brand-primary hover:text-brand-primary">
-            홈으로 이동
-          </Link>
-        </div>
-      </section>
-    </main>
+      </main>
+      <Footer />
+    </>
   );
 }

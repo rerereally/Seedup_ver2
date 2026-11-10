@@ -3,21 +3,21 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Seedup - 개발 트렌드를 프로젝트로 연결하는 성장 플랫폼',
+    default: 'Seedup - 만들기 전에 사람들의 말부터',
     template: '%s | Seedup',
   },
-  description: '개발 뉴스, 논문, GitHub 오픈소스, AI 제품 흐름을 분석해 내 수준에 맞는 아티클과 프로젝트 아이디어로 연결합니다.',
+  description: '개발자들이 실제로 남긴 불만을 원문과 대조해 모으고, 경쟁 상황을 확인한 뒤 근거가 연결된 PRD로 이어갑니다.',
   openGraph: {
-    title: 'Seedup - 개발 트렌드를 프로젝트로 연결하는 성장 플랫폼',
-    description: '읽고 끝나는 개발 콘텐츠를 저장, 분석, 프로젝트 아이디어, 아이디어 평가 흐름으로 이어보세요.',
+    title: 'Seedup - 만들기 전에 사람들의 말부터',
+    description: '입력한 아이디어에 실제 개발자의 증언이 반응합니다. 근거를 모아 PRD까지 만들어 보세요.',
     siteName: 'Seedup',
     locale: 'ko_KR',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Seedup - 개발 트렌드를 프로젝트로 연결하는 성장 플랫폼',
-    description: '개발 트렌드와 오픈소스를 내 성장 루틴과 프로젝트 후보로 바꿔보세요.',
+    title: 'Seedup - 만들기 전에 사람들의 말부터',
+    description: '입력한 아이디어에 실제 개발자의 증언이 반응합니다.',
   },
 };
 

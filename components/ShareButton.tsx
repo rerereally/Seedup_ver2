@@ -31,9 +31,9 @@ export default function ShareButton({ title, url }: ShareButtonProps) {
     <button
       type="button"
       onClick={handleShare}
-      className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink"
+      className="btn-quiet"
     >
-      <Share2 className="h-4 w-4" />
+      <Share2 aria-hidden="true" className="h-4 w-4" />
       {copied ? '복사됨' : '공유'}
     </button>
   );

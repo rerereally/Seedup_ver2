@@ -1,16 +1,16 @@
 {
- "generatedAt": "2026-11-10T07:14:24.805Z",
+ "generatedAt": "2026-11-10T14:00:21.834Z",
  "stats": {
-  "collected": 332,
-  "sampled": 332,
-  "batchesOk": 42,
-  "batchesTotal": 42,
-  "painsVerified": 36,
-  "quotesRejected": 9,
-  "candidates": 14,
+  "collected": 399,
+  "sampled": 360,
+  "batchesOk": 45,
+  "batchesTotal": 45,
+  "painsVerified": 32,
+  "quotesRejected": 29,
+  "candidates": 28,
   "qualified": 2,
-  "llmCalls": 110,
-  "llmFailures": 22,
+  "llmCalls": 158,
+  "llmFailures": 18,
   "supplyCoverage": [
    "github",
    "npm",
@@ -23,42 +23,42 @@
     "status": "ok",
     "items": 20,
     "errors": 0,
-    "durationMs": 1209
+    "durationMs": 1142
    },
    {
     "id": "lobsters-ask",
     "status": "ok",
     "items": 4,
     "errors": 0,
-    "durationMs": 2947
+    "durationMs": 2789
    },
    {
     "id": "hn-ask",
     "status": "ok",
     "items": 68,
     "errors": 0,
-    "durationMs": 4816
+    "durationMs": 4956
    },
    {
     "id": "hn-pain-comments",
     "status": "ok",
-    "items": 31,
+    "items": 68,
     "errors": 0,
-    "durationMs": 4949
+    "durationMs": 8438
    },
    {
     "id": "stackoverflow-unanswered",
     "status": "ok",
-    "items": 75,
+    "items": 106,
     "errors": 0,
-    "durationMs": 9309
+    "durationMs": 15858
    },
    {
     "id": "github-feature-requests",
     "status": "ok",
-    "items": 134,
+    "items": 133,
     "errors": 0,
-    "durationMs": 55107
+    "durationMs": 39955
    }
   ]
  },
@@ -175,7 +175,18 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2026-01-13T16:43:49Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 5,
+     "platforms": 2,
+     "direct": 0,
+     "status": "open",
+     "qualified": true
+    }
+   ]
   },
   {
    "slug": "llm-provider-schema-normalization",
@@ -271,7 +282,298 @@
    ],
    "directCount": 4,
    "firstSeenAt": "2025-12-11T06:57:09.000Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 3,
+     "platforms": 2,
+     "direct": 4,
+     "status": "narrowing",
+     "qualified": true
+    }
+   ]
+  },
+  {
+   "slug": "database-cli-inconsistent-commands",
+   "name": "DB CLI 명령 불일치",
+   "problem": "데이터베이스 CLI의 명령과 자동완성이 일관되지 않아 멀티데이터베이스 작업이 비효율적이고, Avro·Protobuf 디버깅용 시각 검사 도구가 없다.",
+   "gap": "기존 제품은 다중 데이터베이스 워크플로우에 특화된 자동완성 기능이 있는 통합 데이터베이스 CLI와 Avro 또는 Protobuf 디버깅을 위한 간단한 시각적 인스펙터를 동시에 제공하지 않는다.",
+   "keywords": [
+    "db",
+    "database",
+    "cli",
+    "autocomplete",
+    "avro",
+    "protobuf",
+    "schema",
+    "decode",
+    "inspector",
+    "debugging",
+    "data",
+    "tool"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_ee18ea5132ba0965",
+     "platform": "hn",
+     "quote": "manually inspecting payloads would not be quick and easy w/o some custom tooling",
+     "quoteKo": "커스텀 도구 없이 페이로드를 수동으로 검사하는 것은 빠르고 쉽지 않을 것이다.",
+     "url": "https://news.ycombinator.com/item?id=46085091",
+     "score": 8,
+     "postedAt": "2025-11-29T04:06:13Z"
+    },
+    {
+     "id": "ev_2a7fa85f1154e0ec",
+     "platform": "hn",
+     "quote": "My biggest pain point with using different cli to connect to different databases is that they all do things like listing tables differently.",
+     "quoteKo": "서로 다른 데이터베이스에 연결하기 위해 여러 CLI를 사용할 때 가장 불편한 점은, 테이블 목록 조회 같은 작업을 모두 다르게 처리한다는 것입니다.",
+     "url": "https://news.ycombinator.com/item?id=48411205",
+     "score": 0,
+     "postedAt": "2026-06-05T11:57:35Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Duck-UI – Browser-Based SQL IDE for DuckDB",
+     "description": "",
+     "popularity": 213,
+     "url": "https://news.ycombinator.com/item?id=45633453",
+     "createdAt": "2025-10-19T11:19:38Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: WhoDB CLI – Terminal database client (Golang) with local AI support",
+     "description": "",
+     "popularity": 4,
+     "url": "https://news.ycombinator.com/item?id=46697475",
+     "createdAt": "2026-01-20T20:40:52Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Open-source database CLI that doubles as an MCP server for agents",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47875513",
+     "createdAt": "2026-04-23T13:26:56Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@oclif/plugin-autocomplete",
+     "description": "autocomplete plugin for oclif",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@oclif/plugin-autocomplete",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "inquirer-autocomplete-standalone",
+     "description": "Standalone autocomplete cli prompt based on inquirer core",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/inquirer-autocomplete-standalone",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "inquirer-autocomplete-prompt",
+     "description": "Autocomplete prompt for inquirer",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/inquirer-autocomplete-prompt",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2025-11-29T04:06:13Z",
+   "followersAfterSignal": 2,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "matrix-homeserver-migration",
+   "name": "매트릭스 홈서버 이전",
+   "problem": "서로 다른 매트릭스 홈서버 간 데이터를 옮길 만족할 만한 도구가 없다.",
+   "gap": "기존 제품 간 Matrix 홈서버 구현 간 데이터를 만족스럽게 마이그레이션할 수 있는 도구가 부족하다.",
+   "keywords": [
+    "matrix",
+    "synapse",
+    "dendrite",
+    "homeserver",
+    "migration",
+    "export",
+    "import",
+    "매트릭스",
+    "홈서버",
+    "이전"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_93a2c20b2f7d7e8c",
+     "platform": "hn",
+     "quote": "migrating between Matrix homeserver implementations remains a problem with no satisfying solution",
+     "quoteKo": "Matrix 홈서버 구현 간 마이그레이션은 여전히 만족스러운 해결책이 없는 문제로 남아 있습니다.",
+     "url": "https://news.ycombinator.com/item?id=49131828",
+     "score": 0,
+     "postedAt": "2026-08-01T06:57:02Z"
+    },
+    {
+     "id": "ev_3937f43b72b2ad55",
+     "platform": "hn",
+     "quote": "leaving us all stranded without any sort of migration path",
+     "quoteKo": "우리 모두를 어떤 마이그레이션 경로도 없이 고립된 상태로 남겨두고 있습니다.",
+     "url": "https://news.ycombinator.com/item?id=46116683",
+     "score": 0,
+     "postedAt": "2025-12-02T02:30:14Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "Saimo/synapse-dendrite-migration",
+     "description": "",
+     "popularity": 19,
+     "url": "https://github.com/Saimo/synapse-dendrite-migration",
+     "createdAt": "2023-09-23T01:41:45Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "Awesome-Technologies/slack-matrix-migration",
+     "description": "A tool to import a Slack export into a Matrix homeserver",
+     "popularity": 44,
+     "url": "https://github.com/Awesome-Technologies/slack-matrix-migration",
+     "createdAt": "2019-11-08T15:25:06Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2025-12-02T02:30:14Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "cron-queue-worker-monitoring",
+   "name": "크론 큐 워커 모니터링",
+   "problem": "대부분 팀이 크론 잡과 큐 워커를 모니터링하지 못해 스케줄러 실패와 워커 다운을 감지하지 못한다.",
+   "gap": "기존 제품은 크론 작업과 큐 워커를 통합적으로 모니터링하여 스케줄러 실패 및 워커 크래시를 탐지하지 못한다.",
+   "keywords": [
+    "cron",
+    "cron job",
+    "queue worker",
+    "background job",
+    "scheduler",
+    "monitoring",
+    "alerting",
+    "모니터링",
+    "크론",
+    "큐 워커",
+    "백그라운드 잡",
+    "실패 감지"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_e552ec396c7823c6",
+     "platform": "hn",
+     "quote": "most teams have zero monitoring on their cron jobs and queue workers",
+     "quoteKo": "대부분의 팀은 크론 잡과 큐 워커에 대한 모니터링을 전혀 하지 않습니다.",
+     "url": "https://news.ycombinator.com/item?id=49067832",
+     "score": 8,
+     "postedAt": "2026-07-27T11:09:43Z"
+    },
+    {
+     "id": "ev_7d96ddd37705c0cd",
+     "platform": "hn",
+     "quote": "I built this to keep track of a worker that was stopping too often without an obvious reason",
+     "quoteKo": "명백한 이유 없이 너무 자주 멈추는 워커를 추적하기 위해 이것을 만들었습니다.",
+     "url": "https://news.ycombinator.com/item?id=49273204",
+     "score": 0,
+     "postedAt": "2026-08-12T14:45:18Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "abohmeed/cronmanager",
+     "description": "A tool for monitoring Linux cron jobs duration and exit status using Node Exporter and Prometheus. Written in Go.",
+     "popularity": 49,
+     "url": "https://github.com/abohmeed/cronmanager",
+     "createdAt": "2019-10-22T12:29:22Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I built a heartbeat and uptime monitoring for developers",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47379068",
+     "createdAt": "2026-03-14T17:40:26Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Easemonitor – self‑hosted uptime and performance monitoring",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47274140",
+     "createdAt": "2026-03-06T12:26:20Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-07-27T11:09:43Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "llm-code-validation",
@@ -393,7 +695,801 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2026-02-12T18:27:03Z",
-   "followersAfterSignal": 5
+   "followersAfterSignal": 5,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "ai-test-review-bottleneck",
+   "name": "AI 테스트 검토 병목",
+   "problem": "개발자가 AI가 작성한 통합·단위·E2E 테스트를 일일이 검토해야 해서 검증 루프에 병목이 발생한다.",
+   "gap": "AI가 생성한 통합·단위·E2E 테스트를 개발자가 직접 검토하지 않아도 되도록 자동으로 검증·승인해주는 기능은 기존 제품이 해결하지 못한다.",
+   "keywords": [
+    "ai",
+    "llm",
+    "agent",
+    "test",
+    "review",
+    "evaluation",
+    "생성",
+    "검토",
+    "평가",
+    "자동화"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_a379775f6affb7eb",
+     "platform": "hn",
+     "quote": "Agreed, we had agents writing standard integration/unit/e2e tests but turned out to be a ton of work reviewing just that",
+     "quoteKo": "동의합니다. 에이전트들이 표준 통합/단위/E2E 테스트를 작성하게 했는데, 정작 그것만 리뷰하는 것도 일이 너무 많았습니다.",
+     "url": "https://news.ycombinator.com/item?id=49394427",
+     "score": 0,
+     "postedAt": "2026-08-21T22:21:32Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "Qodo: AI Code Review",
+     "description": "Qodo is the AI code review platform that catches bugs early, reduces review noise, and helps maintain code quality across fast-moving, AI-driven development. Qo",
+     "popularity": 913032,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Codium.codium",
+     "createdAt": "2022-12-25T09:20:11.953+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: SprintZen – AI-Powered Test Management with Auto-Heal and UI Analysis",
+     "description": "",
+     "popularity": 2,
+     "url": "https://news.ycombinator.com/item?id=43906207",
+     "createdAt": "2025-05-06T15:25:57Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: A vision-based AI agent for end-to-end testing",
+     "description": "",
+     "popularity": 2,
+     "url": "https://news.ycombinator.com/item?id=47050876",
+     "createdAt": "2026-02-17T18:16:00Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-08-21T22:21:32Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "playwright-screenshot-reproducibility",
+   "name": "스크린샷 재현 실패",
+   "problem": "서로 다른 머신과 운영체제, CI 환경에서 스크린샷 테스트 결과가 재현되지 않아 시각적 회귀 테스트를 신뢰할 수 없다.",
+   "gap": "기존 시각적 회귀 테스트 제품들은 서로 다른 머신, 운영체제, CI 환경에서 스크린샷 결과가 일관되게 재현되도록 보장하지 못한다.",
+   "keywords": [
+    "playwright",
+    "스크린샷",
+    "visual regression",
+    "ci",
+    "테스트",
+    "재현",
+    "flaky",
+    "deterministic",
+    "브라우저",
+    "automation"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_99244524e161a87d",
+     "platform": "stackoverflow",
+     "quote": "Reproducible Playwright Screenshot Tests Among Environments for Implementing Visual Regression",
+     "quoteKo": "시각적 회귀 테스트 구현을 위한 환경 간 재현 가능한 Playwright 스크린샷 테스트",
+     "url": "https://stackoverflow.com/questions/79956901/reproducible-playwright-screenshot-tests-among-environments-for-implementing-vis",
+     "score": 0,
+     "postedAt": "2026-06-12T05:31:54.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "americanexpress/jest-image-snapshot",
+     "description": "✨ Jest matcher for image comparisons. Most commonly used for visual regression testing.",
+     "popularity": 3917,
+     "url": "https://github.com/americanexpress/jest-image-snapshot",
+     "createdAt": "2017-06-26T20:39:15Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "oblador/loki",
+     "description": "👁 Visual Regression Testing for Storybook",
+     "popularity": 1917,
+     "url": "https://github.com/oblador/loki",
+     "createdAt": "2017-07-10T08:33:52Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "reg-viz/reg-suit",
+     "description": ":recycle: Visual Regression Testing tool",
+     "popularity": 1307,
+     "url": "https://github.com/reg-viz/reg-suit",
+     "createdAt": "2017-06-26T19:23:52Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "juliangruber/review",
+     "description": "Visual regression testing tool for responsive websites",
+     "popularity": 904,
+     "url": "https://github.com/juliangruber/review",
+     "createdAt": "2013-01-14T22:45:09Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Applitools MCP",
+     "description": "VS Code extension that manages the Applitools Eyes MCP server to enable AI-assisted visual testing workflows.",
+     "popularity": 307,
+     "url": "https://marketplace.visualstudio.com/items?itemName=applitools.mcp-vscode-extension",
+     "createdAt": "2026-03-08T12:33:41.293+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Lost Pixel – open-source visual regression testing for your frontend",
+     "description": "",
+     "popularity": 90,
+     "url": "https://news.ycombinator.com/item?id=32897892",
+     "createdAt": "2022-09-19T13:18:01Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Visual Regression Testing with Playwright",
+     "description": "Automate Playwright visual regression testing with automatic main branch baseline comparison",
+     "popularity": 83,
+     "url": "https://marketplace.visualstudio.com/items?itemName=CodeMaman.visual-regression-testing-with-playwright",
+     "createdAt": "2025-12-10T11:59:17.59+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Lost Pixel Platform – visual regression testing for your front end",
+     "description": "",
+     "popularity": 56,
+     "url": "https://news.ycombinator.com/item?id=34894231",
+     "createdAt": "2023-02-22T11:32:16Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-06-12T05:31:54.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "stateless-graphics-api",
+   "name": "숨겨진 전역 그래픽 상태",
+   "problem": "개발자는 OpenGL 같은 그래픽 API에서 숨겨진 전역 상태와 스레드별 싱글턴 때문에 코드 디버깅과 테스트가 어렵다고 말한다.",
+   "gap": "기존 제품은 OpenGL 유사 그래픽 API의 숨은 전역 상태와 per-thread 싱글톤 문제를 해결하여 디버깅과 테스트를 용이하게 하는 솔루션을 제공하지 않는다.",
+   "keywords": [
+    "opengl",
+    "vulkan",
+    "graphics api",
+    "stateless",
+    "hidden state",
+    "전역 상태",
+    "그래픽 api",
+    "스레드 싱글턴",
+    "explicit state",
+    "rendering library"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_a6711ef6405ae1bb",
+     "platform": "hn",
+     "quote": "The world could use an API that's basically GL but without global hidden singleton (per thread!) BS behind the scenes.",
+     "quoteKo": "세상에는 기본적으로 GL이면서도, 내부적으로 전역 숨겨진 싱글턴(스레드당!) 같은 불합리한 설계 없이 작동하는 API가 필요해.",
+     "url": "https://news.ycombinator.com/item?id=50254656",
+     "score": 0,
+     "postedAt": "2026-10-27T04:17:16Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-10-27T04:17:16Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "google-stitch-mcp-server",
+   "name": "구글 스티치 MCP 서버 부재",
+   "problem": "구글 스티치를 IDE에 연결할 MCP 서버가 없습니다.",
+   "gap": "기존 제품 대부분이 Stitch MCP 서버 또는 IDE 연동 중 하나만 제공할 뿐, 양자를 직접 연결하는 통합 솔루션이 부족하다.",
+   "keywords": [
+    "google",
+    "stitch",
+    "mcp",
+    "server",
+    "ide",
+    "integration",
+    "구글",
+    "스티치",
+    "연동",
+    "mcp서버"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_d97149301cfda08a",
+     "platform": "stackoverflow",
+     "quote": "Is there a Google Stitch MCP Server which i can connect to my IDE?",
+     "quoteKo": "내 IDE에 연결할 수 있는 Google Stitch MCP 서버가 있나요?",
+     "url": "https://stackoverflow.com/questions/79862012/is-there-a-google-stitch-mcp-server-which-i-can-connect-to-my-ide",
+     "score": -3,
+     "postedAt": "2026-01-06T23:00:46.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "npm",
+     "name": "stitch-mcp-cli",
+     "description": "Google Stitch MCP server + CLI: export UI designs to React, Vue, Svelte, Next.js and 5+ frameworks, with auto-config for Cursor, Claude Code, OpenCode, Antigrav",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/stitch-mcp-cli",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "gemini-cli-extensions/stitch",
+     "description": "The Stitch extension for Gemini CLI enables you to interact with the Stitch MCP server using natural language commands.",
+     "popularity": 484,
+     "url": "https://github.com/gemini-cli-extensions/stitch",
+     "createdAt": "2025-12-02T22:16:56Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "Kargatharaakash/stitch-mcp",
+     "description": "Universal MCP Server for Google Stitch. Connect AI agents to your UI designs.",
+     "popularity": 121,
+     "url": "https://github.com/Kargatharaakash/stitch-mcp",
+     "createdAt": "2026-01-19T17:45:37Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "GreenSheep01201/stitch-mcp-auto",
+     "description": "Automated installer for Stitch MCP - The easiest way to set up your Universal MCP server for Google Stitch.",
+     "popularity": 31,
+     "url": "https://github.com/GreenSheep01201/stitch-mcp-auto",
+     "createdAt": "2026-01-22T00:22:07Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "devinilabs/claude-stitch-setup",
+     "description": "One-click Claude Code plugin: connect Google Stitch to generate and edit UI screens via natural language. Ships the MCP server + a design-aware skill.",
+     "popularity": 10,
+     "url": "https://github.com/devinilabs/claude-stitch-setup",
+     "createdAt": "2026-04-23T10:16:37Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Stitch-MCP, a universal MCP server for Google Stitch",
+     "description": "",
+     "popularity": 1,
+     "url": "https://news.ycombinator.com/item?id=46696827",
+     "createdAt": "2026-01-20T19:45:27Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@google/stitch-sdk",
+     "description": "Generate UI screens from text prompts and extract their HTML and screenshots programmatically.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@google/stitch-sdk",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@google/stitch",
+     "description": "Agent-first CLI and MCP server for Google Stitch",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@google/stitch",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2026-01-06T23:00:46.000Z",
+   "followersAfterSignal": 4,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "llm-template-token-limit",
+   "name": "LLM 프롬프트 토큰 초과",
+   "problem": "LLM 기반 템플릿 채움 시 매 요청마다 전체 상품과 템플릿 컨텍스트를 전송하면 토큰 및 처리량 한도를 초과합니다.",
+   "gap": "템플릿 채우기 요청 시 제품 및 템플릿 컨텍스트 전체를 매번 전송하는 토큰·처리량 한계를 직접 해결하는 기존 제품은 없다.",
+   "keywords": [
+    "llm",
+    "template",
+    "prompt",
+    "token",
+    "context",
+    "cache",
+    "compression",
+    "채움",
+    "프롬프트",
+    "토큰",
+    "컨텍스트",
+    "초과"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_90606c25837c9331",
+     "platform": "stackoverflow",
+     "quote": "If I send full product + full template rules for every request, token usage becomes too high.",
+     "quoteKo": "매 요청마다 전체 제품과 전체 템플릿 규칙을 전송하면 토큰 사용량이 너무 많아집니다.",
+     "url": "https://stackoverflow.com/questions/79892835/data-processing-and-automation-of-template-filling",
+     "score": 0,
+     "postedAt": "2026-02-20T10:14:34.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Tried some experiments with architecture for Long term memory for LLM",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=49277842",
+     "createdAt": "2026-08-12T20:03:11Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@ooples/token-optimizer-mcp",
+     "description": "Audit net MCP context avoided per AI coding agent, optimize context, and share a live local knowledge graph across 16 CLI clients",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@ooples/token-optimizer-mcp",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@mastra/core",
+     "description": "Mastra is a framework for building AI-powered applications and agents with a modern TypeScript stack.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@mastra/core",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@earendil-works/pi-agent-core",
+     "description": "General-purpose agent with transport abstraction, state management, and attachment support",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@earendil-works/pi-agent-core",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-02-20T10:14:34.000Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "engineering-decision-rationale-documentation",
+   "name": "엔지니어링 의사결정 기록 누락",
+   "problem": "엔지니어링 의사결정의 근거가 수동 문서화에 의존하기 때문에 팀에서 지속적으로 손실됩니다.",
+   "gap": "기존 제품은 ADR 템플릿이나 문서 관리 도구를 제공하지만 여전히 수동 작성과 유지보수에 의존해 엔지니어링 의사결정 근거를 자동으로 포착·보존하지 못한다.",
+   "keywords": [
+    "engineering",
+    "decision",
+    "rationale",
+    "documentation",
+    "adr",
+    "architecture",
+    "기록",
+    "의사결정",
+    "문서화",
+    "누락"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_8ab264bae02b265a",
+     "platform": "hn",
+     "quote": "Every solution requires someone to manually write something. Nobody does.",
+     "quoteKo": "모든 해결책은 누군가가 직접 무언가를 작성해야 한다. 하지만 아무도 하지 않는다.",
+     "url": "https://news.ycombinator.com/item?id=47368874",
+     "score": 105,
+     "postedAt": "2026-03-13T19:48:03Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "architecture-decision-record/architecture-decision-record",
+     "description": "Architecture decision record (ADR) examples for software planning, IT leadership, and template documentation",
+     "popularity": 17441,
+     "url": "https://github.com/architecture-decision-record/architecture-decision-record",
+     "createdAt": "2016-10-18T03:43:44Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Software Design – ADRs, arch tests, patterns",
+     "description": "",
+     "popularity": 4,
+     "url": "https://news.ycombinator.com/item?id=46998492",
+     "createdAt": "2026-02-13T03:11:31Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Talo: a CLI tool to manage your ADRs, RFCs, and other design documents",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=38913950",
+     "createdAt": "2024-01-08T16:05:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@on-par/adr-kit",
+     "description": "Pure ADR kernel: parse, serialize, Nygard template, numbering, and index-table helpers.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@on-par/adr-kit",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@meza/adr-tools",
+     "description": "> This is a Typescript fork of Nat Pryce's [ADR-TOOLS](https://github.com/npryce/adr-tools). >There are a few other forks out there which do some parts of the o",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@meza/adr-tools",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-03-13T19:48:03Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "ios-simulator-ai-inspection",
+   "name": "AI 에이전트 iOS 검사",
+   "problem": "AI 코딩 에이전트가 iOS 시뮬레이터 내부를 브라우저 개발자 도구처럼 점검할 수 있는 도구가 없다.",
+   "gap": "기존 제품은 AI 코딩 에이전트가 iOS 시뮬레이터 내부를 브라우저 개발자 도구처럼 직접 검사할 수 있는 도구를 제공하지 않는다.",
+   "keywords": [
+    "ios",
+    "simulator",
+    "inspection",
+    "ai agent",
+    "xcode",
+    "debugging",
+    "devtools",
+    "모바일 디버깅",
+    "시뮬레이터 검사",
+    "개발자 도구",
+    "ai 코딩",
+    "ui hierarchy"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_7725b440d9ca45cc",
+     "platform": "hn",
+     "quote": "What I’m missing is a tool to inspect iOS simulator the same way.",
+     "quoteKo": "저에게 부족한 것은 iOS 시뮬레이터를 같은 방식으로 검사할 수 있는 도구입니다.",
+     "url": "https://news.ycombinator.com/item?id=47501116",
+     "score": 0,
+     "postedAt": "2026-03-24T11:27:42Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "npm",
+     "name": "inspect-webkit",
+     "description": "Headlessly list debuggable Safari / WKWebView targets across iOS devices and Simulators, and bridge them to Chrome DevTools Protocol. Pure Bun/TypeScript.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/inspect-webkit",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "Android iOS Emulator",
+     "description": "Run Android emulator and iOS simulator easily from VScode!",
+     "popularity": 1264101,
+     "url": "https://marketplace.visualstudio.com/items?itemName=DiemasMichiels.emulate",
+     "createdAt": "2018-04-15T20:51:23.603+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "appium-ios-simulator",
+     "description": "iOS Simulator interface for Appium.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/appium-ios-simulator",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@react-native-community/cli-platform-ios",
+     "description": "This package is part of the [React Native CLI](../../README.md). It contains commands for managing iOS part of React Native app.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@react-native-community/cli-platform-ios",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "mobilecli",
+     "description": "A universal command-line tool for managing iOS and Android devices, simulators, emulators and apps",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/mobilecli",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "serve-sim",
+     "description": "The `npx serve` of Apple Simulators.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/serve-sim",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2026-03-24T11:27:42Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "pdf-scientific-char-embedding-error",
+   "name": "PDF 과학문자 임베딩 오류",
+   "problem": "파싱된 PDF의 과학 문자가 임베딩 모델에서 깨져 의미 기반 청킹을 수동 검수 없이는 진행할 수 없다.",
+   "gap": "기존 제품들은 파싱된 PDF 내 과학 문자로 인한 임베딩 모델 실패 문제를 해결하지 못해 수동 검토 없이 의미적 청킹을 불가능하게 만든다.",
+   "keywords": [
+    "pdf",
+    "parsing",
+    "embedding",
+    "scientific",
+    "symbols",
+    "chunking",
+    "semantic",
+    "오류",
+    "실패",
+    "추출",
+    "모델",
+    "수식"
+   ],
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_e8c013d24c8ca7c0",
+     "platform": "stackoverflow",
+     "quote": "Embedding models fail possibly on scientific characters no matter how the pdf is parsed",
+     "quoteKo": "PDF 파싱 방식과 관계없이 임베딩 모델이 과학 문자에서 실패할 수 있습니다.",
+     "url": "https://stackoverflow.com/questions/79985618/embedding-models-fail-possibly-on-scientific-characters-no-matter-how-the-pdf-is",
+     "score": 1,
+     "postedAt": "2026-07-24T16:27:58.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "CatchTheTornado/text-extract-api",
+     "description": "Document (PDF, Word, PPTX ...) extraction and parse API using state of the art modern OCRs + Ollama supported models. Anonymize documents. Remove PII. Convert a",
+     "popularity": 3196,
+     "url": "https://github.com/CatchTheTornado/text-extract-api",
+     "createdAt": "2024-10-23T09:27:19Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "LibPDF-js/core",
+     "description": "A modern PDF library for TypeScript. Parse, modify, and generate PDFs with a clean, intuitive API.",
+     "popularity": 1851,
+     "url": "https://github.com/LibPDF-js/core",
+     "createdAt": "2026-01-11T23:14:44Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: FastGraphRAG – Better RAG using good old PageRank",
+     "description": "",
+     "popularity": 457,
+     "url": "https://news.ycombinator.com/item?id=42174829",
+     "createdAt": "2024-11-18T17:43:13Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "YOLOW92/pagesift",
+     "description": "Self-hosted web scraper, crawler and document parser for AI agents: URLs, PDFs with OCR and Office files to clean Markdown/JSON. Firecrawl- and Jina-compatible ",
+     "popularity": 262,
+     "url": "https://github.com/YOLOW92/pagesift",
+     "createdAt": "2026-10-20T17:30:59Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "NIHOPA/word2vec_pipeline",
+     "description": "NLP pipeline using word2vec (preprocessing/embedding/prediction/clustering)",
+     "popularity": 116,
+     "url": "https://github.com/NIHOPA/word2vec_pipeline",
+     "createdAt": "2016-01-04T16:23:04Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "nkthiebaut/zeugma",
+     "description": "📝Natural language processing (NLP) utils: word embeddings (Word2Vec, GloVe, FastText, ...) and preprocessing transformers, compatible with scikit-learn Pipelin",
+     "popularity": 63,
+     "url": "https://github.com/nkthiebaut/zeugma",
+     "createdAt": "2018-01-05T13:00:01Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: L88 – A Local RAG System on 8GB VRAM (Need Architecture Feedback)",
+     "description": "",
+     "popularity": 12,
+     "url": "https://news.ycombinator.com/item?id=47133027",
+     "createdAt": "2026-02-24T04:57:31Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: ColiVara – State of the Art RAG API with Vision Models",
+     "description": "",
+     "popularity": 10,
+     "url": "https://news.ycombinator.com/item?id=42158351",
+     "createdAt": "2024-11-16T18:57:57Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-07-24T16:27:58.000Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "mcp-llm-streaming-unsupported",
@@ -506,7 +1602,18 @@
    ],
    "directCount": 1,
    "firstSeenAt": "2025-12-18T10:40:51.000Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "agentic-coding-flow-interruption",
@@ -554,7 +1661,18 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2026-03-12T20:29:48Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "unclear-query-detection",
@@ -620,7 +1738,18 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2026-01-16T10:10:25.000Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "cuda-loop-memory-extraction",
@@ -670,7 +1799,18 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2025-11-25T16:34:02.000Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "free-software-showcase",
@@ -781,7 +1921,18 @@
    ],
    "directCount": 0,
    "firstSeenAt": "2026-05-03T20:36:33Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "ai-pipeline-data-masking",
@@ -884,7 +2035,248 @@
    ],
    "directCount": 1,
    "firstSeenAt": "2026-02-16T14:20:44.000Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "unified-ai-conversation-viewer",
+   "name": "AI 대화 통합 뷰어",
+   "problem": "개발자가 여러 AI 플랫폼 대화를 한 곳에서 검색하고 결합할 방법이 없다.",
+   "gap": "",
+   "keywords": [
+    "ai",
+    "llm",
+    "대화",
+    "검색",
+    "통합",
+    "openrouter",
+    "lm studio",
+    "chat",
+    "history",
+    "viewer",
+    "aggregator",
+    "대화록"
+   ],
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_1ab2691a6bb9285b",
+     "platform": "hn",
+     "quote": "no good way to view/search/combine them together.",
+     "quoteKo": "함께 조회, 검색, 결합할 마땅한 방법이 없습니다.",
+     "url": "https://news.ycombinator.com/item?id=49693387",
+     "score": 0,
+     "postedAt": "2026-09-14T07:55:30Z"
+    },
+    {
+     "id": "ev_7531866c40ea0c3c",
+     "platform": "hn",
+     "quote": "Around a year ago, I found myself using Claude Code and Codex to search their own transcripts.",
+     "quoteKo": "약 1년 전쯤, 저는 Claude Code와 Codex를 사용하여 그들 자신의 대화 기록을 검색하고 있는 저를 발견했습니다.",
+     "url": "https://news.ycombinator.com/item?id=49754772",
+     "score": 0,
+     "postedAt": "2026-09-18T14:17:43Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "Claude Code and Codex Assist - Usage, History, Diff & Analytics",
+     "description": "Chat history for Claude Code, Codex, OpenCode, Grok & Copilot — browse, search, diff & resume sessions; track usage, cost & quota. MCP server gives your AI agen",
+     "popularity": 11893,
+     "url": "https://marketplace.visualstudio.com/items?itemName=agsoft.claude-history-viewer",
+     "createdAt": "2025-08-12T21:02:21.823+00:00",
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "Chat Wizard",
+     "description": "Browse, search, and analyze AI coding-assistant conversation history from GitHub Copilot, Claude Code, Cline, Roo Code, Cursor, Windsurf, Aider, and Google Anti",
+     "popularity": 412,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Veverke.chatwizard",
+     "createdAt": "2026-03-18T03:12:53.32+00:00",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "BayramAnnakov/retain",
+     "description": "Retain is a native macOS application that aggregates AI conversations from multiple platforms into a unified, searchable knowledge base with intelligent learnin",
+     "popularity": 169,
+     "url": "https://github.com/BayramAnnakov/retain",
+     "createdAt": "2026-01-05T23:57:38Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Retain – A unified knowledge base for all your AI coding conversations",
+     "description": "",
+     "popularity": 45,
+     "url": "https://news.ycombinator.com/item?id=46710756",
+     "createdAt": "2026-01-21T19:59:42Z",
+     "relation": "direct"
+    }
+   ],
+   "directCount": 4,
+   "firstSeenAt": "2026-09-14T07:55:30Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 4,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "resume-data-entry-automation",
+   "name": "이력서 반복 입력",
+   "problem": "개발자들이 수백 개의 서로 다른 회사 채용 사이트에 이력서 정보를 수동으로 반복 입력해야 하는 불편함이다.",
+   "gap": "기존 제품들은 주요 채용 사이트나 일반적인 ATS 양식 위주로 자동 채우기를 지원할 뿐, 수백 개의 고유한 기업별 지원서 양식을 모두 자동으로 처리하지 못한다.",
+   "keywords": [
+    "resume",
+    "이력서",
+    "job application",
+    "구직",
+    "autofill",
+    "자동 입력",
+    "form filler",
+    "채용",
+    "data entry",
+    "입력 자동화",
+    "applicant tracking",
+    "구직 자동화"
+   ],
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_1101d6c704ecdace",
+     "platform": "hn",
+     "quote": "Looking for a tech job is a helpless data-entry nightmare",
+     "quoteKo": "기술 직종 구직은 속수무책인 데이터 입력 악몽이다",
+     "url": "https://news.ycombinator.com/item?id=50254873",
+     "score": 19,
+     "postedAt": "2026-10-27T05:01:05Z"
+    },
+    {
+     "id": "ev_079598213bbdd1c8",
+     "platform": "hn",
+     "quote": "repeatedly entering the same details into job application forms",
+     "quoteKo": "구직 지원서에 같은 정보를 반복해서 입력하는 것",
+     "url": "https://news.ycombinator.com/item?id=49208927",
+     "score": 0,
+     "postedAt": "2026-08-07T11:42:37Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "Br1an67/OpenJobAutofill",
+     "description": "AI-assisted, privacy-first browser extension for job application form autofill.",
+     "popularity": 127,
+     "url": "https://github.com/Br1an67/OpenJobAutofill",
+     "createdAt": "2026-05-05T11:50:21Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "Azoo92i/AutoApplyMax",
+     "description": "AutoApplyMax — AI-powered Chrome extension. Auto-apply to jobs on LinkedIn, Indeed & more. AI Resume Generator, Cover Letters, ATS Score Checker & Dashboard.",
+     "popularity": 65,
+     "url": "https://github.com/Azoo92i/AutoApplyMax",
+     "createdAt": "2025-10-28T18:56:59Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "EasyApp-RPI/EasyApp",
+     "description": "EasyApp is a chrome extension that allows users to autofill job applications, draft application responses, navigate job listings, tweak user resumes to fit job ",
+     "popularity": 32,
+     "url": "https://github.com/EasyApp-RPI/EasyApp",
+     "createdAt": "2023-09-07T00:46:19Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: LiftmyCV – AI Job Search Agent and Auto-Apply Tool",
+     "description": "",
+     "popularity": 15,
+     "url": "https://news.ycombinator.com/item?id=43682614",
+     "createdAt": "2025-04-14T15:45:44Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "17nbist/jobApplier",
+     "description": "Local-first job-application copilot: MV3 browser extension for resume tailoring, cover letters, and ATS form autofill via OpenRouter (GLM 5.2). No server.",
+     "popularity": 13,
+     "url": "https://github.com/17nbist/jobApplier",
+     "createdAt": "2026-07-15T21:06:14Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: ApplyEngine: AI-automated autofill, resume and cover letter",
+     "description": "",
+     "popularity": 2,
+     "url": "https://news.ycombinator.com/item?id=42205942",
+     "createdAt": "2024-11-21T16:29:21Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I built a browser extension to help you apply to jobs in seconds",
+     "description": "",
+     "popularity": 1,
+     "url": "https://news.ycombinator.com/item?id=43680629",
+     "createdAt": "2025-04-14T12:37:03Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Seisin – a desktop app that turns your job search into analytics",
+     "description": "",
+     "popularity": 6,
+     "url": "https://news.ycombinator.com/item?id=49274160",
+     "createdAt": "2026-08-12T15:39:00Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 7,
+   "firstSeenAt": "2026-08-07T11:42:37Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 7,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "serverless-cost-control",
@@ -961,7 +2353,18 @@
    ],
    "directCount": 3,
    "firstSeenAt": "2025-12-24T18:43:15Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 3,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "simple-secure-file-sharing",
@@ -1072,7 +2475,18 @@
    ],
    "directCount": 6,
    "firstSeenAt": "2025-12-07T21:31:04Z",
-   "followersAfterSignal": 4
+   "followersAfterSignal": 4,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 6,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "local-ci-cd-ssh-scp",
@@ -1183,7 +2597,18 @@
    ],
    "directCount": 3,
    "firstSeenAt": "2026-06-18T10:41:44Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 3,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "llm-reverse-engineering-defense",
@@ -1260,7 +2685,140 @@
    ],
    "directCount": 2,
    "firstSeenAt": "2026-10-11T17:27:00Z",
-   "followersAfterSignal": 1
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 2,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "personal-app-remote-hosting",
+   "name": "개인 앱 원격 배포",
+   "problem": "개인 앱을 여러 기기에서 인터넷으로 쉽게 배포하고 접속하기 어렵다.",
+   "gap": "기존 제품들은 주로 로컬 서비스를 인터넷에 노출하는 터널링에 집중하여, tiny 개인 앱을 여러 기기에서 쉽게 배포하고 일관되게 접근하는 통합 경험을 제공하지 못한다.",
+   "keywords": [
+    "호스팅",
+    "터널링",
+    "로컬호스트",
+    "개발자 도구",
+    "원격 배포",
+    "ngrok",
+    "localhost",
+    "self-hosted",
+    "개인 앱",
+    "공유 호스팅"
+   ],
+   "status": "closed",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_c89d1545df895865",
+     "platform": "hn",
+     "quote": "the biggest pain point for me right now is making these available to my multiple devices over the internet.",
+     "quoteKo": "현재 저에게 가장 큰 불편 사항은 인터넷을 통해 여러 기기에서 이것들을 사용할 수 있게 하는 것입니다.",
+     "url": "https://news.ycombinator.com/item?id=47749765",
+     "score": 0,
+     "postedAt": "2026-04-13T09:39:41Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "octelium/octelium",
+     "description": "A next-gen FOSS self-hosted unified zero trust secure access platform that can operate as a remote access VPN, a ZTNA platform, API/AI/MCP gateway, a PaaS, an n",
+     "popularity": 4172,
+     "url": "https://github.com/octelium/octelium",
+     "createdAt": "2025-05-18T16:56:34Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "hintjen/selfhosted-gateway",
+     "description": "Self-hosted Docker native tunneling to localhost. Expose local docker containers to the public Internet via a simple docker compose interface.",
+     "popularity": 1743,
+     "url": "https://github.com/hintjen/selfhosted-gateway",
+     "createdAt": "2022-09-11T14:39:33Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "anderspitman/SirTunnel",
+     "description": "Minimal, self-hosted, 0-config alternative to ngrok. Caddy+OpenSSH+50 lines of Python.",
+     "popularity": 1566,
+     "url": "https://github.com/anderspitman/SirTunnel",
+     "createdAt": "2020-09-23T00:15:26Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "joaoh82/rustunnel",
+     "description": "Self-hosted, secure tunnel server in Rust. Expose local HTTP/HTTPS/TCP/UDP services to the public internet via TLS-encrypted WebSocket. Open-source, pay-as-you-",
+     "popularity": 662,
+     "url": "https://github.com/joaoh82/rustunnel",
+     "createdAt": "2026-03-10T21:25:25Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "vitobotta/docker-tunnel",
+     "description": "A Docker-based self hosted alternative to Ngrok",
+     "popularity": 293,
+     "url": "https://github.com/vitobotta/docker-tunnel",
+     "createdAt": "2019-06-29T13:56:14Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "sammwyy/NRelay",
+     "description": "W.I.P Ngrok Alternative: Self-hosted and open-source OOB reverse tunnel (TCP/UDP/SNI/HTTP/MC)",
+     "popularity": 102,
+     "url": "https://github.com/sammwyy/NRelay",
+     "createdAt": "2025-12-21T02:23:50Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I made a tool to HTTPS your localhost",
+     "description": "",
+     "popularity": 87,
+     "url": "https://news.ycombinator.com/item?id=40985674",
+     "createdAt": "2024-07-17T13:25:15Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: A simple self-hosted ngrok alternative",
+     "description": "",
+     "popularity": 34,
+     "url": "https://news.ycombinator.com/item?id=19713544",
+     "createdAt": "2019-04-21T18:09:40Z",
+     "relation": "direct"
+    }
+   ],
+   "directCount": 18,
+   "firstSeenAt": "2026-04-13T09:39:41Z",
+   "followersAfterSignal": 4,
+   "lastSeenAt": "2026-11-10T14:00:21.834Z",
+   "history": [
+    {
+     "at": "2026-11-10T14:00:21.834Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 18,
+     "status": "closed",
+     "qualified": false
+    }
+   ]
   },
   {
    "slug": "engineering-context-loss",
@@ -1371,7 +2929,18 @@
    ],
    "directCount": 9,
    "firstSeenAt": "2026-11-07T10:01:48Z",
-   "followersAfterSignal": 0
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-10T07:14:24.805Z",
+   "history": [
+    {
+     "at": "2026-11-10T07:14:24.805Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 9,
+     "status": "closed",
+     "qualified": false
+    }
+   ]
   }
  ]
 }

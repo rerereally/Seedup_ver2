@@ -2,12 +2,18 @@ name: Opportunity engine
 
 on:
   schedule:
-    # 07:00 KST every Monday. Scheduled runs only start from the default branch.
-    - cron: '0 22 * * 0'
+    # 07:00 KST every day. Scheduled runs only start from the default branch.
+    # Each run is merged into the published result, so evidence builds up day by day.
+    - cron: '0 22 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Two runs merging into the same result at once would overwrite each other.
+concurrency:
+  group: opportunity-engine
+  cancel-in-progress: false
 
 jobs:
   run:
@@ -22,6 +28,8 @@ jobs:
       OPENROUTER_FREE_ONLY: ${{ vars.OPENROUTER_FREE_ONLY }}
       RAG_EMBEDDING_MODEL: ${{ vars.RAG_EMBEDDING_MODEL }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Lets the retry below skip collection and extraction, the slowest part of a run.
+      ENGINE_CHECKPOINT: engine-checkpoint.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,4 +37,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/run-opportunity-engine.ts --persist
+      - name: Check required secrets
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SECRET_KEY" ] || [ -z "$OPENROUTER_API_KEY" ] || [ -z "$OPENROUTER_MODEL" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, OPENROUTER_API_KEY secrets and the OPENROUTER_MODEL variable are required."
+            exit 1
+          fi
+      - name: Run the engine
+        id: first
+        continue-on-error: true
+        run: npx tsx scripts/run-opportunity-engine.ts --persist
+      # Free models fail in bursts, so one retry a few minutes later recovers most failed runs.
+      - name: Retry once from the checkpoint
+        if: steps.first.outcome == 'failure'
+        run: |
+          sleep 300
+          npx tsx scripts/run-opportunity-engine.ts --persist

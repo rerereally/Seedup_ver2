@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import OpportunityPrd from './OpportunityPrd';
 import { getOpportunities, getOpportunity, opportunityColors } from '@/lib/opportunities/data';
+import { describeChange } from '@/lib/opportunities/merge';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
@@ -72,6 +73,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     ['직접 경쟁', opportunity.directCount, '개'],
     ['첫 증언 뒤 나온 도구', opportunity.followersAfterSignal, '개'],
   ];
+  const points = opportunity.history ?? [];
+  const history = points.map((entry, index) => ({ ...entry, changes: index ? describeChange(points[index - 1], entry) : [] }));
   const direct = opportunity.supply.filter((item) => item.relation === 'direct');
   const partial = opportunity.supply.filter((item) => item.relation !== 'direct');
 
@@ -106,6 +109,26 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               ))}
             </dl>
             {firstSeen && <p className="mt-3 text-[13px] text-muted">가장 이른 증언은 {firstSeen}에 나왔습니다.</p>}
+
+            {history.length > 0 && (
+              <section className="mt-12" aria-labelledby="growth-heading">
+                <h2 id="growth-heading" className="text-2xl font-extrabold tracking-tight">성장 기록</h2>
+                <p className="mt-1 text-sm text-muted">
+                  {history.length > 1 ? '분석을 돌릴 때마다 달라진 점만 남깁니다.' : '아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.'}
+                </p>
+                <ol className="card mt-5 overflow-hidden">
+                  {[...history].reverse().map((entry, index) => (
+                    <li key={entry.at} className={`flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-3.5 sm:px-6 ${index ? 'border-t border-outline-soft' : ''}`}>
+                      <time dateTime={entry.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(entry.at))}</time>
+                      <span className="min-w-0 flex-1 text-sm leading-6">
+                        {entry.changes.length ? entry.changes.join(' · ') : `증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`}
+                      </span>
+                      <StatusLabel status={entry.status} />
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
 
             <h2 className="mt-12 flex items-baseline gap-2 text-2xl font-extrabold tracking-tight">현장 증언 <span className="num text-base font-medium text-muted">{opportunity.evidence.length}</span></h2>
             <p className="mt-1 text-sm text-muted">원문에 그대로 있는 문장만 실었습니다. 번역은 이해를 돕기 위한 것입니다.</p>

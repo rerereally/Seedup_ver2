@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { cached } from '@/lib/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import bundledSnapshot from './data/snapshot.json';
 import { PLATFORM_LABELS } from './types';
@@ -13,7 +14,9 @@ type OpportunitySource = {
 };
 
 /** Reads the published run, and falls back to the bundled run so the page never renders empty. */
-export const getOpportunities = cache(async (): Promise<OpportunitySource> => {
+export const getOpportunities = cache(() => cached('opportunities', loadOpportunities));
+
+async function loadOpportunities(): Promise<OpportunitySource> {
   const fallback = { generatedAt: snapshotFile.generatedAt, opportunities: snapshotFile.opportunities, live: false };
   const supabase = createAdminClient();
   if (!supabase) return fallback;
@@ -31,14 +34,16 @@ export const getOpportunities = cache(async (): Promise<OpportunitySource> => {
     opportunities: data.map((row) => row.data as Opportunity),
     live: true,
   };
-});
+}
 
 export async function getOpportunity(slug: string) {
   const { opportunities } = await getOpportunities();
   return opportunities.find((item) => item.slug === slug) ?? null;
 }
 
-export async function getOpportunityEmbeddings(): Promise<Record<string, number[]>> {
+export const getOpportunityEmbeddings = () => cached('opportunity-embeddings', loadOpportunityEmbeddings, 10 * 60_000);
+
+async function loadOpportunityEmbeddings(): Promise<Record<string, number[]>> {
   const supabase = createAdminClient();
   if (supabase) {
     const { data, error } = await supabase.from('opportunities').select('slug,embedding').eq('published', true);

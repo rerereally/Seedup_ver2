@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, Loader2 } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import type { SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
+import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
 
 type RepoCard = {
   name: string;
@@ -20,8 +20,17 @@ type RepoCard = {
 };
 
 
-const STORAGE_KEY = 'seedup:seeds-login';
-const STATUS_LABELS: Record<SeedOpportunityRef['status'], string> = { open: '열림', narrowing: '좁아지는 중', closed: '이미 많음', unknown: '확인 전' };
+const STORAGE_KEY = 'seedup:seeds-result';
+
+type Saved = { login: string; at: string; repos: RepoCard[]; ideas: Record<string, SeedIdea>; papers: Record<string, SeedPaper[]> };
+
+/** Everything a repo was connected to last time, so the next look can point out what is new. */
+function connectionKeys(repos: RepoCard[]) {
+  return new Set(repos.flatMap((repo) => [...repo.near.map((item) => `${repo.name}|${item.slug}`), ...repo.news.map((item) => `${repo.name}|${item.href}`), ...repo.similar.map((item) => `${repo.name}|${item.href}`)]));
+}
+
+const NewBadge = () => <span className="ml-2 rounded-full bg-hot px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#160700]">새로 붙음</span>;
+const STATUS_LABELS: Record<SeedOpportunityRef['status'], string> = { open: '열림', narrowing: '좁아지는 중', closed: '닫힘', unknown: '조사 중' };
 
 const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value)) : '');
 
@@ -34,32 +43,63 @@ function Section({ title, note, children }: { title: string; note?: string; chil
   );
 }
 
-function OpportunityLine({ item }: { item: SeedOpportunityRef }) {
+function OpportunityLine({ item, fresh = false }: { item: SeedOpportunityRef; fresh?: boolean }) {
   return (
     <Link href={`/opportunities/${item.slug}`} className="mt-2 block rounded-xl border border-outline-soft px-3.5 py-3 transition-colors hover:border-outline-strong">
       <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-muted">
         <b className="font-bold text-ink">{item.name}</b>
         <span>{STATUS_LABELS[item.status]}</span>
         <span>증언 <span className="num">{item.evidenceCount}</span>건</span>
+        {fresh && <NewBadge />}
       </span>
       {item.quote && <span className="mt-1 block text-sm leading-6 text-muted">“{item.quote}”</span>}
     </Link>
   );
 }
 
-function LinkList({ items }: { items: SeedLink[] }) {
+/** A GitHub issue the developer can paste into their own repo, with the testimony behind it when there is one. */
+function issueDraft(feature: SeedFeature, origin: string) {
+  const lines = [`## ${feature.title}`, '', feature.why];
+  if (feature.opportunity) {
+    lines.push('', '### 근거', `- 개발자 증언 ${feature.opportunity.evidenceCount}건: ${origin}/opportunities/${feature.opportunity.slug}`);
+    if (feature.opportunity.quote) lines.push(`- “${feature.opportunity.quote}”`);
+  }
+  lines.push('', '### 완료 기준', '- [ ] ');
+  return lines.join('\n');
+}
+
+function CopyIssueButton({ feature }: { feature: SeedFeature }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(issueDraft(feature, window.location.origin));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_800);
+    } catch {
+      // Clipboard access can be refused; the text on screen can still be selected by hand.
+    }
+  };
+  return (
+    <button type="button" onClick={() => void copy()} className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-[13px] font-bold text-muted transition-colors hover:text-ink">
+      {copied ? <Check aria-hidden="true" className="h-3.5 w-3.5" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
+      <span aria-live="polite">{copied ? '복사했습니다' : '이슈 초안 복사'}</span>
+    </button>
+  );
+}
+
+function LinkList({ items, isFresh }: { items: SeedLink[]; isFresh: (href: string) => boolean }) {
   return (
     <ul className="grid gap-1">
       {items.map((item) => (
         <li key={item.href}>
           {item.external ? (
             <a href={item.href} target="_blank" rel="noopener noreferrer" className="flex items-baseline justify-between gap-4 rounded-lg py-1.5 hover:underline">
-              <span className="min-w-0 text-sm leading-6 text-ink">{item.title} <ArrowUpRight aria-hidden="true" className="inline h-3.5 w-3.5 text-muted" /></span>
+              <span className="min-w-0 text-sm leading-6 text-ink">{item.title} <ArrowUpRight aria-hidden="true" className="inline h-3.5 w-3.5 text-muted" />{isFresh(item.href) && <NewBadge />}</span>
               <span className="shrink-0 text-[13px] text-muted">{item.meta}</span>
             </a>
           ) : (
             <Link href={item.href} className="flex items-baseline justify-between gap-4 rounded-lg py-1.5 hover:underline">
-              <span className="min-w-0 text-sm leading-6 text-ink">{item.title}</span>
+              <span className="min-w-0 text-sm leading-6 text-ink">{item.title}{isFresh(item.href) && <NewBadge />}</span>
               <span className="num shrink-0 text-[13px] text-muted">{item.meta}</span>
             </Link>
           )}
@@ -80,19 +120,28 @@ export default function SeedAdvisor() {
   const [missed, setMissed] = useState(0);
   const [papers, setPapers] = useState<Record<string, SeedPaper[]>>({});
   const runRef = useRef(0);
+  const [savedAt, setSavedAt] = useState('');
+  // Connections seen on the previous look at the same account. Null means there is nothing to compare with.
+  const [baseline, setBaseline] = useState<Set<string> | null>(null);
 
   const look = async (raw: string) => {
     const name = raw.trim().replace(/^@/, '').replace(/^https?:\/\/github\.com\//i, '').split('/')[0];
     if (!name || loading) return;
     const run = (runRef.current += 1);
     const current = () => run === runRef.current;
+    const again = result?.login === name.toLowerCase() ? { keys: connectionKeys(result.repos), ideas, papers } : null;
+    // A repo the model fails on this time keeps the suggestion it already had.
+    const keptIdeas: Record<string, SeedIdea> = { ...again?.ideas };
+    const keptPapers: Record<string, SeedPaper[]> = { ...again?.papers };
     setLoading(true);
     setError('');
     setResult(null);
-    setIdeas({});
-    setPapers({});
+    setIdeas(keptIdeas);
+    setPapers(keptPapers);
     setPending([]);
     setMissed(0);
+    setSavedAt('');
+    setBaseline(again?.keys ?? null);
 
     let repos: RepoCard[] = [];
     try {
@@ -102,11 +151,6 @@ export default function SeedAdvisor() {
       if (!response.ok || !json.repos) throw new Error(json.error ?? '레포를 읽지 못했습니다.');
       repos = json.repos;
       setResult({ login: json.login ?? name, repos });
-      try {
-        localStorage.setItem(STORAGE_KEY, name);
-      } catch {
-        // Storage can be blocked; the name is then simply not remembered.
-      }
     } catch (reason) {
       if (current()) setError(reason instanceof Error ? reason.message : '레포를 읽지 못했습니다.');
       return;
@@ -125,8 +169,10 @@ export default function SeedAdvisor() {
         // The keyword matches already on screen stay; only this suggestion is missing.
       }
       if (!current()) return;
-      if (idea) setIdeas((before) => ({ ...before, [repo.name]: idea }));
-      else setMissed((count) => count + 1);
+      if (idea) {
+        keptIdeas[repo.name] = idea;
+        setIdeas({ ...keptIdeas });
+      } else if (!keptIdeas[repo.name]) setMissed((count) => count + 1);
       setPending((before) => before.filter((item) => item !== repo.name));
 
       // Without a suggestion, the repo's own topics are the only honest search terms.
@@ -136,28 +182,44 @@ export default function SeedAdvisor() {
         const response = await fetch(`/api/seeds?step=papers&q=${encodeURIComponent(query)}`);
         const json = (await response.json()) as { papers?: SeedPaper[] };
         if (!current()) return;
-        if (json.papers?.length) setPapers((before) => ({ ...before, [repo.name]: json.papers as SeedPaper[] }));
+        if (json.papers?.length) {
+          keptPapers[repo.name] = json.papers;
+          setPapers({ ...keptPapers });
+        }
       } catch {
         // One failed search should not stop the others.
       }
-      // arXiv asks clients to leave about three seconds between requests; the next model call takes longer than that.
+    }
+
+    const names = new Set(repos.map((repo) => repo.name));
+    const saved: Saved = { login: name.toLowerCase(), at: new Date().toISOString(), repos, ideas: Object.fromEntries(Object.entries(keptIdeas).filter(([key]) => names.has(key))), papers: Object.fromEntries(Object.entries(keptPapers).filter(([key]) => names.has(key))) };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    } catch {
+      // Storage can be blocked or full; the result is then simply not remembered.
     }
   };
 
-  const restore = useEffectEvent((saved: string) => {
-    setLogin(saved);
-    void look(saved);
+  // The last result is shown as it was, without spending model calls again until the visitor asks.
+  const restore = useEffectEvent((saved: Saved) => {
+    setLogin(saved.login);
+    setResult({ login: saved.login, repos: saved.repos });
+    setIdeas(saved.ideas ?? {});
+    setPapers(saved.papers ?? {});
+    setSavedAt(saved.at);
   });
   useEffect(() => {
-    let saved = '';
+    let saved: Saved | null = null;
     try {
-      saved = localStorage.getItem(STORAGE_KEY) ?? '';
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+      if (parsed && typeof parsed.login === 'string' && Array.isArray(parsed.repos)) saved = parsed;
     } catch {
-      // Storage is blocked; the visitor types the name again.
+      // Nothing usable is stored, or storage is blocked.
     }
     if (!saved) return;
-    // Deferred so the first paint matches the server, then the remembered name is looked up again.
-    const timer = window.setTimeout(() => restore(saved), 0);
+    const found = saved;
+    // Deferred so the first paint matches the server.
+    const timer = window.setTimeout(() => restore(found), 0);
     return () => clearTimeout(timer);
   }, []);
 
@@ -205,8 +267,9 @@ export default function SeedAdvisor() {
       {result && result.repos.length > 0 && (
         <p aria-live="polite" className="text-sm text-muted">
           {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
-          {pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
-          {pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
+          {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-bold text-ink underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 증언과 소식을 표시합니다.</span></>}
+          {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
+          {!savedAt && pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
         </p>
       )}
 
@@ -214,6 +277,7 @@ export default function SeedAdvisor() {
         const idea = ideas[repo.name];
         const repoPapers = papers[repo.name];
         const waiting = pending.includes(repo.name);
+        const isFresh = (key: string) => Boolean(baseline) && !baseline!.has(`${repo.name}|${key}`);
         const cited = new Set(idea?.features.flatMap((feature) => feature.opportunity?.slug ?? []));
         const near = repo.near.filter((item) => !cited.has(item.slug));
         const empty = !idea?.features.length && !near.length && !repo.news.length && !repo.similar.length && !repoPapers?.length && !waiting;
@@ -239,6 +303,7 @@ export default function SeedAdvisor() {
                       <p className="font-bold text-ink">{feature.title}</p>
                       <p className="mt-1 text-sm leading-6 text-muted">{feature.why}</p>
                       {feature.opportunity && <OpportunityLine item={feature.opportunity} />}
+                      <CopyIssueButton feature={feature} />
                     </li>
                   ))}
                 </ol>
@@ -247,11 +312,11 @@ export default function SeedAdvisor() {
 
             {near.length > 0 && (
               <Section title="가까운 개발자 불만" note="이 레포가 다루는 주제에서 사람들이 실제로 한 말입니다">
-                {near.map((item) => <OpportunityLine key={item.slug} item={item} />)}
+                {near.map((item) => <OpportunityLine key={item.slug} item={item} fresh={isFresh(item.slug)} />)}
               </Section>
             )}
 
-            {repo.news.length > 0 && <Section title="참고할 소식"><LinkList items={repo.news} /></Section>}
+            {repo.news.length > 0 && <Section title="참고할 소식"><LinkList items={repo.news} isFresh={isFresh} /></Section>}
 
             {repoPapers && repoPapers.length > 0 && (
               <Section title="읽어볼 논문" note="검색어로 찾은 결과라 관련이 약할 수 있습니다">
@@ -268,7 +333,7 @@ export default function SeedAdvisor() {
               </Section>
             )}
 
-            {repo.similar.length > 0 && <Section title="비슷한 오픈소스"><LinkList items={repo.similar} /></Section>}
+            {repo.similar.length > 0 && <Section title="비슷한 오픈소스"><LinkList items={repo.similar} isFresh={isFresh} /></Section>}
 
             {waiting && (
               <p className="border-t border-outline-soft px-5 py-4 text-sm text-muted sm:px-6">

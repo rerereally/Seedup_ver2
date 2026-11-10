@@ -59,7 +59,13 @@ export type Opportunity = {
   directCount: number;
   firstSeenAt: string | null;
   followersAfterSignal: number;
+  /** When an engine run last found this problem again. Missing on results from before runs were merged. */
+  lastSeenAt?: string;
+  /** One point per run in which something changed, oldest first. */
+  history?: OpportunityPoint[];
 };
+
+export type OpportunityPoint = { at: string; evidence: number; platforms: number; direct: number; status: OpportunityStatus; qualified: boolean };
 
 export type ActorRun = {
   id: string;

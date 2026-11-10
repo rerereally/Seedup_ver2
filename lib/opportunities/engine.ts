@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { DISCOVERY_ACTORS, runDiscoveryActors, searchDemand, searchSupply, SUPPLY_COVERAGE } from './actors';
+import { DISCOVERY_ACTORS, runDiscoveryActors, searchDemand, searchSupply, signalRank, SUPPLY_COVERAGE } from './actors';
 import { callJsonModel, createEmbedding, llmUsage } from './llm';
 import { classifySupply, countFollowers, isVerbatimQuote, meetsEvidenceBar, toSlug } from './rules';
 import type { ActorRun, Evidence, Opportunity, OpportunitySnapshot, Platform, RawSignal, SupplyItem } from './types';
@@ -65,13 +65,18 @@ export type EngineLog = (message: string) => void;
 type Checkpoint = { items: RawSignal[]; runs: ActorRun[]; sampled: number; batchesOk: number; batchesTotal: number; quotesRejected: number; pains: Pain[] };
 export type EngineCheckpointStore = { load: () => Checkpoint | null; save: (checkpoint: Checkpoint) => void };
 
-async function discoverPains(log: EngineLog): Promise<Checkpoint> {
+async function discoverPains(log: EngineLog, knownUrls: ReadonlySet<string>): Promise<Checkpoint> {
   const { items, runs } = await runDiscoveryActors();
   log(`collected ${items.length} from ${DISCOVERY_ACTORS.length} actors: ${runs.map((run: ActorRun) => `${run.id}=${run.items}/${run.status}`).join(', ')}`);
 
   // Sample across platforms so a large source cannot crowd out the smaller ones.
   const byPlatform = new Map<Platform, RawSignal[]>();
-  for (const item of [...items].sort((a, b) => b.score - a.score)) byPlatform.set(item.platform, [...(byPlatform.get(item.platform) ?? []), item]);
+  // Posts already published as evidence are skipped, so each run spends its model calls on posts not read before.
+  const unread = items.filter((item) => !knownUrls.has(item.url));
+  if (unread.length < items.length) log(`skipped ${items.length - unread.length} posts already used as evidence`);
+  const now = Date.now();
+  const ranked = unread.map((item) => ({ item, rank: signalRank(item, now) })).sort((a, b) => b.rank - a.rank);
+  for (const { item } of ranked) byPlatform.set(item.platform, [...(byPlatform.get(item.platform) ?? []), item]);
   const pools = [...byPlatform.values()];
   const sample: RawSignal[] = [];
   while (sample.length < SAMPLE_LIMIT && pools.some((pool) => pool.length)) {
@@ -124,10 +129,10 @@ async function groupPains(pains: Pain[], log: EngineLog): Promise<Group[]> {
   return answers.flatMap((answer) => answer?.groups ?? []);
 }
 
-export async function runOpportunityEngine(log: EngineLog = () => undefined, store?: EngineCheckpointStore): Promise<{ snapshot: OpportunitySnapshot; embeddings: Record<string, number[]> }> {
+export async function runOpportunityEngine(log: EngineLog = () => undefined, store?: EngineCheckpointStore, knownUrls: ReadonlySet<string> = new Set()): Promise<{ snapshot: OpportunitySnapshot; embeddings: Record<string, number[]> }> {
   const restored = store?.load() ?? null;
   if (restored) log(`resumed from checkpoint: pains ${restored.pains.length}`);
-  const discovered = restored ?? await discoverPains(log);
+  const discovered = restored ?? await discoverPains(log, knownUrls);
   // An empty result usually means a network outage, and must not be reused by the next run.
   if (!restored && discovered.pains.length) store?.save(discovered);
   const { items, runs, pains } = discovered;
@@ -151,12 +156,17 @@ export async function runOpportunityEngine(log: EngineLog = () => undefined, sto
 
   const expanded = await mapLimit(candidates, SEARCH_CONCURRENCY, async (candidate) => {
     const posts = new Map<string, Awaited<ReturnType<typeof searchDemand>>[number]>();
-    for (const phrase of (candidate.demand ?? []).slice(0, 3)) {
-      for (const post of await searchDemand(phrase)) if (post.text.length > 40 && !posts.has(post.url)) posts.set(post.url, post);
-    }
     const supply = new Map<string, Omit<SupplyItem, 'relation'>>();
-    for (const query of (candidate.supply ?? []).slice(0, 2)) {
-      for (const item of await searchSupply(query)) if (item.name && !supply.has(item.url)) supply.set(item.url, item);
+    try {
+      for (const phrase of (candidate.demand ?? []).slice(0, 3)) {
+        for (const post of await searchDemand(phrase)) if (post.text.length > 40 && !posts.has(post.url)) posts.set(post.url, post);
+      }
+      for (const query of (candidate.supply ?? []).slice(0, 2)) {
+        for (const item of await searchSupply(query)) if (item.name && !supply.has(item.url)) supply.set(item.url, item);
+      }
+    } catch (error) {
+      // The candidate continues with whatever was found before the failure.
+      log(`search failed for ${candidate.name}: ${error instanceof Error ? error.message : 'unknown error'}`);
     }
     log(`searched ${candidate.name}: posts ${posts.size}, supply ${supply.size}`);
     return { candidate, posts: [...posts.values()].slice(0, MAX_POSTS_PER_CANDIDATE), supply: [...supply.values()] };
@@ -165,7 +175,7 @@ export async function runOpportunityEngine(log: EngineLog = () => undefined, sto
   const embeddings: Record<string, number[]> = {};
   const usedSlugs = new Set<string>();
 
-  const judgedOrDropped = await mapLimit(expanded, LLM_CONCURRENCY, async ({ candidate, posts, supply }, index): Promise<Opportunity | null> => {
+  const judge = async ({ candidate, posts, supply }: (typeof expanded)[number], index: number): Promise<Opportunity | null> => {
     const seen = new Map<string, Evidence>();
     const titles = new Map<string, string>();
     const accept = (quote: string, source: { url: string; title: string; platform: Platform; score: number; postedAt: string | null }) => {
@@ -266,6 +276,16 @@ ${evidence.map((item, n) => `#${n} ${item.quote}`).join('\n')}`);
       firstSeenAt,
       followersAfterSignal: countFollowers(labeled, firstSeenAt),
     };
+  };
+
+  // One candidate that throws must not cost the run every other candidate.
+  const judgedOrDropped = await mapLimit(expanded, LLM_CONCURRENCY, async (entry, index) => {
+    try {
+      return await judge(entry, index);
+    } catch (error) {
+      log(`dropped ${entry.candidate.name}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return null;
+    }
   });
 
   const statusRank = { open: 0, narrowing: 1, unknown: 2, closed: 3 };

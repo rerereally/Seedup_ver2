@@ -40,6 +40,8 @@ async function ingestAll(request: Request) {
         method: 'POST',
         cache: 'no-store',
         headers: secret ? { 'x-ingest-secret': secret } : undefined,
+        // One stuck step is reported as failed, and the remaining steps still run.
+        signal: AbortSignal.timeout(280_000),
       });
       const contentType = response.headers.get('content-type') ?? '';
       const detail = contentType.includes('application/json') ? await response.json() : await response.text();

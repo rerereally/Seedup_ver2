@@ -369,6 +369,8 @@ async function findPapersWithCodeUrl(title: string) {
     const response = await fetch(`${RESEARCH_SOURCE_INFO.papersWithCode.url}?${params.toString()}`, {
       headers: { 'user-agent': 'SeedupBot/1.0' },
       cache: 'no-store',
+      // A source that never answers must not hold the whole collection run open.
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) return null;
     const json = await response.json() as { results?: Array<{ url_abs?: string; paper_url?: string; title?: string }> };
@@ -385,6 +387,7 @@ async function fetchHuggingFacePaperTitles() {
     const response = await fetch(RESEARCH_SOURCE_INFO.huggingFacePapers.url, {
       headers: { 'user-agent': 'SeedupBot/1.0' },
       cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) return [];
     const html = await response.text();

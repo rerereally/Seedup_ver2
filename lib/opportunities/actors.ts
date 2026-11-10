@@ -92,9 +92,39 @@ type LobstersStory = { short_id_url?: string; comments_url?: string; title?: str
 const EXCLUDED_REPOS = ['anthropics/claude-code', 'openai/codex', 'microsoft/vscode', 'ValveSoftware/Proton', 'golang/go', 'whatwg/html', 'zed-industries/zed'];
 const GITHUB_TOPICS = ['mcp', 'llm', 'agent', 'rag', 'prompt', 'observability', 'kubernetes', 'postgres', 'terraform', 'github actions', 'openapi', 'testing', 'logging', 'migration', 'documentation', 'ci', 'feature flags', 'monorepo'];
 const HN_ASK_QUERIES = ['tool for', 'how do you', 'what do you use', 'alternative to', 'is there a', 'looking for'];
-const HN_PAIN_PHRASES = ['"is there a tool"', '"I wish there was"', '"ended up building our own"', '"had to write our own"', '"no good way to"', '"why is there no"', '"we built an internal"'];
-const STACK_TAGS = ['model-context-protocol', 'langchain', 'large-language-model', 'github-copilot', 'vector-database', 'ollama', 'github-actions', 'opentelemetry'];
+const HN_PAIN_PHRASES = ['"is there a tool"', '"I wish there was"', '"ended up building our own"', '"had to write our own"', '"no good way to"', '"why is there no"', '"we built an internal"', '"does anyone know a tool"', '"biggest pain point"', '"still no good"', '"I would pay for"', '"tired of manually"'];
+const STACK_TAGS = ['model-context-protocol', 'langchain', 'large-language-model', 'github-copilot', 'vector-database', 'ollama', 'github-actions', 'opentelemetry', 'openai-api', 'langgraph', 'llama-index', 'pgvector', 'playwright'];
 const DEV_TERMS = /\b(api|cli|sdk|deploy|ci|repo|codebase|database|kubernetes|docker|developer|devops|terraform|llm|agent|mcp|prompt|observability|logging|monitoring|testing|migration|schema|backend|frontend)\b/i;
+
+// Phrases people use when they lack a tool, as opposed to reporting a bug or sharing an opinion.
+const PAIN_SIGNALS = [
+  /\bis there (a|any) (tool|way|library|service|app|plugin|extension|cli|package)\b/i,
+  /\b(i|we) wish (there (was|were)|i could|we could|it (was|were))\b/i,
+  /\bno (good|easy|simple|clean|reliable|built-?in) way\b/i,
+  /\b(ended up|had to|have to) (build|building|write|writing|roll|rolling|maintain|maintaining) (our|my|your|a|an|it)\b/i,
+  /\bwhy is(n't)? there (no|not)\b/i,
+  /\b(looking|searching) for (a|an|some) (tool|way|library|alternative|solution|service)\b/i,
+  /\balternatives? to\b/i,
+  /\b(biggest|major|real|huge) pain\b|\bpain point\b|\bpainful\b/i,
+  /\bfrustrat(ed|ing)\b|\btired of\b|\bsick of\b/i,
+  /\bwould (be (great|nice|awesome)|love) (if|to have|a way)\b/i,
+  /\bhow do (you|people|teams|others) (all )?(handle|manage|deal with|solve|track|test|debug)\b/i,
+  /\b(can't|cannot|couldn't) find (a|an|any)\b/i,
+  /\b(would|i'd|we'd) pay for\b/i,
+  /\bmanually\b.*\b(every|each) (time|day|week|release|deploy)\b/i,
+];
+const MIN_POST_CHARS = 60;
+
+/** How many distinct ways a post says "I lack a tool for this". Used to read the most promising posts first. */
+export function painSignalCount(text: string) {
+  return PAIN_SIGNALS.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
+
+/** Orders posts for sampling: explicit pain language first, then engagement on a compressed scale, then recency. */
+export function signalRank(item: { title: string; text: string; score: number; postedAt: string | null }, now = Date.now()) {
+  const ageDays = item.postedAt ? Math.max(0, (now - new Date(item.postedAt).getTime()) / 86_400_000) : 365;
+  return Math.min(3, painSignalCount(`${item.title} ${item.text}`)) * 2 + Math.log10(1 + Math.max(0, item.score)) + Math.max(0, 1 - ageDays / 365);
+}
 
 const hnUrl = (id: string) => `https://news.ycombinator.com/item?id=${id}`;
 const stackDate = (epoch?: number) => (epoch ? new Date(epoch * 1_000).toISOString() : null);
@@ -192,7 +222,8 @@ export async function runDiscoveryActors() {
     let crashed = false;
     try {
       await actor.run(session, (item) => {
-        if (!item.url || dataset.has(item.url)) return;
+        // A title with almost no body gives the model nothing to quote, and only costs a slot in the sample.
+        if (!item.url || dataset.has(item.url) || `${item.title} ${item.text}`.length < MIN_POST_CHARS) return;
         dataset.set(item.url, { ...item, id: String(dataset.size), actor: actor.id });
         items += 1;
       });

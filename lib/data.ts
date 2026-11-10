@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { cached } from '@/lib/cache';
 
 function handleReadError(error: { code?: string; message?: string }) {
   if (error.code === '42501' || error.code === 'PGRST205') {
@@ -433,7 +434,10 @@ export type ArticleFeedItem = {
 
 const NEWS_LIST_LIMIT = 300;
 
-export async function getNewsItems() {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getNewsItems = () => cached('news', () => loadNewsItems());
+
+async function loadNewsItems() {
   const supabase = await createClient();
   if (!supabase) return [];
   const rankedResult = await supabase
@@ -470,7 +474,10 @@ export async function getNewsItem(id: string) {
   return data as NewsItem | null;
 }
 
-export async function getResearchPapers(limit = 8) {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getResearchPapers = (limit = 8) => cached(`papers:${limit}`, () => loadResearchPapers(limit));
+
+async function loadResearchPapers(limit = 8) {
   const supabase = await createClient();
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -638,7 +645,10 @@ export async function getRelatedPapersForNews(newsId: string) {
   return (data ?? []) as NewsPaperLink[];
 }
 
-export async function getTrends() {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getTrends = () => cached('trends', () => loadTrends());
+
+async function loadTrends() {
   const supabase = await createClient();
   if (!supabase) return [];
   const { data, error } = await supabase.from('trends').select('*').order('rank', { ascending: true }).limit(180);
@@ -704,7 +714,9 @@ export async function getTrends() {
   }));
 }
 
-export async function getModelIntelligence(): Promise<ModelIntelligence[]> {
+export const getModelIntelligence = () => cached('model-intelligence', loadModelIntelligence);
+
+async function loadModelIntelligence(): Promise<ModelIntelligence[]> {
   const supabase = await createClient();
   if (!supabase) return [];
   const { data: latest, error: latestError } = await supabase
@@ -786,7 +798,10 @@ function normalizeTrendCategory(value: string | null | undefined) {
   return value ?? '';
 }
 
-export async function getAIProducts() {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getAIProducts = () => cached('ai-products', () => loadAIProducts());
+
+async function loadAIProducts() {
   const supabase = await createClient();
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -831,7 +846,10 @@ export async function getAIProductReviews(productId: string) {
   return (data ?? []) as AIProductReview[];
 }
 
-export async function getProjectIdeas() {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getProjectIdeas = () => cached('project-ideas', () => loadProjectIdeas());
+
+async function loadProjectIdeas() {
   const supabase = await createClient();
   if (!supabase) return [];
   const { data, error } = await supabase.from('project_ideas').select('*').order('created_at', { ascending: false });
@@ -922,7 +940,10 @@ export async function getScrapKeySet() {
   return new Set((data ?? []).map((item) => `${item.item_type}:${item.item_id}`));
 }
 
-export async function getGitHubTrends() {
+/** Shared across visitors for a minute. These tables are public and change only when collection runs. */
+export const getGitHubTrends = () => cached('github-trends', () => loadGitHubTrends());
+
+async function loadGitHubTrends() {
   const supabase = await createClient();
   if (!supabase) return [];
   const rankedResult = await supabase

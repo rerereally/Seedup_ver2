@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 
 const PRIMARY_LINKS = [
   { name: '기회', href: '/opportunities' },
+  { name: '내 씨앗', href: '/seeds' },
   { name: '오늘 읽을 것', href: '/news' },
   { name: '아이디어 평가', href: '/ideas' },
   { name: '보관함', href: '/scrap' },

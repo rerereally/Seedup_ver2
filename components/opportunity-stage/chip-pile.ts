@@ -14,6 +14,7 @@ type Chip = {
   show: boolean;
   dropping: boolean;
   touchedAt: number;
+  squishedAt: number;
   previous: { x: number; y: number; angle: number };
   lastTransform: string;
 };
@@ -38,17 +39,29 @@ const FOLDER = 4;
 const SOLID = WALL | CHIP | FOLDER;
 const STEP = 1000 / 60;
 const MAX_FRAME_MS = 100;
-const PILE_FILL_RATIO = 0.55;
+const PILE_FILL_RATIO = 0.4;
 
-// Chips drift toward a shallow lean while moving, so stacks stay readable without snapping.
-const SOFT_TILT = 0.2;
-const HARD_TILT = 0.58;
-const LEVEL_RATE = 0.014;
-const MAX_SPEED = 30;
-const MAX_SPIN = 0.2;
+// Chips level out while they move, so they land flat and stack like bricks instead of leaning on each other.
+const SOFT_TILT = 0.04;
+const HARD_TILT = 0.5;
+const LEVEL_RATE = 0.035;
+const HARD_RETURN_SPIN = 0.05;
+// Slow enough that a falling chip cannot sink into the pile before the solver separates them.
+const MAX_SPEED = 20;
+const MAX_SPIN = 0.14;
+// The body is slightly larger than the drawn pill, so neighbours keep a hairline gap and never look merged.
+const BODY_PAD = 1.5;
+// A landing chip sinks in like a cushion and eases back once, without bouncing; harder hits sink deeper.
+const SQUISH_MIN_IMPACT = 3.5;
+const SQUISH_FULL_IMPACT = 14;
+const SQUISH_MAX = 0.16;
+const SQUISH_MS = 640;
+const SQUISH_COOLDOWN_MS = 500;
+const SPAWN_Y = -60;
+const SPAWN_GAP = 12;
 
 const REPEL_RADIUS = 80;
-const REPEL_STRENGTH = 0.0024;
+const REPEL_STRENGTH = 0.0015;
 const REPEL_MIN_POINTER_SPEED = 0.12;
 const REPEL_FULL_POINTER_SPEED = 1.4;
 const REPEL_CONTACT_LEVER = 0.5;
@@ -107,7 +120,7 @@ export class ChipPile {
     this.engine.gravity.y = 1.15;
     this.world = this.engine.world;
     this.chips = options.chips.map(({ id, el }) => {
-      const chip: Chip = { id, el, width: 0, height: 0, body: null, kept: options.initialKept.has(id), show: true, dropping: false, touchedAt: 0, previous: { x: 0, y: 0, angle: 0 }, lastTransform: '' };
+      const chip: Chip = { id, el, width: 0, height: 0, body: null, kept: options.initialKept.has(id), show: true, dropping: false, touchedAt: 0, squishedAt: 0, previous: { x: 0, y: 0, angle: 0 }, lastTransform: '' };
       this.byId.set(id, chip);
       return chip;
     });
@@ -131,15 +144,16 @@ export class ChipPile {
     this.capacity = Math.max(5, Math.floor((openArea * PILE_FILL_RATIO) / Math.max(1, averageArea)));
 
     this.matter.Events.on(this.engine, 'beforeUpdate', () => this.beforeUpdate());
+    if (!reduced) this.matter.Events.on(this.engine, 'collisionStart', (event) => this.onImpact(event.pairs));
 
     const idle = this.idleChips();
     const target = new Set(idle);
     for (const chip of this.chips) chip.show = target.has(chip);
     let shelfX = 16;
     let shelfY = this.height - 30;
-    idle.forEach((chip, index) => {
+    idle.forEach((chip) => {
       if (!reduced) {
-        this.spawn(chip, -60 - index * 26 - Math.random() * 30);
+        this.spawn(chip, SPAWN_Y);
         return;
       }
       if (shelfX + chip.width > this.width - 16) {
@@ -228,7 +242,7 @@ export class ChipPile {
         const delay = reduced ? 0 : queued * 55;
         queued += 1;
         const place = () => {
-          if (token === this.spawnToken && chip.show && !chip.body && !chip.kept) this.spawn(chip, reduced ? this.height * 0.6 : -60);
+          if (token === this.spawnToken && chip.show && !chip.body && !chip.kept) this.spawn(chip, reduced ? this.height * 0.6 : SPAWN_Y);
         };
         if (delay) this.later(place, delay);
         else place();
@@ -311,8 +325,8 @@ export class ChipPile {
     const { Sleeping, Body } = this.matter;
     Sleeping.set(body, false);
     const pull = clamp((this.width / 2 - body.position.x) * 0.012, -5, 5);
-    Body.setVelocity(body, { x: pull + (Math.random() - 0.5) * 2, y: -8 - Math.random() * 6 });
-    Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.08);
+    Body.setVelocity(body, { x: pull + (Math.random() - 0.5) * 2, y: -4.5 - Math.random() * 2.5 });
+    Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.04);
   }
 
   private later(callback: () => void, delay: number) {
@@ -357,16 +371,23 @@ export class ChipPile {
     const { Bodies, Composite } = this.matter;
     const padding = chip.width / 2 + 8;
     const x = fixedX ?? padding + Math.random() * Math.max(1, this.width - padding * 2);
-    chip.body = Bodies.rectangle(x, y, chip.width, chip.height, {
-      chamfer: { radius: chip.height / 2 - 1, quality: 5 },
-      restitution: 0.18,
-      friction: 0.6,
-      frictionStatic: 0.8,
-      frictionAir: 0.012,
+    if (fixedX === undefined && y < 0) {
+      // Each new chip starts above every chip still waiting to fall, so two never begin inside each other.
+      const highest = this.chips.reduce((top, other) => (other.body && !other.dropping ? Math.min(top, other.body.position.y) : top), 0);
+      y = Math.min(y, highest - chip.height - SPAWN_GAP);
+    }
+    const bodyHeight = chip.height + BODY_PAD * 2;
+    chip.body = Bodies.rectangle(x, y, chip.width + BODY_PAD * 2, bodyHeight, {
+      chamfer: { radius: bodyHeight / 2 - 1, quality: 6 },
+      restitution: 0.03,
+      label: chip.id,
+      friction: 0.3,
+      frictionStatic: 0.5,
+      frictionAir: 0.014,
       density: 0.0015,
-      slop: 0.05,
+      slop: 0.02,
       sleepThreshold: 45,
-      angle: (Math.random() - 0.5) * 0.4,
+      angle: fixedX === undefined ? (Math.random() - 0.5) * 0.24 : 0,
       collisionFilter: { category: CHIP, mask: SOLID },
     });
     chip.previous = { x, y, angle: chip.body.angle };
@@ -499,6 +520,31 @@ export class ChipPile {
     }, { signal });
   }
 
+  private onImpact(pairs: MatterNamespace.Pair[]) {
+    for (const pair of pairs) {
+      const { bodyA, bodyB } = pair;
+      const normal = pair.collision.normal;
+      const impact = Math.abs((bodyA.velocity.x - bodyB.velocity.x) * normal.x + (bodyA.velocity.y - bodyB.velocity.y) * normal.y);
+      if (impact < SQUISH_MIN_IMPACT) continue;
+      this.squish(this.byId.get(bodyA.label), impact);
+      this.squish(this.byId.get(bodyB.label), impact);
+    }
+  }
+
+  /** Drawn on the inner pill only, so the physics body keeps its shape while the chip looks soft. */
+  private squish(chip: Chip | undefined, impact: number) {
+    const pill = chip?.el.firstElementChild;
+    const now = performance.now();
+    if (!chip || !pill || chip.dropping || this.grab?.chip === chip || now - chip.squishedAt < SQUISH_COOLDOWN_MS) return;
+    chip.squishedAt = now;
+    const amount = SQUISH_MAX * clamp(impact / SQUISH_FULL_IMPACT, 0.3, 1);
+    const shape = (wide: number) => `scale(${(1 + wide).toFixed(3)},${(1 - wide * 1.25).toFixed(3)})`;
+    pill.animate(
+      [{ transform: shape(0), easing: 'ease-out' }, { transform: shape(amount), offset: 0.26, easing: 'ease-in-out' }, { transform: shape(-amount * 0.08), offset: 0.74, easing: 'ease-in-out' }, { transform: shape(0) }],
+      { duration: SQUISH_MS },
+    );
+  }
+
   private beforeUpdate() {
     for (const chip of this.chips) {
       const body = chip.body;
@@ -528,19 +574,21 @@ export class ChipPile {
     BodyApi.setAngularVelocity(body, body.angularVelocity * DRAG_SPIN_DAMPING + (lean - angle) * DRAG_LEVEL_RATE);
   }
 
-  /** Chips may lean but never lie vertically or upside down, so every quote stays readable. */
+  /** Chips may lean a little but never stand on end or flip, so every quote stays readable. */
   private keepReadable(body: Body) {
     const { Body: BodyApi } = this.matter;
     if (Math.abs(body.angle) > Math.PI) BodyApi.setAngle(body, Math.atan2(Math.sin(body.angle), Math.cos(body.angle)));
     const direction = Math.sign(body.angle);
     const tilt = Math.abs(body.angle);
+    if (tilt > HARD_TILT) {
+      // Turned back by spin, not by rewriting the angle, so the solver never sees a chip jump into its neighbour.
+      const back = -direction * Math.min(HARD_RETURN_SPIN, 0.012 + (tilt - HARD_TILT) * 0.25);
+      if (body.angularVelocity * direction > back * direction) BodyApi.setAngularVelocity(body, back);
+      return;
+    }
     // Leveling only while moving lets a settled pile fall asleep instead of trembling.
     if (tilt > SOFT_TILT && body.speed > 0.25) {
       BodyApi.setAngularVelocity(body, body.angularVelocity - direction * (tilt - SOFT_TILT) * LEVEL_RATE);
-    }
-    if (tilt > HARD_TILT) {
-      if (body.angularVelocity * direction > 0) BodyApi.setAngularVelocity(body, 0);
-      BodyApi.setAngle(body, direction * (HARD_TILT + (tilt - HARD_TILT) * 0.8));
     }
   }
 

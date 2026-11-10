@@ -11,6 +11,14 @@ import type { SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
 const SUPPLY_LABELS: Record<SupplyKind, string> = { github: 'GitHub', npm: 'npm', show_hn: 'Show HN', vscode: 'VS Code' };
 
+// Asked about what already happened, never about a hypothetical product, so the answers are not just politeness.
+const FIRST_USER_QUESTIONS = [
+  '이 문제를 가장 최근에 겪은 것이 언제였나요? 그때 무슨 작업을 하던 중이었나요?',
+  '그때 어떻게 해결했나요? 그 방법에서 가장 번거로운 부분은 무엇이었나요?',
+  '해결하려고 써 본 도구가 있나요? 계속 쓰지 않게 된 이유는 무엇인가요?',
+  '이 문제 때문에 지금까지 들인 시간이나 돈은 어느 정도인가요?',
+];
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const opportunity = await getOpportunity(slug);
@@ -114,6 +122,37 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 </li>
               ))}
             </ul>
+
+            <section className="mt-12" aria-labelledby="first-users-heading">
+              <h2 id="first-users-heading" className="text-2xl font-extrabold tracking-tight">첫 10명 찾기</h2>
+              <p className="mt-1 text-sm text-muted">이 문제를 직접 말한 사람들이 첫 사용자 후보입니다. 자동 댓글이나 쪽지는 보내지 않습니다. 글에 직접 답하며 대화를 시작하세요.</p>
+              <div className="card mt-5 overflow-hidden">
+                <div className="px-5 py-5 sm:px-6">
+                  <h3 className="text-[15px] font-extrabold">이 사람들이 있는 곳</h3>
+                  <ul className="mt-3 grid gap-2">
+                    {opportunity.platforms.map((platform) => {
+                      const threads = opportunity.evidence.filter((item) => item.platform === platform);
+                      return (
+                        <li key={platform} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                          <span className="font-bold text-ink">{PLATFORM_LABELS[platform]}</span>
+                          <span className="text-muted">글 <span className="num">{threads.length}</span>개</span>
+                          {threads.map((item, index) => (
+                            <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="text-ink underline underline-offset-4 hover:text-muted">{index + 1}번 글 <span aria-hidden="true">↗</span></a>
+                          ))}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <div className="border-t border-outline-soft px-5 py-5 sm:px-6">
+                  <h3 className="text-[15px] font-extrabold">만나면 물어볼 것</h3>
+                  <ol className="mt-3 grid list-decimal gap-2 pl-5 text-sm leading-6 text-muted marker:text-muted">
+                    {FIRST_USER_QUESTIONS.map((question) => <li key={question}>{question}</li>)}
+                  </ol>
+                  <p className="mt-3 text-[13px] leading-6 text-muted">내 해결책을 설명하기 전에 묻습니다. 미래에 쓸지 묻지 않고, 지난번에 실제로 어떻게 했는지를 묻습니다.</p>
+                </div>
+              </div>
+            </section>
           </article>
 
           <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">

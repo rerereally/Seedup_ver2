@@ -66,7 +66,7 @@ export default function OpportunityStage({ opportunities, news, header }: {
     const semanticSlugs = semantic?.query === query.trim() ? semantic.slugs : [];
     const ranked = [...new Set([...semanticSlugs, ...keyword.slugs])];
     const wanted = new Set(ranked);
-    const matched = chips.filter((chip) => wanted.has(chip.slug) || quoteMentions(keyword.tokens, chip.quote));
+    const matched = chips.filter((chip) => wanted.has(chip.slug) || quoteMentions(keyword.tokens, `${chip.quote} ${chip.quoteKo}`));
     const topSlug = ranked[0] ?? matched[0]?.slug;
     return { active: true, chips: matched, top: opportunities.find((item) => item.slug === topSlug) ?? null };
   }, [query, semantic, chips, opportunities]);
@@ -247,8 +247,8 @@ export default function OpportunityStage({ opportunities, news, header }: {
         </div>
 
         {chips.map((chip) => (
-          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang="en" title={chip.quoteKo || undefined} aria-label={`${chip.quote}. 근거로 담기`}>
-            <span className={styles.chipBody} style={{ '--chip-bg': chip.bg, '--chip-fg': chip.fg } as CSSProperties}>{chip.quote}</span>
+          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang={chip.quoteKo ? undefined : 'en'} title={chip.quoteKo ? `${chip.quoteKo}\n원문: ${chip.quote}` : undefined} aria-label={`${chip.quoteKo || chip.quote}. 근거로 담기`}>
+            <span className={styles.chipBody} style={{ '--chip-bg': chip.bg, '--chip-fg': chip.fg } as CSSProperties}>{chip.quoteKo || chip.quote}</span>
           </button>
         ))}
 

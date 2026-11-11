@@ -1,3 +1,6 @@
+import { getOpportunities } from '@/lib/opportunities/data';
+import { dossierChanges } from '@/lib/opportunities/insight';
+import { describeChange } from '@/lib/opportunities/merge';
 import type { Metadata } from 'next';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -63,7 +66,11 @@ async function getDossiers() {
 
 export default async function Scrap({ searchParams }: { searchParams: Promise<{ type?: string; q?: string }> }) {
   const params = await searchParams;
-  const [savedItems, dossiers] = await Promise.all([getScraps(), getDossiers()]);
+  const [savedItems, savedDossiers, { opportunities }] = await Promise.all([getScraps(), getDossiers(), getOpportunities()]);
+  const dossiers = savedDossiers.map((dossier) => {
+    const opportunity = opportunities.find((item) => item.slug === dossier.opportunity_slug);
+    return { ...dossier, notes: opportunity ? dossierChanges(dossier.evidence_ids, dossier.updated_at, opportunity, describeChange).notes : [] };
+  });
   const activeType = params.type ?? 'all';
   const query = params.q?.trim().toLowerCase() ?? '';
   const filteredItems = savedItems.filter((item) => {
@@ -103,6 +110,14 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                   <li key={dossier.id} className="card p-5 md:p-6">
                     <p className="text-lg font-bold leading-snug text-ink">{dossier.title}</p>
                     <p className="mt-1.5 text-[13px] text-muted">근거 <span className="num text-ink">{dossier.evidence_ids.length}</span>건{dossier.prd_markdown ? ' · PRD 있음' : ''} · {formatDate(dossier.updated_at)}</p>
+                    {dossier.notes.length > 0 && (
+                      <div className="mt-4 border-l-[3px] border-hot pl-4">
+                        <p className="label">PRD에서 고칠 것</p>
+                        <ul className="mt-1 grid gap-1 text-sm leading-6 text-muted">
+                          {dossier.notes.map((note) => <li key={note}>{note}</li>)}
+                        </ul>
+                      </div>
+                    )}
                     {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="btn-quiet mt-4">기회 다시 보기<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>}
                   </li>
                 ))}

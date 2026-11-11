@@ -28,6 +28,10 @@ jobs:
       OPENROUTER_FREE_ONLY: ${{ vars.OPENROUTER_FREE_ONLY }}
       RAG_EMBEDDING_MODEL: ${{ vars.RAG_EMBEDDING_MODEL }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Mail is optional: without these three the digest step prints what it would send and stops.
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NEWSLETTER_FROM_EMAIL: ${{ secrets.NEWSLETTER_FROM_EMAIL }}
+      SEEDUP_SITE_URL: ${{ secrets.SEEDUP_SITE_URL }}
       # Lets the retry below skip collection and extraction, the slowest part of a run.
       ENGINE_CHECKPOINT: engine-checkpoint.json
     steps:
@@ -53,3 +57,10 @@ jobs:
         run: |
           sleep 300
           npx tsx scripts/run-opportunity-engine.ts --persist
+      # A mail problem must never mark a good engine run as failed.
+      - name: Mail subscribers about changes
+        continue-on-error: true
+        run: |
+          npx tsx scripts/send-opportunity-digest.ts --kind changes
+          # The schedule fires at 07:00 KST, so this is Monday morning in Korea.
+          if [ "$(TZ=Asia/Seoul date +%u)" = "1" ]; then npx tsx scripts/send-opportunity-digest.ts --kind weekly; fi

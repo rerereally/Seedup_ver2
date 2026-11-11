@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import OnboardingModal from '@/components/OnboardingModal';
 import OpportunityStage from '@/components/opportunity-stage/OpportunityStage';
 import OpportunityTable, { FunnelStrip } from '@/components/opportunity-stage/OpportunityTable';
 import type { NewsItem } from '@/lib/data';
@@ -57,7 +56,6 @@ export default async function Home() {
   const publishedNews = news.filter((item) => Boolean(item.content?.trim()));
   let stageNews = [...publishedNews].sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0));
   let personal: Array<{ title: string; moreHref: string; rows: PersonalRow[] }> = [];
-  let shouldShowOnboarding = false;
 
   if (user && supabase) {
     const [projects, githubRepos, aiProducts, userScraps, onboarding] = await Promise.all([
@@ -65,9 +63,8 @@ export default async function Home() {
       getGitHubTrends(),
       getAIProducts(),
       getScraps(),
-      supabase.from('user_onboarding').select('id,answers').eq('user_id', user.id).maybeSingle(),
+      supabase.from('user_onboarding').select('answers').eq('user_id', user.id).maybeSingle(),
     ]);
-    shouldShowOnboarding = !onboarding.data;
     const profile = buildRecommendationProfile((onboarding.data?.answers ?? null) as Record<string, unknown> | null, scrapTokens(userScraps));
     stageNews = recommendNewsItems(publishedNews, profile, NEWS_ON_HOME).map(({ item }) => item);
     personal = [
@@ -81,7 +78,6 @@ export default async function Home() {
 
   return (
     <>
-      {shouldShowOnboarding && user && <OnboardingModal userId={user.id} email={user.email ?? null} />}
       <main className="grow">
         <OpportunityStage opportunities={toStageOpportunities(opportunities)} news={toStageNews(stageNews)} header={<Header overlay />} />
 

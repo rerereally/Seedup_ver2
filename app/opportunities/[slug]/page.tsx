@@ -6,7 +6,9 @@ import Header from '@/components/Header';
 import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import OpportunityPrd from './OpportunityPrd';
 import { getOpportunities, getOpportunity, opportunityColors } from '@/lib/opportunities/data';
+import { koreaLens, scoreOpportunity, stackFit, whyNow } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
+import { createClient } from '@/lib/supabase/server';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
@@ -36,6 +38,17 @@ function supplyMetric(item: SupplyItem) {
   if (item.kind === 'vscode') return `설치 ${compact.format(item.popularity)}`;
   if (item.kind === 'show_hn') return `${compact.format(item.popularity)}점`;
   return compact.format(item.popularity);
+}
+
+/** The stacks picked in the profile, or null for a visitor who is not signed in. */
+async function preferredStack(): Promise<string[] | null> {
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  const { data: row } = await supabase.from('user_onboarding').select('answers').eq('user_id', data.user.id).maybeSingle();
+  const stack = (row?.answers as { preferred_stack?: unknown } | null)?.preferred_stack;
+  return Array.isArray(stack) ? stack.map(String) : [];
 }
 
 function SupplyGroup({ title, items }: { title: string; items: SupplyItem[] }) {
@@ -73,6 +86,11 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     ['직접 경쟁', opportunity.directCount, '개'],
     ['첫 증언 뒤 나온 도구', opportunity.followersAfterSignal, '개'],
   ];
+  const score = scoreOpportunity(opportunity);
+  const timing = whyNow(opportunity);
+  const korea = koreaLens(opportunity);
+  const stack = await preferredStack();
+  const fit = stack ? stackFit(opportunity, stack) : null;
   const points = opportunity.history ?? [];
   const history = points.map((entry, index) => ({ ...entry, changes: index ? describeChange(points[index - 1], entry) : [] }));
   const direct = opportunity.supply.filter((item) => item.relation === 'direct');
@@ -109,6 +127,47 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               ))}
             </dl>
             {firstSeen && <p className="mt-3 text-[13px] text-muted">가장 이른 증언은 {firstSeen}에 나왔습니다.</p>}
+
+            <section className="mt-12" aria-labelledby="score-heading">
+              <h2 id="score-heading" className="flex items-baseline gap-3 text-2xl font-extrabold tracking-tight">
+                점수 내역
+                <span className="text-base font-medium text-muted"><span className="num text-[28px] font-semibold leading-none text-hot">{score.total}</span> / 100</span>
+              </h2>
+              <p className="mt-1 text-sm text-muted">저장된 수치만으로 계산합니다. AI가 매긴 점수가 아닙니다.</p>
+              <dl className="card mt-5 overflow-hidden">
+                {score.parts.map((part, index) => (
+                  <div key={part.key} className={`grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3.5 sm:px-6 ${index ? 'border-t border-outline-soft' : ''}`}>
+                    <dt className="text-sm font-bold">{part.label}</dt>
+                    <dd className="min-w-0">
+                      <span aria-hidden="true" className="block h-1.5 overflow-hidden rounded-full bg-surface-high">
+                        <span className="block h-full rounded-full" style={{ width: `${(part.points / part.max) * 100}%`, background: color }} />
+                      </span>
+                      <span className="mt-1.5 block text-[13px] leading-5 text-muted">{part.reason}</span>
+                    </dd>
+                    <dd className="num text-sm text-muted"><span className="font-semibold text-ink">{part.points}</span> / {part.max}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section className="mt-12" aria-labelledby="timing-heading">
+              <h2 id="timing-heading" className="text-2xl font-extrabold tracking-tight">왜 지금인가</h2>
+              <p className="mt-1 max-w-[40em] text-sm leading-6 text-muted">{timing.headline}</p>
+              {timing.events.length > 0 && (
+                <ol className="card mt-5 overflow-hidden">
+                  {timing.events.map((event, index) => (
+                    <li key={`${event.url}-${event.kind}`} className={`flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-3 sm:px-6 ${index ? 'border-t border-outline-soft' : ''}`}>
+                      <time dateTime={event.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(event.at))}</time>
+                      <span className="inline-flex w-36 shrink-0 items-center gap-2 text-[13px] font-bold">
+                        <span aria-hidden="true" className={`h-2 w-2 ${event.kind === 'voice' ? 'rounded-full' : 'rounded-[2px] bg-outline-strong'}`} style={event.kind === 'voice' ? { background: color } : undefined} />
+                        {event.label}
+                      </span>
+                      <a href={event.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 basis-full truncate text-sm text-muted underline-offset-4 hover:text-ink hover:underline sm:basis-0">{event.detail}</a>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
 
             {history.length > 0 && (
               <section className="mt-12" aria-labelledby="growth-heading">
@@ -190,6 +249,40 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                     <SupplyGroup title="일부만 겹침" items={partial} />
                   </div>
                 )}
+            </section>
+            <section className="card p-5" aria-labelledby="fit-heading">
+              <h2 id="fit-heading" className="text-lg font-extrabold">내 스택과 맞는가</h2>
+              {!fit || !fit.chosen ? (
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  <Link href={fit ? '/onboarding' : `/login?next=/opportunities/${opportunity.slug}`} className="font-bold text-ink underline underline-offset-4">{fit ? '프로필에서 기술 스택을 고르면' : '로그인하고 프로필에 기술 스택을 고르면'}</Link> 이 기회와 겹치는 스택을 보여 드립니다.
+                </p>
+              ) : fit.matched.length ? (
+                <>
+                  <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개 중 <span className="num font-bold text-ink">{fit.matched.length}</span>개가 이 문제의 증언과 도구 설명에 나옵니다.</p>
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {fit.matched.map((name) => <li key={name} className="rounded-full border border-outline-soft px-3 py-1 text-[13px] font-bold">{name}</li>)}
+                  </ul>
+                </>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개는 이 문제의 증언과 도구 설명에 나오지 않습니다. 못 만든다는 뜻은 아니고, 익숙한 영역과 거리가 있다는 뜻입니다.</p>
+              )}
+            </section>
+            <section className="card p-5" aria-labelledby="korea-heading">
+              <h2 id="korea-heading" className="text-lg font-extrabold">한국에서도 그런가</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">위 증언은 모두 영어권 커뮤니티에서 나왔습니다. 한국 커뮤니티 글은 아직 수집하지 않으니 직접 찾아보세요. 검색어는 <span className="font-bold text-ink">{korea.query}</span>입니다.</p>
+              <ul className="mt-2">
+                {korea.places.map((place) => (
+                  <li key={place.name}>
+                    <a href={place.href} target="_blank" rel="noopener noreferrer" className="group -mx-2 flex min-h-11 items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-low">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold group-hover:underline">{place.name}</span>
+                        <span className="block text-xs text-muted">{place.note}</span>
+                      </span>
+                      <span aria-hidden="true" className="text-muted">↗</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </section>
           </aside>
         </div>

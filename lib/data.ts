@@ -975,14 +975,14 @@ export async function getGitHubTrend(id: string) {
   return data as GitHubTrend | null;
 }
 
-export async function getIngestRuns() {
+export async function getIngestRuns(limit = 30) {
   const supabase = createAdminClient();
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('ingest_runs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(limit);
 
   if (error) {
     handleReadError(error);

@@ -100,3 +100,71 @@ test('exports keep source links and keep hypotheses out of the build list', () =
   assert.match(brief, /- \[ \] R1\. real/);
   assert.doesNotMatch(brief, /- \[ \] .*guess/);
 });
+
+import { dossierChanges, koreaLens, scoreOpportunity, stackFit, trackRecord, whyNow } from '../lib/opportunities/insight';
+import { describeChange } from '../lib/opportunities/merge';
+import type { Opportunity } from '../lib/opportunities/types';
+
+const NOW = new Date('2026-11-01T00:00:00Z').getTime();
+const sample = (over: Partial<Opportunity> = {}): Opportunity => ({
+  slug: 's', name: '스키마 정규화', problem: 'LLM 제공자마다 스키마가 다르다', gap: '', keywords: ['llm', '스키마', 'openai'], status: 'open', qualified: true,
+  platforms: ['hn', 'github'],
+  evidence: [
+    { id: 'a', platform: 'hn', quote: 'no good way to normalize schemas across providers', quoteKo: '', url: 'u1', score: 40, postedAt: '2026-09-01T00:00:00Z' },
+    { id: 'b', platform: 'github', quote: 'we had to write our own postgres adapter', quoteKo: '', url: 'u2', score: 10, postedAt: '2026-01-01T00:00:00Z' },
+    { id: 'c', platform: 'hn', quote: 'tired of manually patching this', quoteKo: '', url: 'u3', score: 0, postedAt: null },
+  ],
+  supply: [
+    { kind: 'github', name: 'late/tool', description: '', popularity: 50, url: 't1', createdAt: '2026-03-01T00:00:00Z', relation: 'direct' },
+    { kind: 'github', name: 'early/tool', description: '', popularity: 50, url: 't2', createdAt: '2025-01-01T00:00:00Z', relation: 'partial' },
+  ],
+  directCount: 1, firstSeenAt: '2026-01-01T00:00:00Z', followersAfterSignal: 1, ...over,
+});
+
+test('score parts add up to the total and stay within their maximums', () => {
+  const score = scoreOpportunity(sample(), NOW);
+  assert.equal(score.total, score.parts.reduce((sum, part) => sum + part.points, 0));
+  assert.ok(score.parts.every((part) => part.points >= 0 && part.points <= part.max));
+  assert.equal(score.parts.reduce((sum, part) => sum + part.max, 0), 100);
+  assert.ok(scoreOpportunity(sample({ status: 'closed' }), NOW).total < score.total);
+  assert.equal(scoreOpportunity(sample({ evidence: [], platforms: [] }), NOW).parts.find((part) => part.key === 'recency')?.points, 0);
+});
+
+test('why-now puts voices and tools on one axis and counts what came after', () => {
+  const timing = whyNow(sample(), NOW);
+  assert.deepEqual(timing.events.map((event) => event.url), ['t2', 'u2', 't1', 'u1']);
+  assert.equal(timing.recentVoices, 1);
+  assert.equal(timing.toolsAfterFirstVoice, 1);
+});
+
+test('track record lists only tools made after the first complaint', () => {
+  const rows = trackRecord([sample(), sample({ slug: 'none', supply: [] }), sample({ slug: 'undated', firstSeenAt: null })]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].followers.map((tool) => tool.name), ['late/tool']);
+  assert.equal(rows[0].followers[0].leadDays, 59);
+});
+
+test('stack fit matches profile choices against the opportunity text', () => {
+  const fit = stackFit(sample(), ['LLM API', 'PostgreSQL', 'Spring', '아직 모르겠음']);
+  assert.deepEqual(fit.matched, ['LLM API', 'PostgreSQL']);
+  assert.equal(fit.chosen, 3);
+  assert.equal(stackFit(sample(), []).level, 'none');
+});
+
+test('korea lens searches with one English and one Korean keyword', () => {
+  const lens = koreaLens(sample());
+  assert.equal(lens.query, 'llm 스키마');
+  assert.ok(lens.places.every((place) => place.href.includes(encodeURIComponent('llm 스키마'))));
+});
+
+test('dossier changes report added and removed evidence and later status moves', () => {
+  const history = [
+    { at: '2026-10-01T00:00:00Z', evidence: 2, platforms: 2, direct: 0, status: 'open' as const, qualified: false },
+    { at: '2026-10-20T00:00:00Z', evidence: 3, platforms: 2, direct: 3, status: 'narrowing' as const, qualified: true },
+  ];
+  const changes = dossierChanges(['a', 'gone'], '2026-10-05T00:00:00Z', sample({ history }), describeChange);
+  assert.equal(changes.added.length, 2);
+  assert.equal(changes.removed, 1);
+  assert.equal(changes.notes.length, 3);
+  assert.equal(dossierChanges(['a', 'b', 'c'], '2026-10-25T00:00:00Z', sample({ history }), describeChange).notes.length, 0);
+});

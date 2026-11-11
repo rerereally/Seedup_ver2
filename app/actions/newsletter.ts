@@ -2,6 +2,7 @@
 
 import { isAdminEmail } from '@/lib/auth/admin';
 import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper } from '@/lib/data';
+import { claimSend, releaseSend } from '@/lib/newsletter/sends';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
 import { buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -132,6 +133,13 @@ export async function sendManualNewsletter() {
       siteUrl,
     });
 
+    // Kept in our own table as well, because the provider forgets an idempotency key after 24 hours.
+    const claim = await claimSend(service, 'weekly-reading', issueDate, recipient.user_id);
+    if (claim === 'duplicate') {
+      skippedDuplicates += 1;
+      continue;
+    }
+
     let response: Response;
     try {
       response = await fetch('https://api.resend.com/emails', {
@@ -151,6 +159,7 @@ export async function sendManualNewsletter() {
         cache: 'no-store',
       });
     } catch (error) {
+      if (claim === 'claimed') await releaseSend(service, 'weekly-reading', issueDate, recipient.user_id);
       const message = error instanceof Error ? error.message : 'Resend API에 연결하지 못했습니다.';
       revalidatePath('/admin/ingest');
       redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(`메일 서비스 연결 실패: ${message}`)}`);
@@ -163,6 +172,7 @@ export async function sendManualNewsletter() {
     }
 
     if (!response.ok) {
+      if (claim === 'claimed') await releaseSend(service, 'weekly-reading', issueDate, recipient.user_id);
       const raw = await response.text();
       let message = raw;
 

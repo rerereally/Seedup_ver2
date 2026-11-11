@@ -71,3 +71,27 @@ test('posts that say a tool is missing are read first', () => {
   const pain = { title: 'Ask', text: 'I wish there was a way to diff prompts. No good way exists.', score: 0, postedAt: DAY1 };
   assert.ok(signalRank(pain, now) > signalRank(quiet, now));
 });
+
+import { buildOpportunityDigest, changeSince } from '../lib/newsletter/opportunity-digest';
+import type { Opportunity as DigestOpportunity, OpportunityPoint } from '../lib/opportunities/types';
+
+const digestPoint = (at: string, over: Partial<OpportunityPoint> = {}): OpportunityPoint => ({ at, evidence: 2, platforms: 1, direct: 0, status: 'open', qualified: false, ...over });
+const digestItem = (slug: string, history: OpportunityPoint[], qualified = false): DigestOpportunity => ({ slug, name: slug, problem: 'p', gap: '', keywords: [], status: history[history.length - 1].status, qualified, platforms: ['hn'], evidence: [], supply: [], directCount: 0, firstSeenAt: null, followersAfterSignal: 0, history });
+
+test('digest reports only what changed after the given moment', () => {
+  const since = '2026-11-05T00:00:00Z';
+  const quiet = digestItem('quiet', [digestPoint('2026-11-01T00:00:00Z')]);
+  const passed = digestItem('passed', [digestPoint('2026-11-01T00:00:00Z'), digestPoint('2026-11-06T00:00:00Z', { evidence: 4, platforms: 2, qualified: true })], true);
+  const grew = digestItem('grew', [digestPoint('2026-11-01T00:00:00Z'), digestPoint('2026-11-06T00:00:00Z', { evidence: 3 })]);
+  const fresh = digestItem('fresh', [digestPoint('2026-11-06T00:00:00Z')]);
+  assert.equal(changeSince(quiet, since), null);
+  assert.equal(changeSince(passed, since)?.important, true);
+  assert.equal(changeSince(grew, since)?.important, false);
+  assert.match(changeSince(fresh, since)?.note ?? '', /새로 찾았습니다/);
+
+  const alert = buildOpportunityDigest([quiet, passed, grew, fresh], since, 'https://seedup.example/', 'changes');
+  assert.deepEqual(alert?.lines.map((line) => line.slug), ['passed']);
+  assert.ok(alert?.text.includes('https://seedup.example/opportunities/passed'));
+  assert.equal(buildOpportunityDigest([quiet, grew], since, 'https://seedup.example', 'changes'), null);
+  assert.equal(buildOpportunityDigest([quiet, passed, grew, fresh], since, 'https://seedup.example', 'weekly')?.lines.length, 3);
+});

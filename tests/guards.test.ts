@@ -29,3 +29,20 @@ test('paid models pass through when free-only mode is off', () => {
     if (previous !== undefined) process.env.OPENROUTER_FREE_ONLY = previous;
   }
 });
+
+import { latestEngineActors, summarizeSourceHealth } from '../lib/ingest/health';
+
+test('source health puts failing and stale sources first', () => {
+  const now = new Date('2026-11-10T00:00:00Z').getTime();
+  const run = (source: string, status: string, at: string, detail?: Record<string, unknown>) => ({ source, status, created_at: at, detail });
+  const health = summarizeSourceHealth([
+    run('rss', 'success', '2026-11-09T21:00:00Z'), run('rss', 'success', '2026-11-08T21:00:00Z'),
+    run('github', 'failed', '2026-11-09T21:00:00Z'), run('github', 'failed', '2026-11-08T21:00:00Z'), run('github', 'success', '2026-11-07T21:00:00Z'),
+    run('research', 'success', '2026-11-05T21:00:00Z'),
+    run('trends', 'partial', '2026-11-09T21:00:00Z'),
+    run('opportunity-engine', 'success', '2026-11-09T22:00:00Z', { actors: [{ id: 'hn-ask', status: 'ok', items: 40, errors: 0 }, { nope: 1 }] }),
+  ], now);
+  assert.deepEqual(health.map((row) => `${row.source}:${row.state}`), ['github:failing', 'research:stale', 'trends:unstable', 'opportunity-engine:ok', 'rss:ok']);
+  assert.equal(health[0].failures, 2);
+  assert.deepEqual(latestEngineActors([run('opportunity-engine', 'success', '2026-11-09T22:00:00Z', { actors: [{ id: 'hn-ask', status: 'ok', items: 40, errors: 0 }, { nope: 1 }] })]), [{ id: 'hn-ask', status: 'ok', items: 40, errors: 0 }]);
+});

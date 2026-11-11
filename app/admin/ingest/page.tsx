@@ -1,3 +1,5 @@
+import { latestEngineActors, summarizeSourceHealth } from '@/lib/ingest/health';
+import type { SourceState } from '@/lib/ingest/health';
 import type { Metadata } from 'next';
 import { runFullIngest, runManualIngest } from '@/app/actions/ingest';
 import { sendManualNewsletter } from '@/app/actions/newsletter';
@@ -33,6 +35,8 @@ const STAGE_LABELS = {
   aggregate: '2. 신호 집계',
   generate: '3. 글/아이디어 생성',
 } as const;
+
+const HEALTH_LABELS: Record<SourceState, string> = { ok: '정상', unstable: '불안정', failing: '연속 실패', stale: '이틀 넘게 성공 없음' };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -70,7 +74,10 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
   if (!isAdminEmail(data.user.email)) redirect('/');
 
   const params = await searchParams;
-  const [runs, rejections, qualitySummary, recommendationQuality] = await Promise.all([getIngestRuns(), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality()]);
+  const [allRuns, rejections, qualitySummary, recommendationQuality] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality()]);
+  const runs = allRuns.slice(0, 30);
+  const health = summarizeSourceHealth(allRuns);
+  const actors = latestEngineActors(allRuns);
 
   return (
     <>
@@ -272,6 +279,54 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </section>
+
+          <section className="border border-outline-soft bg-white" aria-labelledby="health-heading">
+            <div className="border-b border-outline-soft px-5 py-4">
+              <h2 id="health-heading" className="text-lg font-semibold text-ink">소스 상태</h2>
+              <p className="mt-1 text-sm text-muted">최근 실행 {allRuns.length}건을 소스별로 묶었습니다. 문제가 있는 소스가 위에 옵니다.</p>
+            </div>
+            {!health.length ? (
+              <p className="p-6 text-sm text-muted">아직 실행 기록이 없습니다.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="bg-surface text-xs text-muted">
+                    <tr>
+                      <th className="px-5 py-3">소스</th>
+                      <th className="px-5 py-3">상태</th>
+                      <th className="px-5 py-3">실패 / 실행</th>
+                      <th className="px-5 py-3">마지막 실행</th>
+                      <th className="px-5 py-3">마지막 성공</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {health.map((row) => (
+                      <tr key={row.source} className="border-t border-outline-soft">
+                        <td className="px-5 py-3 font-semibold text-ink">{row.source}</td>
+                        <td className="px-5 py-3"><span className={`inline-block border border-outline-soft px-2 py-1 text-xs font-bold ${row.state === 'ok' ? 'bg-white text-ink' : row.state === 'unstable' ? 'bg-surface text-ink' : 'bg-ink text-white'}`}>{HEALTH_LABELS[row.state]}</span></td>
+                        <td className="num px-5 py-3 text-muted">{row.failures} / {row.runs}</td>
+                        <td className="px-5 py-3 text-muted">{formatDate(row.lastRunAt)}</td>
+                        <td className="px-5 py-3 text-muted">{row.lastSuccessAt ? formatDate(row.lastSuccessAt) : '없음'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {actors.length > 0 && (
+              <div className="border-t border-outline-soft px-5 py-4">
+                <h3 className="text-sm font-bold text-ink">기회 엔진의 마지막 수집</h3>
+                <ul className="mt-2 grid gap-x-8 gap-y-1 text-sm text-muted sm:grid-cols-2">
+                  {actors.map((actor) => (
+                    <li key={actor.id} className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate">{actor.id}</span>
+                      <span className="num shrink-0"><span className="text-ink">{actor.items}</span>건{actor.errors ? `, 오류 ${actor.errors}` : ''}{actor.status !== 'ok' ? ` (${actor.status === 'failed' ? '실패' : '일부'})` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </section>

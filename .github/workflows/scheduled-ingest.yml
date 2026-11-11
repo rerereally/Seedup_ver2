@@ -16,7 +16,7 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     env:
       # With SEEDUP_SITE_URL set, the deployed site does the collecting. Without it, the app is built
       # and started inside this runner, so collection works before anything is deployed.
@@ -90,8 +90,9 @@ jobs:
             status=000
             # One retry, because a free model or a source that is briefly down should not fail the day.
             for attempt in 1 2; do
-              status=$(curl --silent --show-error --max-time 300 --output /dev/null --write-out '%{http_code}' \
-                --request POST --header "x-ingest-secret: $INGEST_SECRET" "$SITE_URL$path" || echo 000)
+              # GitHub and paper collection summarise each item with a free model and have taken over five minutes.
+              status=$(curl --silent --show-error --max-time 600 --output /dev/null --write-out '%{http_code}' \
+                --request POST --header "x-ingest-secret: $INGEST_SECRET" "$SITE_URL$path") || status=000
               case "$status" in
                 2*) break ;;
               esac

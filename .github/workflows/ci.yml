@@ -23,3 +23,53 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Every push to main that passes the checks above goes live on Cloudflare.
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-cloudflare
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      # NEXT_PUBLIC values are fixed into the bundle at build time. Server secrets live on the Worker and are not touched.
+      NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Check deploy settings
+        id: ready
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$NEXT_PUBLIC_SITE_URL" ]; then
+            echo "::warning::Not deployed. Add the CLOUDFLARE_API_TOKEN secret, and the CLOUDFLARE_ACCOUNT_ID and SITE_URL variables."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build and deploy
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          npm ci
+          npx opennextjs-cloudflare build
+          npx opennextjs-cloudflare deploy
+      - name: Check the site answers
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          for attempt in 1 2 3 4 5; do
+            status=$(curl --silent --output /dev/null --max-time 30 --write-out '%{http_code}' "$NEXT_PUBLIC_SITE_URL/opportunities" || echo 000)
+            if [ "$status" = "200" ]; then echo "live: $status"; exit 0; fi
+            sleep 10
+          done
+          echo "The site answered $status after deploying."
+          exit 1

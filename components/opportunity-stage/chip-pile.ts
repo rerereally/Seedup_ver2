@@ -136,12 +136,7 @@ export class ChipPile {
     }
     this.placeWalls();
 
-    const averageArea = this.chips.reduce((sum, chip) => sum + chip.width * chip.height, 0) / Math.max(1, this.chips.length);
-    // Only the space below the input counts, so the resting pile never buries the controls.
-    const reservedTop = this.options.ceiling.getBoundingClientRect().bottom - stage.getBoundingClientRect().top;
-    const folderArea = this.options.folder.offsetWidth * this.options.folder.offsetHeight;
-    const openArea = Math.max(0, this.width * (this.height - reservedTop) - folderArea);
-    this.capacity = Math.max(5, Math.floor((openArea * PILE_FILL_RATIO) / Math.max(1, averageArea)));
+    this.capacity = this.measureCapacity();
 
     this.matter.Events.on(this.engine, 'beforeUpdate', () => this.beforeUpdate());
     if (!reduced) this.matter.Events.on(this.engine, 'collisionStart', (event) => this.onImpact(event.pairs));
@@ -183,13 +178,7 @@ export class ChipPile {
       lastWidth = stage.clientWidth;
       lastHeight = stage.clientHeight;
       this.placeWalls();
-      for (const chip of this.chips) {
-        if (!chip.body) continue;
-        this.matter.Sleeping.set(chip.body, false);
-        if (chip.body.position.x > this.width - 20 || chip.body.position.y > this.height) {
-          this.matter.Body.setPosition(chip.body, { x: Math.min(chip.body.position.x, this.width - chip.width), y: Math.min(chip.body.position.y, this.height - 80) });
-        }
-      }
+      this.refit();
     });
     this.resizeObserver.observe(stage);
     this.intersectionObserver = new IntersectionObserver(([entry]) => { this.onScreen = entry.isIntersecting; });
@@ -197,6 +186,41 @@ export class ChipPile {
 
     this.lastFrame = performance.now();
     this.frameId = requestAnimationFrame(this.frame);
+  }
+
+  /** How many chips the space below the input can hold without burying the controls. */
+  private measureCapacity() {
+    const { stage, ceiling, folder } = this.options;
+    const averageArea = this.chips.reduce((sum, chip) => sum + chip.width * chip.height, 0) / Math.max(1, this.chips.length);
+    const reservedTop = ceiling.getBoundingClientRect().bottom - stage.getBoundingClientRect().top;
+    const openArea = Math.max(0, this.width * (this.height - reservedTop) - folder.offsetWidth * folder.offsetHeight);
+    return Math.max(5, Math.floor((openArea * PILE_FILL_RATIO) / Math.max(1, averageArea)));
+  }
+
+  /**
+   * After the stage changes size, a chip left outside the new walls or under the moved folder is taken out and
+   * dropped in again from the top. Moving it in place would put it inside another chip, and the two would stay stuck.
+   */
+  private refit() {
+    const { Sleeping, Composite, Bounds } = this.matter;
+    this.capacity = this.measureCapacity();
+    for (const chip of this.chips) {
+      const body = chip.body;
+      if (!body || this.grab?.chip === chip) continue;
+      Sleeping.set(body, false);
+      const outside = body.bounds.min.x < 0 || body.bounds.max.x > this.width || body.bounds.max.y > this.height;
+      const underFolder = this.folderBody ? Bounds.contains(this.folderBody.bounds, body.position) : false;
+      if (chip.dropping || outside || underFolder) {
+        Composite.remove(this.world, body);
+        chip.body = null;
+        chip.dropping = false;
+        chip.el.hidden = true;
+        chip.el.classList.remove(this.options.leavingClass);
+      }
+    }
+    // The same target is applied again so the new capacity takes effect and the removed chips fall back in.
+    this.lastKey = null;
+    this.apply(this.lastTarget, false);
   }
 
   destroy() {

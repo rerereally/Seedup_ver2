@@ -90,6 +90,9 @@ export function mergeRuns(previous: (Run & { generatedAt: string }) | null, next
       name: match.name,
       problem: match.problem,
       gap: fresh.gap || match.gap,
+      nameEn: match.nameEn ?? fresh.nameEn,
+      problemEn: match.problemEn ?? fresh.problemEn,
+      gapEn: fresh.gapEn || match.gapEn,
       keywords: [...new Set([...match.keywords, ...fresh.keywords])].slice(0, MAX_KEYWORDS),
       // A run that could not review supply must not erase a status an earlier run established.
       status: fresh.status === 'unknown' ? match.status : fresh.status,

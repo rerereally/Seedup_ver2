@@ -628,6 +628,22 @@ export function searchFilter(columns: string[], query: string) {
   return columns.map((column) => `${column}.ilike.${pattern}`).join(',');
 }
 
+/**
+ * Builds a PostgREST `cs` (array contains) filter, so a query matches a text[] column holding the query as an exact tag.
+ * Returns '' when the query is empty, too long, or has characters that cannot be a tag.
+ */
+export function tagFilter(columns: string[], query: string) {
+  const tag = query.trim().toLowerCase();
+  if (!tag || tag.length > 40 || !/^[\p{L}\p{N} \-_.+#]+$/u.test(tag)) return '';
+  const value = `"${tag.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+  return columns.map((column) => `${column}.cs.{${value}}`).join(',');
+}
+
+/** Text ilike clauses plus exact-tag clauses, joined into one `.or()` string. */
+function searchOr(query: string, textColumns: string[], tagColumns: string[] = []) {
+  return [searchFilter(textColumns, query), tagFilter(tagColumns, query)].filter(Boolean).join(',');
+}
+
 /** Searches the whole database, not the capped lists the loaders keep. Falls back to in-memory filtering if the DB cannot answer. */
 export async function searchContent(query: string) {
   try {
@@ -644,7 +660,7 @@ async function searchContentInDb(supabase: NonNullable<Awaited<ReturnType<typeof
     supabase
       .from('news_items')
       .select('*')
-      .or(searchFilter(['title', 'summary', 'category', 'source'], query))
+      .or(searchOr(query, ['title', 'summary', 'category', 'source'], ['related_skills', 'topic_tags', 'skill_tags']))
       .not('content', 'is', null)
       .neq('content', '')
       .order('published_at', { ascending: false })
@@ -652,20 +668,20 @@ async function searchContentInDb(supabase: NonNullable<Awaited<ReturnType<typeof
     supabase
       .from('research_papers')
       .select('*')
-      .or(searchFilter(['title', 'abstract', 'beginner_summary', 'expert_summary', 'review_type', 'source'], query))
+      .or(searchOr(query, ['title', 'abstract', 'beginner_summary', 'expert_summary', 'review_type', 'source'], ['related_skills']))
       .order('published_at', { ascending: false })
       .limit(PAPER_SEARCH_CANDIDATES),
     supabase
       .from('github_trends')
       .select('*')
-      .or(searchFilter(['repo_full_name', 'description', 'beginner_summary', 'language'], query))
+      .or(searchOr(query, ['repo_full_name', 'description', 'beginner_summary', 'language'], ['topics', 'topic_tags', 'skill_tags']))
       .order('stars_delta_7d', { ascending: false, nullsFirst: false })
       .order('stars', { ascending: false })
       .limit(SEARCH_LIMITS.repos),
     supabase
       .from('ai_products')
       .select('*')
-      .or(searchFilter(['name', 'description', 'category', 'target_user'], query))
+      .or(searchOr(query, ['name', 'description', 'category', 'target_user'], ['use_cases', 'topic_tags', 'skill_tags']))
       .order('newsletter_priority', { ascending: false, nullsFirst: false })
       .order('launch_date', { ascending: false, nullsFirst: false })
       .order('score', { ascending: false, nullsFirst: false })
@@ -673,7 +689,7 @@ async function searchContentInDb(supabase: NonNullable<Awaited<ReturnType<typeof
     supabase
       .from('project_ideas')
       .select('*')
-      .or(searchFilter(['title', 'description', 'related_trend', 'level'], query))
+      .or(searchOr(query, ['title', 'description', 'related_trend', 'level'], ['stack']))
       .order('created_at', { ascending: false })
       .limit(SEARCH_LIMITS.projects),
   ]);

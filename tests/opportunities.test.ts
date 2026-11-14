@@ -286,3 +286,26 @@ test('an English spec renders English headings and drops the Korean translation 
   assert.match(markdown, /Evidence: E-1/);
   assert.doesNotMatch(markdown, /번역/);
 });
+
+import { trackRecordSummary } from '../lib/opportunities/insight';
+
+test('the track record headline counts hits and the median head start', () => {
+  const rows = [
+    { slug: 'a', name: 'A', firstSeenAt: '2026-01-01', followers: [{ name: 't', url: 'u1', createdAt: '2026-02-01', leadDays: 31 }, { name: 't2', url: 'u2', createdAt: '2026-05-01', leadDays: 120 }] },
+    { slug: 'b', name: 'B', firstSeenAt: '2026-01-01', followers: [{ name: 't', url: 'u3', createdAt: '2026-01-11', leadDays: 10 }] },
+    { slug: 'c', name: 'C', firstSeenAt: '2026-01-01', followers: [{ name: 't', url: 'u4', createdAt: '2026-03-02', leadDays: 60 }] },
+  ];
+  assert.deepEqual(trackRecordSummary(rows, 10), { hits: 3, total: 10, rate: 30, tools: 4, medianLeadDays: 31, maxLeadDays: 120 });
+  assert.deepEqual(trackRecordSummary([], 0), { hits: 0, total: 0, rate: 0, tools: 0, medianLeadDays: 0, maxLeadDays: 0 });
+});
+
+import { localizedOpportunity } from '../lib/opportunities/types';
+
+test('English mode uses the English copies and falls back to Korean when they are missing', () => {
+  const withEnglish = { name: '이름', problem: '문제', gap: '빈틈', nameEn: 'Name', problemEn: 'Problem', gapEn: '' };
+  assert.deepEqual(localizedOpportunity(withEnglish, 'en'), { name: 'Name', problem: 'Problem', gap: '빈틈' });
+  assert.deepEqual(localizedOpportunity(withEnglish, 'ko'), { name: '이름', problem: '문제', gap: '빈틈' });
+  const input = specInputFor([sample({ slug: 'x', nameEn: 'Schema', problemEn: 'Schemas differ' })], [{ evidence: sample().evidence[0], slug: 'x' }], '', 'en');
+  assert.equal(input?.title, 'Schema');
+  assert.equal(input?.problem, 'Schemas differ');
+});

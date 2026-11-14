@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (!picked.length) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
   // Below the bar the PRD is still made, but as a labeled hypothesis draft (never a "verified" PRD).
   const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
-  const input = specInputFor(opportunities, picked, requestedTitle);
+  const input = specInputFor(opportunities, picked, requestedTitle, toLang(body?.lang));
   if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
 
   if (!(await consumeDailyUsage(supabase, 'prd', DAILY_PRD_LIMIT))) {

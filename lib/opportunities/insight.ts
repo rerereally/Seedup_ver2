@@ -146,3 +146,23 @@ export function dossierChanges(savedEvidenceIds: string[], savedAt: string, oppo
   }
   return { added, removed, notes };
 }
+
+export type TrackRecordSummary = { hits: number; total: number; rate: number; tools: number; medianLeadDays: number; maxLeadDays: number };
+
+/**
+ * The headline of the track record: how many opportunities saw a related tool appear only after the complaint,
+ * and by how much the complaint came first (median of each opportunity's earliest follower).
+ */
+export function trackRecordSummary(rows: TrackRecordRow[], total: number): TrackRecordSummary {
+  const leads = rows.map((row) => Math.min(...row.followers.map((tool) => tool.leadDays))).sort((a, b) => a - b);
+  const middle = Math.floor(leads.length / 2);
+  const median = !leads.length ? 0 : leads.length % 2 ? leads[middle] : Math.round((leads[middle - 1] + leads[middle]) / 2);
+  return {
+    hits: rows.length,
+    total,
+    rate: total ? Math.round((rows.length / total) * 100) : 0,
+    tools: rows.reduce((sum, row) => sum + row.followers.length, 0),
+    medianLeadDays: median,
+    maxLeadDays: Math.max(0, ...rows.flatMap((row) => row.followers.map((tool) => tool.leadDays))),
+  };
+}

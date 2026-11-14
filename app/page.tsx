@@ -1,3 +1,5 @@
+import { getLang } from '@/lib/i18n-server';
+import { translator } from '@/lib/i18n';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -48,6 +50,8 @@ function PersonalColumn({ title, moreHref, rows }: { title: string; moreHref: st
 }
 
 export default async function Home() {
+  const lang = await getLang();
+  const t = translator(lang);
   const supabase = await createClient();
   const userResult = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   const user = userResult.data.user;
@@ -84,25 +88,25 @@ export default async function Home() {
         <section className="page-shell" aria-labelledby="opportunities-heading">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
             <div>
-              <h2 id="opportunities-heading" className="page-intro-title">살펴볼 기회</h2>
-              <p className="page-intro-description">말이 많다고 기회는 아닙니다. 출처가 겹치고, 아직 아무도 제대로 풀지 않은 것만 남깁니다.</p>
+              <h2 id="opportunities-heading" className="page-intro-title">{t('살펴볼 기회', 'Opportunities')}</h2>
+              <p className="page-intro-description">{t('말이 많다고 기회는 아닙니다. 출처가 겹치고, 아직 아무도 제대로 풀지 않은 것만 남깁니다.', 'Noise is not an opportunity. Only problems confirmed across sources, and not yet solved well, remain.')}</p>
             </div>
-            <Link href="/opportunities" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-bold text-ink hover:underline">전체 {opportunities.length}개 보기 <span aria-hidden="true">→</span></Link>
+            <Link href="/opportunities" className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-bold text-ink hover:underline">{t(`전체 ${opportunities.length}개 보기`, `See all ${opportunities.length}`)} <span aria-hidden="true">→</span></Link>
           </div>
           <div className="mt-8">
-            <FunnelStrip funnel={summarizeFunnel(opportunities)} />
+            <FunnelStrip funnel={summarizeFunnel(opportunities)} lang={lang} />
           </div>
           <div className="mt-3">
-            <OpportunityTable opportunities={opportunities.slice(0, OPPORTUNITIES_ON_HOME)} colors={opportunityColors(opportunities)} />
+            <OpportunityTable opportunities={opportunities.slice(0, OPPORTUNITIES_ON_HOME)} colors={opportunityColors(opportunities)} lang={lang} />
           </div>
           <p className="mt-4 max-w-[62em] text-[13px] leading-6 text-muted">
-            막대가 다 차면 기준을 넘은 것입니다. 증언은 공개 글에서 찾아 원문과 글자 단위로 대조한 문장만 남겼습니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.
+            {t('막대가 다 차면 기준을 넘은 것입니다. 증언은 공개 글에서 찾아 원문과 글자 단위로 대조한 문장만 남겼습니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.', 'A full bar means the bar is passed. Every quote was found in a public post and matched to the source character by character. Existing tools come from GitHub, npm, Show HN and the VS Code marketplace; a free AI model judged which are direct rivals.')}
           </p>
         </section>
 
         {hasPersonal && (
           <section className="page-shell !pt-0" aria-labelledby="personal-heading">
-            <h2 id="personal-heading" className="text-[clamp(22px,2.4vw,30px)] font-extrabold tracking-tight">내 관심사에 맞춰서</h2>
+            <h2 id="personal-heading" className="text-[clamp(22px,2.4vw,30px)] font-extrabold tracking-tight">{t('내 관심사에 맞춰서', 'For your interests')}</h2>
             <div className="mt-5 grid gap-4 lg:grid-cols-3">
               {personal.map((column) => <PersonalColumn key={column.moreHref} {...column} />)}
             </div>

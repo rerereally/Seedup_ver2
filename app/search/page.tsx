@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import { getAIProducts, getArticleFeedItems, getGitHubTrends, getProjectIdeas } from '@/lib/data';
+import { searchContent } from '@/lib/data';
 import { getContentHref } from '@/lib/content-targets';
 import { cleanProjectTitle } from '@/lib/utils';
 import { getOpportunities } from '@/lib/opportunities/data';
@@ -19,19 +19,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const params = await searchParams;
   const rawQuery = params.q?.trim() ?? '';
   const query = rawQuery.toLowerCase();
-  const [articles, repos, products, projects, { opportunities }] = await Promise.all([getArticleFeedItems(), getGitHubTrends(), getAIProducts(), getProjectIdeas(), getOpportunities()]);
-  const articleResults = query
-    ? articles.filter((item) => [item.title, item.summary, item.category, item.source, ...(item.related_skills ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 12)
-    : [];
-  const repoResults = query
-    ? repos.filter((repo) => [repo.repo_full_name, repo.description, repo.beginner_summary, repo.language, ...(repo.topics ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 8)
-    : [];
-  const projectResults = query
-    ? projects.filter((project) => [project.title, project.description, project.related_trend, project.level, ...(project.stack ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 8)
-    : [];
-  const productResults = query
-    ? products.filter((product) => [product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? []), ...(product.topic_tags ?? []), ...(product.skill_tags ?? [])].some((value) => value?.toLowerCase().includes(query))).slice(0, 8)
-    : [];
+  const [{ opportunities }, content] = await Promise.all([getOpportunities(), rawQuery ? searchContent(rawQuery) : null]);
+  const articleResults = content?.articles ?? [];
+  const repoResults = content?.repos ?? [];
+  const projectResults = content?.projects ?? [];
+  const productResults = content?.products ?? [];
   const opportunityResults = query
     ? opportunities.filter((item) => [item.name, item.problem, item.gap, ...item.keywords].some((value) => value?.toLowerCase().includes(query))).slice(0, 6)
     : [];

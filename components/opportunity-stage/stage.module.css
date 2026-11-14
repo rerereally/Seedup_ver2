@@ -274,3 +274,39 @@
 @media (prefers-reduced-motion: reduce) {
   .stage *, .stage *::before, .stage *::after, .sheet, .sheet * { animation: none !important; transition: none !important; }
 }
+
+/* Evidence-traced spec workspace (PRD builder) */
+.draftBadge { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 999px; background: #fff1e6; color: #9a3d00; font-size: 12.5px; font-weight: 800; }
+.specTabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.specTab { min-height: 38px; padding: 0 12px; border: 0; border-radius: 999px; background: #ececee; color: #4d4d55; font-size: 14px; font-weight: 800; cursor: pointer; }
+.specTab[aria-selected='true'] { background: #111113; color: #fff; }
+.specHint { grid-column: 1 / -1; margin: 0; font-size: 13.5px; color: #5c5c64; }
+.specCols { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
+.specCol { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.specCol h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 4px 0 2px; font-size: 14px; font-weight: 900; }
+.specItem { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; min-height: 44px; padding: 9px 11px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px #e4e4e7; color: #111113; font-size: 14px; line-height: 1.45; text-align: left; cursor: pointer; transition: opacity 0.15s ease, box-shadow 0.15s ease; }
+.specItem q { quotes: none; overflow-wrap: anywhere; }
+.specItem small { color: #5c5c64; font-size: 12.5px; }
+.specItem[aria-pressed='true'] { box-shadow: inset 0 0 0 2px #111113; }
+.specOn { box-shadow: inset 0 0 0 2px #ff6a1a; }
+.specDim { opacity: 0.38; }
+.specHypo { background: #f6f6f7; border-style: dashed; }
+.specId { font-family: var(--font-mono); font-size: 12px; font-weight: 800; color: #5c5c64; }
+.slots { margin: 4px 0 8px; }
+.slots dl { display: grid; gap: 4px; margin: 0; padding: 10px 12px; border-radius: 12px; background: #f0f0f1; font-size: 13px; line-height: 1.5; }
+.slots dt { font-weight: 800; }
+.slots dd { margin: 0 0 4px; color: #3d3d44; overflow-wrap: anywhere; }
+.slots em { color: #9a3d00; font-style: normal; }
+.linkButton { border: 0; background: none; padding: 0; color: #111113; font-size: 12.5px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.specTree { margin: 12px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.7; }
+.specTree ul { padding-left: 18px; }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; list-style: none; margin: 12px 0 10px; padding: 0; counter-reset: none; }
+.flow li { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 150px; flex: 1 1 150px; padding: 10px 12px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px #e4e4e7; font-size: 14px; }
+.flow li small { color: #5c5c64; font-size: 12.5px; }
+.flow li + li::before { content: '→'; position: absolute; left: -9px; top: 50%; transform: translate(-50%, -50%); color: #8a8a92; font-weight: 900; }
+.revise { margin-top: 14px; }
+.revise label { display: block; font-size: 14px; font-weight: 800; }
+.revise > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.revise input { flex: 1 1 220px; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 12px; background: #fff; font-size: 15px; }
+.prdSelect { min-height: 44px; padding: 0 10px; border: 1px solid #d4d4d8; border-radius: 12px; background: #fff; font-size: 14.5px; font-weight: 700; }
+.prdButton:disabled { opacity: 0.55; cursor: not-allowed; }

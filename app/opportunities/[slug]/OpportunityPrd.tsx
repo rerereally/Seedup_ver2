@@ -7,7 +7,9 @@ export default function OpportunityPrd({ title, evidenceIds, ready, slug }: { ti
     <section className="rounded-[20px] bg-[#fbfbfa] p-5 text-[#111113]">
       <h2 className="text-lg font-extrabold">이 기회로 시작하기</h2>
       <p className="mt-1 text-sm leading-6 text-[#4d4d55]">
-        {ready ? '위 증언만 근거로 PRD를 만들고, AI 코딩 도구에 바로 넘길 수 있습니다.' : '근거 기준을 통과한 기회만 PRD로 만들 수 있습니다.'}
+        {ready
+          ? '위 증언만 근거로 요구사항 → 기능 → 화면까지 이어진 PRD를 만들고, AI 코딩 도구에 바로 넘길 수 있습니다.'
+          : '근거가 아직 기준에 못 미쳐, 검증 전 가설 초안으로 만듭니다. 증언이 더 모이면 검증된 PRD로 바뀝니다.'}
       </p>
       <PrdBuilder title={title} evidenceIds={evidenceIds} ready={ready} loginNext={`/opportunities/${slug}`} />
     </section>

@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Opportunity, OpportunitySnapshot } from '@/lib/opportunities/types';
 import { buildOpportunityDigest } from './opportunity-digest';
 import type { DigestKind, DigestLine } from './opportunity-digest';
+import { selectInChunks } from '@/lib/supabase/chunks';
 import { claimSend, releaseSend } from './sends';
 
 const WINDOW_HOURS: Record<DigestKind, number> = { changes: 26, weekly: 7 * 24 };
@@ -50,13 +51,12 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
   const { data: subscribers, error } = await service.from('user_onboarding').select('user_id,answers').eq('newsletter_subscribed', true);
   if (error) throw new Error(`could not read subscribers: ${error.message}`);
   // Saved dossiers tell which opportunities each reader cares about; read once for everyone.
-  // shortcut: one .in() list; chunk subscriber ids by ~200 once there are more than a few hundred (URL length).
   const subscriberIds = (subscribers ?? []).map((row) => String(row.user_id));
-  const { data: dossiers } = subscriberIds.length
-    ? await service.from('evidence_dossiers').select('user_id,opportunity_slug').in('user_id', subscriberIds)
-    : { data: [] };
+  const dossiers = await selectInChunks<{ user_id: string; opportunity_slug: string | null }>(subscriberIds, (chunk) =>
+    service.from('evidence_dossiers').select('user_id,opportunity_slug').in('user_id', chunk),
+  );
   const savedSlugs = new Map<string, string[]>();
-  for (const row of (dossiers ?? []) as Array<{ user_id: string; opportunity_slug: string | null }>) {
+  for (const row of dossiers) {
     if (row.opportunity_slug) savedSlugs.set(row.user_id, [...(savedSlugs.get(row.user_id) ?? []), row.opportunity_slug]);
   }
   const period = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });

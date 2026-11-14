@@ -1,3 +1,4 @@
+import { toLang } from '@/lib/i18n';
 import { getGitHubTrends, getNewsItems } from '@/lib/data';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { matchLinks, nearOpportunities, repoSimilarity, searchPapers, suggestIdeas } from '@/lib/seeds/advise';
@@ -188,7 +189,7 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'reverse_spec', DAILY_REVERSE_LIMIT))) {
     return NextResponse.json({ error: `역기획 스펙은 하루 ${DAILY_REVERSE_LIMIT}번까지 만들 수 있습니다.` }, { status: 429 });
   }
-  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }).catch((error) => {
+  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }, toLang(body?.lang)).catch((error) => {
     console.error('Reverse spec failed', error);
     return null;
   });

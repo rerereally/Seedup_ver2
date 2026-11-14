@@ -1,3 +1,4 @@
+import { toLang } from '@/lib/i18n';
 import { specInputFor } from '@/lib/opportunities/context';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `PRD는 하루 ${DAILY_PRD_LIMIT}개까지 만들 수 있습니다.` }, { status: 429 });
   }
 
-  const result = await generatePrd(input, { draft }).catch((error) => {
+  const result = await generatePrd(input, { draft, lang: toLang(body?.lang) }).catch((error) => {
     console.error('PRD generation failed', error);
     return null;
   });

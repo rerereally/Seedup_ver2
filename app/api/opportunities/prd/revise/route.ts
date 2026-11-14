@@ -1,3 +1,4 @@
+import { toLang } from '@/lib/i18n';
 import { specInputFor } from '@/lib/opportunities/context';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { reviseSpec } from '@/lib/opportunities/prd';
@@ -47,6 +48,8 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
     risks: strings('risks', 6),
     metrics: strings('metrics', 5),
     draft,
+    lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
+    ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
 }
 

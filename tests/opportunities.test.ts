@@ -277,3 +277,12 @@ test('a reverse spec keeps the repo structure it found and passes it to the codi
   assert.match(renderAgentBrief(input, spec), /## Existing structure \(keep it working\)\n- CLI: runs jobs/);
   assert.equal(normalizeSpec({ summary: 's' }, 0).existing, undefined);
 });
+
+test('an English spec renders English headings and drops the Korean translation of quotes', () => {
+  const input = { title: 'T', problem: 'P', gap: '', evidence: [{ ...evidence(1), quoteKo: '번역' }], competitors: [] };
+  const spec = { ...normalizeSpec({ summary: 's', requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }] }, 1), lang: 'en' as const };
+  const markdown = renderSpecMarkdown(input, spec);
+  assert.match(markdown, /## Requirements \(evidence → R\)/);
+  assert.match(markdown, /Evidence: E-1/);
+  assert.doesNotMatch(markdown, /번역/);
+});

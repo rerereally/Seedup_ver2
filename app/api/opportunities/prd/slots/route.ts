@@ -1,3 +1,4 @@
+import { toLang } from '@/lib/i18n';
 import { specInputFor } from '@/lib/opportunities/context';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { generateSlots } from '@/lib/opportunities/prd';
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'prd_slots', DAILY_SLOT_LIMIT))) {
     return NextResponse.json({ error: `개발 준비 슬롯은 하루 ${DAILY_SLOT_LIMIT}번까지 채울 수 있습니다.` }, { status: 429 });
   }
-  const slots = await generateSlots(input, feature, requirements).catch((error) => {
+  const slots = await generateSlots(input, feature, requirements, toLang(body?.lang)).catch((error) => {
     console.error('Readiness slots failed', error);
     return null;
   });

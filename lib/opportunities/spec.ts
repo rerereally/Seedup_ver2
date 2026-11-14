@@ -1,5 +1,7 @@
 // The evidence-traced spec: every requirement cites verified quotes, every feature serves a requirement,
 // every screen serves a feature. Pure functions only, so the browser can re-render exports after edits.
+import { translator } from '../i18n';
+import type { Lang } from '../i18n';
 import { PLATFORM_LABELS } from './types';
 import type { Evidence } from './types';
 
@@ -27,6 +29,17 @@ export const SLOT_LABELS: Record<keyof ReadinessSlots, string> = {
   done: '테스트·완료 기준',
 };
 
+export const SLOT_LABELS_EN: Record<keyof ReadinessSlots, string> = {
+  inputs: 'Inputs and state',
+  rules: 'Business rules',
+  errors: 'Errors and edge cases',
+  access: 'Permissions',
+  data: 'Data and schema',
+  done: 'Tests and done criteria',
+};
+
+export const slotLabels = (lang: Lang = 'ko') => (lang === 'en' ? SLOT_LABELS_EN : SLOT_LABELS);
+
 export const SLOT_KEYS = Object.keys(SLOT_LABELS) as Array<keyof ReadinessSlots>;
 
 export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[] };
@@ -48,6 +61,8 @@ export type Spec = {
   draft: boolean;
   /** Reverse spec only: what the repository already has (its current IA), which new work must not break. */
   existing?: Array<{ name: string; does: string }>;
+  /** Language the model wrote in; exports and follow-up calls use the same one. */
+  lang?: Lang;
 };
 
 export type SpecInput = {
@@ -200,59 +215,63 @@ export function mermaidFlow(spec: Spec) {
   return ['flowchart LR', ...nodes, ...edges].join('\n');
 }
 
-function evidenceSection(evidence: Evidence[]) {
+function evidenceSection(evidence: Evidence[], lang: Lang = 'ko') {
   return evidence.map((item, index) => {
-    const korean = item.quoteKo ? `\n   - 번역: ${item.quoteKo}` : '';
-    return `${index + 1}. [E-${index + 1}] "${item.quote}" ([${PLATFORM_LABELS[item.platform]} 원문](${item.url}))${korean}`;
+    const korean = item.quoteKo && lang === 'ko' ? `\n   - 번역: ${item.quoteKo}` : '';
+    return `${index + 1}. [E-${index + 1}] "${item.quote}" ([${lang === 'en' ? `${item.platform} source` : `${PLATFORM_LABELS[item.platform]} 원문`}](${item.url}))${korean}`;
   }).join('\n');
 }
 
 const cite = (evidence: number[]) => evidence.map((n) => `E-${n}`).join(', ');
 const bullets = (items: string[], empty: string) => (items.length ? items.map((item) => `- ${item}`).join('\n') : `- ${empty}`);
 
-function slotLines(slots: ReadinessSlots | null, english = false) {
+function slotLines(slots: ReadinessSlots | null, english = false, lang: Lang = 'ko') {
   if (!slots) return english ? '  - Readiness slots not filled yet. Ask before guessing.' : '  - 개발 준비 슬롯이 아직 비어 있습니다. 추측하지 말고 먼저 물어보세요.';
   return SLOT_KEYS.map((key) => {
-    const label = english ? key : SLOT_LABELS[key];
+    const label = english ? key : slotLabels(lang)[key];
     const values = slots[key];
     return `  - ${label}: ${values.length ? values.join(' / ') : english ? '(open question)' : '(정해지지 않음, 먼저 물어볼 것)'}`;
   }).join('\n');
 }
 
 export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
-  const requirements = spec.requirements.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n근거: ${cite(row.evidence)}`).join('\n\n');
-  const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n충족하는 요구사항: ${row.requirementIds.join(', ')}\n\n개발 준비 슬롯\n${slotLines(row.slots)}`).join('\n\n');
+  const lang = spec.lang ?? 'ko';
+  const t = translator(lang);
+  const english = lang === 'en';
+  const requirements = spec.requirements.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)}`).join('\n\n');
+  const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
   const hypotheses = spec.hypotheses.map((row) => `- **${row.id}. ${row.title}**: ${row.detail}`).join('\n');
+  const undefinedText = t('정의되지 않음', 'Not defined');
   return `# ${input.title} PRD
-${spec.draft ? '\n> 가설 초안: 근거가 기준(증언 3건, 플랫폼 2종)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.\n' : ''}
-## 한 줄 요약
+${spec.draft ? `\n> ${t('가설 초안: 근거가 기준(증언 3건, 플랫폼 2종)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
+## ${t('한 줄 요약', 'Summary')}
 ${spec.summary}
 
-${spec.existing?.length ? `## 기존 구조 (역기획)\n지금 레포에 이미 있는 것입니다. 새 기능은 이 구조를 깨지 않아야 합니다.\n\n${spec.existing.map((row) => `- **${row.name}**${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## 해결할 문제
+${spec.existing?.length ? `## ${t('기존 구조 (역기획)', 'Existing structure (reverse spec)')}\n${t('지금 레포에 이미 있는 것입니다. 새 기능은 이 구조를 깨지 않아야 합니다.', 'What the repo already has. New work must not break it.')}\n\n${spec.existing.map((row) => `- **${row.name}**${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${t('해결할 문제', 'Problem')}
 ${input.problem}
 
-${input.gap ? `## 기존 도구가 남긴 빈틈\n${input.gap}\n\n` : ''}## 대상 사용자
-${bullets(spec.targetUsers, '정의되지 않음')}
+${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing tools')}\n${input.gap}\n\n` : ''}## ${t('대상 사용자', 'Target users')}
+${bullets(spec.targetUsers, undefinedText)}
 
-## 요구사항 (증언 → R)
-${requirements || '근거로 뒷받침되는 요구사항이 없습니다.'}
+## ${t('요구사항 (증언 → R)', 'Requirements (evidence → R)')}
+${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
 
-## 기능 명세 (R → F)
-${features || '요구사항을 충족하는 기능이 아직 없습니다.'}
+## ${t('기능 명세 (R → F)', 'Features (R → F)')}
+${features || t('요구사항을 충족하는 기능이 아직 없습니다.', 'No feature serves a requirement yet.')}
 
-${screens ? `## 화면 (F → S)\n증언에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.\n\n${screens}\n\n` : ''}${flow ? `## 유저플로우\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## 검증이 필요한 가설\n근거 문장이 뒷받침하지 않아 요구사항에서 제외한 항목입니다.\n\n${hypotheses}\n\n` : ''}## 하지 않을 것
-${bullets(spec.nonGoals, '정의되지 않음')}
+${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('증언에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('근거 문장이 뒷받침하지 않아 요구사항에서 제외한 항목입니다.', 'Left out of the requirements because no quote backs them.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
+${bullets(spec.nonGoals, undefinedText)}
 
-## 위험 요소
-${bullets(spec.risks, '정의되지 않음')}
+## ${t('위험 요소', 'Risks')}
+${bullets(spec.risks, undefinedText)}
 
-## 성공 지표
-${bullets(spec.metrics, '정의되지 않음')}
+## ${t('성공 지표', 'Success metrics')}
+${bullets(spec.metrics, undefinedText)}
 
-${input.competitors.length ? `## 이미 있는 도구\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## 근거 원문
-${evidenceSection(input.evidence)}
+${input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
+${evidenceSection(input.evidence, lang)}
 `;
 }
 
@@ -293,6 +312,6 @@ ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.
 
 ## User evidence
-${evidenceSection(input.evidence)}
+${evidenceSection(input.evidence, 'en')}
 `;
 }

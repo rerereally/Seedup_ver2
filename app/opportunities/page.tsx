@@ -34,20 +34,20 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
     <>
       <Header />
       <main id="main-content" className="page-shell page-stack grow">
-        <PageIntro title="살펴볼 기회" description="개발자들이 공개적으로 남긴 불만을 원문과 대조하고, 이미 있는 도구를 확인해 정리했습니다." meta={`${updated}에 분석했습니다`} />
-        <FunnelStrip funnel={summarizeFunnel(opportunities)} />
+        <PageIntro title={t('살펴볼 기회', 'Opportunities')} description={t('개발자들이 공개적으로 남긴 불만을 원문과 대조하고, 이미 있는 도구를 확인해 정리했습니다.', 'Public developer complaints, checked against the source text, with the tools that already exist.')} meta={t(`${updated}에 분석했습니다`, `Analyzed ${new Date(generatedAt).toLocaleDateString('en-US', { dateStyle: 'medium' })}`)} />
+        <FunnelStrip funnel={summarizeFunnel(opportunities)} lang={lang} />
         <div className="flex flex-col gap-3">
-          <nav className="tabs self-start" aria-label="상태로 걸러 보기">
-            <Link href="/opportunities" className="tab" aria-current={active ? undefined : 'page'}>전체 <span className="num">{opportunities.length}</span></Link>
+          <nav className="tabs self-start" aria-label={t('상태로 걸러 보기', 'Filter by status')}>
+            <Link href="/opportunities" className="tab" aria-current={active ? undefined : 'page'}>{t('전체', 'All')} <span className="num">{opportunities.length}</span></Link>
             {STATUSES.map((item) => (
               <Link key={item} href={`/opportunities?status=${item}`} className="tab" aria-current={active === item ? 'page' : undefined}>
-                {STATUS_LABELS[item]} <span className="num">{opportunities.filter((row) => row.status === item).length}</span>
+                {lang === 'en' ? ({ open: 'Open', narrowing: 'Narrowing', closed: 'Closed', unknown: 'Researching' } as const)[item] : STATUS_LABELS[item]} <span className="num">{opportunities.filter((row) => row.status === item).length}</span>
               </Link>
             ))}
           </nav>
           <OpportunityTable opportunities={visible} colors={opportunityColors(opportunities)} lang={lang} />
           <p className="max-w-[62em] text-[13px] leading-6 text-muted">
-            막대가 다 차면 기준을 넘은 것입니다. 기준은 서로 다른 게시글 {MIN_EVIDENCE}건 이상, 플랫폼 {MIN_PLATFORMS}종 이상입니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.
+            {t(`막대가 다 차면 기준을 넘은 것입니다. 기준은 서로 다른 게시글 ${MIN_EVIDENCE}건 이상, 플랫폼 ${MIN_PLATFORMS}종 이상입니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.`, `A full bar means the bar is passed: ${MIN_EVIDENCE}+ separate posts on ${MIN_PLATFORMS}+ platforms. Existing tools come from GitHub, npm, Show HN and the VS Code marketplace; a free AI model judged which are direct rivals.`)}
           </p>
         </div>
         {!active && record.length > 0 && (
@@ -69,15 +69,15 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
             </dl>
             <ul className="card mt-5 overflow-hidden">
               {record.map((row, index) => (
-                <li key={row.slug} className={`grid gap-x-8 gap-y-2 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] ${index ? 'border-t border-outline-soft' : ''}`}>
+                <li key={row.slug} className={`grid grid-cols-[minmax(0,1fr)] gap-x-8 gap-y-2 px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] ${index ? 'border-t border-outline-soft' : ''}`}>
                   <div className="min-w-0">
                     <Link href={`/opportunities/${row.slug}`} className="text-[15px] font-bold underline-offset-4 hover:underline">{row.name}</Link>
                     <p className="mt-0.5 text-[13px] text-muted">{t('첫 증언', 'First quote')} <time dateTime={row.firstSeenAt} className="num">{day.format(new Date(row.firstSeenAt))}</time></p>
                   </div>
                   <ul className="grid min-w-0 gap-1">
                     {row.followers.slice(0, 3).map((tool) => (
-                      <li key={tool.url} className="grid gap-1 text-sm">
-                        <span className="flex items-baseline justify-between gap-3">
+                      <li key={tool.url} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 text-sm">
+                        <span className="flex min-w-0 items-baseline justify-between gap-3">
                           <a href={tool.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-muted underline-offset-4 hover:text-ink hover:underline">{tool.name}</a>
                           <span className="num shrink-0 text-[13px] text-ink">{t(`${tool.leadDays.toLocaleString('ko-KR')}일 뒤`, `${tool.leadDays.toLocaleString('en-US')} days later`)}</span>
                         </span>

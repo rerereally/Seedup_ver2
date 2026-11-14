@@ -68,6 +68,8 @@ export type StageQuote = {
 export type StageOpportunity = {
   slug: string;
   name: string;
+  nameEn?: string;
+  gapEn?: string;
   gap: string;
   problem: string;
   keywords: string[];
@@ -113,6 +115,8 @@ export function toStageOpportunities(opportunities: Opportunity[]): StageOpportu
     return {
       slug: item.slug,
       name: item.name,
+      ...(item.nameEn ? { nameEn: item.nameEn } : {}),
+      ...(item.gapEn ? { gapEn: item.gapEn } : {}),
       gap: item.gap,
       problem: item.problem,
       keywords: item.keywords,

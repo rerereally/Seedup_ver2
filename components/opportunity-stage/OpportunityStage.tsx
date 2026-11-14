@@ -8,6 +8,8 @@ import { matchOpportunities, quoteMentions } from '@/lib/opportunities/match';
 import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
 import type { ChipPile } from './chip-pile';
 import EvidenceCertificate from './EvidenceCertificate';
+import { useLang } from '@/components/LangProvider';
+import { translator } from '@/lib/i18n';
 import styles from './stage.module.css';
 
 export type StageChip = StageQuote & { slug: string; bg: string; fg: string };
@@ -41,9 +43,12 @@ export default function OpportunityStage({ opportunities, news, header }: {
   news: StageNews[];
   header: ReactNode;
 }) {
+  const lang = useLang();
+  const t = translator(lang);
+  const en = lang === 'en';
   const chips = useMemo(() => roundRobin(opportunities), [opportunities]);
   const chipById = useMemo(() => new Map(chips.map((chip) => [chip.id, chip])), [chips]);
-  const suggestions = useMemo(() => opportunities.slice(0, 4).map((item) => item.name), [opportunities]);
+  const suggestions = useMemo(() => opportunities.slice(0, 4).map((item) => (en && item.nameEn) || item.name), [opportunities, en]);
 
   const [query, setQuery] = useState('');
   const [semantic, setSemantic] = useState<{ query: string; slugs: string[] } | null>(null);
@@ -204,11 +209,11 @@ export default function OpportunityStage({ opportunities, news, header }: {
 
   return (
     <>
-      <section className={`${styles.stage} ${ready ? styles.ready : ''}`} ref={stageRef} aria-label="아이디어로 현장 증언 찾기">
+      <section className={`${styles.stage} ${ready ? styles.ready : ''}`} ref={stageRef} aria-label={t('아이디어로 현장 증언 찾기', 'Find real developer quotes for your idea')}>
         {header}
         <div className={styles.ask} id="main-content" ref={askRef}>
-          <h1 className="sr-only">만들고 싶은 것을 입력하면 실제 개발자의 증언이 반응합니다</h1>
-          <label className="sr-only" htmlFor="stage-query">무엇을 만들고 싶나요?</label>
+          <h1 className="sr-only">{t('만들고 싶은 것을 입력하면 실제 개발자의 증언이 반응합니다', 'Type what you want to build and real developer quotes respond')}</h1>
+          <label className="sr-only" htmlFor="stage-query">{t('무엇을 만들고 싶나요?', 'What do you want to build?')}</label>
           <div className={styles.inputWrap}>
             <input
               ref={inputRef}
@@ -220,35 +225,35 @@ export default function OpportunityStage({ opportunities, news, header }: {
               spellCheck={false}
               enterKeyHint="search"
               maxLength={120}
-              placeholder="무엇을 만들고 싶나요?"
+              placeholder={t('무엇을 만들고 싶나요?', 'What do you want to build?')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
           <p className={styles.readout} aria-live="polite">
-            {!match.active && <>개발자들이 실제로 한 말 <b>{chips.length}개</b>가 쌓여 있습니다. 만들고 싶은 것을 입력해 보세요.</>}
-            {match.active && !hasMatches && '아직 이 주제의 증언이 없습니다. 다른 표현으로 입력해 보세요.'}
-            {hasMatches && <>증언 <b>{match.chips.length}개</b> · 플랫폼 <b>{new Set(match.chips.map((chip) => chip.platform)).size}종</b> · 직접 경쟁 <b>{match.top?.directCount ?? 0}개</b></>}
+            {!match.active && (en ? <><b>{chips.length}</b> things developers actually said are here. Type what you want to build.</> : <>개발자들이 실제로 한 말 <b>{chips.length}개</b>가 쌓여 있습니다. 만들고 싶은 것을 입력해 보세요.</>)}
+            {match.active && !hasMatches && t('아직 이 주제의 증언이 없습니다. 다른 표현으로 입력해 보세요.', 'No quotes on this topic yet. Try other words.')}
+            {hasMatches && (en ? <><b>{match.chips.length}</b> quotes · <b>{new Set(match.chips.map((chip) => chip.platform)).size}</b> platforms · <b>{match.top?.directCount ?? 0}</b> direct rivals</> : <>증언 <b>{match.chips.length}개</b> · 플랫폼 <b>{new Set(match.chips.map((chip) => chip.platform)).size}종</b> · 직접 경쟁 <b>{match.top?.directCount ?? 0}개</b></>)}
           </p>
           <div className={styles.tools}>
             {remaining.length > 0 && (
               <button type="button" className={`${styles.pill} ${styles.collect}`} onClick={() => pileRef.current?.collectMany(remaining.map((chip) => chip.id))}>
-                반응한 증언 {remaining.length}개 모두 담기
+                {t(`반응한 증언 ${remaining.length}개 모두 담기`, `Collect all ${remaining.length} matching quotes`)}
               </button>
             )}
             {!typed && suggestions.map((text) => (
               <button key={text} type="button" className={styles.pill} onClick={() => typeIn(text)}>{text}</button>
             ))}
             {typed && !hasMatches && (
-              <button type="button" className={styles.pill} onClick={() => { setQuery(''); inputRef.current?.focus(); }}>지우기</button>
+              <button type="button" className={styles.pill} onClick={() => { setQuery(''); inputRef.current?.focus(); }}>{t('지우기', 'Clear')}</button>
             )}
           </div>
-          {hasMatches && <p className={styles.hint}>증언을 끌어서 폴더에 넣거나, 눌러서 담을 수 있습니다.</p>}
+          {hasMatches && <p className={styles.hint}>{t('증언을 끌어서 폴더에 넣거나, 눌러서 담을 수 있습니다.', 'Drag quotes into the folder, or tap to collect them.')}</p>}
         </div>
 
         {chips.map((chip) => (
-          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang={chip.quoteKo ? undefined : 'en'} title={chip.quoteKo ? `${chip.quoteKo}\n원문: ${chip.quote}` : undefined} aria-label={`${chip.quoteKo || chip.quote}. 근거로 담기`}>
-            <span className={styles.chipBody} style={{ '--chip-bg': chip.bg, '--chip-fg': chip.fg } as CSSProperties}>{chip.quoteKo || chip.quote}</span>
+          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang={chip.quoteKo && !en ? undefined : 'en'} title={chip.quoteKo && !en ? `${chip.quoteKo}\n원문: ${chip.quote}` : undefined} aria-label={en ? `${chip.quote}. Collect as evidence` : `${chip.quoteKo || chip.quote}. 근거로 담기`}>
+            <span className={styles.chipBody} style={{ '--chip-bg': chip.bg, '--chip-fg': chip.fg } as CSSProperties}>{en ? chip.quote : chip.quoteKo || chip.quote}</span>
           </button>
         ))}
 
@@ -256,19 +261,19 @@ export default function OpportunityStage({ opportunities, news, header }: {
           ref={folderRef}
           type="button"
           className={`${styles.folder} ${passed ? styles.folderPass : ''} ${folderHot ? styles.folderHot : ''}`}
-          aria-label={`담은 근거 ${kept.length}건으로 확인서 열기`}
+          aria-label={t(`담은 근거 ${kept.length}건으로 확인서 열기`, `Open the evidence certificate (${kept.length} quotes)`)}
           onClick={() => setCertificateOpen(true)}
         >
           <span className={styles.folderBack} />
           <span className={styles.folderPaper} style={{ '--rise': `calc(var(--rise-low, 44px) + (var(--rise-high, -56px) - var(--rise-low, 44px)) * ${risePercent})` } as CSSProperties}>
-            <strong>근거 확인서</strong><i /><i />
-            <span className={styles.stamp}>통과</span>
+            <strong>{t('근거 확인서', 'Evidence certificate')}</strong><i /><i />
+            <span className={styles.stamp}>{t('통과', 'Passed')}</span>
           </span>
           <span className={styles.folderFront}>
-            <span className={styles.folderCount}><b>{kept.length}</b>담은 근거</span>
+            <span className={styles.folderCount}><b>{kept.length}</b>{t('담은 근거', 'collected')}</span>
             <span className={styles.folderSub}>
-              <span>플랫폼 {platformCount}/{MIN_PLATFORMS}</span>
-              <b>{passed ? '기준 통과' : shortfall > 0 ? `${shortfall}건 더 필요` : '플랫폼 부족'}</b>
+              <span>{t('플랫폼', 'Platforms')} {platformCount}/{MIN_PLATFORMS}</span>
+              <b>{passed ? t('기준 통과', 'Passed') : shortfall > 0 ? t(`${shortfall}건 더 필요`, `${shortfall} more needed`) : t('플랫폼 부족', 'Need another platform')}</b>
             </span>
           </span>
         </button>
@@ -276,8 +281,8 @@ export default function OpportunityStage({ opportunities, news, header }: {
 
       {orderedNews.length > 0 && (
         <section className={styles.read} aria-labelledby="today-heading">
-          <h2 id="today-heading">오늘 읽을 것</h2>
-          <p className={styles.readLead}>{hasMatches ? '입력한 주제와 이어지는 글이 앞에 나옵니다.' : '주제를 입력하면 이어지는 글이 앞으로 옵니다.'}</p>
+          <h2 id="today-heading">{t('오늘 읽을 것', 'Today')}</h2>
+          <p className={styles.readLead}>{hasMatches ? t('입력한 주제와 이어지는 글이 앞에 나옵니다.', 'Articles related to your topic come first.') : t('주제를 입력하면 이어지는 글이 앞으로 옵니다.', 'Type a topic to bring related articles forward.')}</p>
           {orderedNews.map((item) => {
             const related = hasMatches ? relatedTo(item) : undefined;
             return (
@@ -297,12 +302,12 @@ export default function OpportunityStage({ opportunities, news, header }: {
         <EvidenceCertificate
           chips={kept}
           typed={typed}
-          leadName={lead?.name ?? null}
-          gap={lead?.gap ?? ''}
+          leadName={lead ? (en && lead.nameEn) || lead.name : null}
+          gap={(en && lead?.gapEn) || lead?.gap || ''}
           directCount={lead?.directCount ?? null}
           platformCount={platformCount}
           passed={passed}
-          verdict={passed ? '기준 통과' : shortfall > 0 ? `근거 ${shortfall}건이 더 필요합니다` : '플랫폼이 더 필요합니다'}
+          verdict={passed ? t('기준 통과', 'Passed the evidence bar') : shortfall > 0 ? t(`근거 ${shortfall}건이 더 필요합니다`, `${shortfall} more quotes needed`) : t('플랫폼이 더 필요합니다', 'Another platform is needed')}
           onClose={closeCertificate}
           onRemove={removeKept}
         />

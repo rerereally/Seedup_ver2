@@ -238,7 +238,7 @@
 .remove:hover { background: #ececee; color: #111113; }
 .empty { padding: 18px; border-radius: 14px; background: #f0f0f1; color: #4d4d55; }
 .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-top: 16px; }
-.action { min-height: 52px; padding: 0 16px; border: 0; border-radius: 14px; background: #111113; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; transition: transform 0.12s ease; }
+.action { min-height: 52px; padding: 0 16px; border: 0; border-radius: 14px; background: #111113; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; transition: transform 0.12s ease; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .action:active { transform: scale(0.985); }
 .action:disabled { background: #d9d9dd; color: #5c5c64; cursor: not-allowed; }
 .actionQuiet { background: #e6e6e8; color: #111113; }

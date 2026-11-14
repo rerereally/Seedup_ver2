@@ -105,7 +105,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   return (
     <>
       <Header />
-      <main id="main-content" className="page-shell grow">
+      <main id="main-content" className="page-shell grow pb-28 lg:pb-0">
         <Link href="/opportunities" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">←</span> {t('기회 목록', 'All opportunities')}</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_360px]">
           <article className="min-w-0">
@@ -244,7 +244,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           </article>
 
           <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
-            <OpportunityPrd lang={lang} title={text.name} evidenceIds={opportunity.evidence.map((item) => item.id)} ready={opportunity.qualified} slug={opportunity.slug} />
+            <OpportunityPrd lang={lang} ready={opportunity.qualified} slug={opportunity.slug} evidenceCount={opportunity.evidence.length} />
             <section className="card overflow-hidden" aria-labelledby="supply-heading">
               <h2 id="supply-heading" className="px-5 pt-5 text-lg font-extrabold">{t('이미 있는 도구', 'Existing tools')}</h2>
               {opportunity.supply.length === 0

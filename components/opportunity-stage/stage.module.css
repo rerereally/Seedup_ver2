@@ -310,3 +310,6 @@
 .revise input { flex: 1 1 220px; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 12px; background: #fff; font-size: 15px; }
 .prdSelect { min-height: 44px; padding: 0 10px; border: 1px solid #d4d4d8; border-radius: 12px; background: #fff; font-size: 14.5px; font-weight: 700; }
 .prdButton:disabled { opacity: 0.55; cursor: not-allowed; }
+.existing { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #f0f0f1; font-size: 14px; line-height: 1.6; }
+.existing summary { cursor: pointer; font-weight: 800; }
+.existing ul { margin: 6px 0 0; padding-left: 18px; }

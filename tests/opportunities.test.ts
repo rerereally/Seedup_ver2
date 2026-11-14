@@ -268,3 +268,12 @@ test('each reader sees their own opportunities first in the digest', () => {
   assert.equal(interest('b'), 1);
   assert.equal(interest('a'), 0);
 });
+
+test('a reverse spec keeps the repo structure it found and passes it to the coding-agent export', () => {
+  const input = { title: 'repo 역기획', problem: 'P', gap: '', evidence: [evidence(1)], competitors: [] };
+  const spec = normalizeSpec({ summary: 's', existing: [{ name: 'CLI', does: 'runs jobs' }, { name: '' }], requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }] }, 1);
+  assert.deepEqual(spec.existing, [{ name: 'CLI', does: 'runs jobs' }]);
+  assert.match(renderSpecMarkdown(input, spec), /## 기존 구조 \(역기획\)[\s\S]*\*\*CLI\*\*/);
+  assert.match(renderAgentBrief(input, spec), /## Existing structure \(keep it working\)\n- CLI: runs jobs/);
+  assert.equal(normalizeSpec({ summary: 's' }, 0).existing, undefined);
+});

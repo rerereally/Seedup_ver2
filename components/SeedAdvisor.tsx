@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
 import { inBatches } from '@/lib/utils';
+import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 
 type RepoCard = {
   name: string;
@@ -326,6 +327,18 @@ export default function SeedAdvisor() {
               </div>
               <p className="mt-2 leading-7 text-muted">{idea?.summary || repo.description || '설명이 없는 레포입니다.'}</p>
             </header>
+
+            <Section title="역기획 스펙" note="README·파일 구조와 가까운 기회의 증언으로 기존 구조 + 새 기능 명세를 만듭니다">
+              <PrdBuilder
+                title={`${repo.name} 역기획`}
+                evidenceIds={[]}
+                ready
+                loginNext="/seeds"
+                endpoint="/api/seeds"
+                requestBody={{ user: result.login, repo: repo.name }}
+                generateLabel="이 레포 역기획 스펙 만들기"
+              />
+            </Section>
 
             {(idea?.features.length ?? 0) > 0 && (
               <Section title="더하면 좋을 기능">

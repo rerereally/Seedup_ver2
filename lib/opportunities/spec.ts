@@ -46,6 +46,8 @@ export type Spec = {
   metrics: string[];
   /** True when the evidence is below the qualification bar: a hypothesis draft, not a verified PRD. */
   draft: boolean;
+  /** Reverse spec only: what the repository already has (its current IA), which new work must not break. */
+  existing?: Array<{ name: string; does: string }>;
 };
 
 export type SpecInput = {
@@ -71,6 +73,7 @@ export type RawSpec = {
   non_goals?: unknown;
   risks?: unknown;
   metrics?: unknown;
+  existing?: unknown;
 };
 
 const text = (value: unknown, limit = 400) => String(value ?? '').trim().slice(0, limit);
@@ -146,6 +149,13 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     risks: stringList(raw.risks, 6),
     metrics: stringList(raw.metrics, 5),
     draft,
+    ...(Array.isArray(raw.existing) ? {
+      existing: raw.existing.slice(0, 12).flatMap((row) => {
+        const record = (row ?? {}) as RawRow;
+        const name = text(record.name, 80);
+        return name ? [{ name, does: text(record.does, 240) }] : [];
+      }),
+    } : {}),
   };
 }
 
@@ -220,7 +230,7 @@ ${spec.draft ? '\n> 가설 초안: 근거가 기준(증언 3건, 플랫폼 2종)
 ## 한 줄 요약
 ${spec.summary}
 
-## 해결할 문제
+${spec.existing?.length ? `## 기존 구조 (역기획)\n지금 레포에 이미 있는 것입니다. 새 기능은 이 구조를 깨지 않아야 합니다.\n\n${spec.existing.map((row) => `- **${row.name}**${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## 해결할 문제
 ${input.problem}
 
 ${input.gap ? `## 기존 도구가 남긴 빈틈\n${input.gap}\n\n` : ''}## 대상 사용자
@@ -267,7 +277,7 @@ ${spec.summary}
 ## Problem
 ${input.problem}
 
-## Build these features, in order
+${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## Build these features, in order
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 
 ${spec.screens.length ? `## Screens, in order (a draft, confirm with users)\n${spec.screens.map((screen) => `${screen.id}. ${screen.name}${screen.does ? `: ${screen.does}` : ''} (${screen.featureIds.join(', ')})`).join('\n')}\n\n` : ''}${flow ? `## User flow\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}## Do not build

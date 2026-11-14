@@ -26,15 +26,22 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
   ready: boolean;
   loginNext: string;
   children?: React.ReactNode;
+  /** Another generator (the repo reverse spec) can reuse this workspace; it answers with the quotes it picked. */
+  endpoint?: string;
+  requestBody?: Record<string, unknown>;
+  generateLabel?: string;
 }) {
   const [input, setInput] = useState<SpecInput | null>(null);
+  const [pickedIds, setPickedIds] = useState<string[] | null>(null);
+  const ids = pickedIds ?? evidenceIds;
+  const customSource = Boolean(requestBody);
   const [spec, setSpec] = useState<Spec | null>(null);
   const [previous, setPrevious] = useState<Spec | null>(null);
   const [view, setView] = useState<View>('trace');
@@ -63,10 +70,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setMessage('');
     setNeedsLogin(false);
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd', { title, evidenceIds });
+      const { status: code, ok, json } = await postJson(endpoint, requestBody ?? { title, evidenceIds });
       if (!ok) fail(code, json, 'PRD를 만들지 못했습니다.');
       else {
         setInput(json.input as SpecInput);
+        setPickedIds(Array.isArray(json.evidenceIds) ? json.evidenceIds : null);
+        if (json.cached) setMessage(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(json.cachedAt).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`);
         setSpec(json.spec as Spec);
         setPrevious(null);
         setFocus(null);
@@ -84,7 +93,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setSlotPending((before) => [...before, feature.id]);
     try {
       const requirements = feature.requirementIds.flatMap((rid) => spec.requirements.find((row) => row.id === rid) ?? []);
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds, feature, requirements });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements });
       if (!ok) fail(code, json, '슬롯을 채우지 못했습니다.');
       else setSpec((current) => current && { ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
     } catch {
@@ -103,7 +112,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setMessage('');
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds, spec, instruction });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction });
       if (!ok) fail(code, json, '수정하지 못했습니다.');
       else {
         const next = json.spec as Spec;
@@ -133,7 +142,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setNeedsLogin(false);
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', { title, evidenceIds, prdMarkdown: markdown || undefined });
+      const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', { title, evidenceIds: ids, prdMarkdown: markdown || undefined });
       if (!ok) {
         fail(code, json, '저장하지 못했습니다.');
         setSaveState('idle');
@@ -189,14 +198,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   return (
     <>
       <div className={styles.actions}>
-        <button type="button" className={styles.action} disabled={!evidenceIds.length || busy} onClick={generate}>
-          {status === 'loading' ? 'PRD 작성 중, 최대 1분 30초' : spec ? 'PRD 다시 만들기' : ready ? '이 근거로 PRD 만들기' : '가설 초안 PRD 만들기'}
+        <button type="button" className={styles.action} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
+          {status === 'loading' ? 'PRD 작성 중, 최대 1분 30초' : spec ? 'PRD 다시 만들기' : generateLabel ?? (ready ? '이 근거로 PRD 만들기' : '가설 초안 PRD 만들기')}
         </button>
-        <button type="button" className={`${styles.action} ${styles.actionQuiet}`} disabled={!evidenceIds.length || saveState === 'saving'} onClick={save}>
+        <button type="button" className={`${styles.action} ${styles.actionQuiet}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
           {saveState === 'saved' ? '보관함에 저장됨' : saveState === 'saving' ? '저장 중' : '보관함에 저장'}
         </button>
       </div>
-      {!ready && !spec && evidenceIds.length > 0 && <p className={styles.notice}>근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.</p>}
+      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className={styles.notice}>근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.</p>}
       {children}
       <div aria-live="polite">
         {needsLogin && <p className={styles.notice}><Link href={`/login?next=${encodeURIComponent(loginNext)}`}>로그인</Link>하면 담은 근거를 유지한 채 이어갑니다.</p>}
@@ -220,6 +229,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               <button key={key} type="button" role="tab" aria-selected={view === key} className={styles.specTab} onClick={() => setView(key)}>{label}</button>
             ))}
           </div>
+
+          {spec.existing && spec.existing.length > 0 && (
+            <details className={styles.existing} open>
+              <summary>기존 구조 {spec.existing.length}개 · 새 기능이 깨면 안 되는 것</summary>
+              <ul>{spec.existing.map((row) => <li key={row.name}><b>{row.name}</b>{row.does ? `: ${row.does}` : ''}</li>)}</ul>
+            </details>
+          )}
 
           {view === 'trace' && (
             <div className={styles.specCols}>

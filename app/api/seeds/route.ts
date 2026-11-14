@@ -2,7 +2,9 @@ import { getGitHubTrends, getNewsItems } from '@/lib/data';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { matchLinks, nearOpportunities, repoSimilarity, searchPapers, suggestIdeas } from '@/lib/seeds/advise';
 import type { Linkable, SeedIdea, SeedPaper } from '@/lib/seeds/advise';
-import { fetchPublicRepos, GitHubLookupError, isGitHubLogin } from '@/lib/seeds/github';
+import { fetchPublicRepos, GitHubLookupError, isGitHubLogin, readRepoStructure } from '@/lib/seeds/github';
+import { specInputFor } from '@/lib/opportunities/context';
+import { generateReverseSpec } from '@/lib/opportunities/prd';
 import type { GitHubLookupFailure, SeedRepo } from '@/lib/seeds/github';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -146,4 +148,53 @@ export async function GET(request: Request) {
       similar: matchLinks(repo, trendLinks, 2),
     })),
   });
+}
+
+const DAILY_REVERSE_LIMIT = 10;
+const QUOTES_PER_OPPORTUNITY = 4;
+
+/** Reverse spec: the repo's current structure plus new features traced to nearby developer testimony. */
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  if (!supabase || !data.user) return NextResponse.json({ error: '로그인 후 역기획 스펙을 만들 수 있습니다.' }, { status: 401 });
+
+  const body = await request.json().catch(() => null);
+  const login = String(body?.user ?? '').trim().replace(/^@/, '').toLowerCase();
+  const repoName = String(body?.repo ?? '').slice(0, 100);
+  if (!isGitHubLogin(login) || !repoName) return NextResponse.json({ error: 'GitHub 아이디와 레포를 확인해 주세요.' }, { status: 400 });
+
+  let repos: SeedRepo[];
+  try {
+    repos = await loadRepos(login);
+  } catch (error) {
+    const [message, status] = LOOKUP_MESSAGES[error instanceof GitHubLookupError ? error.reason : 'unavailable'];
+    return NextResponse.json({ error: message }, { status });
+  }
+  const repo = repos.find((item) => item.name === repoName);
+  if (!repo) return NextResponse.json({ error: '그 레포를 찾지 못했습니다. 공개 레포만 읽을 수 있습니다.' }, { status: 404 });
+
+  const [{ opportunities }, embeddings, structure] = await Promise.all([
+    getOpportunities(),
+    getOpportunityEmbeddings().catch(() => ({})),
+    readRepoStructure(repo.fullName),
+  ]);
+  // The nearest two opportunities lend their verified quotes; new features must cite them.
+  const near = nearOpportunities(repo, opportunities, await repoSimilarity(repo, embeddings)).slice(0, 2);
+  const picked = near.flatMap((ref) => (opportunities.find((item) => item.slug === ref.slug)?.evidence ?? []).slice(0, QUOTES_PER_OPPORTUNITY).map((evidence) => ({ evidence, slug: ref.slug })));
+  const input = specInputFor(opportunities, picked, `${repo.name} 역기획`)
+    ?? { title: `${repo.name} 역기획`, problem: repo.description || '레포 설명이 없습니다.', gap: '', evidence: [], competitors: [] };
+
+  if (!(await consumeDailyUsage(supabase, 'reverse_spec', DAILY_REVERSE_LIMIT))) {
+    return NextResponse.json({ error: `역기획 스펙은 하루 ${DAILY_REVERSE_LIMIT}번까지 만들 수 있습니다.` }, { status: 429 });
+  }
+  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }).catch((error) => {
+    console.error('Reverse spec failed', error);
+    return null;
+  });
+  if (!spec) {
+    await releaseDailyUsage(supabase, 'reverse_spec');
+    return NextResponse.json({ error: '역기획 스펙을 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
+  }
+  return NextResponse.json({ ok: true, input, spec, evidenceIds: picked.map((item) => item.evidence.id) });
 }

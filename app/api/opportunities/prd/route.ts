@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import { specInputFor } from '@/lib/opportunities/context';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { generatePrd } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -42,20 +42,17 @@ export async function POST(request: Request) {
     console.error('PRD generation failed', error);
     return null;
   });
-  const cacheKey = createHash('sha256').update(picked.map((item) => item.evidence.id).sort().join(',')).digest('hex').slice(0, 40);
   const cache = createAdminClient();
+  const ids = picked.map((item) => item.evidence.id);
   if (!result) {
     await releaseDailyUsage(supabase, 'prd');
     // The free model fails often; the last good PRD for the same quotes is better than an empty screen.
-    const { data: cached } = cache ? await cache.from('prd_cache').select('input,spec,created_at').eq('evidence_key', cacheKey).maybeSingle() : { data: null };
-    if (cached) return NextResponse.json({ ok: true, cached: true, cachedAt: cached.created_at, input: cached.input, spec: cached.spec });
+    const cached = await readPrdCache(cache, ids);
+    if (cached) return NextResponse.json({ ok: true, cached: true, cachedAt: cached.createdAt, input: cached.input, spec: cached.spec });
     return NextResponse.json({ error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
 
-  if (cache) {
-    const { error } = await cache.from('prd_cache').upsert({ evidence_key: cacheKey, input, spec: result.spec, created_at: new Date().toISOString() });
-    if (error) console.error('PRD cache write failed', error.message);
-  }
+  await writePrdCache(cache, ids, input, result.spec);
   return NextResponse.json({
     ok: true,
     input,

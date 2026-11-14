@@ -604,3 +604,15 @@ npm run deploy    # Cloudflare Workers 배포
 ## 라이선스
 
 현재 저장소에는 별도 라이선스 파일이 없습니다. 공개 배포 전에 프로젝트 소유자와 라이선스 정책을 정하세요.
+
+
+## MCP 연결 (Claude Code · Cursor)
+
+Seedup은 MCP 서버(`/api/mcp`, Streamable HTTP, JSON 응답)를 제공합니다.
+
+1. Supabase에서 `supabase/mcp_tokens_2026_11.sql`과 `supabase/prd_cache_2026_11.sql`을 실행합니다.
+2. 사이트의 **프로필 → MCP 연결**에서 토큰을 만듭니다(한 번만 보입니다).
+3. Claude Code: `claude mcp add --transport http seedup https://<사이트>/api/mcp --header "Authorization: Bearer <토큰>"`
+
+도구: `search_opportunities`, `get_opportunity`, `generate_verified_prd`(AGENTS.md / CLAUDE.md / .cursorrules / PRD), `find_related_content`.
+PRD 생성은 사용자당 하루 10회이며, 같은 근거로 만든 직전 결과가 있으면 한도를 쓰지 않고 그 결과를 돌려줍니다.

@@ -59,11 +59,14 @@ async function getDossiers() {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('evidence_dossiers')
-    .select('id,title,opportunity_slug,evidence_ids,prd_markdown,updated_at')
+    // '*' so the page keeps working before the optional `shared` column (dossier_share_2026_11.sql) exists.
+    .select('*')
     .order('updated_at', { ascending: false })
     .limit(20);
-  return error ? [] : (data ?? []);
+  return error ? [] : ((data ?? []) as DossierRow[]);
 }
+
+type DossierRow = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string; shared?: boolean };
 
 export default async function Scrap({ searchParams }: { searchParams: Promise<{ type?: string; q?: string }> }) {
   const params = await searchParams;
@@ -119,7 +122,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                         </ul>
                       </div>
                     )}
-                    <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} />
+                    <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} />
                     {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="btn-quiet mt-2">기회 다시 보기<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>}
                   </li>
                 ))}

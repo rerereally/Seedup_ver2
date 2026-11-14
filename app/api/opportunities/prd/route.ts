@@ -1,6 +1,10 @@
-import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
+import { toLang } from '@/lib/i18n';
+import { specInputFor } from '@/lib/opportunities/context';
+import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { generatePrd } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -25,39 +29,36 @@ export async function POST(request: Request) {
 
   const { opportunities } = await getOpportunities();
   const picked = findEvidence(opportunities, evidenceIds);
-  const evidence = picked.map((item) => item.evidence);
-  if (!meetsEvidenceBar(evidence.length, new Set(evidence.map((item) => item.platform)).size)) {
-    return NextResponse.json({ error: '근거 3건 이상, 플랫폼 2종 이상을 담아야 PRD를 만들 수 있습니다.' }, { status: 422 });
-  }
-
-  const lead = leadOpportunity(opportunities, picked);
-  if (!lead) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
+  if (!picked.length) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
+  // Below the bar the PRD is still made, but as a labeled hypothesis draft (never a "verified" PRD).
+  const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
+  const input = specInputFor(opportunities, picked, requestedTitle);
+  if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
 
   if (!(await consumeDailyUsage(supabase, 'prd', DAILY_PRD_LIMIT))) {
     return NextResponse.json({ error: `PRD는 하루 ${DAILY_PRD_LIMIT}개까지 만들 수 있습니다.` }, { status: 429 });
   }
 
-  const result = await generatePrd({
-    title: requestedTitle || lead.name,
-    problem: lead.problem,
-    gap: lead.gap,
-    evidence,
-    competitors: lead.supply.filter((item) => item.relation === 'direct').slice(0, 5).map((item) => item.name),
-  }).catch((error) => {
+  const result = await generatePrd(input, { draft, lang: toLang(body?.lang) }).catch((error) => {
     console.error('PRD generation failed', error);
     return null;
   });
+  const cache = createAdminClient();
+  const ids = picked.map((item) => item.evidence.id);
   if (!result) {
     await releaseDailyUsage(supabase, 'prd');
+    // The free model fails often; the last good PRD for the same quotes is better than an empty screen.
+    const cached = await readPrdCache(cache, ids);
+    if (cached) return NextResponse.json({ ok: true, cached: true, cachedAt: cached.createdAt, input: cached.input, spec: cached.spec });
     return NextResponse.json({ error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
 
+  await writePrdCache(cache, ids, input, result.spec);
   return NextResponse.json({
     ok: true,
-    title: requestedTitle || lead.name,
+    input,
+    spec: result.spec,
     markdown: result.markdown,
     agentBrief: result.agentBrief,
-    requirementCount: result.draft.requirements.length,
-    hypothesisCount: result.draft.hypotheses.length,
   });
 }

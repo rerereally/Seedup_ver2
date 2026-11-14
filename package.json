@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "engine": "tsx --env-file=.env scripts/run-opportunity-engine.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "test": "tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },

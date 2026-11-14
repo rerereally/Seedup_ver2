@@ -90,7 +90,7 @@ export function buildNewsletterHtml(data: NewsletterData) {
             </tr>
             <tr>
               <td style="padding:20px 32px;background:#f6f6f6;border-top:1px solid #d9d9d9;">
-                <p style="margin:0;font-size:12px;line-height:1.7;color:#666666;">이 메일은 Seedup 뉴스레터 구독자에게 발송되었습니다. 구독 해지는 Seedup 프로필 관리 페이지에서 변경할 수 있습니다.</p>
+                <p style="margin:0;font-size:12px;line-height:1.7;color:#666666;">이 메일은 Seedup 뉴스레터 구독자에게 발송되었습니다. 구독 해지는 <a href="${data.siteUrl}/profile" style="color:#666666;">Seedup 프로필 관리 페이지</a>에서 변경할 수 있습니다.</p>
               </td>
             </tr>
           </table>
@@ -115,6 +115,6 @@ export function buildNewsletterText(data: NewsletterData) {
   if (data.products[0]) lines.push(`AI 제품: ${data.products[0].item.name}`, `추천 이유: ${data.products[0].reasons.join(', ')}`, `${data.siteUrl}/ai-products/${data.products[0].item.id}`, '');
   if (data.repos[0]) lines.push(`오픈소스: ${data.repos[0].item.repo_full_name}`, `추천 이유: ${data.repos[0].reasons.join(', ')}`, `${data.siteUrl}/github-trends/${data.repos[0].item.id}`, '');
   if (data.projects[0]) lines.push(`프로젝트 아이디어: ${data.projects[0].item.title}`, `추천 이유: ${data.projects[0].reasons.join(', ')}`, `${data.siteUrl}/projects/${data.projects[0].item.id}`, '');
-  lines.push(`전체 보기: ${data.siteUrl}`);
+  lines.push(`전체 보기: ${data.siteUrl}`, `구독 해지: ${data.siteUrl}/profile`);
   return lines.join('\n');
 }

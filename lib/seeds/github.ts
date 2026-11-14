@@ -86,3 +86,46 @@ export async function fetchPublicRepos(login: string): Promise<SeedRepo[]> {
     readme: readmes[index],
   }));
 }
+
+export type RepoStructure = { readme: string; tree: string[]; manifest: string };
+
+const SOURCE_DIRS = new Set(['src', 'app', 'lib', 'pages', 'components', 'server', 'api', 'packages', 'cmd', 'internal']);
+const MANIFESTS = ['package.json', 'pyproject.toml', 'requirements.txt', 'Cargo.toml', 'go.mod'];
+
+async function listDir(fullName: string, path = '') {
+  try {
+    const response = await github(`/repos/${fullName}/contents/${path}`, 'application/vnd.github+json');
+    if (!response.ok) return [];
+    const rows = (await response.json()) as Array<{ name: string; type: string; path: string }>;
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+async function readRaw(fullName: string, path: string, limit: number) {
+  try {
+    const response = await github(`/repos/${fullName}/contents/${path}`, 'application/vnd.github.raw+json');
+    return response.ok ? (await response.text()).slice(0, limit) : '';
+  } catch {
+    return '';
+  }
+}
+
+/** What a reverse spec reads from a public repo: a longer README, the top two levels of source folders, and the manifest. */
+export async function readRepoStructure(fullName: string): Promise<RepoStructure> {
+  const top = await listDir(fullName);
+  const sourceDirs = top.filter((row) => row.type === 'dir' && SOURCE_DIRS.has(row.name)).slice(0, 3);
+  const nested = await Promise.all(sourceDirs.map(async (dir) => (await listDir(fullName, dir.path)).slice(0, 25).map((row) => `${dir.name}/${row.name}${row.type === 'dir' ? '/' : ''}`)));
+  const manifest = top.find((row) => row.type === 'file' && MANIFESTS.includes(row.name));
+  const [readmeResponse, manifestText] = await Promise.all([
+    github(`/repos/${fullName}/readme`, 'application/vnd.github.raw+json').catch(() => null),
+    manifest ? readRaw(fullName, manifest.path, 1_500) : Promise.resolve(''),
+  ]);
+  const readme = readmeResponse?.ok ? (await readmeResponse.text()).replace(/<[^>]+>/g, ' ').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4_000) : '';
+  return {
+    readme,
+    tree: [...top.slice(0, 40).map((row) => `${row.name}${row.type === 'dir' ? '/' : ''}`), ...nested.flat()].slice(0, 90),
+    manifest: manifest ? `${manifest.name}:\n${manifestText}` : '',
+  };
+}

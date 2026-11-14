@@ -1,5 +1,7 @@
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
+import LangProvider from '@/components/LangProvider';
+import { getLang } from '@/lib/i18n-server';
 
 export const metadata: Metadata = {
   title: {
@@ -27,16 +29,17 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({children}: {children: React.ReactNode}) {
+export default async function RootLayout({children}: {children: React.ReactNode}) {
+  const lang = await getLang();
   return (
-    <html lang="ko">
+    <html lang={lang}>
       <head>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossOrigin="anonymous" />
       </head>
       <body className="antialiased font-sans flex flex-col min-h-screen" suppressHydrationWarning>
-        <a href="#main-content" className="skip-link">본문으로 건너뛰기</a>
-        {children}
+        <a href="#main-content" className="skip-link">{lang === 'en' ? 'Skip to content' : '본문으로 건너뛰기'}</a>
+        <LangProvider lang={lang}>{children}</LangProvider>
       </body>
     </html>
   );

@@ -270,6 +270,17 @@ npm run build
 npm run start
 ```
 
+데모 전 주요 화면 점검 (스모크 테스트):
+
+앱을 먼저 실행한 뒤(`npm run dev` 또는 배포 주소), 주요 페이지와 API가 200으로 응답하고 오류 화면이 없는지 확인합니다.
+
+```bash
+SMOKE_BASE_URL=http://localhost:3000 npm run smoke
+SMOKE_BASE_URL=https://배포주소 npm run smoke
+```
+
+`SMOKE_BASE_URL`을 생략하면 `http://localhost:3000`을 사용합니다. 하나라도 실패하면 종료 코드 1로 끝납니다.
+
 ## 데이터 수집과 글 생성 순서
 
 관리자 계정으로 로그인한 뒤 `/admin/ingest`에서 실행할 수 있습니다. 보통 아래 순서로 실행합니다.
@@ -593,3 +604,15 @@ npm run deploy    # Cloudflare Workers 배포
 ## 라이선스
 
 현재 저장소에는 별도 라이선스 파일이 없습니다. 공개 배포 전에 프로젝트 소유자와 라이선스 정책을 정하세요.
+
+
+## MCP 연결 (Claude Code · Cursor)
+
+Seedup은 MCP 서버(`/api/mcp`, Streamable HTTP, JSON 응답)를 제공합니다.
+
+1. Supabase에서 `supabase/mcp_tokens_2026_11.sql`과 `supabase/prd_cache_2026_11.sql`을 실행합니다.
+2. 사이트의 **프로필 → MCP 연결**에서 토큰을 만듭니다(한 번만 보입니다).
+3. Claude Code: `claude mcp add --transport http seedup https://<사이트>/api/mcp --header "Authorization: Bearer <토큰>"`
+
+도구: `search_opportunities`, `get_opportunity`, `generate_verified_prd`(AGENTS.md / CLAUDE.md / .cursorrules / PRD), `find_related_content`.
+PRD 생성은 사용자당 하루 10회이며, 같은 근거로 만든 직전 결과가 있으면 한도를 쓰지 않고 그 결과를 돌려줍니다.

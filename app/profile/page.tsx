@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { signOut, updateNewsletterSubscription, updateProfileSettings } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import McpConnect from '@/components/McpConnect';
 import SubmitButton from '@/components/SubmitButton';
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/server';
@@ -176,6 +177,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                     </form>
                   )}
                 </div>
+              </section>
+
+              <section className="rounded-lg border border-outline-soft bg-white p-5" aria-labelledby="mcp-heading">
+                <h2 id="mcp-heading" className="text-lg font-semibold text-ink">MCP 연결</h2>
+                <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} />
               </section>
 
               <section className="rounded-lg border border-outline-soft bg-white p-5">

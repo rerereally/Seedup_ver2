@@ -4,7 +4,7 @@ import { isAdminEmail } from '@/lib/auth/admin';
 import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper } from '@/lib/data';
 import { claimSend, releaseSend } from '@/lib/newsletter/sends';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
-import { buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
+import { behaviorSignals, buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
@@ -61,9 +61,9 @@ export async function sendManualNewsletter() {
     service.from('user_onboarding').select('user_id, newsletter_subscribed, answers').eq('newsletter_subscribed', true),
     service.from('news_items').select('*').not('content', 'is', null).order('daily_rank_score', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(24),
     service.from('research_papers').select('*').order('relevance_score', { ascending: false }).order('published_at', { ascending: false }).limit(12),
-    service.from('ai_products').select('*').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('launch_date', { ascending: false, nullsFirst: false }).limit(4),
-    service.from('github_trends').select('*').order('stars', { ascending: false }).limit(4),
-    service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(4),
+    service.from('ai_products').select('*').order('newsletter_priority', { ascending: false, nullsFirst: false }).order('launch_date', { ascending: false, nullsFirst: false }).limit(20),
+    service.from('github_trends').select('*').order('stars', { ascending: false }).limit(20),
+    service.from('project_ideas').select('*').order('created_at', { ascending: false }).limit(20),
     getAuthEmails(service),
   ]);
   const news = newsResult.error
@@ -84,15 +84,31 @@ export async function sendManualNewsletter() {
   let sent = 0;
   let skippedNoContent = 0;
   let skippedDuplicates = 0;
+  const candidates = toNewsletterContentItems({
+    news: publishedNews as NewsItem[],
+    papers: (papers ?? []) as ResearchPaper[],
+    products: (products ?? []) as AIProduct[],
+    repos: (repos ?? []) as GitHubTrend[],
+    projects: (projects ?? []) as ProjectIdea[],
+  });
+  // What each reader saved, liked and disliked on the site, read once for everyone instead of per recipient.
+  // shortcut: one .in() list per table; split recipientIds into chunks of ~200 once subscribers pass a few hundred (URL length).
+  const recipientIds = recipientList.map((recipient) => recipient.user_id);
+  const [{ data: allScraps }, { data: allReactions }] = await Promise.all([
+    service.from('scraps').select('user_id,item_type,item_id,title,tag').in('user_id', recipientIds),
+    service.from('content_reactions').select('user_id,item_type,item_id,reaction').in('user_id', recipientIds),
+  ]);
+  const byUser = <T extends { user_id: string }>(rows: T[] | null) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows ?? []) map.set(row.user_id, [...(map.get(row.user_id) ?? []), row]);
+    return map;
+  };
+  const scrapsByUser = byUser(allScraps as Array<{ user_id: string; item_type: string; item_id: string | null; title: string; tag: string | null }> | null);
+  const reactionsByUser = byUser(allReactions as Array<{ user_id: string; item_type: string; item_id: string; reaction: string }> | null);
   for (const recipient of recipientList) {
-    const profile = buildRecommendationProfile(recipient.answers);
-    const scored = scoreNewsletterItems(toNewsletterContentItems({
-      news: publishedNews as NewsItem[],
-      papers: (papers ?? []) as ResearchPaper[],
-      products: (products ?? []) as AIProduct[],
-      repos: (repos ?? []) as GitHubTrend[],
-      projects: (projects ?? []) as ProjectIdea[],
-    }), profile);
+    const behavior = behaviorSignals(scrapsByUser.get(recipient.user_id) ?? [], reactionsByUser.get(recipient.user_id) ?? [], candidates);
+    const profile = { ...buildRecommendationProfile(recipient.answers, behavior.liked), ...behavior };
+    const scored = scoreNewsletterItems(candidates, profile);
     const pick = <T,>(prefix: string, limit: number) => scored
       .filter(({ content }) => content.id.startsWith(prefix))
       .slice(0, limit)
@@ -192,5 +208,5 @@ export async function sendManualNewsletter() {
 
   if (!sent) redirect(`/admin/ingest?newsletter=no-content&skipped=${skippedNoContent + skippedDuplicates}`);
   revalidatePath('/admin/ingest');
-  redirect(`/admin/ingest?newsletter=success&sent=${sent}`);
+  redirect(`/admin/ingest?newsletter=success&sent=${sent}&duplicates=${skippedDuplicates}&failed=0`);
 }

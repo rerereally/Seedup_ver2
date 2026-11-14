@@ -113,6 +113,13 @@ export type RecommendationProfile = {
   goals: string[];
   interests: string[];
   tracks: DailyArticleTrack[];
+  roles?: string[];
+  stack?: string[];
+  sections?: string[];
+  /** Topics from what the user saved or liked on the site. */
+  liked?: string[];
+  /** Newsletter content ids ("news:<id>") the user already saved or disliked. */
+  excluded?: string[];
 };
 
 export type RecommendedItem<T> = {
@@ -139,33 +146,103 @@ export function overlap(left: string[] = [], right: string[] = []) {
   return unique(left).filter((value) => rightSet.has(value)).length;
 }
 
-function fuzzyOverlap(left: string[] = [], right: string[] = []) {
+const SHORT_ASCII_WORD = /^[a-z0-9]{1,3}$/i;
+
+// Short English tokens like 'ai' or 'ui' would substring-match 'domain' or 'guide', so they need whole-word matches.
+function fuzzyMatch(leftValue: string, rightValue: string) {
+  if (SHORT_ASCII_WORD.test(leftValue) || SHORT_ASCII_WORD.test(rightValue)) {
+    const wordsOf = (value: string) => value.split(/[^a-z0-9]+/i);
+    return leftValue === rightValue || wordsOf(rightValue).includes(leftValue) || wordsOf(leftValue).includes(rightValue);
+  }
+  return leftValue.includes(rightValue) || rightValue.includes(leftValue);
+}
+
+export function fuzzyOverlap(left: string[] = [], right: string[] = []) {
   const normalizedLeft = unique(left);
   const normalizedRight = unique(right);
   return normalizedLeft.filter((leftValue) =>
-    normalizedRight.some((rightValue) => leftValue.includes(rightValue) || rightValue.includes(leftValue)),
+    normalizedRight.some((rightValue) => fuzzyMatch(leftValue, rightValue)),
   ).length;
 }
 
-export function scoreContentForProfile(content: RecommendationMetadata, profile: UserNewsletterProfile) {
+type ScoringProfile = {
+  interests: string[];
+  goals: string[];
+  roles: string[];
+  stack: string[];
+  levels: string[];
+  sections: string[];
+  tracks: string[];
+  tokens: string[];
+  liked: string[];
+  excluded: Set<string>;
+};
+
+/** Both profile shapes (onboarding answers and demo profiles) are scored by one function. */
+function toScoringProfile(profile: UserNewsletterProfile | RecommendationProfile): ScoringProfile {
+  if ('user_id' in profile) {
+    return {
+      interests: profile.interests,
+      goals: profile.goals,
+      roles: profile.preferred_roles,
+      stack: profile.preferred_stack,
+      levels: [profile.level],
+      sections: profile.content_preferences,
+      tracks: inferPreferredTracks([...profile.interests, ...profile.goals, ...profile.preferred_roles, ...profile.preferred_stack]),
+      tokens: [],
+      liked: [],
+      excluded: new Set(),
+    };
+  }
+  return {
+    interests: profile.interests,
+    goals: profile.goals,
+    roles: profile.roles ?? [],
+    stack: profile.stack ?? [],
+    levels: profile.levels,
+    sections: profile.sections ?? [],
+    tracks: profile.tracks,
+    tokens: profile.tokens,
+    liked: profile.liked ?? [],
+    excluded: new Set(profile.excluded ?? []),
+  };
+}
+
+/** Points that fall off with age: a day-old item gets the most, a month-old item almost none. */
+export function freshnessPoints(publishedAt: string | null | undefined, now = Date.now()) {
+  const published = publishedAt ? new Date(publishedAt).getTime() : 0;
+  if (!published || Number.isNaN(published)) return 4;
+  const ageHours = Math.max(0, (now - published) / 36e5);
+  if (ageHours <= 24) return 35;
+  if (ageHours <= 48) return 28;
+  if (ageHours <= 168) return 18;
+  if (ageHours <= 720) return 8;
+  return 2;
+}
+
+export function scoreContent(content: RecommendationMetadata, profile: UserNewsletterProfile | RecommendationProfile, publishedAt?: string | null, now = Date.now()) {
+  const p = toScoringProfile(profile);
   let score = 0;
-  const preferredTracks = inferPreferredTracks([
-    ...profile.interests,
-    ...profile.goals,
-    ...profile.preferred_roles,
-    ...profile.preferred_stack,
-  ]);
-  score += fuzzyOverlap(content.topic_tags, profile.interests) * 4;
-  score += fuzzyOverlap(content.skill_tags, profile.preferred_stack) * 3;
-  score += fuzzyOverlap(content.target_goals, profile.goals) * 4;
-  score += overlap(content.related_roles, profile.preferred_roles) * 4;
-  score += overlap(content.topic_tags, preferredTracks) * 5;
-  if (content.target_levels.some((level) => normalize(level) === normalize(profile.level))) score += 3;
-  if (profile.content_preferences.includes(content.newsletter_section)) score += 2;
+  score += fuzzyOverlap(content.topic_tags, p.interests) * 4;
+  score += fuzzyOverlap(content.skill_tags, p.stack) * 3;
+  score += fuzzyOverlap(content.target_goals, p.goals) * 4;
+  score += overlap(content.related_roles, p.roles) * 4;
+  score += overlap(content.topic_tags, p.tracks) * 5;
+  // Free-form answer tokens are noisy, so they add a little and are capped.
+  if (p.tokens.length) score += Math.min(fuzzyOverlap([...content.topic_tags, ...content.skill_tags, ...content.target_interests], p.tokens), 4) * 2;
+  if (content.target_levels.some((level) => p.levels.some((own) => normalize(own) === normalize(level)))) score += 3;
+  if (p.sections.includes(content.newsletter_section)) score += 2;
+  if (p.liked.length) score += Math.min(fuzzyOverlap([...content.topic_tags, ...content.skill_tags], p.liked), 3) * 3;
   score += content.newsletter_priority * 0.2;
   score += content.novelty_score * 0.1;
   score += content.source_quality_score * 0.1;
+  score += freshnessPoints(publishedAt, now) / 5;
   return Math.round(score);
+}
+
+/** Kept for callers that score demo profiles by metadata alone. */
+export function scoreContentForProfile(content: RecommendationMetadata, profile: UserNewsletterProfile) {
+  return scoreContent(content, profile);
 }
 
 export function shouldGenerateArticleDraft(analysis: RecommendationMetadata & { relevance_score?: number | null }) {
@@ -206,6 +283,9 @@ export function buildRecommendationProfile(answers: Record<string, unknown> | nu
     goals: resolvedGoals,
     interests: resolvedInterests,
     tracks: inferPreferredTracks([...tokens, ...resolvedInterests, ...resolvedGoals]),
+    roles: answerList('preferred_roles'),
+    stack: answerList('preferred_stack'),
+    sections: answerList('content_preferences'),
   };
 }
 
@@ -248,15 +328,7 @@ function publishedAt(item: RecommendableArticle) {
 }
 
 function freshnessScore(item: RecommendableArticle, now = Date.now()) {
-  const published = publishedAt(item);
-  if (!published) return 4;
-
-  const ageHours = Math.max(0, (now - published) / 36e5);
-  if (ageHours <= 24) return 35;
-  if (ageHours <= 48) return 28;
-  if (ageHours <= 168) return 18;
-  if (ageHours <= 720) return 8;
-  return 2;
+  return freshnessPoints(item.published_at, now);
 }
 
 function profileMatchScore(text: string, profile: RecommendationProfile) {
@@ -719,26 +791,22 @@ export function toNewsletterContentItems({
   return dedupeNewsletterItems(items);
 }
 
-export function scoreNewsletterItems(items: NewsletterContentItem[], profile: UserNewsletterProfile | RecommendationProfile): ScoredNewsletterItem[] {
+export function scoreNewsletterItems(items: NewsletterContentItem[], profile: UserNewsletterProfile | RecommendationProfile, now = Date.now()): ScoredNewsletterItem[] {
+  // Something the reader already saved or disliked is never mailed to them.
+  const excluded = new Set('user_id' in profile ? [] : profile.excluded ?? []);
   return items
+    .filter((content) => !excluded.has(content.id))
     .map((content) => {
-      const score = 'user_id' in profile ? scoreContentForProfile(content.metadata, profile) : scoreContentForRecommendationProfile(content.metadata, profile);
+      const score = scoreContent(content.metadata, profile, content.publishedAt, now);
       const reasons = 'user_id' in profile ? buildNewsletterReasons(content.metadata, profile) : recommendationProfileReasons(content.metadata, profile);
       return { content, score, reasons };
     })
     .sort((a, b) => b.score - a.score);
 }
 
-function scoreContentForRecommendationProfile(content: RecommendationMetadata, profile: RecommendationProfile) {
-  const tokens = [...profile.tokens, ...profile.interests, ...profile.goals];
-  const match = fuzzyOverlap([...content.topic_tags, ...content.skill_tags, ...content.target_interests], tokens);
-  const goalMatch = fuzzyOverlap(content.target_goals, profile.goals);
-  const trackMatch = profile.tracks.some((track) => content.topic_tags.some((tag) => normalize(tag).includes(normalize(track)))) ? 5 : 0;
-  return Math.round(match * 4 + goalMatch * 4 + trackMatch + content.newsletter_priority * 0.2 + content.novelty_score * 0.1 + content.source_quality_score * 0.1);
-}
-
 function recommendationProfileReasons(content: RecommendationMetadata, profile: RecommendationProfile) {
   const reasons = [
+    profile.liked?.length && fuzzyOverlap([...content.topic_tags, ...content.skill_tags], profile.liked) > 0 ? '저장·좋아요한 주제와 비슷' : null,
     fuzzyOverlap(content.topic_tags, profile.interests) > 0 ? '관심 분야와 일치' : null,
     fuzzyOverlap(content.skill_tags, profile.tokens) > 0 ? '저장·선택한 기술과 연결' : null,
     fuzzyOverlap(content.target_goals, profile.goals) > 0 ? '현재 목표와 연결' : null,
@@ -796,4 +864,33 @@ function inferRoles(values: string[]) {
   if (/startup|product|saas|창업|제품|사이드/.test(text)) roles.add('startup_builder');
   if (!roles.size) roles.add('developer');
   return [...roles];
+}
+
+const CONTENT_ID_PREFIX: Record<string, string> = { news: 'news', paper: 'paper', ai_product: 'product', github: 'repo', project: 'project' };
+
+/**
+ * Turns what one reader did on the site into newsletter signals: saved and liked items lend their topics
+ * (liked), and anything already saved or disliked is not mailed again (excluded).
+ */
+export function behaviorSignals(
+  scraps: Array<Pick<ScrapItem, 'item_type' | 'item_id' | 'title' | 'tag'>>,
+  reactions: Array<{ item_type: string; item_id: string; reaction: string }>,
+  candidates: NewsletterContentItem[],
+) {
+  const key = (type: string, id: string | null) => (CONTENT_ID_PREFIX[type] && id ? `${CONTENT_ID_PREFIX[type]}:${id}` : null);
+  const byId = new Map(candidates.map((item) => [item.id, item]));
+  const liked: string[] = [];
+  const excluded: string[] = [];
+  for (const scrap of scraps) {
+    const id = key(scrap.item_type, scrap.item_id);
+    if (id) excluded.push(id);
+    liked.push(...[scrap.tag, ...(id ? byId.get(id)?.metadata.topic_tags ?? [] : [])].filter((value): value is string => Boolean(value)));
+  }
+  for (const reaction of reactions) {
+    const id = key(reaction.item_type, reaction.item_id);
+    if (!id) continue;
+    if (reaction.reaction === 'dislike') excluded.push(id);
+    else if (reaction.reaction === 'like') liked.push(...(byId.get(id)?.metadata.topic_tags ?? []));
+  }
+  return { liked: unique(liked).slice(0, 30), excluded: [...new Set(excluded)] };
 }

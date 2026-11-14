@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { matchOpportunities, quoteMentions, rankBySimilarity } from '../lib/opportunities/match';
-import { normalizePrd, renderAgentBrief, renderPrdMarkdown } from '../lib/opportunities/prd';
+import { mermaidFlow, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown, traceOf } from '../lib/opportunities/spec';
+import { specInputFor } from '../lib/opportunities/context';
 import { classifySupply, cosineSimilarity, countFollowers, isVerbatimQuote, meetsEvidenceBar, toSlug } from '../lib/opportunities/rules';
 import type { Evidence, SupplyItem } from '../lib/opportunities/types';
 
@@ -76,7 +77,7 @@ test('semantic ranking keeps only strong, nearby matches', () => {
 });
 
 test('PRD requirements without valid citations become hypotheses', () => {
-  const draft = normalizePrd({
+  const spec = normalizeSpec({
     summary: 's',
     requirements: [
       { title: 'cited', detail: 'd', evidence: [1, 1, 2] },
@@ -85,20 +86,75 @@ test('PRD requirements without valid citations become hypotheses', () => {
       { title: '', detail: 'dropped', evidence: [1] },
     ],
   }, 3);
-  assert.deepEqual(draft.requirements.map((row) => row.title), ['cited']);
-  assert.deepEqual(draft.requirements[0].evidence, [1, 2]);
-  assert.deepEqual(draft.hypotheses.map((row) => row.title), ['invented citation', 'no citation']);
+  assert.deepEqual(spec.requirements.map((row) => [row.id, row.title]), [['R-01', 'cited']]);
+  assert.deepEqual(spec.requirements[0].evidence, [1, 2]);
+  assert.deepEqual(spec.hypotheses.map((row) => [row.id, row.title]), [['H-01', 'invented citation'], ['H-02', 'no citation']]);
 });
 
-test('exports keep source links and keep hypotheses out of the build list', () => {
+test('features must serve a kept requirement and screens a kept feature, so nothing floats free of the evidence', () => {
+  const spec = normalizeSpec({
+    summary: 's',
+    requirements: [{ title: 'real', detail: 'd', evidence: [1] }, { title: 'guess', detail: 'd', evidence: [] }],
+    features: [
+      { title: 'serves real', requirements: [1] },
+      { title: 'serves only a hypothesis', requirements: [2] },
+      { title: 'serves nothing', requirements: [7] },
+    ],
+    screens: [
+      { name: 'home', features: [1] },
+      { name: 'orphan', features: [2] },
+      { name: 'no features' },
+    ],
+  }, 1);
+  assert.deepEqual(spec.features.map((row) => [row.id, row.title, row.requirementIds]), [['F-01', 'serves real', ['R-01']]]);
+  assert.deepEqual(spec.screens.map((row) => [row.id, row.name, row.featureIds]), [['S-01', 'home', ['F-01']]]);
+});
+
+test('tracing an item lights up its whole chain both ways', () => {
+  const spec = normalizeSpec({
+    summary: 's',
+    requirements: [{ title: 'a', evidence: [1] }, { title: 'b', evidence: [2] }],
+    features: [{ title: 'fa', requirements: [1] }, { title: 'fb', requirements: [2] }],
+    screens: [{ name: 'sa', features: [1] }, { name: 'sb', features: [2] }],
+  }, 2);
+  const fromScreen = traceOf(spec, 'S-01');
+  assert.deepEqual([...fromScreen.ids].sort(), ['F-01', 'R-01', 'S-01']);
+  assert.deepEqual([...fromScreen.evidence], [1]);
+  const fromQuote = traceOf(spec, 'E-2');
+  assert.ok(fromQuote.ids.has('R-02') && fromQuote.ids.has('F-02') && fromQuote.ids.has('S-02'));
+  assert.ok(!fromQuote.ids.has('R-01'));
+});
+
+test('readiness slots keep only the six known keys and reject empty answers', () => {
+  assert.equal(normalizeSlots(null), null);
+  assert.equal(normalizeSlots({ inputs: [], rules: '' }), null);
+  const slots = normalizeSlots({ inputs: ['a'], done: ['b', ''], extra: ['x'] });
+  assert.deepEqual(slots, { inputs: ['a'], rules: [], errors: [], access: [], data: [], done: ['b'] });
+});
+
+test('exports keep source links, carry slots, and keep hypotheses out of the build list', () => {
   const input = { title: 'T', problem: 'P', gap: 'G', evidence: [evidence(1)], competitors: ['c'] };
-  const draft = normalizePrd({ summary: 's', requirements: [{ title: 'real', detail: 'd', evidence: [1] }, { title: 'guess', detail: 'd', evidence: [] }] }, 1);
-  const markdown = renderPrdMarkdown(input, draft);
-  assert.match(markdown, /\[근거 1\]/);
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'real', detail: 'd', evidence: [1] }, { title: 'guess', detail: 'd', evidence: [] }], features: [{ title: 'build it', requirements: [1] }], screens: [{ name: 'Home "page"', features: [1] }] }, 1);
+  spec.features[0].slots = { inputs: ['email'], rules: [], errors: [], access: [], data: [], done: ['test passes'] };
+  const markdown = renderSpecMarkdown(input, spec);
+  assert.match(markdown, /근거: E-1/);
   assert.match(markdown, /https:\/\/example\.com\/1/);
-  const brief = renderAgentBrief(input, draft);
-  assert.match(brief, /- \[ \] R1\. real/);
-  assert.doesNotMatch(brief, /- \[ \] .*guess/);
+  assert.match(markdown, /```mermaid/);
+  for (const format of ['agents', 'claude', 'cursor'] as const) {
+    const brief = renderAgentBrief(input, spec, format);
+    assert.match(brief, /- \[ \] F-01\. build it/);
+    assert.match(brief, /inputs: email/);
+    assert.match(brief, /data: \(open question\)/);
+    assert.doesNotMatch(brief, /- \[ \] .*guess/);
+  }
+  assert.doesNotMatch(mermaidFlow(spec), /"Home "page""/);
+});
+
+test('a draft spec is labeled as a hypothesis draft in every export', () => {
+  const input = { title: 'T', problem: 'P', gap: '', evidence: [evidence(1)], competitors: [] };
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'r', evidence: [1] }] }, 1, true);
+  assert.match(renderSpecMarkdown(input, spec), /가설 초안/);
+  assert.match(renderAgentBrief(input, spec), /HYPOTHESIS DRAFT/);
 });
 
 import { dossierChanges, koreaLens, scoreOpportunity, stackFit, trackRecord, whyNow } from '../lib/opportunities/insight';
@@ -167,4 +223,66 @@ test('dossier changes report added and removed evidence and later status moves',
   assert.equal(changes.removed, 1);
   assert.equal(changes.notes.length, 3);
   assert.equal(dossierChanges(['a', 'b', 'c'], '2026-10-25T00:00:00Z', sample({ history }), describeChange).notes.length, 0);
+});
+
+test('a PRD built from quotes of several opportunities carries all of their context, led by the most-picked one', () => {
+  const one = sample({ slug: 'one', name: 'One', problem: 'problem one', gap: 'gap one' });
+  const two = sample({
+    slug: 'two', name: 'Two', problem: 'problem two', gap: 'gap two',
+    supply: [{ kind: 'npm', name: 'rival', description: '', popularity: 1, url: 'r', createdAt: null, relation: 'direct' }, { kind: 'github', name: 'late/tool', description: '', popularity: 1, url: 't1', createdAt: null, relation: 'direct' }],
+  });
+  const picked = [
+    { evidence: two.evidence[0], slug: 'two' },
+    { evidence: one.evidence[0], slug: 'one' },
+    { evidence: two.evidence[1], slug: 'two' },
+  ];
+  const input = specInputFor([one, two], picked);
+  assert.ok(input);
+  assert.equal(input!.title, 'Two');
+  assert.match(input!.problem, /^problem two/);
+  assert.match(input!.problem, /problem one/);
+  assert.match(input!.gap, /gap two/);
+  assert.match(input!.gap, /gap one/);
+  assert.deepEqual(input!.competitors, ['rival', 'late/tool']);
+  assert.equal(input!.evidence.length, 3);
+  assert.equal(specInputFor([one, two], []), null);
+});
+
+import { buildOpportunityDigest, readerInterest } from '../lib/newsletter/opportunity-digest';
+
+test('each reader sees their own opportunities first in the digest', () => {
+  const history = [
+    { at: '2026-10-01T00:00:00Z', evidence: 1, platforms: 1, direct: 0, status: 'open' as const, qualified: false },
+    { at: '2026-11-13T00:00:00Z', evidence: 4, platforms: 2, direct: 0, status: 'open' as const, qualified: true },
+  ];
+  const a = sample({ slug: 'a', name: 'Alpha', keywords: ['rust'], history });
+  const b = sample({ slug: 'b', name: 'Beta', keywords: ['postgres'], history });
+  const since = '2026-11-01T00:00:00Z';
+  const plain = buildOpportunityDigest([a, b], since, 'https://x.test', 'changes')!;
+  assert.equal(plain.lines[0].slug, 'a');
+  const saved = buildOpportunityDigest([a, b], since, 'https://x.test', 'changes', Date.now(), { slugs: ['b'], keywords: [] })!;
+  assert.equal(saved.lines[0].slug, 'b');
+  assert.match(saved.lines[0].note, /^관심 기회/);
+  assert.match(saved.subject, /Beta/);
+  const interest = readerInterest([a, b], { slugs: [], keywords: ['Postgres'] });
+  assert.equal(interest('b'), 1);
+  assert.equal(interest('a'), 0);
+});
+
+test('a reverse spec keeps the repo structure it found and passes it to the coding-agent export', () => {
+  const input = { title: 'repo 역기획', problem: 'P', gap: '', evidence: [evidence(1)], competitors: [] };
+  const spec = normalizeSpec({ summary: 's', existing: [{ name: 'CLI', does: 'runs jobs' }, { name: '' }], requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }] }, 1);
+  assert.deepEqual(spec.existing, [{ name: 'CLI', does: 'runs jobs' }]);
+  assert.match(renderSpecMarkdown(input, spec), /## 기존 구조 \(역기획\)[\s\S]*\*\*CLI\*\*/);
+  assert.match(renderAgentBrief(input, spec), /## Existing structure \(keep it working\)\n- CLI: runs jobs/);
+  assert.equal(normalizeSpec({ summary: 's' }, 0).existing, undefined);
+});
+
+test('an English spec renders English headings and drops the Korean translation of quotes', () => {
+  const input = { title: 'T', problem: 'P', gap: '', evidence: [{ ...evidence(1), quoteKo: '번역' }], competitors: [] };
+  const spec = { ...normalizeSpec({ summary: 's', requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }] }, 1), lang: 'en' as const };
+  const markdown = renderSpecMarkdown(input, spec);
+  assert.match(markdown, /## Requirements \(evidence → R\)/);
+  assert.match(markdown, /Evidence: E-1/);
+  assert.doesNotMatch(markdown, /번역/);
 });

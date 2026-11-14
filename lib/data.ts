@@ -508,7 +508,19 @@ export async function getResearchPaper(id: string) {
 
 export async function getArticleFeedItems() {
   const [news, papers] = await Promise.all([getNewsItems(), getResearchPapers(80)]);
-  const newsArticles: ArticleFeedItem[] = news.filter((item) => Boolean(item.content?.trim())).map((item) => ({
+  return [...news.filter(hasNewsBody).map(toNewsArticle), ...papers.filter(isSeedupRelevantPaper).map(toPaperArticle)].sort(byNewest);
+}
+
+function hasNewsBody(item: NewsItem) {
+  return Boolean(item.content?.trim());
+}
+
+function byNewest(a: ArticleFeedItem, b: ArticleFeedItem) {
+  return new Date(b.published_at ?? b.created_at ?? 0).getTime() - new Date(a.published_at ?? a.created_at ?? 0).getTime();
+}
+
+function toNewsArticle(item: NewsItem): ArticleFeedItem {
+  return {
     id: item.id,
     type: 'news',
     title: item.title,
@@ -551,8 +563,11 @@ export async function getArticleFeedItems() {
     like_count: Number(item.like_count ?? 0),
     dislike_count: Number(item.dislike_count ?? 0),
     published_at: item.published_at,
-  }));
-  const paperArticles: ArticleFeedItem[] = papers.filter(isSeedupRelevantPaper).map((paper) => ({
+  };
+}
+
+function toPaperArticle(paper: ResearchPaper): ArticleFeedItem {
+  return {
     id: paper.id,
     type: 'paper',
     title: paper.title,
@@ -596,9 +611,100 @@ export async function getArticleFeedItems() {
     dislike_count: Number(paper.dislike_count ?? 0),
     published_at: paper.published_at,
     created_at: paper.created_at,
-  }));
+  };
+}
 
-  return [...newsArticles, ...paperArticles].sort((a, b) => new Date(b.published_at ?? b.created_at ?? 0).getTime() - new Date(a.published_at ?? a.created_at ?? 0).getTime());
+const SEARCH_LIMITS = { articles: 12, repos: 8, products: 8, projects: 8 };
+// Paper visibility rules (isSeedupRelevantPaper) run in JS, so fetch a few extra candidates first.
+const PAPER_SEARCH_CANDIDATES = 48;
+
+/**
+ * Builds a PostgREST `.or()` ilike filter. The query is LIKE-escaped (\ % _), then the value is
+ * double-quoted with `"` and `\` escaped, so commas and parentheses in the query stay literal.
+ */
+export function searchFilter(columns: string[], query: string) {
+  const like = query.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const pattern = `"%${like.replace(/["\\]/g, (c) => `\\${c}`)}%"`;
+  return columns.map((column) => `${column}.ilike.${pattern}`).join(',');
+}
+
+/** Searches the whole database, not the capped lists the loaders keep. Falls back to in-memory filtering if the DB cannot answer. */
+export async function searchContent(query: string) {
+  try {
+    const supabase = await createClient();
+    if (supabase) return await searchContentInDb(supabase, query);
+  } catch (error) {
+    console.warn(`Supabase search fell back to in-memory filtering: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return searchContentInMemory(query);
+}
+
+async function searchContentInDb(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>, query: string) {
+  const [news, papers, repos, products, projects] = await Promise.all([
+    supabase
+      .from('news_items')
+      .select('*')
+      .or(searchFilter(['title', 'summary', 'category', 'source'], query))
+      .not('content', 'is', null)
+      .neq('content', '')
+      .order('published_at', { ascending: false })
+      .limit(SEARCH_LIMITS.articles),
+    supabase
+      .from('research_papers')
+      .select('*')
+      .or(searchFilter(['title', 'abstract', 'beginner_summary', 'expert_summary', 'review_type', 'source'], query))
+      .order('published_at', { ascending: false })
+      .limit(PAPER_SEARCH_CANDIDATES),
+    supabase
+      .from('github_trends')
+      .select('*')
+      .or(searchFilter(['repo_full_name', 'description', 'beginner_summary', 'language'], query))
+      .order('stars_delta_7d', { ascending: false, nullsFirst: false })
+      .order('stars', { ascending: false })
+      .limit(SEARCH_LIMITS.repos),
+    supabase
+      .from('ai_products')
+      .select('*')
+      .or(searchFilter(['name', 'description', 'category', 'target_user'], query))
+      .order('newsletter_priority', { ascending: false, nullsFirst: false })
+      .order('launch_date', { ascending: false, nullsFirst: false })
+      .order('score', { ascending: false, nullsFirst: false })
+      .limit(SEARCH_LIMITS.products),
+    supabase
+      .from('project_ideas')
+      .select('*')
+      .or(searchFilter(['title', 'description', 'related_trend', 'level'], query))
+      .order('created_at', { ascending: false })
+      .limit(SEARCH_LIMITS.projects),
+  ]);
+  for (const { error } of [news, papers, repos, products, projects]) {
+    if (error) throw error;
+  }
+
+  const articles = [
+    ...((news.data ?? []) as NewsItem[]).filter(hasNewsBody).map(toNewsArticle),
+    ...((papers.data ?? []) as ResearchPaper[]).filter(isSeedupRelevantPaper).map(toPaperArticle),
+  ].sort(byNewest);
+
+  return {
+    articles: articles.slice(0, SEARCH_LIMITS.articles),
+    repos: ((repos.data ?? []) as GitHubTrend[]).slice(0, SEARCH_LIMITS.repos),
+    products: ((products.data ?? []) as AIProduct[]).slice(0, SEARCH_LIMITS.products),
+    projects: ((projects.data ?? []) as ProjectIdea[]).slice(0, SEARCH_LIMITS.projects),
+  };
+}
+
+/** Same matching as the page used before the DB search; only runs when the DB query cannot. */
+async function searchContentInMemory(query: string) {
+  const q = query.toLowerCase();
+  const matches = (values: Array<string | null | undefined>) => values.some((value) => value?.toLowerCase().includes(q));
+  const [articles, repos, products, projects] = await Promise.all([getArticleFeedItems(), getGitHubTrends(), getAIProducts(), getProjectIdeas()]);
+  return {
+    articles: articles.filter((item) => matches([item.title, item.summary, item.category, item.source, ...(item.related_skills ?? [])])).slice(0, SEARCH_LIMITS.articles),
+    repos: repos.filter((repo) => matches([repo.repo_full_name, repo.description, repo.beginner_summary, repo.language, ...(repo.topics ?? [])])).slice(0, SEARCH_LIMITS.repos),
+    products: products.filter((product) => matches([product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? []), ...(product.topic_tags ?? []), ...(product.skill_tags ?? [])])).slice(0, SEARCH_LIMITS.products),
+    projects: projects.filter((project) => matches([project.title, project.description, project.related_trend, project.level, ...(project.stack ?? [])])).slice(0, SEARCH_LIMITS.projects),
+  };
 }
 
 function readablePaperText(value: string | null | undefined, title: string) {

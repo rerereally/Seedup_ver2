@@ -6,6 +6,7 @@ import { claimSend, releaseSend } from '@/lib/newsletter/sends';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
 import { behaviorSignals, buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { selectInChunks } from '@/lib/supabase/chunks';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
@@ -84,6 +85,8 @@ export async function sendManualNewsletter() {
   let sent = 0;
   let skippedNoContent = 0;
   let skippedDuplicates = 0;
+  let failed = 0;
+  let firstError = '';
   const candidates = toNewsletterContentItems({
     news: publishedNews as NewsItem[],
     papers: (papers ?? []) as ResearchPaper[],
@@ -92,19 +95,22 @@ export async function sendManualNewsletter() {
     projects: (projects ?? []) as ProjectIdea[],
   });
   // What each reader saved, liked and disliked on the site, read once for everyone instead of per recipient.
-  // shortcut: one .in() list per table; split recipientIds into chunks of ~200 once subscribers pass a few hundred (URL length).
   const recipientIds = recipientList.map((recipient) => recipient.user_id);
-  const [{ data: allScraps }, { data: allReactions }] = await Promise.all([
-    service.from('scraps').select('user_id,item_type,item_id,title,tag').in('user_id', recipientIds),
-    service.from('content_reactions').select('user_id,item_type,item_id,reaction').in('user_id', recipientIds),
+  const [allScraps, allReactions] = await Promise.all([
+    selectInChunks<{ user_id: string; item_type: string; item_id: string | null; title: string; tag: string | null }>(recipientIds, (chunk) =>
+      service.from('scraps').select('user_id,item_type,item_id,title,tag').in('user_id', chunk),
+    ),
+    selectInChunks<{ user_id: string; item_type: string; item_id: string; reaction: string }>(recipientIds, (chunk) =>
+      service.from('content_reactions').select('user_id,item_type,item_id,reaction').in('user_id', chunk),
+    ),
   ]);
   const byUser = <T extends { user_id: string }>(rows: T[] | null) => {
     const map = new Map<string, T[]>();
     for (const row of rows ?? []) map.set(row.user_id, [...(map.get(row.user_id) ?? []), row]);
     return map;
   };
-  const scrapsByUser = byUser(allScraps as Array<{ user_id: string; item_type: string; item_id: string | null; title: string; tag: string | null }> | null);
-  const reactionsByUser = byUser(allReactions as Array<{ user_id: string; item_type: string; item_id: string; reaction: string }> | null);
+  const scrapsByUser = byUser(allScraps);
+  const reactionsByUser = byUser(allReactions);
   for (const recipient of recipientList) {
     const behavior = behaviorSignals(scrapsByUser.get(recipient.user_id) ?? [], reactionsByUser.get(recipient.user_id) ?? [], candidates);
     const profile = { ...buildRecommendationProfile(recipient.answers, behavior.liked), ...behavior };
@@ -156,9 +162,10 @@ export async function sendManualNewsletter() {
       continue;
     }
 
-    let response: Response;
+    // One bad address must not stop the rest, so a failure is counted and the loop moves on.
+    let failure = '';
     try {
-      response = await fetch('https://api.resend.com/emails', {
+      const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${resendApiKey}`,
@@ -174,39 +181,44 @@ export async function sendManualNewsletter() {
         }),
         cache: 'no-store',
       });
-    } catch (error) {
-      if (claim === 'claimed') await releaseSend(service, 'weekly-reading', issueDate, recipient.user_id);
-      const message = error instanceof Error ? error.message : 'Resend API에 연결하지 못했습니다.';
-      revalidatePath('/admin/ingest');
-      redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(`메일 서비스 연결 실패: ${message}`)}`);
-    }
 
-    // 409 means this recipient already has an email for today's idempotency key.
-    if (response.status === 409) {
-      skippedDuplicates += 1;
-      continue;
-    }
-
-    if (!response.ok) {
-      if (claim === 'claimed') await releaseSend(service, 'weekly-reading', issueDate, recipient.user_id);
-      const raw = await response.text();
-      let message = raw;
-
-      try {
-        const json = JSON.parse(raw) as { message?: string; error?: string; name?: string };
-        message = json.message ?? json.error ?? json.name ?? raw;
-      } catch {
-        // Resend normally returns JSON, but keep the raw text if it does not.
+      // 409 means this recipient already has an email for today's idempotency key.
+      if (response.status === 409) {
+        skippedDuplicates += 1;
+        continue;
       }
 
-      revalidatePath('/admin/ingest');
-      redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(message || `Resend ${response.status}`)}`);
+      if (response.ok) {
+        sent += 1;
+      } else {
+        const raw = await response.text();
+        let message = raw;
+
+        try {
+          const json = JSON.parse(raw) as { message?: string; error?: string; name?: string };
+          message = json.message ?? json.error ?? json.name ?? raw;
+        } catch {
+          // Resend normally returns JSON, but keep the raw text if it does not.
+        }
+        failure = message || `Resend ${response.status}`;
+      }
+    } catch (error) {
+      failure = `메일 서비스 연결 실패: ${error instanceof Error ? error.message : 'Resend API에 연결하지 못했습니다.'}`;
     }
-    sent += 1;
+
+    if (failure) {
+      failed += 1;
+      if (!firstError) firstError = failure;
+      if (claim === 'claimed') await releaseSend(service, 'weekly-reading', issueDate, recipient.user_id);
+    }
     await new Promise((resolve) => setTimeout(resolve, SEND_INTERVAL_MS));
   }
 
+  if (!sent && failed) {
+    revalidatePath('/admin/ingest');
+    redirect(`/admin/ingest?newsletter=failed&sent=${sent}&reason=${errorParam(firstError)}`);
+  }
   if (!sent) redirect(`/admin/ingest?newsletter=no-content&skipped=${skippedNoContent + skippedDuplicates}`);
   revalidatePath('/admin/ingest');
-  redirect(`/admin/ingest?newsletter=success&sent=${sent}&duplicates=${skippedDuplicates}&failed=0`);
+  redirect(`/admin/ingest?newsletter=success&sent=${sent}&duplicates=${skippedDuplicates}&failed=${failed}`);
 }

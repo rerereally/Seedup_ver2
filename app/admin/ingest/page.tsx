@@ -3,6 +3,7 @@ import type { SourceState } from '@/lib/ingest/health';
 import type { Metadata } from 'next';
 import { runFullIngest, runManualIngest } from '@/app/actions/ingest';
 import { sendManualNewsletter } from '@/app/actions/newsletter';
+import { previewOpportunityDigestMail, sendOpportunityDigestMail } from '@/app/actions/opportunity-digest';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -10,7 +11,9 @@ import SubmitButton from '@/components/SubmitButton';
 import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
 import { isAdminEmail } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
-import { Activity, CheckCircle2, Clock3, DatabaseZap, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { digestSiteUrl, sendOpportunityDigest } from '@/lib/newsletter/opportunity-digest-send';
+import { Activity, CheckCircle2, Clock3, DatabaseZap, Eye, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
@@ -68,7 +71,13 @@ function detailSummary(detail: Record<string, unknown> | null) {
   return pairs.length ? pairs.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
 }
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; duplicates?: string; failed?: string; reason?: string }> }) {
+const DIGEST_SKIP_MESSAGES: Record<string, string> = {
+  empty: '보낼 변화가 없습니다. 최근 기간 안에 달라진 기회가 없습니다.',
+  'not-configured': '발송 설정이 없어 메일을 보내지 않았습니다. RESEND_API_KEY, NEWSLETTER_FROM_EMAIL, SUPABASE_SECRET_KEY와 https SEEDUP_SITE_URL을 확인하세요.',
+  error: '다이제스트 발송 중 오류가 발생했습니다. 서버 로그를 확인하세요.',
+};
+
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   if (!data.user) redirect('/login');
@@ -79,6 +88,16 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
   const runs = allRuns.slice(0, 30);
   const health = summarizeSourceHealth(allRuns);
   const actors = latestEngineActors(allRuns);
+  const digestKind = params.kind === 'weekly' ? 'weekly' : 'changes';
+  // Preview is a dry run, so this renders the mail on the page without sending anything.
+  const digestPreview = params.digest === 'preview'
+    ? await sendOpportunityDigest({ service: createAdminClient(), kind: digestKind, dryRun: true, siteUrl: digestSiteUrl() })
+    : null;
+  const digestMessage = params.digest === 'sent'
+    ? `기회 다이제스트 발송을 완료했습니다. 발송 ${params.sent ?? 0}명, 이미 발송 ${params.duplicates ?? 0}명, 실패 ${params.failed ?? 0}명`
+    : params.digest === 'skipped'
+      ? DIGEST_SKIP_MESSAGES[params.reason ?? ''] ?? '다이제스트를 보내지 않았습니다.'
+      : null;
 
   return (
     <>
@@ -196,6 +215,49 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 </SubmitButton>
               </form>
             </div>
+          </section>
+
+          <section className="border border-outline-soft bg-white p-5 md:p-6">
+            <div className="mb-2 inline-flex items-center gap-2 border border-outline-soft bg-surface px-3 py-1 text-xs font-bold uppercase text-ink">
+              <Mail className="h-4 w-4" />
+              Opportunity Digest
+            </div>
+            <h2 className="text-2xl font-black text-ink">기회 다이제스트</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">기회 엔진의 변동 알림 또는 주간 요약 메일을 확인하고 구독자에게 보냅니다. 미리보기는 아무것도 보내지 않습니다.</p>
+            {digestMessage && (
+              <div className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.digest === 'sent' && Number(params.failed ?? 0) === 0 ?'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                {digestMessage}
+              </div>
+            )}
+            <form className="mt-5 flex flex-col gap-3 md:flex-row md:items-center">
+              <label className="flex items-center gap-2 text-sm font-bold text-ink">
+                종류
+                <select name="kind" defaultValue={digestKind} className="border border-outline-soft bg-white px-3 py-2 text-sm font-semibold text-ink">
+                  <option value="changes">변동 알림</option>
+                  <option value="weekly">주간 요약</option>
+                </select>
+              </label>
+              <button type="submit" formAction={previewOpportunityDigestMail} className="inline-flex items-center justify-center gap-2 border border-outline-soft bg-white px-5 py-3 text-sm font-bold text-ink hover:border-ink">
+                <Eye className="h-4 w-4" />
+                미리보기
+              </button>
+              <button type="submit" formAction={sendOpportunityDigestMail} className="inline-flex items-center justify-center gap-2 bg-ink px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90">
+                <Mail className="h-4 w-4" />
+                발송
+              </button>
+            </form>
+            {digestPreview && (
+              <div className="mt-5">
+                {digestPreview.status === 'preview' ? (
+                  <>
+                    <p className="text-sm font-bold text-ink">제목: {digestPreview.subject}</p>
+                    <pre className="mt-2 whitespace-pre-wrap border border-outline-soft bg-surface p-4 text-sm leading-6 text-ink">{digestPreview.text}</pre>
+                  </>
+                ) : (
+                  <p className="text-sm font-semibold text-muted">{DIGEST_SKIP_MESSAGES.empty}</p>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="border border-outline-soft bg-white">

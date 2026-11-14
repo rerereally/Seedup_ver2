@@ -139,11 +139,22 @@ export function overlap(left: string[] = [], right: string[] = []) {
   return unique(left).filter((value) => rightSet.has(value)).length;
 }
 
-function fuzzyOverlap(left: string[] = [], right: string[] = []) {
+const SHORT_ASCII_WORD = /^[a-z0-9]{1,3}$/i;
+
+// Short English tokens like 'ai' or 'ui' would substring-match 'domain' or 'guide', so they need whole-word matches.
+function fuzzyMatch(leftValue: string, rightValue: string) {
+  if (SHORT_ASCII_WORD.test(leftValue) || SHORT_ASCII_WORD.test(rightValue)) {
+    const wordsOf = (value: string) => value.split(/[^a-z0-9]+/i);
+    return leftValue === rightValue || wordsOf(rightValue).includes(leftValue) || wordsOf(leftValue).includes(rightValue);
+  }
+  return leftValue.includes(rightValue) || rightValue.includes(leftValue);
+}
+
+export function fuzzyOverlap(left: string[] = [], right: string[] = []) {
   const normalizedLeft = unique(left);
   const normalizedRight = unique(right);
   return normalizedLeft.filter((leftValue) =>
-    normalizedRight.some((rightValue) => leftValue.includes(rightValue) || rightValue.includes(leftValue)),
+    normalizedRight.some((rightValue) => fuzzyMatch(leftValue, rightValue)),
   ).length;
 }
 

@@ -68,3 +68,29 @@ export async function DELETE(request: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+/** Turns the public read-only link of one saved PRD on or off. Only the owner can, and only for a PRD that exists. */
+export async function PATCH(request: Request) {
+  const supabase = await createClient();
+  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  if (!supabase || !data.user) return NextResponse.json({ error: '로그인 후 사용할 수 있습니다.' }, { status: 401 });
+
+  const body = await request.json().catch(() => null);
+  const id = typeof body?.id === 'string' ? body.id : '';
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: '대상을 찾지 못했습니다.' }, { status: 400 });
+  const shared = body?.shared === true;
+
+  const { data: row, error } = await supabase
+    .from('evidence_dossiers')
+    .update({ shared })
+    .eq('id', id)
+    .eq('user_id', data.user.id)
+    .not('prd_markdown', 'is', null)
+    .select('id')
+    .maybeSingle();
+  if (error || !row) {
+    if (error) console.error('Dossier share toggle failed', error.message);
+    return NextResponse.json({ error: '공유 설정을 바꾸지 못했습니다. PRD가 저장된 항목만 공유할 수 있습니다.' }, { status: error ? 503 : 404 });
+  }
+  return NextResponse.json({ ok: true, shared, path: `/spec/${row.id}` });
+}

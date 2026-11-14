@@ -1361,3 +1361,6 @@ create table if not exists public.mcp_tokens (
 alter table public.mcp_tokens enable row level security;
 revoke all on public.mcp_tokens from anon, authenticated;
 grant select, insert, update, delete on public.mcp_tokens to service_role;
+
+-- Owners can make one saved PRD readable by anyone with its link (read-only, served by the server).
+alter table public.evidence_dossiers add column if not exists shared boolean not null default false;

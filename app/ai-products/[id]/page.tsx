@@ -105,7 +105,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
               </div>
               <div className="border-l border-t border-outline-soft px-5 py-4 sm:border-t-0">
                 <dt className="label">조회</dt>
-                <dd className="num mt-1 text-[28px] font-semibold leading-tight text-ink">{(Number(product.view_count ?? 0) + 1).toLocaleString('en-US')}</dd>
+                <dd className="num mt-1 text-[28px] font-semibold leading-tight text-ink">{Number(product.view_count ?? 0).toLocaleString('en-US')}</dd>
               </div>
             </dl>
 
@@ -185,7 +185,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
               </dl>
               <div className="border-t border-outline-soft pt-1">
                 <ViewTracker itemType="ai_product" itemId={product.id} />
-                <ContentEngagement itemType="ai_product" itemId={product.id} returnTo={`/ai-products/${product.id}`} views={Number(product.view_count ?? 0) + 1} likes={product.like_count} dislikes={product.dislike_count} />
+                <ContentEngagement itemType="ai_product" itemId={product.id} returnTo={`/ai-products/${product.id}`} views={Number(product.view_count ?? 0)} likes={product.like_count} dislikes={product.dislike_count} />
               </div>
             </section>
           </aside>

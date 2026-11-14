@@ -8,7 +8,7 @@ export function getContentHref(itemType: string, itemId: string | null | undefin
   if (itemType === 'project') return `/projects/${itemId}`;
   if (itemType === 'ai_product') return `/ai-products/${itemId}`;
   if (itemType === 'trend') return '/trends';
-  if (itemType === 'idea') return '/ideas';
+  if (itemType === 'idea') return `/ideas?evaluation=${itemId}`;
   return '/scrap';
 }
 

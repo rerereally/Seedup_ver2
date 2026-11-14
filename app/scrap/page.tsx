@@ -2,6 +2,7 @@ import { getOpportunities } from '@/lib/opportunities/data';
 import { dossierChanges } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import type { Metadata } from 'next';
+import DossierPrd from '@/components/DossierPrd';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -118,7 +119,8 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                         </ul>
                       </div>
                     )}
-                    {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="btn-quiet mt-4">기회 다시 보기<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>}
+                    <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} />
+                    {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="btn-quiet mt-2">기회 다시 보기<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>}
                   </li>
                 ))}
               </ul>

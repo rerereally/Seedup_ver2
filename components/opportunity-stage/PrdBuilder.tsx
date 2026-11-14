@@ -2,18 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { downloadText } from './download';
 import styles from './stage.module.css';
 
 type PrdResult = { title: string; markdown: string; agentBrief: string; requirementCount: number; hypothesisCount: number };
-
-function downloadText(filename: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children }: {
   title: string;

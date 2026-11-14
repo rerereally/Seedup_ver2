@@ -1,6 +1,6 @@
 import { answerArticleQuestion } from '@/lib/ingest/ai';
 import { createClient } from '@/lib/supabase/server';
-import { consumeDailyUsage } from '@/lib/usage-limit';
+import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -18,8 +18,9 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const title = typeof body?.title === 'string' ? body.title.slice(0, MAX_TITLE_LENGTH) : '';
-  const summary = typeof body?.summary === 'string' ? body.summary : '';
-  const content = typeof body?.content === 'string' ? body.content : '';
+  // The model only reads the first 2,200 characters; these caps just stop oversized request bodies.
+  const summary = typeof body?.summary === 'string' ? body.summary.slice(0, 2_000) : '';
+  const content = typeof body?.content === 'string' ? body.content.slice(0, 12_000) : '';
   const question = typeof body?.question === 'string' ? body.question.trim() : '';
   const historyItems: unknown[] = Array.isArray(body?.history) ? body.history : [];
   const history = historyItems
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
 
   const { result, model, error } = await answerArticleQuestion({ title, summary, content, question, history });
   if (!result) {
+    if (supabase) await releaseDailyUsage(supabase, 'article_ask');
     return NextResponse.json({ error: error ?? '글 도우미 응답을 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
   return NextResponse.json({ ok: true, ...result, model });

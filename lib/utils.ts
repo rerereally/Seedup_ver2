@@ -1,3 +1,12 @@
+/** Runs `run` over items with at most `limit` in flight, starting them in order. */
+export async function inBatches<T>(items: T[], limit: number, run: (item: T) => Promise<void>) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await run(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+}
+
 function projectSubject(value: string) {
   return value
     .trim()

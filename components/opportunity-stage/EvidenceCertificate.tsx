@@ -1,7 +1,7 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import PrdBuilder from './PrdBuilder';
 import styles from './stage.module.css';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
@@ -89,7 +89,13 @@ export default function EvidenceCertificate({ chips, typed, leadName, gap, direc
             ))}
           </ul>
         )}
-        {chips.length > 0 && <PrdBuilder title={title} evidenceIds={chips.map((chip) => chip.id)} ready={passed} loginNext="/" />}
+        {chips.length > 0 && (
+          <div className={styles.actions}>
+            <Link className={styles.action} href={`/prd?evidence=${encodeURIComponent(chips.map((chip) => chip.id).join(','))}`}>
+              {passed ? t('이 근거로 PRD 만들기', 'Build a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Build a hypothesis-draft PRD')} →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -67,7 +67,7 @@ function detailSummary(detail: Record<string, unknown> | null) {
   return pairs.length ? pairs.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
 }
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string }> }) {
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; duplicates?: string; failed?: string; reason?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   if (!data.user) redirect('/login');
@@ -105,7 +105,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
             <div className={`rounded-lg border px-4 py-3 text-sm font-semibold ${params.status === 'success' || params.newsletter === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {params.newsletter
                 ? params.newsletter === 'success'
-                  ? `뉴스레터 발송을 완료했습니다. 발송 대상: ${params.sent ?? 0}명`
+                  ? `뉴스레터 발송을 완료했습니다. 발송 ${params.sent ?? 0}명, 중복 건너뜀 ${params.duplicates ?? 0}명, 실패 ${params.failed ?? 0}명`
                   : params.newsletter === 'no-recipients'
                     ? '뉴스레터 구독자가 없습니다.'
                     : `뉴스레터 발송에 실패했습니다.${params.reason ? ` 사유: ${params.reason}` : ' RESEND_API_KEY, NEWSLETTER_FROM_EMAIL, SUPABASE_SECRET_KEY를 확인하세요.'}`

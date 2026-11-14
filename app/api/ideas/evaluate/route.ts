@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const cacheAfter = new Date(Date.now() - EVALUATION_CACHE_HOURS * 60 * 60 * 1000).toISOString();
     const cacheByKey = await supabase
       .from('idea_evaluations')
-      .select('result')
+      .select('id,result')
       .eq('user_id', user.id)
       .eq('evaluation_key', key)
       .eq('status', 'completed')
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const cacheByText = cacheByKey.error
       ? await supabase
           .from('idea_evaluations')
-          .select('result')
+          .select('id,result')
           .eq('user_id', user.id)
           .eq('idea_text', idea)
           .eq('status', 'completed')
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         sourceTypeCount: new Set(referencesForPolicy.map((reference) => String(reference.source_table ?? 'unknown'))).size,
         marketEvidenceCount: referencesForPolicy.filter((reference) => ['ai_products', 'news_items'].includes(String(reference.source_table ?? ''))).length,
       });
-      return NextResponse.json({ ok: true, evaluation, model: cachedResult.model ?? null, references: cachedReferences, saved: true, cached: true });
+      return NextResponse.json({ ok: true, id: cached.id ?? null, evaluation, model: cachedResult.model ?? null, references: cachedReferences, saved: true, cached: true });
     }
   }
 
@@ -102,6 +102,7 @@ export async function POST(request: Request) {
   });
   let saved = false;
   let saveError: string | null = null;
+  let savedId: string | null = null;
 
   if (supabase && user) {
     const evaluationRecord = {
@@ -116,26 +117,31 @@ export async function POST(request: Request) {
         references,
       },
     };
-    const { error } = await supabase
+    const { data: insertedRow, error } = await supabase
       .from('idea_evaluations')
-      .insert(evaluationRecord);
+      .insert(evaluationRecord)
+      .select('id')
+      .single();
 
     if (error) {
       const { evaluation_key: _evaluationKey, ...legacyRecord } = evaluationRecord;
-      const { error: legacyError } = await supabase.from('idea_evaluations').insert(legacyRecord);
+      const { data: legacyRow, error: legacyError } = await supabase.from('idea_evaluations').insert(legacyRecord).select('id').single();
       if (legacyError) {
         console.error('Failed to save idea evaluation', legacyError);
         saveError = legacyError.message;
       } else {
         saved = true;
+        savedId = legacyRow?.id ?? null;
       }
     } else {
       saved = true;
+      savedId = insertedRow?.id ?? null;
     }
   }
 
   return NextResponse.json({
     ok: true,
+    id: savedId,
     evaluation,
     model,
     references,

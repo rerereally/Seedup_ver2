@@ -28,10 +28,17 @@ export default function ArticleAssistant({
   const [errorMessage, setErrorMessage] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const lastQuestion = messages.filter((message) => message.role === 'user').at(-1)?.content;
   const hasConversation = messages.some((message) => message.role === 'user');
 
   useEffect(() => () => controllerRef.current?.abort(), []);
+
+  // Scroll only the list itself so the page does not jump.
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messages, status]);
 
   const ask = async (preset?: string) => {
     const nextQuestion = (preset ?? question).trim();
@@ -109,8 +116,8 @@ export default function ArticleAssistant({
       )}
 
       {hasConversation && (
-        <div className="mt-4 max-h-[min(58dvh,34rem)] min-h-56 space-y-3 overflow-y-auto border-t border-outline-soft px-5 py-5">
-          {messages.slice(-3).map((message, index) => (
+        <div ref={messageListRef} aria-live="polite" className="mt-4 max-h-[min(58dvh,34rem)] min-h-56 space-y-3 overflow-y-auto border-t border-outline-soft px-5 py-5">
+          {messages.map((message, index) => (
             <div key={`${message.role}-${index}`} className={`max-w-[92%] text-sm leading-6 ${message.role === 'assistant' ? 'text-ink' : 'ml-auto w-fit rounded-[18px] rounded-br-md bg-surface-high px-3.5 py-2 text-ink'}`}>
               {message.content}
             </div>

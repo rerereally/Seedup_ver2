@@ -308,6 +308,13 @@ curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/trends"
 curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/project-ideas?limit=10"
 curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/article-drafts?mode=daily"
 curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/article-drafts?mode=deep-dive"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/embeddings?perSource=40&max=60"
+```
+
+아이디어 평가(RAG)는 `content_embeddings`에 있는 콘텐츠만 근거로 찾습니다. 처음 한 번은 쌓여 있는 데이터를 채워야 하므로, 응답의 `remaining`이 0이 될 때까지 아래 명령을 반복하세요.
+
+```bash
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/embeddings?perSource=1000&max=200"
 ```
 
 한 번에 실행하려면 다음 API를 사용할 수 있습니다.

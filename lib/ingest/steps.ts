@@ -9,6 +9,8 @@ export const INGEST_STEPS = [
   ['trends', '/api/ingest/trends'],
   ['project-ideas', '/api/ingest/project-ideas?limit=10'],
   ['article-drafts', '/api/ingest/article-drafts?mode=daily&limit=12'],
+  // Last, so idea evaluation can find everything collected above.
+  ['embeddings', '/api/ingest/embeddings?perSource=40&max=60'],
 ] as const;
 
 // Single-run only (admin action); not part of the full run.

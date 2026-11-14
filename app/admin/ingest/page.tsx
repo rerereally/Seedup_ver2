@@ -24,6 +24,7 @@ const TASKS = [
   { key: 'research', label: '논문/arXiv 전처리', stage: 'collect', description: '뉴스 RSS와 별개로 arXiv 논문을 수집하고 연구 요약, 구현 아이디어, 논문 추천 메타데이터를 저장합니다.' },
   { key: 'external-trends', label: '외부 트렌드 소스 수집', stage: 'collect', description: 'npm, Hugging Face, DEV.to, Stack Overflow, Product Hunt, Hacker News 공개 소스를 읽어 트렌드용 keyword_signals를 저장합니다.' },
   { key: 'model-intelligence', label: 'OpenRouter 모델 인텔리전스', stage: 'collect', description: 'OpenRouter의 주간 사용량, 지능 지수, Design Arena 순위를 수집해 트렌드 페이지의 AI 모델 비교 데이터로 저장합니다.' },
+  { key: 'embeddings', label: '평가 근거 임베딩', stage: 'aggregate', description: '아직 임베딩이 없는 뉴스·제품·저장소·논문·프로젝트를 벡터로 바꿔, 아이디어 평가가 새 콘텐츠를 근거로 찾을 수 있게 합니다. 한 번에 최대 60개씩 채웁니다.' },
   { key: 'trends', label: '트렌드 집계', stage: 'aggregate', description: '뉴스, AI 제품, GitHub, 논문 신호를 합쳐 카테고리별 Top 30 트렌드 랭킹과 7일 스냅샷을 갱신합니다.' },
   { key: 'project-ideas', label: '프로젝트 아이디어 생성', stage: 'generate', description: '전처리된 뉴스/제품/오픈소스 신호를 개별 포트폴리오 프로젝트로 변환합니다.' },
   { key: 'article-drafts', label: '데일리 아티클 생성', stage: 'generate', description: '최신 데이터가 있는 트랙부터 한 번에 최대 12개를 생성합니다. 트랙별 고정 개수 제한은 없으며, 최소 3개 소스와 2개 소스 타입이 묶인 클러스터를 우선 발행하고 중복 글은 차단합니다.' },

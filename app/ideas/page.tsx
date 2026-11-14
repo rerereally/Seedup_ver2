@@ -79,8 +79,7 @@ export default function Ideas() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initialIdea = params.get('idea');
-    // shortcut: one post-mount setState is the intended hydration-safe read of the URL param.
-    if (initialIdea) setIdea(initialIdea); // eslint-disable-line react-hooks/set-state-in-effect
+    if (initialIdea) setIdea(initialIdea); // eslint-disable-line react-hooks/set-state-in-effect -- one hydration-safe read of the URL
 
     const evaluationId = params.get('evaluation');
     const supabase = evaluationId ? createClient() : null;
@@ -309,6 +308,18 @@ function normalizeEvaluation(value: unknown): IdeaEvaluationResult {
 
 function EvaluationPanel({ run }: { run: EvaluationRun }) {
   const evaluation = run.result;
+  // Whether this evaluation is already in 보관함; keyed by id so a different run never shows a stale answer.
+  const [scrap, setScrap] = useState<{ id: string; saved: boolean } | null>(null);
+  useEffect(() => {
+    const supabase = run.id ? createClient() : null;
+    if (!run.id || !supabase) return;
+    let live = true;
+    const id = run.id;
+    void supabase.from('scraps').select('id').eq('item_type', 'idea').eq('item_id', id).maybeSingle()
+      .then(({ data }) => { if (live) setScrap({ id, saved: Boolean(data) }); });
+    return () => { live = false; };
+  }, [run.id]);
+  const scrapSaved = run.id && scrap?.id === run.id ? scrap.saved : null;
   const scoreItems = [
     ['구현 가능성', evaluation.score_breakdown?.feasibility],
     ['차별성', evaluation.score_breakdown?.differentiation],
@@ -330,9 +341,9 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
   return (
     <div className="divide-y divide-outline-soft [&>section]:py-7 [&>section:first-child]:pt-0 [&>section:last-child]:pb-0">
       <section>
-        {run.id && (
+        {run.id && scrapSaved !== null && (
           <div className="mb-5 flex justify-end">
-            <ScrapButton itemType="idea" itemId={run.id} title={run.idea.trim().slice(0, 80)} className="btn-quiet" />
+            <ScrapButton key={run.id} itemType="idea" itemId={run.id} title={run.idea.trim().slice(0, 80)} initialSaved={scrapSaved} className="btn-quiet" />
           </div>
         )}
         <dl className="flex flex-wrap gap-x-12 gap-y-5">

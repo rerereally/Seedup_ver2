@@ -2,6 +2,7 @@ import { applyIdeaEvidencePolicy, evaluateIdea } from '@/lib/ingest/ai';
 import { validateIdeaInput } from '@/lib/ideas/input';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createClient } from '@/lib/supabase/server';
+import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -70,19 +71,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const limitWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count: recentEvaluations } = await supabase
-    .from('idea_evaluations')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .gte('created_at', limitWindowStart);
-
-  if ((recentEvaluations ?? 0) >= DAILY_EVALUATION_LIMIT) {
+  // Counted in one database statement, so parallel requests cannot slip past the limit.
+  if (!(await consumeDailyUsage(supabase, 'idea_evaluate', DAILY_EVALUATION_LIMIT))) {
     return NextResponse.json({ error: '오늘 사용할 수 있는 평가 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.' }, { status: 429 });
   }
 
   // Interactive requests must stay inside a serverless request budget. Missing
-  // embeddings are filled by the ingestion flow, not while the user is waiting.
+  // embeddings are filled by /api/ingest/embeddings, not while the user is waiting.
   const references = await retrieveIdeaContext(idea, { maxReferences: 4, syncMissing: false });
   const ragContext = references.map((reference, index) => [
     `[근거 ${index + 1}] ${reference.metadata.title ?? reference.source_table}`,
@@ -93,6 +88,7 @@ export async function POST(request: Request) {
   ].join('\n')).join('\n\n');
   const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
   if (!rawEvaluation) {
+    await releaseDailyUsage(supabase, 'idea_evaluate');
     return NextResponse.json({ error: evaluationError ?? '평가 모델에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
   const evaluation = applyIdeaEvidencePolicy(rawEvaluation, {

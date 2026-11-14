@@ -85,7 +85,8 @@ jobs:
             '/api/ingest/github?limit=15&minStars=50&pruneDays=30' \
             '/api/ingest/research?limit=12&minScore=55&minFitScore=18' \
             '/api/ingest/external-trends' \
-            '/api/ingest/trends'
+            '/api/ingest/trends' \
+            '/api/ingest/embeddings?perSource=40&max=60'
           do
             status=000
             # One retry, because a free model or a source that is briefly down should not fail the day.

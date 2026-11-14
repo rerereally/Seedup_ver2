@@ -45,7 +45,7 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
               </Link>
             ))}
           </nav>
-          <OpportunityTable opportunities={visible} colors={opportunityColors(opportunities)} />
+          <OpportunityTable opportunities={visible} colors={opportunityColors(opportunities)} lang={lang} />
           <p className="max-w-[62em] text-[13px] leading-6 text-muted">
             막대가 다 차면 기준을 넘은 것입니다. 기준은 서로 다른 게시글 {MIN_EVIDENCE}건 이상, 플랫폼 {MIN_PLATFORMS}종 이상입니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.
           </p>

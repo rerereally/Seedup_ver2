@@ -15,7 +15,7 @@ const GROUP_BATCH = 12;
 const MAX_GROUPS = 16;
 
 type Pain = { id: number; who?: string; pain?: string; quote: string; item: RawSignal };
-type Plan = { name?: string; slug?: string; problem?: string; problem_en?: string; ids?: number[]; fit?: boolean; demand?: string[]; supply?: string[]; keywords?: string[] };
+type Plan = { name?: string; name_en?: string; slug?: string; problem?: string; problem_en?: string; ids?: number[]; fit?: boolean; demand?: string[]; supply?: string[]; keywords?: string[] };
 type Candidate = Plan & { label: string; pains: Pain[] };
 
 // The example slug in the plan prompt. A model that echoes it back has not named anything.
@@ -55,7 +55,7 @@ ${pains.map((pain) => `#${pain.id} ${pain.pain ?? pain.quote}`).join('\n')}`;
 
 const planPrompt = (label: string, pains: Pain[]) => `A group of developer pains is below. Plan market research for it.
 Set "fit" to true only if one or two developers could ship a first version within weeks, as a software product used by other software developers. Hardware and storage wear, consumer apps, legal or licensing issues, legacy browser plugins, and problems tied to one vendor's proprietary toolkit are false.
-Return JSON only: {"name":"문제가 드러나는 한국어 명사구, 띄어쓰기를 지키고 조사 없이 16자 이내","slug":"${SLUG_EXAMPLE}","problem":"한국어 한 문장","problem_en":"one English sentence","fit":true,"demand":["3 phrases developers really type when complaining, 3 to 6 words, no quotes"],"supply":["2 product search queries, 2 to 3 category nouns"],"keywords":["6 to 12 lowercase search words in Korean and English, including synonyms"]}
+Return JSON only: {"name":"문제가 드러나는 한국어 명사구, 띄어쓰기를 지키고 조사 없이 16자 이내","name_en":"the same name as a short English noun phrase, under 40 characters","slug":"${SLUG_EXAMPLE}","problem":"한국어 한 문장","problem_en":"one English sentence","fit":true,"demand":["3 phrases developers really type when complaining, 3 to 6 words, no quotes"],"supply":["2 product search queries, 2 to 3 category nouns"],"keywords":["6 to 12 lowercase search words in Korean and English, including synonyms"]}
 
 Group: ${label}
 ${pains.map((pain) => `- ${pain.pain ?? ''} (${pain.quote})`).join('\n')}`;
@@ -203,9 +203,9 @@ ${batch.map((post, n) => `#${n} ${post.title}\n${post.text}`).join('\n\n')}`);
     }
 
     const verdict = supply.length
-      ? await callJsonModel<{ items?: Array<{ n: number; relation?: string }>; gap?: string }>(`Problem: ${candidate.problem_en ?? candidate.problem}
+      ? await callJsonModel<{ items?: Array<{ n: number; relation?: string }>; gap?: string; gap_en?: string }>(`Problem: ${candidate.problem_en ?? candidate.problem}
 Classify these existing products. Use only the listed information. "direct" means it already solves this exact problem.
-Return JSON: {"items":[{"n":number,"relation":"direct|partial|unrelated"}],"gap":"한국어 한 문장으로, 기존 제품이 해결하지 못한 부분. 알 수 없으면 빈 문자열"}
+Return JSON: {"items":[{"n":number,"relation":"direct|partial|unrelated"}],"gap":"한국어 한 문장으로, 기존 제품이 해결하지 못한 부분. 알 수 없으면 빈 문자열","gap_en":"the same gap in one English sentence, or empty"}
 
 ${supply.map((item, n) => `#${n} [${item.kind}] ${item.name}: ${item.description}`).join('\n')}`)
       : null;
@@ -266,6 +266,10 @@ ${evidence.map((item, n) => `#${n} ${item.quote}`).join('\n')}`);
       name,
       problem,
       gap: verdict?.gap?.trim() ?? '',
+      // English copies for the English UI; older snapshots lack them and fall back to Korean.
+      ...(candidate.name_en ? { nameEn: String(candidate.name_en).trim().slice(0, 60) } : {}),
+      ...(candidate.problem_en ? { problemEn: String(candidate.problem_en).trim() } : {}),
+      ...(verdict?.gap_en?.trim() ? { gapEn: verdict.gap_en.trim() } : {}),
       keywords,
       status: classifySupply(labeled, Boolean(verdict)),
       qualified: meetsEvidenceBar(evidence.length, platforms.length),

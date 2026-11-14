@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   // Quotes come from the server's own data, never from the request body.
   const { opportunities } = await getOpportunities();
-  const input = specInputFor(opportunities, findEvidence(opportunities, evidenceIds), clip(body?.title, 120));
+  const input = specInputFor(opportunities, findEvidence(opportunities, evidenceIds), clip(body?.title, 120), toLang(body?.lang));
   if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
 
   if (!(await consumeDailyUsage(supabase, 'prd_slots', DAILY_SLOT_LIMIT))) {

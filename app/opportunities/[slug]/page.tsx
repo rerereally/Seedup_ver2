@@ -1,5 +1,6 @@
 import { getLang } from '@/lib/i18n-server';
 import { translator } from '@/lib/i18n';
+import { localizedOpportunity } from '@/lib/opportunities/types';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -82,6 +83,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
   const lang = await getLang();
   const t = translator(lang);
+  const text = localizedOpportunity(opportunity, lang);
   const color = opportunityColors(opportunities)[opportunity.slug]?.bg ?? '#62626a';
   const firstSeen = opportunity.firstSeenAt ? day.format(new Date(opportunity.firstSeenAt)) : null;
   const stats: Array<[string, number, string]> = [
@@ -112,13 +114,13 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               <StatusLabel status={opportunity.status} />
               <span className="text-muted">{opportunity.qualified ? t('근거 기준 통과', 'Passed the evidence bar') : t('근거가 아직 부족합니다', 'Not enough evidence yet')}</span>
             </p>
-            <h1 className="page-intro-title mt-3 md:text-[52px] md:leading-[1.08]">{opportunity.name}</h1>
-            <p className="mt-4 max-w-[36em] text-lg leading-8 text-muted [text-wrap:pretty]">{opportunity.problem}</p>
+            <h1 className="page-intro-title mt-3 md:text-[52px] md:leading-[1.08]">{text.name}</h1>
+            <p className="mt-4 max-w-[36em] text-lg leading-8 text-muted [text-wrap:pretty]">{text.problem}</p>
 
-            {opportunity.gap && (
+            {text.gap && (
               <div className="mt-7 max-w-[40em] border-l-[3px] pl-5" style={{ borderColor: color }}>
                 <p className="label">{t('남은 빈틈', 'The gap')}</p>
-                <p className="mt-1 text-[17px] leading-8 [text-wrap:pretty]">{opportunity.gap}</p>
+                <p className="mt-1 text-[17px] leading-8 [text-wrap:pretty]">{text.gap}</p>
               </div>
             )}
 
@@ -242,7 +244,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           </article>
 
           <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
-            <OpportunityPrd lang={lang} title={opportunity.name} evidenceIds={opportunity.evidence.map((item) => item.id)} ready={opportunity.qualified} slug={opportunity.slug} />
+            <OpportunityPrd lang={lang} title={text.name} evidenceIds={opportunity.evidence.map((item) => item.id)} ready={opportunity.qualified} slug={opportunity.slug} />
             <section className="card overflow-hidden" aria-labelledby="supply-heading">
               <h2 id="supply-heading" className="px-5 pt-5 text-lg font-extrabold">{t('이미 있는 도구', 'Existing tools')}</h2>
               {opportunity.supply.length === 0

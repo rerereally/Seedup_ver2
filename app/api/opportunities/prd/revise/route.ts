@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
   const { opportunities } = await getOpportunities();
   const picked = findEvidence(opportunities, evidenceIds);
-  const input = specInputFor(opportunities, picked, clip(body?.title, 120));
+  const input = specInputFor(opportunities, picked, clip(body?.title, 120), toLang(typeof body?.spec?.lang === 'string' ? body.spec.lang : null));
   if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
   const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const current = readSpec(body?.spec, input.evidence.length, draft);

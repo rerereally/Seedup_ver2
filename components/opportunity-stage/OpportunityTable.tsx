@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
+import { MIN_EVIDENCE, MIN_PLATFORMS, localizedOpportunity } from '@/lib/opportunities/types';
 import type { Opportunity, OpportunityStatus } from '@/lib/opportunities/types';
 import type { OpportunityFunnel } from '@/lib/opportunities/data';
 
@@ -85,7 +85,7 @@ export function FunnelStrip({ funnel }: { funnel: OpportunityFunnel }) {
   );
 }
 
-export default function OpportunityTable({ opportunities, colors }: { opportunities: Opportunity[]; colors: Record<string, { bg: string }> }) {
+export default function OpportunityTable({ opportunities, colors, lang = 'ko' }: { opportunities: Opportunity[]; colors: Record<string, { bg: string }>; lang?: 'ko' | 'en' }) {
   if (!opportunities.length) return <p className="empty-state">이 조건에 맞는 기회가 아직 없습니다.</p>;
 
   return (
@@ -118,10 +118,10 @@ export default function OpportunityTable({ opportunities, colors }: { opportunit
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         {/* The stretched link makes the whole row a target while the table stays a real table. */}
-                        <Link href={`/opportunities/${item.slug}`} className="font-bold text-ink after:absolute after:inset-0 after:content-['']">{item.name}</Link>
+                        <Link href={`/opportunities/${item.slug}`} className="font-bold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
                         {item.qualified && <span className="rounded-full bg-[#0f2a1c] px-2 py-0.5 text-xs font-bold text-[#5fe3a1]">기준 통과</span>}
                       </p>
-                      <p className="mt-0.5 line-clamp-2 text-sm text-muted sm:line-clamp-1">{item.problem}</p>
+                      <p className="mt-0.5 line-clamp-2 text-sm text-muted sm:line-clamp-1">{localizedOpportunity(item, lang).problem}</p>
                     </div>
                   </div>
                 </td>

@@ -78,96 +78,94 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
-          <Link href="/news?tab=paper" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
+      <main id="main-content" className="page-shell grow">
+        <article className="min-w-0">
+          <Link href="/news?tab=paper" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
             <ArrowLeft className="h-4 w-4" />
             논문 아티클 목록으로
           </Link>
 
-          <div className="flex flex-col gap-7 lg:flex-row lg:items-start">
-            <div className="min-w-0 flex-1">
-              <div className="border border-outline-soft bg-white p-5 md:p-7">
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
-                  <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">{paper.review_type ?? '논문'}</span>
-                  {paper.has_code && <span className="border border-outline-soft bg-surface px-2 py-1 text-ink">코드 공개</span>}
+          <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="flex min-w-0 flex-col gap-5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
+                  <span className="chip">{paper.review_type ?? '논문'}</span>
+                  {paper.has_code && <span className="chip">코드 공개</span>}
                   {paper.difficulty && <span>{paper.difficulty}</span>}
                   {publishedAt && <span>{publishedAt}</span>}
                 </div>
-                <h1 className="text-3xl font-extrabold leading-tight text-ink md:text-5xl">{paper.title}</h1>
-                {heroSummary && <p className="mt-4 text-lg leading-8 text-muted">{heroSummary}</p>}
-              </div>
+                <h1 className="page-intro-title mt-4 break-words md:text-[44px] md:leading-[1.14]">{paper.title}</h1>
+                {heroSummary && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{heroSummary}</p>}
 
-              <div className="mt-4 border border-outline-soft bg-white">
-                <div className="flex flex-wrap gap-2 border-b border-outline-soft p-3">
-                  <ScrapButton itemType="paper" itemId={paper.id} title={paper.title} description={heroSummary} tag={paper.review_type ?? 'paper'} initialSaved={Boolean(existingScrap)} className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink" />
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <ScrapButton itemType="paper" itemId={paper.id} title={paper.title} description={heroSummary} tag={paper.review_type ?? 'paper'} initialSaved={Boolean(existingScrap)} className="btn-quiet" />
                   {paper.paper_url && (
-                    <Link href={paper.paper_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
+                    <Link href={paper.paper_url} target="_blank" className="btn">
                       <ExternalLink className="h-4 w-4" />
                       원문
                     </Link>
                   )}
                   {paper.code_url && (
-                    <Link href={paper.code_url} target="_blank" className="inline-flex h-10 items-center gap-2 border border-outline-soft bg-white px-3 text-sm font-bold text-ink hover:border-ink">
+                    <Link href={paper.code_url} target="_blank" className="btn-quiet">
                       <Code2 className="h-4 w-4" />
                       코드
                     </Link>
                   )}
                   <ShareButton title={paper.title} url={paper.paper_url} />
                 </div>
-                <div className="p-3">
+                <div className="mt-6">
                   <ViewTracker itemType="paper" itemId={paper.id} />
                   <ContentEngagement itemType="paper" itemId={paper.id} returnTo={`/papers/${paper.id}`} views={paper.view_count} likes={paper.like_count} dislikes={paper.dislike_count} />
                 </div>
               </div>
 
-              <section className="mt-5 border border-outline-soft bg-white p-5">
-                <div className="mb-4 text-[15px] font-bold text-ink">논문 정보</div>
-                <div className="grid gap-3 sm:grid-cols-4">
+              <section className="card p-5 md:p-6">
+                <h2 className="text-xl font-extrabold tracking-tight text-ink">논문 정보</h2>
+                <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
                   {scoreCards.map(([label, value]) => (
-                    <div key={label} className="border border-outline-soft bg-surface p-3">
-                      <p className="text-[13px] font-medium text-muted">{label}</p>
-                      <p className="mt-2 text-2xl font-extrabold text-ink">{value}</p>
+                    <div key={label} className="border-t border-outline-soft pt-3">
+                      <p className="label">{label}</p>
+                      <p className="num mt-2 text-[28px] font-semibold leading-tight text-ink">{value}</p>
                     </div>
                   ))}
                 </div>
               </section>
 
               {!!readingPoints.length && (
-                <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="mb-4 text-[15px] font-bold text-ink">읽을 때 볼 것</div>
-                  <div className="grid gap-3">
+                <section className="card p-5 md:p-6">
+                  <h2 className="text-xl font-extrabold tracking-tight text-ink">읽을 때 볼 것</h2>
+                  <ol className="mt-2 divide-y divide-outline-soft">
                     {readingPoints.map((point, index) => (
-                      <div key={String(point)} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
-                        <span className="font-extrabold text-ink">#{index + 1}</span>
+                      <li key={String(point)} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
+                        <span className="num w-6 shrink-0 text-muted">#{index + 1}</span>
                         <p>{point}</p>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 </section>
               )}
 
-              {paperMarkdown && <div className="mt-5"><MarkdownContent content={paperMarkdown} /></div>}
+              {paperMarkdown && <div><MarkdownContent content={paperMarkdown} /></div>}
 
               {!!paper.key_points?.length && (
-                <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                  <h2 className="mb-4 text-[15px] font-bold text-ink">핵심 내용</h2>
-                  <div className="grid gap-3">
+                <section className="card p-5 md:p-6">
+                  <h2 className="text-xl font-extrabold tracking-tight text-ink">핵심 내용</h2>
+                  <ol className="mt-2 divide-y divide-outline-soft">
                     {paper.key_points.map((point, index) => (
-                      <div key={point} className="flex gap-3 border border-outline-soft bg-surface p-3 text-sm font-semibold leading-7 text-muted">
-                        <span className="font-extrabold text-ink">#{index + 1}</span>
+                      <li key={point} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
+                        <span className="num w-6 shrink-0 text-muted">#{index + 1}</span>
                         <p>{point}</p>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 </section>
               )}
 
-              <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                <div className="mb-4 flex items-center gap-2 text-[15px] font-bold text-ink">
+              <section className="card p-5 md:p-6">
+                <h2 className="mb-2 flex items-center gap-2 text-xl font-extrabold tracking-tight text-ink">
                   <FlaskConical className="h-5 w-5" />
                   PAPER_INFO.TS
-                </div>
+                </h2>
                 <dl className="grid gap-0 text-sm md:grid-cols-2 md:gap-x-6">
                   {[
                     ['추천 독자', paper.target_reader ?? 'AI/개발 트렌드를 공부하는 개발자'],
@@ -187,42 +185,44 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                     <h3 className="mb-3 text-[13px] font-bold text-ink">연관 기술</h3>
                     <div className="flex flex-wrap gap-2">
                       {paper.related_skills.map((skill) => (
-                        <span key={skill} className="border border-outline-soft bg-surface px-2.5 py-1 text-xs font-bold text-muted">{skill}</span>
+                        <span key={skill} className="chip font-bold">{skill}</span>
                       ))}
                     </div>
                   </div>
                 )}
               </section>
 
-              <section className="mt-5 border border-outline-soft bg-white p-5 md:p-6">
-                <div className="mb-4 flex items-center gap-2 text-[15px] font-bold text-ink">
+              <section className="card overflow-hidden">
+                <h2 className="flex items-center gap-2 border-b border-outline-soft p-5 text-xl font-extrabold tracking-tight text-ink">
                   <Lightbulb className="h-4 w-4" />
                   Next Actions
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                </h2>
+                <ul className="divide-y divide-outline-soft">
                   {[
                     { label: paper.implementation_idea ? '구현 아이디어 평가' : '프로젝트로 바꾸기', href: `/ideas?idea=${encodeURIComponent(buildPrompt)}` },
                     { label: paper.code_url ? '코드 저장소 열기' : '관련 프로젝트 보기', href: paper.code_url ?? '/projects', external: Boolean(paper.code_url) },
                     { label: '논문 목록으로', href: '/news?tab=paper' },
                   ].map((action) => (
-                    <Link key={action.label} href={action.href} target={action.external ? '_blank' : undefined} className="flex items-center justify-between gap-3 border border-outline-soft bg-surface p-3 text-sm font-bold text-ink hover:border-ink">
-                      {action.label}
-                      <ArrowRight className="h-4 w-4 shrink-0" />
-                    </Link>
+                    <li key={action.label}>
+                      <Link href={action.href} target={action.external ? '_blank' : undefined} className="group flex items-center justify-between gap-3 p-4 text-sm font-bold text-ink hover:bg-surface">
+                        <span className="group-hover:underline group-hover:underline-offset-4">{action.label}</span>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </section>
             </div>
 
-            <aside className="w-full lg:sticky lg:top-20 lg:w-80 lg:shrink-0 lg:self-start">
+            <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
               <ArticleAssistant title={paper.title} summary={heroSummary} content={paperMarkdown} />
 
               {(paper.implementation_idea || paper.service_idea) && (
-                <section className="mt-5 border border-outline-soft bg-white p-5">
-                  <div className="mb-3 flex items-center gap-2 text-[15px] font-bold text-ink">
+                <section className="card p-5 md:p-6">
+                  <h2 className="mb-3 flex items-center gap-2 text-[17px] font-bold text-ink">
                     <Lightbulb className="h-5 w-5" />
                     Build Direction
-                  </div>
+                  </h2>
                   <p className="text-sm leading-7 text-muted">{paper.implementation_idea ?? paper.service_idea}</p>
                 </section>
               )}

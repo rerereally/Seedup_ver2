@@ -247,3 +247,24 @@ test('a PRD built from quotes of several opportunities carries all of their cont
   assert.equal(input!.evidence.length, 3);
   assert.equal(specInputFor([one, two], []), null);
 });
+
+import { buildOpportunityDigest, readerInterest } from '../lib/newsletter/opportunity-digest';
+
+test('each reader sees their own opportunities first in the digest', () => {
+  const history = [
+    { at: '2026-10-01T00:00:00Z', evidence: 1, platforms: 1, direct: 0, status: 'open' as const, qualified: false },
+    { at: '2026-11-13T00:00:00Z', evidence: 4, platforms: 2, direct: 0, status: 'open' as const, qualified: true },
+  ];
+  const a = sample({ slug: 'a', name: 'Alpha', keywords: ['rust'], history });
+  const b = sample({ slug: 'b', name: 'Beta', keywords: ['postgres'], history });
+  const since = '2026-11-01T00:00:00Z';
+  const plain = buildOpportunityDigest([a, b], since, 'https://x.test', 'changes')!;
+  assert.equal(plain.lines[0].slug, 'a');
+  const saved = buildOpportunityDigest([a, b], since, 'https://x.test', 'changes', Date.now(), { slugs: ['b'], keywords: [] })!;
+  assert.equal(saved.lines[0].slug, 'b');
+  assert.match(saved.lines[0].note, /^관심 기회/);
+  assert.match(saved.subject, /Beta/);
+  const interest = readerInterest([a, b], { slugs: [], keywords: ['Postgres'] });
+  assert.equal(interest('b'), 1);
+  assert.equal(interest('a'), 0);
+});

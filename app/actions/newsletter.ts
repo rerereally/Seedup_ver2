@@ -4,7 +4,7 @@ import { isAdminEmail } from '@/lib/auth/admin';
 import type { AIProduct, GitHubTrend, NewsItem, ProjectIdea, ResearchPaper } from '@/lib/data';
 import { claimSend, releaseSend } from '@/lib/newsletter/sends';
 import { buildNewsletterHtml, buildNewsletterText } from '@/lib/newsletter/email';
-import { buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
+import { behaviorSignals, buildRecommendationProfile, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
@@ -84,15 +84,31 @@ export async function sendManualNewsletter() {
   let sent = 0;
   let skippedNoContent = 0;
   let skippedDuplicates = 0;
+  const candidates = toNewsletterContentItems({
+    news: publishedNews as NewsItem[],
+    papers: (papers ?? []) as ResearchPaper[],
+    products: (products ?? []) as AIProduct[],
+    repos: (repos ?? []) as GitHubTrend[],
+    projects: (projects ?? []) as ProjectIdea[],
+  });
+  // What each reader saved, liked and disliked on the site, read once for everyone instead of per recipient.
+  // shortcut: one .in() list per table; split recipientIds into chunks of ~200 once subscribers pass a few hundred (URL length).
+  const recipientIds = recipientList.map((recipient) => recipient.user_id);
+  const [{ data: allScraps }, { data: allReactions }] = await Promise.all([
+    service.from('scraps').select('user_id,item_type,item_id,title,tag').in('user_id', recipientIds),
+    service.from('content_reactions').select('user_id,item_type,item_id,reaction').in('user_id', recipientIds),
+  ]);
+  const byUser = <T extends { user_id: string }>(rows: T[] | null) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows ?? []) map.set(row.user_id, [...(map.get(row.user_id) ?? []), row]);
+    return map;
+  };
+  const scrapsByUser = byUser(allScraps as Array<{ user_id: string; item_type: string; item_id: string | null; title: string; tag: string | null }> | null);
+  const reactionsByUser = byUser(allReactions as Array<{ user_id: string; item_type: string; item_id: string; reaction: string }> | null);
   for (const recipient of recipientList) {
-    const profile = buildRecommendationProfile(recipient.answers);
-    const scored = scoreNewsletterItems(toNewsletterContentItems({
-      news: publishedNews as NewsItem[],
-      papers: (papers ?? []) as ResearchPaper[],
-      products: (products ?? []) as AIProduct[],
-      repos: (repos ?? []) as GitHubTrend[],
-      projects: (projects ?? []) as ProjectIdea[],
-    }), profile);
+    const behavior = behaviorSignals(scrapsByUser.get(recipient.user_id) ?? [], reactionsByUser.get(recipient.user_id) ?? [], candidates);
+    const profile = { ...buildRecommendationProfile(recipient.answers, behavior.liked), ...behavior };
+    const scored = scoreNewsletterItems(candidates, profile);
     const pick = <T,>(prefix: string, limit: number) => scored
       .filter(({ content }) => content.id.startsWith(prefix))
       .slice(0, limit)

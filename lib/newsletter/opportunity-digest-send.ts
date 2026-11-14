@@ -47,8 +47,18 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
     return { status: 'not-configured', subject: digest.subject, text: digest.text, lines: digest.lines };
   }
 
-  const { data: subscribers, error } = await service.from('user_onboarding').select('user_id').eq('newsletter_subscribed', true);
+  const { data: subscribers, error } = await service.from('user_onboarding').select('user_id,answers').eq('newsletter_subscribed', true);
   if (error) throw new Error(`could not read subscribers: ${error.message}`);
+  // Saved dossiers tell which opportunities each reader cares about; read once for everyone.
+  // shortcut: one .in() list; chunk subscriber ids by ~200 once there are more than a few hundred (URL length).
+  const subscriberIds = (subscribers ?? []).map((row) => String(row.user_id));
+  const { data: dossiers } = subscriberIds.length
+    ? await service.from('evidence_dossiers').select('user_id,opportunity_slug').in('user_id', subscriberIds)
+    : { data: [] };
+  const savedSlugs = new Map<string, string[]>();
+  for (const row of (dossiers ?? []) as Array<{ user_id: string; opportunity_slug: string | null }>) {
+    if (row.opportunity_slug) savedSlugs.set(row.user_id, [...(savedSlugs.get(row.user_id) ?? []), row.opportunity_slug]);
+  }
   const period = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
   let sent = 0;
   let duplicates = 0;
@@ -59,6 +69,12 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
     const { data: account } = await service.auth.admin.getUserById(userId);
     const email = account.user?.email;
     if (!email) continue;
+    const answers = (subscriber as { answers?: Record<string, unknown> | null }).answers ?? {};
+    const keywords = ['interests', 'preferred_stack', 'goals'].flatMap((key) => {
+      const value = answers[key];
+      return (Array.isArray(value) ? value : value ? [value] : []).map(String);
+    });
+    const mail = buildOpportunityDigest(opportunities, since, siteUrl, kind, Date.now(), { slugs: savedSlugs.get(userId) ?? [], keywords }) ?? digest;
     const claim = await claimSend(service, `opportunity-${kind}`, period, userId);
     if (claim === 'duplicate') {
       duplicates += 1;
@@ -67,7 +83,7 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `opportunity-${kind}-${period}-${userId}` },
-      body: JSON.stringify({ from, to: email, subject: digest.subject, html: digest.html, text: digest.text }),
+      body: JSON.stringify({ from, to: email, subject: mail.subject, html: mail.html, text: mail.text }),
       signal: AbortSignal.timeout(30_000),
     }).catch(() => null);
     if (response?.ok) sent += 1;

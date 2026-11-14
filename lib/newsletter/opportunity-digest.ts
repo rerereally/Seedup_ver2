@@ -10,6 +10,20 @@ const MAX_LINES = 8;
 
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
+/** One subscriber's signals: opportunities they saved evidence from, and their onboarding interest words. */
+export type DigestReader = { slugs: string[]; keywords: string[] };
+
+/** 2 for an opportunity the reader saved, 1 for one whose keywords match their interests, else 0. */
+export function readerInterest(opportunities: Opportunity[], reader?: DigestReader) {
+  const saved = new Set(reader?.slugs ?? []);
+  const words = (reader?.keywords ?? []).map((word) => word.toLowerCase().trim()).filter((word) => word.length >= 2);
+  const matches = new Map(opportunities.map((item) => {
+    const haystack = [item.name, ...item.keywords].join(' ').toLowerCase();
+    return [item.slug, words.some((word) => haystack.includes(word))];
+  }));
+  return (slug: string) => (saved.has(slug) ? 2 : matches.get(slug) ? 1 : 0);
+}
+
 /** What changed for one opportunity since a moment, read from the points the engine stores on every run. */
 export function changeSince(opportunity: Opportunity, since: string): DigestLine | null {
   const history = opportunity.history ?? [];
@@ -32,11 +46,15 @@ export function changeSince(opportunity: Opportunity, since: string): DigestLine
  * 'changes' is the alert: it is sent only when an opportunity passed the bar or changed status.
  * 'weekly' also lists smaller movements and the strongest opportunities. Returns null when there is nothing to say.
  */
-export function buildOpportunityDigest(opportunities: Opportunity[], since: string, siteUrl: string, kind: DigestKind, now = Date.now()): OpportunityDigest | null {
-  const changed = opportunities.flatMap((item) => changeSince(item, since) ?? []).sort((a, b) => Number(b.important) - Number(a.important));
+export function buildOpportunityDigest(opportunities: Opportunity[], since: string, siteUrl: string, kind: DigestKind, now = Date.now(), reader?: DigestReader): OpportunityDigest | null {
+  const interest = readerInterest(opportunities, reader);
+  // The reader's own opportunities (saved, or matching their interests) come first; importance breaks ties.
+  const changed = opportunities.flatMap((item) => changeSince(item, since) ?? [])
+    .sort((a, b) => (interest(b.slug) - interest(a.slug)) || (Number(b.important) - Number(a.important)))
+    .map((line) => (interest(line.slug) > 0 ? { ...line, note: `관심 기회 · ${line.note}` } : line));
   const lines = (kind === 'changes' ? changed.filter((line) => line.important) : changed).slice(0, MAX_LINES);
   const top = kind === 'weekly'
-    ? opportunities.filter((item) => item.qualified).map((item) => ({ item, score: scoreOpportunity(item, now).total })).sort((a, b) => b.score - a.score).slice(0, 3)
+    ? opportunities.filter((item) => item.qualified).map((item) => ({ item, score: scoreOpportunity(item, now).total })).sort((a, b) => (interest(b.item.slug) - interest(a.item.slug)) || (b.score - a.score)).slice(0, 3)
     : [];
   if (!lines.length && !top.length) return null;
 

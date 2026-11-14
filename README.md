@@ -270,6 +270,17 @@ npm run build
 npm run start
 ```
 
+데모 전 주요 화면 점검 (스모크 테스트):
+
+앱을 먼저 실행한 뒤(`npm run dev` 또는 배포 주소), 주요 페이지와 API가 200으로 응답하고 오류 화면이 없는지 확인합니다.
+
+```bash
+SMOKE_BASE_URL=http://localhost:3000 npm run smoke
+SMOKE_BASE_URL=https://배포주소 npm run smoke
+```
+
+`SMOKE_BASE_URL`을 생략하면 `http://localhost:3000`을 사용합니다. 하나라도 실패하면 종료 코드 1로 끝납니다.
+
 ## 데이터 수집과 글 생성 순서
 
 관리자 계정으로 로그인한 뒤 `/admin/ingest`에서 실행할 수 있습니다. 보통 아래 순서로 실행합니다.

@@ -5,6 +5,7 @@ import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
+import { inBatches } from '@/lib/utils';
 
 type RepoCard = {
   name: string;
@@ -68,6 +69,26 @@ function issueDraft(feature: SeedFeature, origin: string) {
   return lines.join('\n');
 }
 
+/** GitHub's new-issue form, prefilled. Browsers cut very long URLs, so the body is trimmed to stay well under ~8 KB. */
+function newIssueUrl(repoUrl: string, feature: SeedFeature, origin: string) {
+  if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(repoUrl)) return null;
+  const params = new URLSearchParams({ title: feature.title, body: issueDraft(feature, origin).slice(0, 3_000) });
+  return `${repoUrl}/issues/new?${params}`;
+}
+
+function OpenIssueLink({ repoUrl, feature }: { repoUrl: string; feature: SeedFeature }) {
+  const [href, setHref] = useState<string | null>(null);
+  // window.location is only known in the browser, so the link is built after mount.
+  useEffect(() => setHref(newIssueUrl(repoUrl, feature, window.location.origin)), [repoUrl, feature]); // eslint-disable-line react-hooks/set-state-in-effect -- needs window.location
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="mt-2 ml-4 inline-flex min-h-9 items-center gap-1.5 text-[13px] font-bold text-muted transition-colors hover:text-ink">
+      <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+      GitHub 이슈로 열기
+    </a>
+  );
+}
+
 function CopyIssueButton({ feature }: { feature: SeedFeature }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -118,6 +139,7 @@ export default function SeedAdvisor() {
   // A repo is listed here until its suggestion arrives or the model gives up on it.
   const [pending, setPending] = useState<string[]>([]);
   const [missed, setMissed] = useState(0);
+  const [needsLogin, setNeedsLogin] = useState(false);
   const [papers, setPapers] = useState<Record<string, SeedPaper[]>>({});
   const runRef = useRef(0);
   const [savedAt, setSavedAt] = useState('');
@@ -140,6 +162,7 @@ export default function SeedAdvisor() {
     setPapers(keptPapers);
     setPending([]);
     setMissed(0);
+    setNeedsLogin(false);
     setSavedAt('');
     setBaseline(again?.keys ?? null);
 
@@ -160,24 +183,30 @@ export default function SeedAdvisor() {
     if (!repos.length) return;
 
     setPending(repos.map((repo) => repo.name));
-    for (const repo of repos) {
+    // Once the server says "sign in", the other repos skip the model and keep their keyword matches.
+    let signedOut = false;
+    // Three at a time: much faster than one by one, without tripping the free model's rate limit.
+    await inBatches(repos, 3, async (repo) => {
       let idea: SeedIdea | null = null;
-      try {
-        const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}`);
-        idea = ((await response.json()) as { idea?: SeedIdea | null }).idea ?? null;
-      } catch {
-        // The keyword matches already on screen stay; only this suggestion is missing.
+      if (!signedOut) {
+        try {
+          const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}`);
+          if (response.status === 401) signedOut = true;
+          else idea = ((await response.json()) as { idea?: SeedIdea | null }).idea ?? null;
+        } catch {
+          // The keyword matches already on screen stay; only this suggestion is missing.
+        }
       }
       if (!current()) return;
       if (idea) {
         keptIdeas[repo.name] = idea;
         setIdeas({ ...keptIdeas });
-      } else if (!keptIdeas[repo.name]) setMissed((count) => count + 1);
+      } else if (!keptIdeas[repo.name] && !signedOut) setMissed((count) => count + 1);
       setPending((before) => before.filter((item) => item !== repo.name));
 
       // Without a suggestion, the repo's own topics are the only honest search terms.
       const query = idea ? idea.paperQuery : repo.topics.slice(0, 3).join(' ').replace(/-/g, ' ');
-      if (!query) continue;
+      if (!query) return;
       try {
         const response = await fetch(`/api/seeds?step=papers&q=${encodeURIComponent(query)}`);
         const json = (await response.json()) as { papers?: SeedPaper[] };
@@ -189,7 +218,9 @@ export default function SeedAdvisor() {
       } catch {
         // One failed search should not stop the others.
       }
-    }
+    });
+    if (!current()) return;
+    setNeedsLogin(signedOut);
 
     const names = new Set(repos.map((repo) => repo.name));
     const saved: Saved = { login: name.toLowerCase(), at: new Date().toISOString(), repos, ideas: Object.fromEntries(Object.entries(keptIdeas).filter(([key]) => names.has(key))), papers: Object.fromEntries(Object.entries(keptPapers).filter(([key]) => names.has(key))) };
@@ -268,6 +299,7 @@ export default function SeedAdvisor() {
         <p aria-live="polite" className="text-sm text-muted">
           {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
           {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-bold text-ink underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 증언과 소식을 표시합니다.</span></>}
+          {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-bold text-ink underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
           {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
           {!savedAt && pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
         </p>
@@ -304,6 +336,7 @@ export default function SeedAdvisor() {
                       <p className="mt-1 text-sm leading-6 text-muted">{feature.why}</p>
                       {feature.opportunity && <OpportunityLine item={feature.opportunity} />}
                       <CopyIssueButton feature={feature} />
+                      <OpenIssueLink repoUrl={repo.url} feature={feature} />
                     </li>
                   ))}
                 </ol>

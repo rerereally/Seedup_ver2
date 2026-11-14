@@ -40,10 +40,10 @@ export async function retrieveIdeaContext(
   if (!supabase || !apiKey) return [];
 
   try {
-    const documents = await loadRagDocuments(supabase);
     // Interactive evaluation must not wait for the entire historical corpus to
-    // embed. Sync a small recent batch; a later request can fill the rest.
+    // embed. Sync a small recent batch; /api/ingest/embeddings fills the rest.
     if (options?.syncMissing !== false) {
+      const documents = await loadRagDocuments(supabase, MAX_DOCUMENTS_PER_SOURCE);
       await syncMissingEmbeddings(supabase, apiKey, documents, options?.maxSyncDocuments ?? 8);
     }
     const [queryEmbedding] = await createEmbeddings(apiKey, [idea]);
@@ -85,13 +85,22 @@ export async function retrieveIdeaContext(
   }
 }
 
-async function loadRagDocuments(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {
+/** Embeds content that has no embedding yet (or whose text changed), newest first, round-robin across sources. */
+export async function syncRagEmbeddings(options: { perSource: number; maxDocuments: number }) {
+  const supabase = createAdminClient();
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!supabase || !apiKey) return null;
+  const documents = await loadRagDocuments(supabase, options.perSource);
+  return { scanned: documents.length, ...(await syncMissingEmbeddings(supabase, apiKey, documents, options.maxDocuments)) };
+}
+
+async function loadRagDocuments(supabase: NonNullable<ReturnType<typeof createAdminClient>>, perSource: number) {
   const [news, products, repos, papers, ideas] = await Promise.all([
-    supabase.from('news_items').select('id,title,short_summary,summary,why_it_matters,project_idea,topic_tags,skill_tags,source,source_url,original_url,published_at').order('published_at', { ascending: false }).limit(MAX_DOCUMENTS_PER_SOURCE),
-    supabase.from('ai_products').select('id,name,short_summary,description,use_cases,related_project_ideas,category,website_url,product_hunt_url,created_at').order('created_at', { ascending: false }).limit(MAX_DOCUMENTS_PER_SOURCE),
-    supabase.from('github_trends').select('id,repo_full_name,short_summary,beginner_summary,description,project_idea,topics,language,repo_url,stars,stars_delta_7d,last_seen_at').order('last_seen_at', { ascending: false }).limit(MAX_DOCUMENTS_PER_SOURCE),
-    supabase.from('research_papers').select('id,title,beginner_summary,expert_summary,abstract,implementation_idea,service_idea,categories,related_skills,paper_url,published_at').order('published_at', { ascending: false }).limit(MAX_DOCUMENTS_PER_SOURCE),
-    supabase.from('project_ideas').select('id,title,description,level,duration_days,stack,related_trend,target_user_level,portfolio_value,created_at').order('created_at', { ascending: false }).limit(MAX_DOCUMENTS_PER_SOURCE),
+    supabase.from('news_items').select('id,title,short_summary,summary,why_it_matters,project_idea,topic_tags,skill_tags,source,source_url,original_url,published_at').order('published_at', { ascending: false }).limit(perSource),
+    supabase.from('ai_products').select('id,name,short_summary,description,use_cases,related_project_ideas,category,website_url,product_hunt_url,created_at').order('created_at', { ascending: false }).limit(perSource),
+    supabase.from('github_trends').select('id,repo_full_name,short_summary,beginner_summary,description,project_idea,topics,language,repo_url,stars,stars_delta_7d,last_seen_at').order('last_seen_at', { ascending: false }).limit(perSource),
+    supabase.from('research_papers').select('id,title,beginner_summary,expert_summary,abstract,implementation_idea,service_idea,categories,related_skills,paper_url,published_at').order('published_at', { ascending: false }).limit(perSource),
+    supabase.from('project_ideas').select('id,title,description,level,duration_days,stack,related_trend,target_user_level,portfolio_value,created_at').order('created_at', { ascending: false }).limit(perSource),
   ]);
 
   return [
@@ -156,8 +165,13 @@ async function syncMissingEmbeddings(
   const missing: RagDocument[] = [];
   for (const sourceTable of [...new Set(documents.map((item) => item.source_table))]) {
     const sourceDocuments = documents.filter((item) => item.source_table === sourceTable);
-    const { data } = await supabase.from('content_embeddings').select('source_id,content_hash').eq('source_table', sourceTable).in('source_id', sourceDocuments.map((item) => item.source_id));
-    const existing = new Set((data ?? []).map((item) => `${item.source_id}:${item.content_hash}`));
+    const existing = new Set<string>();
+    // Chunked so a large backfill does not exceed the request URL length.
+    for (let index = 0; index < sourceDocuments.length; index += 100) {
+      const ids = sourceDocuments.slice(index, index + 100).map((item) => item.source_id);
+      const { data } = await supabase.from('content_embeddings').select('source_id,content_hash').eq('source_table', sourceTable).in('source_id', ids);
+      for (const item of data ?? []) existing.add(`${item.source_id}:${item.content_hash}`);
+    }
     missing.push(...sourceDocuments.filter((item) => !existing.has(`${item.source_id}:${item.content_hash}`)));
   }
 
@@ -179,15 +193,22 @@ async function syncMissingEmbeddings(
     }
     if (!added) break;
   }
+  let embedded = 0;
   for (let index = 0; index < selected.length; index += 20) {
     const batch = selected.slice(index, index + 20);
-    const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content));
+    // One failed batch (free-model timeout) is counted and skipped; the next run retries it.
+    const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content)).catch((error) => {
+      console.error('RAG embedding batch failed', error);
+      return [] as number[][];
+    });
     const rows = batch.flatMap((item, itemIndex) => embeddings[itemIndex]?.length ? [{ ...item, embedding: embeddings[itemIndex] }] : []);
     if (rows.length) {
       const { error } = await supabase.from('content_embeddings').upsert(rows, { onConflict: 'source_table,source_id,content_hash' });
       if (error) console.error('RAG embedding upsert failed', error);
+      else embedded += rows.length;
     }
   }
+  return { missing: missing.length, embedded, failed: selected.length - embedded, remaining: missing.length - embedded };
 }
 
 async function createEmbeddings(apiKey: string, input: string[]): Promise<number[][]> {

@@ -292,28 +292,35 @@ npm run start
 
 ### 보호된 API 직접 실행
 
-`YOUR_INGEST_SECRET`은 `.env`의 `INGEST_SECRET` 값으로 바꿉니다.
+`YOUR_INGEST_SECRET`은 `.env`의 `INGEST_SECRET` 값으로 바꿉니다. 비밀값은 URL이 아니라 `x-ingest-secret` 헤더로 보냅니다.
 
 ```bash
 BASE_URL=http://localhost:3000
 SECRET=YOUR_INGEST_SECRET
 
-curl -X POST "$BASE_URL/api/ingest/rss?secret=$SECRET&limit=8"
-curl -X POST "$BASE_URL/api/ingest/products?secret=$SECRET&limit=12"
-curl -X POST "$BASE_URL/api/ingest/github?secret=$SECRET&limit=15&minStars=50"
-curl -X POST "$BASE_URL/api/ingest/research?secret=$SECRET&limit=12&minScore=55&minFitScore=18"
-curl -X POST "$BASE_URL/api/ingest/external-trends?secret=$SECRET"
-curl -X POST "$BASE_URL/api/ingest/model-intelligence?secret=$SECRET"
-curl -X POST "$BASE_URL/api/ingest/trends?secret=$SECRET"
-curl -X POST "$BASE_URL/api/ingest/project-ideas?secret=$SECRET&limit=10"
-curl -X POST "$BASE_URL/api/ingest/article-drafts?secret=$SECRET&mode=daily"
-curl -X POST "$BASE_URL/api/ingest/article-drafts?secret=$SECRET&mode=deep-dive"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/rss?limit=8"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/products?limit=12"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/github?limit=15&minStars=50"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/research?limit=12&minScore=55&minFitScore=18"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/external-trends"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/model-intelligence"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/trends"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/project-ideas?limit=10"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/article-drafts?mode=daily"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/article-drafts?mode=deep-dive"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/embeddings?perSource=40&max=60"
+```
+
+아이디어 평가(RAG)는 `content_embeddings`에 있는 콘텐츠만 근거로 찾습니다. 처음 한 번은 쌓여 있는 데이터를 채워야 하므로, 응답의 `remaining`이 0이 될 때까지 아래 명령을 반복하세요.
+
+```bash
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/embeddings?perSource=1000&max=200"
 ```
 
 한 번에 실행하려면 다음 API를 사용할 수 있습니다.
 
 ```bash
-curl -X POST "$BASE_URL/api/ingest/all?secret=$SECRET"
+curl -X POST -H "x-ingest-secret: $SECRET" "$BASE_URL/api/ingest/all"
 ```
 
 ### 자동 수집

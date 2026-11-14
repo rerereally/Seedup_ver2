@@ -190,7 +190,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     itemType="project"
                     itemId={project.id}
                     returnTo={`/projects/${project.id}`}
-                    views={Number(project.view_count ?? 0) + 1}
+                    views={Number(project.view_count ?? 0)}
                     likes={project.like_count}
                     dislikes={project.dislike_count}
                   />

@@ -49,3 +49,22 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ ok: true, id: saved.id });
 }
+
+export async function DELETE(request: Request) {
+  const supabase = await createClient();
+  const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+  if (!supabase || !data.user) {
+    return NextResponse.json({ error: '로그인 후 지울 수 있습니다.' }, { status: 401 });
+  }
+
+  const id = new URL(request.url).searchParams.get('id') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: '지울 근거를 찾지 못했습니다.' }, { status: 400 });
+
+  // RLS already limits this to the user's own rows; the user_id filter keeps it safe if that policy ever changes.
+  const { error } = await supabase.from('evidence_dossiers').delete().eq('id', id).eq('user_id', data.user.id);
+  if (error) {
+    console.error('Dossier delete failed', error.message);
+    return NextResponse.json({ error: '지우지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
+  }
+  return NextResponse.json({ ok: true });
+}

@@ -2,7 +2,7 @@ import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportuni
 import { generatePrd } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { createClient } from '@/lib/supabase/server';
-import { consumeDailyUsage } from '@/lib/usage-limit';
+import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -43,8 +43,12 @@ export async function POST(request: Request) {
     gap: lead.gap,
     evidence,
     competitors: lead.supply.filter((item) => item.relation === 'direct').slice(0, 5).map((item) => item.name),
+  }).catch((error) => {
+    console.error('PRD generation failed', error);
+    return null;
   });
   if (!result) {
+    await releaseDailyUsage(supabase, 'prd');
     return NextResponse.json({ error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
 

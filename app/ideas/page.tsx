@@ -4,6 +4,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { createClient } from '@/lib/supabase/client';
 import PageIntro from '@/components/PageIntro';
+import ScrapButton from '@/components/ScrapButton';
 import { ArrowRight, Loader2, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -53,6 +54,7 @@ type IdeaEvaluationResult = {
 };
 
 type EvaluationRun = {
+  id: string | null;
   idea: string;
   saved: boolean;
   result: IdeaEvaluationResult;
@@ -65,16 +67,35 @@ const EXAMPLE_IDEAS = [
 ];
 
 export default function Ideas() {
-  const [idea, setIdea] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('idea') ?? '';
-  });
+  const [idea, setIdea] = useState('');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [recentIdeas, setRecentIdeas] = useState<RecentIdea[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeRun, setActiveRun] = useState<EvaluationRun | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isRecentModalOpen, setIsRecentModalOpen] = useState(false);
+
+  // Read query params after mount: the page is statically prerendered, so reading window in useState would mismatch the server HTML.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialIdea = params.get('idea');
+    if (initialIdea) setIdea(initialIdea); // eslint-disable-line react-hooks/set-state-in-effect -- one hydration-safe read of the URL
+
+    const evaluationId = params.get('evaluation');
+    const supabase = evaluationId ? createClient() : null;
+    if (!evaluationId || !supabase) return;
+    void supabase
+      .from('idea_evaluations')
+      .select('id,idea_text,status,score,result')
+      .eq('id', evaluationId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const item = data as RecentIdea;
+        setIdea(item.idea_text);
+        setActiveRun({ id: item.id, idea: item.idea_text, saved: true, result: normalizeEvaluation(item.result) });
+      });
+  }, []);
 
   useEffect(() => {
     const loadRecentIdeas = async () => {
@@ -108,7 +129,7 @@ export default function Ideas() {
 
   const openRecent = (item: RecentIdea) => {
     setIdea(item.idea_text);
-    setActiveRun(item.result ? { idea: item.idea_text, saved: true, result: normalizeEvaluation(item.result) } : null);
+    setActiveRun(item.result ? { id: item.id, idea: item.idea_text, saved: true, result: normalizeEvaluation(item.result) } : null);
     setStatus('idle');
     setIsRecentModalOpen(false);
   };
@@ -137,7 +158,7 @@ export default function Ideas() {
       const json = await response.json();
       const evaluation = normalizeEvaluation(json.evaluation);
       const saved = Boolean(json.saved);
-      setActiveRun({ idea: submittedIdea, saved, result: { ...evaluation, references: json.references ?? [] } });
+      setActiveRun({ id: typeof json.id === 'string' ? json.id : null, idea: submittedIdea, saved, result: { ...evaluation, references: json.references ?? [] } });
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -287,6 +308,18 @@ function normalizeEvaluation(value: unknown): IdeaEvaluationResult {
 
 function EvaluationPanel({ run }: { run: EvaluationRun }) {
   const evaluation = run.result;
+  // Whether this evaluation is already in 보관함; keyed by id so a different run never shows a stale answer.
+  const [scrap, setScrap] = useState<{ id: string; saved: boolean } | null>(null);
+  useEffect(() => {
+    const supabase = run.id ? createClient() : null;
+    if (!run.id || !supabase) return;
+    let live = true;
+    const id = run.id;
+    void supabase.from('scraps').select('id').eq('item_type', 'idea').eq('item_id', id).maybeSingle()
+      .then(({ data }) => { if (live) setScrap({ id, saved: Boolean(data) }); });
+    return () => { live = false; };
+  }, [run.id]);
+  const scrapSaved = run.id && scrap?.id === run.id ? scrap.saved : null;
   const scoreItems = [
     ['구현 가능성', evaluation.score_breakdown?.feasibility],
     ['차별성', evaluation.score_breakdown?.differentiation],
@@ -308,6 +341,11 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
   return (
     <div className="divide-y divide-outline-soft [&>section]:py-7 [&>section:first-child]:pt-0 [&>section:last-child]:pb-0">
       <section>
+        {run.id && scrapSaved !== null && (
+          <div className="mb-5 flex justify-end">
+            <ScrapButton key={run.id} itemType="idea" itemId={run.id} title={run.idea.trim().slice(0, 80)} initialSaved={scrapSaved} className="btn-quiet" />
+          </div>
+        )}
         <dl className="flex flex-wrap gap-x-12 gap-y-5">
           <div><dt className="label">종합 점수</dt><dd className="num mt-1 text-[44px] font-semibold leading-none text-hot">{evaluation.score}<span className="ml-1 text-base font-normal text-muted">/ 100</span></dd></div>
           <div><dt className="label">구현 난이도</dt><dd className="mt-2 text-xl font-bold text-ink">{evaluation.difficulty}</dd></div>

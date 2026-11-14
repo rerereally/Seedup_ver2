@@ -11,6 +11,13 @@ export async function incrementContentView(itemType: ContentTarget, itemId: stri
   const supabase = createAdminClient();
   if (!supabase) return;
   const table = getContentTable(itemType);
+  const { error } = await supabase.rpc('increment_content_view', { p_table: table, p_id: itemId });
+  if (!error) return;
+  // 42883 / PGRST202: migration supabase/view_count_2026_11.sql not applied yet, use the old non-atomic path.
+  if (error.code !== '42883' && error.code !== 'PGRST202') {
+    console.error('incrementContentView rpc failed', error);
+    return;
+  }
   const { data } = await supabase.from(table).select('view_count').eq('id', itemId).maybeSingle();
   const counts = data as Counts | null;
   await supabase

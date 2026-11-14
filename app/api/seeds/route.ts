@@ -4,12 +4,15 @@ import { matchLinks, nearOpportunities, repoSimilarity, searchPapers, suggestIde
 import type { Linkable, SeedIdea, SeedPaper } from '@/lib/seeds/advise';
 import { fetchPublicRepos, GitHubLookupError, isGitHubLogin } from '@/lib/seeds/github';
 import type { GitHubLookupFailure, SeedRepo } from '@/lib/seeds/github';
+import { createClient } from '@/lib/supabase/server';
+import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 110;
 
 const CACHE_MS = 10 * 60_000;
+const DAILY_IDEA_LIMIT = 30;
 const MAX_CACHED = 200;
 // Per-instance, best effort. Each step costs a different shared quota, so each has its own budget.
 const LIMITS = { repos: 8, ideas: 12, papers: 12 } as const;
@@ -75,17 +78,26 @@ export async function GET(request: Request) {
     const cacheKey = `${login}/${repoName}`;
     const cached = ideaCache.get(cacheKey);
     if (cached) return NextResponse.json({ idea: cached });
+    // The model quota is shared by every feature, so only signed-in users may spend it, within a daily limit.
+    const supabase = await createClient();
+    const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
+    if (!supabase || !data.user) return NextResponse.json({ idea: null, error: '로그인 후 AI 기능 제안을 볼 수 있습니다.' }, { status: 401 });
     if (isThrottled(client, 'ideas')) return tooMany();
+    if (!(await consumeDailyUsage(supabase, 'seed_ideas', DAILY_IDEA_LIMIT))) {
+      return NextResponse.json({ idea: null, error: `AI 기능 제안은 하루 ${DAILY_IDEA_LIMIT}개 레포까지 볼 수 있습니다.` }, { status: 429 });
+    }
+    let idea: SeedIdea | null = null;
     try {
       const [repos, { opportunities }] = await Promise.all([loadRepos(login), getOpportunities()]);
       const repo = repos.find((item) => item.name === repoName);
-      const idea = repo ? (await suggestIdeas([repo], opportunities))?.[repo.name] ?? null : null;
-      if (idea) remember(ideaCache, cacheKey, idea);
-      // The page keeps its keyword matches when this is null, so a silent model is not an error.
-      return NextResponse.json({ idea });
+      idea = repo ? (await suggestIdeas([repo], opportunities))?.[repo.name] ?? null : null;
     } catch {
-      return NextResponse.json({ idea: null });
+      idea = null;
     }
+    if (idea) remember(ideaCache, cacheKey, idea);
+    else await releaseDailyUsage(supabase, 'seed_ideas');
+    // The page keeps its keyword matches when this is null, so a silent model is not an error.
+    return NextResponse.json({ idea });
   }
 
   if (!repoCache.has(login) && isThrottled(client, 'repos')) return tooMany();

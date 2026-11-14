@@ -5,21 +5,11 @@ import { isAdminEmail } from '@/lib/auth/admin';
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { DEEP_DIVE_STEP, INGEST_STEPS, type IngestStepKey } from '@/lib/ingest/steps';
 
-const INGEST_PATHS = {
-  rss: '/api/ingest/rss?limit=8&minScore=50',
-  products: '/api/ingest/products?limit=12',
-  github: '/api/ingest/github?limit=15&minStars=50&pruneDays=30',
-  research: '/api/ingest/research?limit=12&minScore=55&minFitScore=18',
-  'external-trends': '/api/ingest/external-trends',
-  'model-intelligence': '/api/ingest/model-intelligence',
-  trends: '/api/ingest/trends',
-  'project-ideas': '/api/ingest/project-ideas?limit=10',
-  'article-drafts': '/api/ingest/article-drafts?mode=daily&limit=12',
-  'deep-dive': '/api/ingest/article-drafts?mode=deep-dive&limit=1&minSources=5&minSourceTypes=3',
-} as const;
+const INGEST_PATHS: Record<IngestStepKey, string> = Object.fromEntries([...INGEST_STEPS, DEEP_DIVE_STEP]) as Record<IngestStepKey, string>;
 
-type IngestKey = keyof typeof INGEST_PATHS;
+type IngestKey = IngestStepKey;
 
 export async function runManualIngest(formData: FormData) {
   const supabase = await createClient();
@@ -50,27 +40,19 @@ export async function runFullIngest() {
   if (!data.user) redirect('/login');
   if (!isAdminEmail(data.user.email)) redirect('/');
 
-  const order: IngestKey[] = ['rss', 'products', 'github', 'research', 'external-trends', 'model-intelligence', 'trends', 'project-ideas', 'article-drafts'];
+  const secret = process.env.INGEST_SECRET;
+  if (!secret) redirect('/admin/ingest?status=missing-secret');
 
-  for (const target of order) {
-    const formData = new FormData();
-    formData.set('target', target);
-    await runManualIngestNoRedirect(formData);
+  const headerStore = await headers();
+  const failedSteps: string[] = [];
+  for (const [target, path] of INGEST_STEPS) {
+    const { ok } = await requestIngest(buildIngestUrl(path, headerStore), secret);
+    if (!ok) failedSteps.push(target);
   }
 
   revalidatePath('/admin/ingest');
+  if (failedSteps.length) redirect(`/admin/ingest?status=failed&target=all&reason=${encodeURIComponent(failedSteps.join(', '))}`);
   redirect('/admin/ingest?status=success&target=all');
-}
-
-async function runManualIngestNoRedirect(formData: FormData) {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) return;
-
-  const target = String(formData.get('target') ?? '') as IngestKey;
-  if (!INGEST_PATHS[target]) return;
-
-  const headerStore = await headers();
-  await requestIngest(buildIngestUrl(INGEST_PATHS[target], headerStore), secret);
 }
 
 function buildIngestUrl(path: string, headerStore: Headers) {

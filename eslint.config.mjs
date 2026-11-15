@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig([
-  globalIgnores([".next/**", ".open-next/**", ".vercel/**", "node_modules/**"]),
+  globalIgnores([".next/**", ".open-next/**", ".vercel/**", "node_modules/**", "쌀먹/**"]),
   {
     extends: [...next],
   },

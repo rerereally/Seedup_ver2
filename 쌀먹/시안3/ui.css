@@ -1,0 +1,112 @@
+/* Seedup 전면 시안 공통 스타일. 색과 모양은 지금 사이트(app/globals.css)의 값을 그대로 씁니다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+:root{
+  --bg:#08080a;--card:#131316;--card2:#1c1c20;--card3:#242428;--edge:#2a2a2f;--edge2:#3a3a41;
+  --fg:#f4f4f5;--sub:#c9c9cf;--mute:#a1a1a8;--dim:#62626a;
+  --hot:#ff6a1f;--hot-ink:#160700;--good:#3ddc84;--good-bg:#0f2a1c;--warn:#facc15;--warn-bg:#2a2408;--bad:#ff9c94;
+  --r:20px;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+
+/* 머리와 꼬리 */
+.site{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--edge);background:rgba(8,8,10,.88);backdrop-filter:blur(10px)}
+.logo{display:flex;align-items:center;gap:8px;font-size:19px;font-weight:800;letter-spacing:-.03em}
+.logo svg{width:20px;height:20px}
+.menu{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:4px;border:1px solid var(--edge);border-radius:999px;background:var(--card)}
+.menu a{padding:7px 16px;border-radius:999px;font-size:14px;color:var(--mute)}
+.menu a:hover{color:var(--fg)}
+.menu a.now{background:var(--card3);color:var(--fg);font-weight:700}
+.site .right{margin-left:auto;display:flex;align-items:center;gap:18px;font-size:14px;color:var(--mute)}
+.site .right a:hover{color:var(--fg)}
+.site .right a.now{color:var(--fg);font-weight:700}
+.login{padding:9px 18px;border:0;border-radius:999px;background:var(--fg);color:#111;font-weight:700}
+.foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;max-width:1200px;margin:0 auto;padding:28px 32px 40px;border-top:1px solid var(--edge);color:var(--mute);font-size:13.5px}
+.foot b{display:block;color:var(--fg);font-size:17px;font-weight:800;letter-spacing:-.03em}
+
+/* 뼈대 */
+.shell{max-width:1200px;margin:0 auto;padding:40px 32px 88px}
+.label{margin:0;font-size:13px;font-weight:500;color:var(--mute)}
+h1{margin:8px 0 0;font-size:clamp(30px,4vw,46px);font-weight:800;line-height:1.12;letter-spacing:-.035em;text-wrap:balance}
+h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.025em}
+h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.01em}
+.desc{margin:12px 0 0;max-width:44em;color:var(--mute);font-size:17px}
+.sec{margin-top:56px}
+.sec>header{display:flex;align-items:baseline;gap:12px;margin-bottom:16px}
+.sec>header p{margin:0;color:var(--mute);font-size:14px}
+.sec>header a{margin-left:auto;font-size:14px;font-weight:700;color:var(--sub)}
+.card{border:1px solid var(--edge);border-radius:var(--r);background:var(--card)}
+.pad{padding:22px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+.muted{color:var(--mute)}
+.small{font-size:13px}
+
+/* 버튼과 알약 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 20px;border:1px solid var(--edge2);border-radius:14px;background:transparent;font-weight:700;white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn.go{border-color:var(--hot);background:var(--hot);color:var(--hot-ink);font-weight:800}
+.btn.go:hover{background:#ff7d3b}
+.btn.ink{border-color:var(--fg);background:var(--fg);color:#111}
+.btn.sm{min-height:36px;padding:0 14px;border-radius:999px;font-size:13.5px}
+.btn.wide{width:100%}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap;background:var(--card2);color:var(--sub)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.open{background:var(--good-bg);color:var(--good)}
+.pill.narrow{background:var(--warn-bg);color:var(--warn)}
+.pill.closed{color:var(--mute)}
+.pill.pass{background:var(--good-bg);color:var(--good)}
+.pill.hot{background:#2a1408;color:var(--hot)}
+.tag{display:inline-block;padding:1px 7px;border-radius:6px;background:var(--card2);color:var(--mute);font-size:12px}
+.seg{display:inline-flex;gap:2px;padding:4px;border:1px solid var(--edge);border-radius:999px;background:var(--card)}
+.seg button{padding:6px 14px;border:0;border-radius:999px;background:transparent;font-size:14px;color:var(--mute)}
+.seg button.now{background:var(--fg);color:#111;font-weight:700}
+.field{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 20px;border:1px solid var(--edge2);border-radius:999px;background:var(--bg)}
+.field input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:16px;caret-color:var(--hot)}
+.field input::placeholder{color:var(--dim)}
+
+/* 흐름 표시: 기회 상세, 스펙, 넘기기에서만 보임 */
+.flow{display:flex;align-items:center;gap:8px;margin-bottom:28px;font-size:14px;color:var(--mute);overflow:auto}
+.flow a{display:flex;align-items:center;gap:9px;padding:6px 14px 6px 6px;border:1px solid var(--edge);border-radius:999px;white-space:nowrap}
+.flow a b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--card2);font-size:12px}
+.flow a.now{border-color:var(--hot);color:var(--fg);font-weight:700}
+.flow a.now b{background:var(--hot);color:var(--hot-ink)}
+.flow a.done b{background:var(--good-bg);color:var(--good)}
+.flow span{color:var(--dim)}
+
+/* 숫자 띠 */
+.funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--edge);border-radius:var(--r);background:var(--card);overflow:hidden}
+.funnel div{position:relative;padding:18px 22px;border-right:1px solid var(--edge)}
+.funnel div:last-child{border:0}
+.funnel span{display:block;font-size:13px;color:var(--mute)}
+.funnel b{display:block;margin:2px 0;font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.funnel small{color:var(--dim);font-size:12.5px}
+.funnel div:last-child b{color:var(--hot)}
+
+/* 증언 */
+.quote{padding:16px 18px;border:1px solid var(--edge);border-radius:16px;background:var(--card)}
+.quote q{display:block;font-size:15.5px;font-weight:600;quotes:"“" "”"}
+.quote p{margin:6px 0 0;color:var(--mute);font-size:14px}
+.quote footer{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--mute)}
+.quote footer b{color:var(--good)}
+.quote footer a{margin-left:auto;font-weight:700;color:var(--sub)}
+.bars{display:inline-flex;gap:3px;vertical-align:-1px}
+.bars i{width:4px;height:13px;border-radius:2px;background:var(--card3)}
+.bars i.on{background:var(--c,var(--fg))}
+
+@media (max-width:900px){
+  .menu{position:static;transform:none;margin:0 auto}
+  .site .right a:not(.login){display:none}
+  .shell{padding:28px 16px 64px}
+  .grid2,.grid3,.split{grid-template-columns:minmax(0,1fr)}
+  .funnel{grid-template-columns:1fr 1fr}.funnel div{border-bottom:1px solid var(--edge)}
+  .menu a{padding:7px 11px}
+  .sec>header{flex-wrap:wrap;gap:4px 12px}.sec>header a{margin-left:0}
+}

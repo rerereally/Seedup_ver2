@@ -1,0 +1,5 @@
+<body style="margin:0;background:#333;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px;font:14px sans-serif;color:#fff">
+<script>
+const names=(location.hash.slice(1)).split(',');
+document.body.innerHTML=names.map(n=>`<div><div style="padding:2px 4px">${n}</div><img src="${n}.png" style="width:100%;display:block"></div>`).join('');
+</script></body>

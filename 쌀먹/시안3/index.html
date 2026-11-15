@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seedup · 만들기 전에 사람들의 말부터</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+.stage{position:relative;min-height:600px;border:1px solid var(--edge);border-radius:28px;background:radial-gradient(900px 380px at 50% -10%,#1d1410 0%,#111114 60%);overflow:hidden}
+.stage h1{margin-top:60px;text-align:center;font-size:clamp(40px,6.2vw,76px);font-weight:900;letter-spacing:-.055em}
+.stage .field{width:min(580px,calc(100% - 40px));margin:24px auto 0}
+.read{margin:14px 0 0;text-align:center;color:var(--mute)}
+.read b{color:var(--fg)}
+.try{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.try button{padding:7px 14px;border:1px solid var(--edge);border-radius:999px;background:var(--card);font-size:14px;font-weight:600}
+.try button:hover{border-color:var(--dim)}
+.chips{position:relative;height:310px;margin-top:22px}
+.chip{position:absolute;padding:8px 16px;border:0;border-radius:999px;color:#111;font-size:14px;font-weight:800;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45);transition:opacity .25s,transform .15s}
+.chip:hover{transform:scale(1.04)!important;z-index:2}
+.chip.off{opacity:.2}
+.chip.in{outline:3px solid var(--fg);outline-offset:2px}
+.folder{position:absolute;right:24px;bottom:24px;width:292px;padding:18px;border-radius:20px;background:linear-gradient(160deg,#3a3a42,#232328);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 18px 40px rgba(0,0,0,.5)}
+.folder .n{display:flex;align-items:baseline;gap:8px}
+.folder .n b{font-size:44px;font-weight:900;line-height:1;letter-spacing:-.04em}
+.folder .row{display:flex;justify-content:space-between;margin:10px 0 12px;font-size:14px;color:var(--mute)}
+.opp{display:flex;flex-direction:column;gap:10px;padding:22px;transition:border-color .15s,transform .15s}
+.opp:hover{border-color:var(--dim);transform:translateY(-2px)}
+.opp p{margin:0;color:var(--mute);font-size:14px;flex:1}
+.opp footer{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--mute)}
+.opp footer b{color:var(--fg)}
+.how{counter-reset:step}
+.how .card{padding:22px}
+.how .card::before{counter-increment:step;content:counter(step);display:grid;place-items:center;width:28px;height:28px;margin-bottom:12px;border-radius:50%;background:var(--card3);font-weight:800;font-size:13px}
+.how p{margin:6px 0 0;color:var(--mute);font-size:14px}
+@media (max-width:900px){.stage{min-height:0;padding-bottom:16px}.chips{height:auto;padding:0 12px}.chip.off{display:none}.chip{position:static;display:inline-block;margin:4px;white-space:normal;text-align:left;transform:none!important}.folder{position:static;width:auto;margin:16px 12px 0}}
+</style>
+</head>
+<body data-page="home">
+<main class="shell" style="padding-top:24px">
+  <section class="stage" aria-label="근거 모으기">
+    <h1>무엇을 만들고 싶나요?</h1>
+    <form class="field" onsubmit="return false"><input id="q" placeholder="예: 모델 스키마, 에이전트 메모리" aria-label="만들고 싶은 것"><button class="btn sm ink" type="submit">찾기</button></form>
+    <p class="read" id="read">개발자들이 실제로 한 말 <b>89개</b>가 쌓여 있습니다. 입력하면 같은 문제를 말한 문장만 남습니다.</p>
+    <div class="try" id="try"></div>
+    <div class="chips" id="chips"></div>
+    <aside class="folder">
+      <div class="n"><b id="count">0</b><span class="muted">담은 근거</span></div>
+      <div class="row"><span id="plat">플랫폼 0/2</span><b id="need"></b></div>
+      <a class="btn go wide" id="toSpec" href="spec.html">스펙 만들기 →</a>
+    </aside>
+  </section>
+
+  <section class="sec">
+    <header><h2>기준을 통과한 기회</h2><p>서로 다른 글 3건 이상, 플랫폼 2종 이상에서 확인된 문제입니다.</p><a href="opportunities.html">전체 60개 보기 →</a></header>
+    <div class="grid3" id="top"></div>
+  </section>
+
+  <section class="sec">
+    <header><h2>걸러지는 과정</h2><p>숫자를 숨기지 않습니다.</p></header>
+    <div class="funnel">
+      <div><span>원문과 일치한 증언</span><b class="mono">89</b><small>지어낸 문장은 여기서 탈락</small></div>
+      <div><span>묶인 문제</span><b class="mono">60</b><small>같은 불만끼리 모음</small></div>
+      <div><span>기준 통과</span><b class="mono">5</b><small>글 3건, 플랫폼 2종 이상</small></div>
+      <div><span>지금 열린 기회</span><b class="mono">4</b><small>직접 경쟁이 아직 적음</small></div>
+    </div>
+  </section>
+
+  <section class="sec how">
+    <header><h2>이렇게 이어집니다</h2></header>
+    <div class="grid3">
+      <div class="card"><h3>근거를 모읍니다</h3><p>실제 개발자가 쓴 문장을 담습니다. 모든 문장은 원문 링크가 있고, 원문에 그대로 있는 것만 통과합니다.</p></div>
+      <div class="card"><h3>스펙을 만듭니다</h3><p>요구사항마다 어떤 문장에서 나왔는지 따라갈 수 있습니다. 받치는 문장이 없으면 가설로 따로 둡니다.</p></div>
+      <div class="card"><h3>에이전트에 넘깁니다</h3><p>Claude Code나 Cursor가 스펙을 직접 읽고, 정해지지 않은 것은 추측하지 않고 먼저 묻습니다.</p></div>
+    </div>
+  </section>
+</main>
+<script src="ui.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORS = ['#ff6a1f', '#3b82f6', '#a3e635', '#f472b6', '#facc15', '#2dd4bf', '#8b5cf6', '#f4f4f5', '#ef4444', '#34d399'];
+// 글은 사이트 홈에 실제로 떠 있는 문장. keys는 입력어와 맞춰 보기 위한 예시 표시입니다.
+const CHIPS = [
+  ['LLM 모델을 쉽게 전환할 수 있게 해…', 'hn', '모델 스키마 llm'], ['다른 LLM 제공자를 시도할 때마다 코드의…', 'hn', '모델 스키마 llm'], ['Amazon Bedrock은 다음을 반환하는 API를…', 'so', '모델 스키마 llm'],
+  ['새로운 Terraform/OpenTofu 언어…', 'gh', ''], ['GitHub Actions를 통해 Google C…', 'gh', ''], ['그들에게 PGP는 너무 복잡하고, Sig…', 'hn', ''], ['각 프로젝트가 이를 별도 폴더에 넣도…', 'hn', '에이전트'],
+  ['워크플로우가 workflow_run 이벤…', 'gh', '에이전트'], ['이 데이터를 마스킹하거나 일시적으…', 'so', ''], ['대부분의 취약점 도구는 CVE 목록을…', 'hn', ''], ['검색을 통해 아무것도 찾지 못했고, 나…', 'so', ''],
+  ['응답이 완료될 때까지 기다리지 않고…', 'so', 'llm'], ['여러 조각을 이어붙여야 합니다', 'hn', '에이전트'], ['PDF 파싱 방식과 관계없이 임베딩 모…', 'so', 'llm'], ['터미널과 에디터를 번갈아 사용하는…', 'hn', '에이전트'], ['대부분의 팀은 크론 잡과 큐 워커에 대…', 'hn', ''],
+];
+const SPOTS = [[330, 8, -3], [548, 136, 2], [262, 200, -2], [50, 10, 3], [600, 14, -2], [870, 6, 4], [80, 72, -4], [335, 70, 2], [600, 76, -3], [20, 136, 2], [285, 140, -3], [10, 200, -2], [585, 202, 3], [20, 260, 2], [285, 262, -2], [545, 258, 3]];
+$('chips').innerHTML = CHIPS.map(([text, platform, keys], i) => `<button class="chip" data-p="${platform}" data-k="${keys}" style="left:${SPOTS[i][0]}px;top:${SPOTS[i][1]}px;transform:rotate(${SPOTS[i][2]}deg);background:${COLORS[i % COLORS.length]};">${text}</button>`).join('');
+$('try').innerHTML = ['모델 스키마', '에이전트', 'llm'].map((word) => `<button type="button">${word}</button>`).join('');
+
+function folder() {
+  const picked = [...document.querySelectorAll('.chip.in')];
+  const platforms = new Set(picked.map((el) => el.dataset.p)).size;
+  const passed = picked.length >= 3 && platforms >= 2;
+  $('count').textContent = picked.length;
+  $('plat').textContent = `플랫폼 ${Math.min(platforms, 2)}/2`;
+  $('need').textContent = passed ? '기준 통과' : `${Math.max(0, 3 - picked.length)}건 더 필요`;
+  $('need').style.color = passed ? 'var(--good)' : 'var(--mute)';
+  $('toSpec').textContent = !picked.length ? '문장을 눌러 담으세요' : passed ? '이 근거로 스펙 만들기 →' : '가설 초안으로 만들기 →';
+  $('toSpec').style.opacity = picked.length ? 1 : .45;
+}
+function search(word) {
+  $('q').value = word;
+  const term = word.trim().toLowerCase();
+  let hits = 0;
+  document.querySelectorAll('.chip').forEach((el) => {
+    const hit = !term || term.split(/\s+/).some((part) => el.dataset.k.includes(part) || el.textContent.toLowerCase().includes(part));
+    el.classList.toggle('off', !hit);
+    if (hit) hits += 1;
+  });
+  $('read').innerHTML = term ? `개발자들이 실제로 한 말 <b>89개</b> 중 <b>${hits}개</b>가 같은 문제를 말합니다. 눌러서 담아 보세요.` : '개발자들이 실제로 한 말 <b>89개</b>가 쌓여 있습니다. 입력하면 같은 문제를 말한 문장만 남습니다.';
+}
+$('q').addEventListener('input', (event) => search(event.target.value));
+$('try').addEventListener('click', (event) => { if (event.target.tagName === 'BUTTON') search(event.target.textContent); });
+$('chips').addEventListener('click', (event) => { const el = event.target.closest('.chip'); if (el) { el.classList.toggle('in'); folder(); } });
+$('top').innerHTML = OPPS.filter((o) => o.pass).slice(0, 3).map((o) => `<a class="card opp" href="opportunity.html"><div>${statusPill(o.status)}</div><h3>${o.name}</h3><p>${o.problem}</p><footer><span>증언 <b class="mono">${o.ev}</b></span><span>플랫폼 <b class="mono">${o.plat}</b></span><span style="margin-left:auto">${o.rival}</span></footer></a>`).join('');
+folder();
+if (location.hash === '#demo') { search('모델 스키마'); document.querySelectorAll('.chip:not(.off)').forEach((el) => el.classList.add('in')); folder(); }
+</script>
+</body>
+</html>

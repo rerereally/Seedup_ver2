@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스펙 만들기 · Seedup</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+.head2{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.head2>div{flex:1;min-width:300px}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:26px}
+.bar .count{margin-left:auto;font-size:13.5px;color:var(--mute)}
+.bar .count b{color:var(--fg)}
+.board{position:relative;display:grid;grid-template-columns:minmax(0,1.25fr) repeat(3,minmax(0,1fr));gap:52px;margin-top:16px;padding:24px;border:1px solid var(--edge);border-radius:var(--r);background:#0d0d10}
+svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+svg.wires path{fill:none;stroke:#4a4a52;stroke-width:1.5;transition:stroke .15s,opacity .15s}
+svg.wires path.on{stroke:var(--hot);stroke-width:2}
+.board.picked svg.wires path:not(.on){opacity:.2}
+.col{position:relative;z-index:1;display:flex;flex-direction:column;gap:12px}
+.col>h3{display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--mute)}
+.it{width:100%;padding:14px;border:1px solid var(--edge);border-radius:14px;background:var(--card);text-align:left;transition:border-color .15s,opacity .15s}
+.it:hover{border-color:var(--dim)}
+.it.on{border-color:var(--hot);box-shadow:inset 0 0 0 1px var(--hot)}
+.board.picked .it:not(.on){opacity:.28}
+.it .tag{margin-bottom:8px}
+.it.on .tag{background:var(--hot);color:var(--hot-ink);font-weight:700}
+.it b{display:block;font-size:15px}
+.it p{margin:4px 0 0;font-size:13.5px;color:var(--mute)}
+.it .q{margin:0 0 6px;font-size:14.5px;color:var(--fg)}
+.it .meta{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:10px;font-size:12px;color:var(--mute)}
+.it .meta em{font-style:normal;color:var(--good);font-weight:700}
+.it .ready{display:inline-block;margin-top:8px;font-size:12px;color:var(--mute)}
+.it .ready.gap{color:var(--hot);font-weight:700}
+.ghost{min-height:74px;padding:14px;border:1.5px dashed var(--edge2);border-radius:14px;color:var(--dim);font-size:13.5px}
+.empty{position:absolute;z-index:2;left:calc(34% + 20px);right:24px;top:230px;display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px;text-align:center}
+.empty p{margin:0;max-width:30em;color:var(--mute)}
+.empty small{color:var(--mute)}.empty small a{color:var(--fg);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.chain{margin-top:12px;padding:12px 16px;border:1px solid var(--edge);border-radius:14px;background:var(--card);color:var(--mute);font-size:14px}
+.chain b{color:var(--hot)}
+.hold{margin-top:16px;padding:18px;border:1.5px dashed #4a4a52;border-radius:var(--r)}
+.hold p{margin:2px 0 14px;color:var(--mute);font-size:14px}
+.h{padding:12px;border:1px dashed #4a4a52;border-radius:14px;color:var(--mute);font-size:14px}
+.h b{display:block;color:var(--fg)}.h .tag{background:transparent;border:1px dashed #4a4a52;margin-bottom:6px}
+/* 장부 보기 */
+.ledger{margin-top:16px;overflow:auto}
+table{width:100%;min-width:820px;border-collapse:collapse}
+th,td{padding:12px 14px;border-bottom:1px solid var(--edge);text-align:left;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+thead th{font-size:12.5px;font-weight:600;color:var(--mute);white-space:nowrap}
+th.src{text-align:center}th.src b{display:block;color:var(--fg)}
+td.dot{text-align:center}
+td.dot i{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--good)}
+td.dot.no i{width:10px;height:2px;border-radius:0;background:var(--edge2)}
+td.mono{white-space:nowrap}td b{display:block}td small{color:var(--mute)}
+tr.grp td{padding:7px 14px;background:var(--card2);font-size:12.5px;color:var(--mute)}
+tr.hy td{background:repeating-linear-gradient(135deg,transparent 0 7px,rgba(255,106,31,.05) 7px 8px)}
+td.open{color:var(--hot);font-weight:700;font-size:13.5px;background:#1f130c}
+td.slot{font-size:13.5px;color:var(--sub)}
+.revise{display:flex;gap:10px;margin-top:16px;padding:6px 6px 6px 20px;border:1px solid var(--edge);border-radius:999px;background:var(--card)}
+.revise input{flex:1;min-width:0;border:0;background:transparent;outline:none}
+.revise span{align-self:center;font-size:13px;color:var(--mute);white-space:nowrap}
+.next{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;margin-top:20px;padding:12px 12px 12px 22px;border:1px solid var(--edge2);border-radius:var(--r);background:rgba(19,19,22,.94);backdrop-filter:blur(8px);box-shadow:0 16px 50px rgba(0,0,0,.6)}
+.next p{flex:1;margin:0;color:var(--mute);font-size:14px}.next p b{color:var(--fg)}
+body:not(.made) .after{display:none!important}
+body.made .before{display:none!important}
+body:not([data-view="ledger"]) .v-ledger,body[data-view="ledger"] .v-trace{display:none!important}
+@media (max-width:900px){.board{grid-template-columns:minmax(0,1fr);gap:18px;padding:16px}svg.wires{display:none}.empty{position:static;padding:8px 0}.revise span,.next p{display:none}.next{justify-content:flex-end}}
+</style>
+</head>
+<body data-page="opps" data-view="trace">
+<main class="shell">
+  <nav data-flow="2"></nav>
+  <div class="head2">
+    <div><p class="label">근거 추적 스펙</p><h1 id="title"></h1><p class="desc" id="problem"></p></div>
+    <span class="pill pass"><i></i>근거 기준 통과 · 증언 3건 · 플랫폼 2종</span>
+  </div>
+
+  <div class="bar after">
+    <div class="seg" id="views"><button class="now" data-v="trace">근거 추적</button><button data-v="ledger">장부</button><button data-v="tree">구조 트리</button><button data-v="flow">유저플로우</button><button data-v="doc">문서</button></div>
+    <span class="count"><b>원문 3</b> · 요구사항 2 · 기능 3 · 화면 2 · 가설 2</span>
+  </div>
+
+  <div class="board v-trace" id="board">
+    <svg class="wires after" id="wires"></svg>
+    <div class="col" id="colE"><h3>증언 <span class="mono">E</span></h3></div>
+    <div class="col" id="colR"><h3>요구사항 <span class="mono">R</span></h3></div>
+    <div class="col" id="colF"><h3>기능 <span class="mono">F</span></h3></div>
+    <div class="col" id="colS"><h3>화면 <span class="mono">S</span></h3></div>
+    <div class="empty before">
+      <p>왼쪽 원문 3건에서 요구사항, 기능, 화면을 이어 붙입니다. 원문이 받치지 않는 항목은 가설로 따로 둡니다.</p>
+      <button class="btn go" id="make">이 근거로 스펙 만들기</button>
+      <small>최대 1분 30초 · <a href="#" id="example">먼저 만들어 둔 예시 보기</a></small>
+    </div>
+  </div>
+
+  <div class="after v-trace">
+    <div class="chain" id="chain"></div>
+    <section class="hold"><h3>가설 보관 구역</h3><p>모델이 제안했지만 받치는 원문이 없어 요구사항에서 뺐습니다. 사용자에게 확인하기 전에는 만들지 않습니다.</p><div class="grid2" id="hyp"></div></section>
+  </div>
+
+  <div class="after v-ledger">
+    <div class="card ledger"><table id="trace"></table></div>
+    <div class="card ledger"><table id="ready"></table></div>
+  </div>
+
+  <div class="after">
+    <form class="revise" onsubmit="return false"><input placeholder="대화로 고치기 · 예: 대상을 1인 개발자로 좁혀 줘" aria-label="대화로 고치기"><span>원문은 바뀌지 않습니다</span><button class="btn sm ink">고치기</button></form>
+    <div class="next"><p><b>준비 16 / 18칸</b> · 정해지지 않은 2칸은 에이전트가 먼저 묻습니다</p><button class="btn">보관함에 저장</button><a class="btn go" href="handoff.html">에이전트에 넘기기 →</a></div>
+  </div>
+</main>
+<script src="spec-data.js"></script>
+<script src="ui.js"></script>
+<script>
+const S = window.SPEC;
+const $ = (id) => document.getElementById(id);
+$('title').textContent = S.title;
+$('problem').textContent = S.problem;
+const slotKeys = Object.keys(S.features[0].slots);
+const filled = (f) => slotKeys.filter((k) => f.slots[k]).length;
+const it = (x, body, extra = '') => `<button class="it ${extra}" data-id="${x.id}"><span class="tag mono">${x.id}</span>${body}</button>`;
+const ghost = (n, text) => Array.from({ length: n }, () => `<div class="ghost before">${text}</div>`).join('');
+$('colE').insertAdjacentHTML('beforeend', S.evidence.map((e) => it(e, `<p class="q">“${e.quote}”</p><p>${e.ko}</p><div class="meta"><span>${e.platform}</span><span class="mono">${e.date}</span><em>원문 일치</em></div>`)).join(''));
+$('colR').insertAdjacentHTML('beforeend', ghost(2, '원문이 받치는 요구사항') + S.requirements.map((x) => it(x, `<b>${x.title}</b><p>${x.detail}</p>`, 'after')).join(''));
+$('colF').insertAdjacentHTML('beforeend', ghost(2, '요구사항을 충족하는 기능') + S.features.map((x) => it(x, `<b>${x.title}</b><p>${x.detail}</p><span class="ready ${filled(x) < slotKeys.length ? 'gap' : ''}">준비 ${filled(x)}/${slotKeys.length}${filled(x) < slotKeys.length ? ' · 물어볼 것 있음' : ''}</span>`, 'after')).join(''));
+$('colS').insertAdjacentHTML('beforeend', ghost(2, '기능을 보여주는 화면') + S.screens.map((x) => it(x, `<b>${x.title}</b><p>${x.detail}</p>`, 'after')).join(''));
+$('hyp').innerHTML = S.hypotheses.map((h) => `<div class="h"><span class="tag mono">${h.id}</span><b>${h.title}</b>${h.detail}</div>`).join('');
+
+const featuresOf = (rid) => S.features.filter((f) => f.up.includes(rid));
+const tags = (list) => list.map((x) => `<span class="tag mono">${x.id}</span>`).join(' ');
+$('trace').innerHTML = `<thead><tr><th>번호</th><th>요구사항</th>${S.evidence.map((e) => `<th class="src"><b class="mono">${e.id}</b>${e.platform}</th>`).join('')}<th>기능</th><th>판정</th></tr></thead><tbody>
+<tr class="grp"><td colspan="${4 + S.evidence.length}">원문이 받치고 있음</td></tr>
+${S.requirements.map((r) => `<tr><td class="mono muted">${r.id}</td><td><b>${r.title}</b><small>${r.detail}</small></td>${S.evidence.map((e) => `<td class="dot${r.up.includes(e.id) ? '' : ' no'}"><i></i></td>`).join('')}<td>${tags(featuresOf(r.id))}</td><td><span class="pill pass">근거 ${r.up.length}건</span></td></tr>`).join('')}
+<tr class="grp"><td colspan="${4 + S.evidence.length}">가설 · 받치는 원문이 없어 만들지 않음</td></tr>
+${S.hypotheses.map((h) => `<tr class="hy"><td class="mono muted">${h.id}</td><td><b>${h.title}</b><small>모델이 제안함</small></td>${S.evidence.map(() => '<td class="dot no"><i></i></td>').join('')}<td class="muted">없음</td><td><span class="pill hot">확인 필요</span></td></tr>`).join('')}</tbody>`;
+$('ready').innerHTML = `<thead><tr><th>번호</th><th>기능</th>${slotKeys.map((k) => `<th>${k}</th>`).join('')}<th>준비</th></tr></thead><tbody>
+${S.features.map((f) => `<tr><td class="mono muted">${f.id}</td><td><b>${f.title}</b></td>${slotKeys.map((k) => (f.slots[k] ? `<td class="slot">${f.slots[k]}</td>` : '<td class="open">물어볼 것</td>')).join('')}<td class="mono" style="font-weight:700;color:${filled(f) === slotKeys.length ? 'var(--good)' : 'var(--hot)'}">${filled(f)}/${slotKeys.length}</td></tr>`).join('')}</tbody>`;
+
+const board = $('board'), wires = $('wires');
+const edges = [...S.requirements, ...S.features, ...S.screens].flatMap((x) => x.up.map((from) => [from, x.id]));
+let picked = null;
+function paint() {
+  const made = document.body.classList.contains('made');
+  const ids = picked && made ? traceOf(picked) : new Set();
+  if (made && board.offsetParent) {
+    const box = board.getBoundingClientRect();
+    wires.innerHTML = edges.map(([a, b]) => {
+      const A = board.querySelector(`[data-id="${a}"]`).getBoundingClientRect(), B = board.querySelector(`[data-id="${b}"]`).getBoundingClientRect();
+      const x1 = A.right - box.left, y1 = A.top + A.height / 2 - box.top, x2 = B.left - box.left, y2 = B.top + B.height / 2 - box.top, mid = (x1 + x2) / 2;
+      return `<path class="${ids.has(a) && ids.has(b) ? 'on' : ''}" d="M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}"/>`;
+    }).join('');
+  }
+  board.classList.toggle('picked', ids.size > 0);
+  board.querySelectorAll('.it').forEach((el) => el.classList.toggle('on', ids.has(el.dataset.id)));
+  const group = (prefix) => [...ids].filter((x) => x.startsWith(prefix)).sort().join(', ') || '없음';
+  $('chain').innerHTML = ids.size ? `<b>${picked}</b> 의 사슬: 원문 ${group('E')} · 요구사항 ${group('R')} · 기능 ${group('F')} · 화면 ${group('S')}` : '카드를 누르면 그 항목이 기대는 원문과, 그 위에 쌓인 기능·화면이 함께 켜집니다.';
+}
+board.addEventListener('click', (event) => { const el = event.target.closest('.it'); if (el) { picked = picked === el.dataset.id ? null : el.dataset.id; paint(); } });
+const make = (event) => { event?.preventDefault(); document.body.classList.add('made'); paint(); };
+$('make').addEventListener('click', make);
+$('example').addEventListener('click', make);
+$('views').addEventListener('click', (event) => {
+  const el = event.target.closest('button');
+  if (!el || !['trace', 'ledger'].includes(el.dataset.v)) return;
+  document.body.dataset.view = el.dataset.v;
+  document.querySelectorAll('#views button').forEach((b) => b.classList.toggle('now', b === el));
+  paint();
+});
+addEventListener('resize', paint);
+document.fonts?.ready.then(paint);
+const hash = location.hash.slice(1);
+if (hash) { document.body.classList.add('made'); if (hash === 'ledger') { document.body.dataset.view = 'ledger'; document.querySelectorAll('#views button').forEach((b) => b.classList.toggle('now', b.dataset.v === 'ledger')); } else picked = 'S-02'; }
+paint();
+</script>
+</body>
+</html>

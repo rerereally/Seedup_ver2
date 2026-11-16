@@ -32,11 +32,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
+      <main id="main-content" className="grow">
         <div className="page-shell page-stack max-w-[880px]">
           <header>
             <h1 className="page-intro-title">검색</h1>
-            <form action="/search" role="search" className="mt-6 flex h-14 items-center gap-3 rounded-full border border-outline-soft bg-white pl-5 pr-2 transition-colors focus-within:border-ink">
+            <form action="/search" role="search" className="mt-6 flex h-14 items-center gap-3 rounded-xl border border-outline-strong bg-white pl-5 pr-2 transition-colors focus-within:border-ink">
               <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
               <label htmlFor="search-page-query" className="sr-only">Seedup 검색</label>
               <input id="search-page-query" name="q" defaultValue={rawQuery} placeholder="기회, 글, 저장소, 제품, 프로젝트" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-base text-ink placeholder:text-muted" style={{ outline: 'none' }} />
@@ -47,7 +47,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               : (
                 <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
                   이런 말로 찾아보세요
-                  {EXAMPLES.map((example) => <Link key={example} href={`/search?q=${encodeURIComponent(example)}`} className="chip transition-colors hover:bg-outline-strong">{example}</Link>)}
+                  {EXAMPLES.map((example) => <Link key={example} href={`/search?q=${encodeURIComponent(example)}`} className="chip transition-colors hover:bg-surface-high">{example}</Link>)}
                 </p>
               )}
           </header>
@@ -105,7 +105,7 @@ function ResultRow({ href, label, title, description }: { href: string; label: s
   return (
     <Link href={href} className="group flex items-baseline gap-4 py-4">
       <span className="min-w-0 flex-1">
-        <span className="block text-[17px] font-bold leading-snug text-ink group-hover:underline group-hover:underline-offset-4">{title}</span>
+        <span className="block text-[15px] font-semibold leading-snug text-ink group-hover:underline group-hover:underline-offset-4">{title}</span>
         {description && <span className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{description}</span>}
       </span>
       {label && <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{label}</span>}

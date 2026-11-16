@@ -84,10 +84,10 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
-        <Link href="/news" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">←</span> 글 목록</Link>
+        <Link href="/news" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> 글 목록</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0">
-            <p className="text-sm text-muted"><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
+            <p className="text-sm text-muted"><span className="font-medium text-tertiary">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
             <h1 className="page-intro-title mt-3 md:text-[44px] md:leading-[1.14]">{item.title}</h1>
             {summary && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{summary}</p>}
             {tags.length > 0 && <div className="mt-5 flex flex-wrap gap-1.5">{tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}</div>}
@@ -118,7 +118,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
             )}
 
             {item.image_url && (
-              <div className="relative mt-8 h-56 overflow-hidden rounded-[20px] border border-outline-soft">
+              <div className="relative mt-8 h-56 overflow-hidden rounded-2xl border border-outline-soft">
                 <Image src={item.image_url} alt="" fill sizes="820px" className="object-cover" />
               </div>
             )}
@@ -134,7 +134,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
             {item.source === 'Seedup' && (item.article_evidence || scopeGroups.some(([, values]) => values?.length) || item.article_claims?.length) && (
               <section className="mt-10">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-xl font-extrabold tracking-tight text-ink">근거와 범위</h2>
+                  <h2 className="text-xl font-bold tracking-tight text-ink">근거와 범위</h2>
                   {item.article_evidence && <p className="text-[13px] text-muted">{evidenceLabel} · 출처 <span className="num text-ink">{item.article_evidence.source_count ?? 0}</span>개</p>}
                 </div>
                 <div className="mt-4 grid gap-x-10 gap-y-6 md:grid-cols-2">
@@ -166,7 +166,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
               <ul className="mt-1 divide-y divide-outline-soft border-b border-outline-soft">
                 {nextActions.map((action) => (
                   <li key={action.label}>
-                    <Link href={action.href} className="group flex items-center justify-between gap-3 py-3.5 text-[15px] font-bold text-ink">
+                    <Link href={action.href} className="group flex items-center justify-between gap-3 py-3.5 text-[15px] font-medium text-seed">
                       <span className="group-hover:underline group-hover:underline-offset-4">{action.label}</span>
                       <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
                     </Link>

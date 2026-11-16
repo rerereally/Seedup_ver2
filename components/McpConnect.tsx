@@ -8,8 +8,8 @@ export default function McpConnect({ siteUrl }: { siteUrl: string }) {
   const [state, setState] = useState<'idle' | 'working'>('idle');
   const [message, setMessage] = useState('');
   const endpoint = `${siteUrl.replace(/\/+$/, '')}/api/mcp`;
-  const claude = `claude mcp add --transport http seedup ${endpoint} --header "Authorization: Bearer ${token || '<토큰>'}"`;
-  const cursor = JSON.stringify({ mcpServers: { seedup: { url: endpoint, headers: { Authorization: `Bearer ${token || '<토큰>'}` } } } }, null, 2);
+  const claude = `claude mcp add --transport http seedup ${endpoint} --header "Authorization: Bearer ${token || '[토큰]'}"`;
+  const cursor = JSON.stringify({ mcpServers: { seedup: { url: endpoint, headers: { Authorization: `Bearer ${token || '[토큰]'}` } } } }, null, 2);
 
   const request = async (method: 'POST' | 'DELETE') => {
     setState('working');
@@ -42,27 +42,26 @@ export default function McpConnect({ siteUrl }: { siteUrl: string }) {
   };
 
   return (
-    <div className="mt-4 space-y-3 text-sm">
-      <p className="leading-6 text-muted">Claude Code·Cursor에서 Seedup의 기회 검색과 근거 추적 PRD 생성을 바로 쓸 수 있습니다. PRD는 하루 10개까지입니다.</p>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn" disabled={state === 'working'} onClick={() => void request('POST')}>{token ? '토큰 다시 만들기' : 'MCP 토큰 만들기'}</button>
-        <button type="button" className="btn-quiet" disabled={state === 'working'} onClick={() => void request('DELETE')}>토큰 지우기</button>
-      </div>
-      <p role="status" className="text-muted">{message}</p>
-      {token && (
-        <>
-          <div>
-            <p className="font-semibold text-ink">Claude Code</p>
-            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-surface p-3 text-[12.5px]">{claude}</pre>
-            <button type="button" className="btn-quiet mt-1" onClick={() => void copy(claude)}>명령 복사</button>
-          </div>
-          <div>
-            <p className="font-semibold text-ink">Cursor (.cursor/mcp.json)</p>
-            <pre className="mt-1 overflow-x-auto rounded-xl bg-surface p-3 text-[12.5px]">{cursor}</pre>
-            <button type="button" className="btn-quiet mt-1" onClick={() => void copy(cursor)}>설정 복사</button>
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      <section>
+        <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">1</span> 개인 토큰 만들기</h2>
+        <p className="mt-2 text-[15px] text-muted">토큰은 한 번만 보여 드립니다. 서버에는 해시만 저장합니다. PRD는 하루 10개까지 만들 수 있습니다.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" className="btn h-11 px-5" disabled={state === 'working'} onClick={() => void request('POST')}>{token ? '토큰 다시 만들기' : '토큰 만들기'}</button>
+          <button type="button" className="btn-quiet h-11" disabled={state === 'working'} onClick={() => void request('DELETE')}>토큰 지우기</button>
+        </div>
+        <p role="status" className="mt-3 text-sm text-muted">{message}</p>
+      </section>
+
+      <section>
+        <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">2</span> 에이전트에 추가하기</h2>
+        <p className="mt-4 text-sm font-medium text-ink">Claude Code</p>
+        <pre className="terminal mt-2 whitespace-pre-wrap break-all">{claude}</pre>
+        <button type="button" className="btn-quiet mt-2" onClick={() => void copy(claude)}>명령 복사</button>
+        <p className="mt-6 text-sm font-medium text-ink">Cursor (.cursor/mcp.json)</p>
+        <pre className="terminal mt-2">{cursor}</pre>
+        <button type="button" className="btn-quiet mt-2" onClick={() => void copy(cursor)}>설정 복사</button>
+      </section>
+    </>
   );
 }

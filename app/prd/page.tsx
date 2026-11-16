@@ -15,14 +15,49 @@ export const metadata: Metadata = { title: 'PRD' };
 const MAX_EVIDENCE = 12;
 
 /**
- * The PRD workspace at full width: one opportunity (?opportunity=slug) or quotes collected on the home stage
- * (?evidence=id1,id2). The trace view needs room for its four columns, so it lives here, not in a sidebar.
+ * The PRD workspace at full width: one opportunity (?opportunity=slug) or quotes collected elsewhere
+ * (?evidence=id1,id2). With neither, it lists the problems that are ready for a PRD.
  */
 export default async function PrdPage({ searchParams }: { searchParams: Promise<{ opportunity?: string; evidence?: string }> }) {
   const params = await searchParams;
   const lang = await getLang();
   const t = translator(lang);
   const { opportunities } = await getOpportunities();
+
+  if (!params.opportunity && !params.evidence) {
+    const qualified = opportunities.filter((item) => item.qualified);
+    return (
+      <>
+        <Header />
+        <main id="main-content" className="page-shell grow">
+          <h1 className="page-intro-title">PRD</h1>
+          <p className="page-intro-description">{t('검증을 통과한 문제에서 시작합니다. 원문만 근거로 요구사항, 기능, 화면까지 이어진 PRD를 만들어 코딩 에이전트에 넘깁니다.', 'Start from a verified problem. The PRD traces requirements, features and screens back to developer quotes, ready for a coding agent.')}</p>
+          {qualified.length ? (
+            <ul className="rows mt-10">
+              {qualified.map((item) => {
+                const text = localizedOpportunity(item, lang);
+                return (
+                  <li key={item.slug}>
+                    <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="group flex min-h-20 items-center justify-between gap-6 py-4">
+                      <span className="min-w-0">
+                        <span className="block text-[17px] font-semibold text-ink underline-offset-4 group-hover:underline">{text.name}</span>
+                        <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{text.problem}</span>
+                      </span>
+                      <span className="shrink-0 text-sm text-muted"><span className="font-medium text-seed">{t('기준 통과', 'Verified')}</span> · {t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="empty-state mt-10">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
+          )}
+          <Link href="/opportunities" className="link-seed mt-6">{t('기회 전체 보기', 'See all opportunities')} ›</Link>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   const opportunity = params.opportunity ? opportunities.find((item) => item.slug === params.opportunity) : null;
   const requestedIds = opportunity
@@ -41,35 +76,22 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
-        {lead && (
-          <Link href={`/opportunities/${lead.slug}`} className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink">
-            <span aria-hidden="true">←</span> {t('기회로 돌아가기', 'Back to the opportunity')}
-          </Link>
-        )}
-        <header className="mt-4 max-w-[52em]">
-          <p className="label">{t('근거 추적 PRD 작업 화면', 'Evidence-traced PRD workspace')}</p>
-          <h1 className="page-intro-title mt-2">{title}</h1>
-          <p className="page-intro-description">
-            {t(
-              `증언 ${picked.length}건${slugs.length > 1 ? `(기회 ${slugs.length}개)` : ''}으로 요구사항 → 기능 → 화면까지 이어진 PRD를 만듭니다. 항목을 누르면 그 항목이 기대는 원문이 함께 강조됩니다.`,
-              `Turn ${picked.length} quotes${slugs.length > 1 ? ` from ${slugs.length} opportunities` : ''} into a PRD traced from requirements to features to screens. Click any item to light up the source quotes behind it.`,
-            )}
+        <nav className="text-sm text-muted" aria-label={t('위치', 'Breadcrumb')}>
+          <Link href="/opportunities" className="hover:text-ink">{t('기회', 'Opportunities')}</Link>
+          {lead && <> <span aria-hidden="true">›</span> <Link href={`/opportunities/${lead.slug}`} className="hover:text-ink">{title}</Link></>}
+        </nav>
+        <header className="mt-3 max-w-[52em]">
+          <h1 className="text-[clamp(26px,3vw,34px)] font-bold leading-tight tracking-tight">{title} PRD</h1>
+          <p className="mt-2 text-[15px] leading-7 text-muted">
+            <span className="font-medium text-seed">{t(`개발자 원문 ${picked.length}건`, `${picked.length} developer quotes`)}</span>
+            {slugs.length > 1 ? t(` · 기회 ${slugs.length}개`, ` · ${slugs.length} opportunities`) : ''}
+            {' · '}
+            {t('요구사항 → 기능 → 화면까지 이어진 PRD를 만듭니다. 항목을 누르면 그 항목이 기대는 원문이 함께 강조됩니다.', 'Build a PRD traced from requirements to features to screens. Click any item to light up the quotes behind it.')}
             {!ready && <> {t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐 가설 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so it is made as a hypothesis draft.')}</>}
           </p>
         </header>
-        {/* A window around the document: the PRD reads as the product's output, not one more card on the page. */}
-        <section className="mt-8 overflow-hidden rounded-[24px] border border-outline-soft bg-[#1b1b1f] shadow-[0_30px_80px_rgba(0,0,0,.45)]" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
-          <div className="flex items-center gap-3 border-b border-outline-soft px-4 py-3" aria-hidden="true">
-            <span className="flex gap-1.5">
-              <span className="size-3 rounded-full bg-[#ff5f57]" />
-              <span className="size-3 rounded-full bg-[#febc2e]" />
-              <span className="size-3 rounded-full bg-[#28c840]" />
-            </span>
-            <span className="num min-w-0 truncate text-[13px] text-muted">PRD.md · {t(`근거 ${picked.length}건`, `${picked.length} sources`)}</span>
-          </div>
-          <div className="m-2 rounded-[18px] bg-[#fbfbfa] p-5 text-[#111113] md:m-3 md:p-8">
-            <PrdBuilder title={title} evidenceIds={picked.map((item) => item.evidence.id)} ready={ready} loginNext={self} />
-          </div>
+        <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
+          <PrdBuilder title={title} evidenceIds={picked.map((item) => item.evidence.id)} ready={ready} loginNext={self} />
         </section>
       </main>
       <Footer />

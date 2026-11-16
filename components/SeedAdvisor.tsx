@@ -31,15 +31,15 @@ function connectionKeys(repos: RepoCard[]) {
   return new Set(repos.flatMap((repo) => [...repo.near.map((item) => `${repo.name}|${item.slug}`), ...repo.news.map((item) => `${repo.name}|${item.href}`), ...repo.similar.map((item) => `${repo.name}|${item.href}`)]));
 }
 
-const NewBadge = () => <span className="ml-2 rounded-full bg-hot px-1.5 py-0.5 text-[11px] font-bold leading-none text-[#160700]">새로 붙음</span>;
+const NewBadge = () => <span className="ml-2 rounded-md bg-seed-soft px-1.5 py-0.5 text-[11px] font-semibold leading-none text-seed">새로 붙음</span>;
 const STATUS_LABELS: Record<SeedOpportunityRef['status'], string> = { open: '열림', narrowing: '좁아지는 중', closed: '닫힘', unknown: '조사 중' };
 
 const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value)) : '');
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
-    <section className="border-t border-outline-soft px-5 py-5 sm:px-6">
-      <h3 className="flex flex-wrap items-baseline gap-x-2 text-[15px] font-extrabold text-ink">{title}{note && <span className="text-[13px] font-normal text-muted">{note}</span>}</h3>
+    <section className="border-t border-outline-soft py-5">
+      <h3 className="flex flex-wrap items-baseline gap-x-2 text-[15px] font-semibold text-ink">{title}{note && <span className="text-[13px] font-normal text-muted">{note}</span>}</h3>
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -47,14 +47,14 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 
 function OpportunityLine({ item, fresh = false }: { item: SeedOpportunityRef; fresh?: boolean }) {
   return (
-    <Link href={`/opportunities/${item.slug}`} className="mt-2 block rounded-xl border border-outline-soft px-3.5 py-3 transition-colors hover:border-outline-strong">
+    <Link href={`/opportunities/${item.slug}`} className="mt-2 block border-l-2 border-seed py-1 pl-4 transition-colors hover:bg-surface-low">
       <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-muted">
         <b className="font-bold text-ink">{item.name}</b>
         <span>{STATUS_LABELS[item.status]}</span>
         <span>증언 <span className="num">{item.evidenceCount}</span>건</span>
         {fresh && <NewBadge />}
       </span>
-      {item.quote && <span className="mt-1 block text-sm leading-6 text-muted">“{item.quote}”</span>}
+      {item.quote && <span className="mt-1 block text-sm leading-6 text-ink">“{item.quote}”</span>}
     </Link>
   );
 }
@@ -262,9 +262,9 @@ export default function SeedAdvisor() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={submit} className="card p-5 sm:p-6">
-        <label htmlFor="seed-login" className="text-[15px] font-extrabold text-ink">GitHub 아이디</label>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <form onSubmit={submit} className="max-w-[720px]">
+        <label htmlFor="seed-login" className="text-sm font-semibold text-ink">GitHub 아이디 또는 주소</label>
+        <div className="mt-2 flex flex-wrap gap-2">
           <input
             id="seed-login"
             name="github-login"
@@ -277,20 +277,20 @@ export default function SeedAdvisor() {
             placeholder="예: torvalds"
             value={login}
             onChange={(event) => setLogin(event.target.value)}
-            className="h-11 min-w-0 flex-1 basis-56 rounded-full border border-outline-soft bg-transparent px-4 text-ink placeholder:text-muted focus:border-outline-strong focus:outline-none"
+            className="h-11 min-w-0 flex-1 basis-56 border bg-white px-4 text-ink placeholder:text-muted focus:border-seed focus:outline-none"
           />
           <button type="submit" disabled={loading || !login.trim()} className="btn h-11 disabled:cursor-not-allowed disabled:opacity-50">
             {loading && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
-            {loading ? '읽는 중' : '레포 살펴보기'}
+            {loading ? '읽는 중' : '역기획 시작'}
           </button>
         </div>
         <p className="mt-3 text-[13px] leading-6 text-muted">공개 레포 가운데 최근에 작업한 5개만 읽습니다. 로그인은 필요 없고, 비공개 레포는 읽지 않습니다.</p>
-        {error && <p role="alert" className="mt-3 text-sm font-semibold text-hot">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
       </form>
 
       {result && result.repos.length === 0 && (
         <div className="empty-state">
-          <h2 className="text-xl font-extrabold text-ink">읽을 공개 레포가 없습니다</h2>
+          <h2 className="text-xl font-bold text-ink">읽을 공개 레포가 없습니다</h2>
           <p className="mx-auto mt-2 max-w-[32em] leading-7 text-muted">포크와 보관 처리된 레포는 빼고 봅니다. 먼저 만들 것을 찾는다면 기회 목록에서 시작해 보세요.</p>
           <Link href="/opportunities" className="btn mt-6">기회 살펴보기</Link>
         </div>
@@ -299,8 +299,8 @@ export default function SeedAdvisor() {
       {result && result.repos.length > 0 && (
         <p aria-live="polite" className="text-sm text-muted">
           {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
-          {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-bold text-ink underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 증언과 소식을 표시합니다.</span></>}
-          {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-bold text-ink underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
+          {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-medium text-seed underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 증언과 소식을 표시합니다.</span></>}
+          {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-medium text-seed underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
           {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
           {!savedAt && pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
         </p>
@@ -315,10 +315,10 @@ export default function SeedAdvisor() {
         const near = repo.near.filter((item) => !cited.has(item.slug));
         const empty = !idea?.features.length && !near.length && !repo.news.length && !repo.similar.length && !repoPapers?.length && !waiting;
         return (
-          <article key={repo.name} className="card overflow-hidden">
-            <header className="px-5 py-5 sm:px-6">
+          <article key={repo.name} className="border-t border-outline-strong">
+            <header className="py-5">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">
+                <h2 className="text-xl font-bold tracking-tight text-ink">
                   <a href={repo.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{repo.name}</a>
                 </h2>
                 <p className="text-[13px] text-muted">
@@ -345,7 +345,7 @@ export default function SeedAdvisor() {
                 <ol className="grid gap-4">
                   {idea!.features.map((feature) => (
                     <li key={feature.title}>
-                      <p className="font-bold text-ink">{feature.title}</p>
+                      <p className="font-semibold text-ink">{feature.title}</p>
                       <p className="mt-1 text-sm leading-6 text-muted">{feature.why}</p>
                       {feature.opportunity && <OpportunityLine item={feature.opportunity} />}
                       <CopyIssueButton feature={feature} />
@@ -382,13 +382,13 @@ export default function SeedAdvisor() {
             {repo.similar.length > 0 && <Section title="비슷한 오픈소스"><LinkList items={repo.similar} isFresh={isFresh} /></Section>}
 
             {waiting && (
-              <p className="border-t border-outline-soft px-5 py-4 text-sm text-muted sm:px-6">
+              <p className="border-t border-outline-soft py-4 text-sm text-muted">
                 <Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />{pending[0] === repo.name ? '더할 기능을 생각하는 중' : '차례를 기다리는 중'}
               </p>
             )}
 
             {empty && (
-              <p className="border-t border-outline-soft px-5 py-5 text-sm leading-6 text-muted sm:px-6">
+              <p className="border-t border-outline-soft py-5 text-sm leading-6 text-muted">
                 이 레포와 이어지는 증언이나 소식을 찾지 못했습니다. 설명과 토픽을 채우면 더 잘 맞출 수 있습니다.
               </p>
             )}

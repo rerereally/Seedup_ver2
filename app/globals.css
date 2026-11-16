@@ -11,35 +11,38 @@
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  /* "white" and "ink" are swapped on purpose: bg-white is the card surface and text-white is the text on an ink button. */
-  --color-white: #131316;
-  --color-ink: #f4f4f5;
-  --color-brand-primary: #f4f4f5;
-  --color-brand-secondary: #c9c9cf;
-  --color-brand-surface: #1c1c20;
-  --color-brand-border: #2a2a2f;
-  --color-surface: #08080a;
-  --color-surface-lowest: #17171a;
-  --color-surface-low: #1c1c20;
-  --color-surface-mid: #242428;
-  --color-surface-high: #2e2e33;
-  --color-muted: #a1a1a8;
-  --color-outline-soft: #2a2a2f;
-  --color-outline-strong: #62626a;
-  --color-tertiary: #c9c9cf;
-  --color-hot: #ff6a1f;
-  --color-red-50: #2a1413;
-  --color-red-200: #5c2623;
-  --color-red-700: #ff9c94;
-  --color-emerald-50: #0f2a1c;
-  --color-emerald-200: #1f5a3b;
-  --color-emerald-500: #3ddc84;
-  --color-emerald-700: #5fe3a1;
+  /* bg-white is the card surface and text-white is the text on a filled button. */
+  --color-white: #ffffff;
+  --color-ink: #151517;
+  --color-brand-primary: #151517;
+  --color-brand-secondary: #3f3f46;
+  --color-brand-surface: #f4f4f5;
+  --color-brand-border: #e4e4e7;
+  --color-surface: #fafafa;
+  --color-surface-lowest: #ffffff;
+  --color-surface-low: #f4f4f5;
+  --color-surface-mid: #efeff1;
+  --color-surface-high: #e8e8eb;
+  --color-muted: #6b6b72;
+  --color-outline-soft: #e4e4e7;
+  --color-outline-strong: #c4c4ca;
+  --color-tertiary: #52525b;
+  /* The one accent: the seed green. "hot" keeps its name so older markup follows along. */
+  --color-seed: #1f6b4a;
+  --color-seed-soft: #eef6f1;
+  --color-hot: #1f6b4a;
+  --color-red-50: #fef2f2;
+  --color-red-200: #fecaca;
+  --color-red-700: #b91c1c;
+  --color-emerald-50: #eef6f1;
+  --color-emerald-200: #b9dcc8;
+  --color-emerald-500: #2f8f63;
+  --color-emerald-700: #1f6b4a;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   /* Softens the older square components without touching each page. Utilities still win. */
@@ -51,13 +54,13 @@
   button.bg-ink,
   a.bg-brand-primary,
   button.bg-brand-primary {
-    border-radius: 999px;
+    border-radius: 10px;
   }
 
   input,
   textarea,
   select {
-    border-radius: 12px;
+    border-radius: 10px;
   }
 
   /* Touch targets. In the base layer, so a control that sets its own min size keeps it. */
@@ -74,18 +77,18 @@
 
 @layer utilities {
   .bg-dotted-pattern {
-    background-image: radial-gradient(#2a2a2f 1px, transparent 1px);
+    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
   .dot-grid {
     background-size: 20px 20px;
-    background-image: radial-gradient(circle, #2a2a2f 1px, transparent 1px);
+    background-image: radial-gradient(circle, #e4e4e7 1px, transparent 1px);
   }
 
   .blueprint-grid {
-    background-color: #08080a;
-    background-image: radial-gradient(#2a2a2f 1px, transparent 1px);
+    background-color: #fafafa;
+    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
@@ -221,7 +224,7 @@ body {
   }
 
   .page-intro-title {
-    @apply text-[clamp(30px,4vw,48px)] font-semibold leading-[1.15] tracking-[-0.035em] text-ink;
+    @apply text-[clamp(30px,4vw,44px)] font-bold leading-[1.12] tracking-[-0.03em] text-ink;
     text-wrap: balance;
   }
 
@@ -236,7 +239,7 @@ body {
 
   /* One surface level per card. Anything inside a card is separated by a hairline, not another box. */
   .card {
-    @apply rounded-[20px] border border-outline-soft bg-white;
+    @apply rounded-2xl border border-outline-soft bg-white;
   }
 
   /* Small label above a value or a group. Sentence case on purpose: this site does not shout. */
@@ -244,23 +247,64 @@ body {
     @apply text-[13px] font-medium text-muted;
   }
 
-  /* Numbers that people compare line up in the mono face. */
+  /* Numbers that people compare line up digit under digit. */
   .num {
-    @apply font-mono tabular-nums tracking-tight;
+    @apply tabular-nums tracking-tight;
   }
 
   /* Filter and view switches share the header's pill-in-a-track shape. */
   .tabs {
-    @apply inline-flex max-w-full flex-wrap gap-0.5 rounded-[22px] bg-[rgba(255,255,255,.05)] p-1;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+    @apply flex max-w-full gap-x-6 overflow-x-auto border-b border-outline-soft;
+    scrollbar-width: none;
   }
 
   .tab {
-    @apply inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5 text-sm text-muted transition-colors hover:text-ink md:min-h-9;
+    @apply -mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent text-[15px] text-muted transition-colors hover:text-ink;
   }
 
   .tab:is([aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-selected="true"]) {
-    @apply bg-surface-high font-bold text-ink;
+    @apply border-ink font-semibold text-ink;
+  }
+
+  /* A small either-or switch that sits beside a search field: a grey track with one white pill. */
+  .seg {
+    @apply inline-flex max-w-full flex-wrap gap-0.5 rounded-xl bg-surface-mid p-1;
+  }
+
+  .seg > * {
+    @apply inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm text-muted transition-colors hover:text-ink;
+  }
+
+  .seg > :is([aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-selected="true"]) {
+    @apply bg-white font-medium text-ink shadow-sm;
+  }
+
+  /* Green text link with a chevron, the quiet way forward under a section. */
+  .link-seed {
+    @apply inline-flex min-h-9 items-center gap-1 text-sm font-medium text-seed underline-offset-4 hover:underline;
+  }
+
+  /* Hairline list: rows divided by lines, no boxes. */
+  .rows > * {
+    @apply border-b border-outline-soft;
+  }
+
+  .rows > :first-child {
+    @apply border-t border-outline-soft;
+  }
+
+  /* Terminal block on the light page. */
+  .terminal {
+    @apply overflow-x-auto rounded-2xl bg-[#111214] p-6 font-mono text-[13px] leading-7 text-[#e7e7ea];
+  }
+
+  /* Left rail of the "my work" pages. */
+  .side-nav a {
+    @apply flex min-h-11 items-center rounded-xl px-4 text-[15px] text-muted transition-colors hover:text-ink;
+  }
+
+  .side-nav a[aria-current="page"] {
+    @apply bg-surface-mid font-semibold text-ink;
   }
 
   .tab .num {
@@ -269,16 +313,16 @@ body {
 
   /* One filled action per view; everything else is the outlined one. */
   .btn {
-    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-bold text-white transition-opacity hover:opacity-90;
+    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-seed px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50;
   }
 
   .btn-quiet {
-    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-outline-soft px-4 text-sm font-bold text-ink transition-colors hover:border-outline-strong;
+    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-outline-strong bg-white px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-low disabled:opacity-50;
   }
 
   /* A tag that describes an item. Not clickable, so it has no border to look like a button. */
   .chip {
-    @apply inline-flex items-center rounded-full bg-surface-high px-2.5 py-1 text-xs text-ink;
+    @apply inline-flex items-center rounded-md bg-surface-mid px-2 py-1 text-xs text-tertiary;
   }
 
   .pager {
@@ -286,7 +330,7 @@ body {
   }
 
   .pager a {
-    @apply inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-full px-3 text-sm text-muted transition-colors hover:text-ink;
+    @apply inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-lg px-3 text-sm text-muted transition-colors hover:text-ink;
   }
 
   .pager a[aria-current="page"] {
@@ -299,12 +343,12 @@ body {
 
   /* Quiet message for a list that has nothing to show yet. */
   .empty-state {
-    @apply rounded-[20px] border border-dashed border-outline-soft px-6 py-14 text-center text-muted;
+    @apply rounded-2xl border border-dashed border-outline-strong px-6 py-14 text-center text-muted;
   }
 }
 
 .article-markdown {
-  @apply rounded-[20px] border border-outline-soft bg-white px-5 py-6 text-ink md:px-8 md:py-8;
+  @apply text-ink;
 }
 
 .article-markdown h2 {
@@ -328,7 +372,7 @@ body {
 }
 
 .article-markdown a {
-  @apply font-semibold text-ink underline underline-offset-4;
+  @apply font-medium text-seed underline underline-offset-4;
 }
 
 .article-markdown ul {
@@ -345,15 +389,15 @@ body {
 }
 
 .article-markdown blockquote {
-  @apply mt-5 border-l-2 border-outline-strong pl-4 leading-7 text-muted;
+  @apply mt-5 border-l-2 border-seed pl-4 leading-7 text-ink;
 }
 
 .article-markdown pre {
-  @apply mt-5 max-h-96 overflow-auto rounded-2xl bg-surface p-4 font-mono text-xs leading-6 text-ink sm:p-5 sm:text-sm sm:leading-7;
+  @apply mt-5 max-h-96 overflow-auto rounded-2xl bg-surface-low p-4 font-mono text-xs leading-6 text-ink sm:p-5 sm:text-sm sm:leading-7;
 }
 
 .article-markdown code {
-  @apply rounded-md bg-surface-high px-1.5 py-0.5 font-mono text-[0.9em] text-ink;
+  @apply rounded-md bg-surface-mid px-1.5 py-0.5 font-mono text-[0.9em] text-ink;
 }
 
 .article-markdown pre code {

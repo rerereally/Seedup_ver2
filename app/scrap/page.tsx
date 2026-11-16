@@ -7,23 +7,15 @@ import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PageIntro from '@/components/PageIntro';
+import WorkShell from '@/components/WorkShell';
 import { getContentHref } from '@/lib/content-targets';
 import { getScraps } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
-import { ArrowRight, Bookmark, Bot, Code2, FileText, Github, Lightbulb, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '내 보관함',
-};
-
-const iconMap = {
-  news: FileText,
-  paper: FileText,
-  project: Code2,
-  ai_product: Bot,
-  idea: Lightbulb,
-  github: Github,
+  title: '보관함',
 };
 
 const FILTERS = [
@@ -86,102 +78,89 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
     acc[filter.value] = filter.value === 'all' ? savedItems.length : savedItems.filter((item) => item.item_type === filter.value).length;
     return acc;
   }, {});
-  const latestItem = savedItems[0];
 
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            title="내 보관함"
-            description="담아 둔 근거와 저장한 글, 저장소, 제품을 한곳에서 다시 봅니다."
-            meta={savedItems.length ? <>저장 <span className="num text-ink">{savedItems.length}</span>개{latestItem ? <> · 마지막 저장 {formatDate(latestItem.created_at)}</> : null}</> : undefined}
-            aside={savedItems.length > 0 ? (
-              <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-full border border-outline-soft bg-white px-4 transition-colors focus-within:border-ink sm:w-72">
-                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-                <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="보관함 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
-                {activeType !== 'all' && <input type="hidden" name="type" value={activeType} />}
-              </form>
-            ) : undefined}
-          />
+      <WorkShell>
+        <PageIntro
+          title="보관함"
+          description="담아 둔 원문, 글, PRD."
+          aside={savedItems.length > 0 ? (
+            <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-[10px] border border-outline-strong bg-white px-4 transition-colors focus-within:border-seed sm:w-72">
+              <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
+              <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="보관함 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
+              {activeType !== 'all' && <input type="hidden" name="type" value={activeType} />}
+            </form>
+          ) : undefined}
+        />
 
-          {dossiers.length > 0 && (
-            <section aria-labelledby="dossiers-heading">
-              <h2 id="dossiers-heading" className="text-xl font-extrabold tracking-tight text-ink">담은 근거</h2>
-              <ul className="mt-4 grid gap-4 md:grid-cols-2">
-                {dossiers.map((dossier) => (
-                  <li key={dossier.id} className="card p-5 md:p-6">
-                    <p className="text-lg font-bold leading-snug text-ink">{dossier.title}</p>
-                    <p className="mt-1.5 text-[13px] text-muted">근거 <span className="num text-ink">{dossier.evidence_ids.length}</span>건{dossier.prd_markdown ? ' · PRD 있음' : ''} · {formatDate(dossier.updated_at)}</p>
-                    {dossier.notes.length > 0 && (
-                      <div className="mt-4 border-l-[3px] border-hot pl-4">
-                        <p className="label">PRD에서 고칠 것</p>
-                        <ul className="mt-1 grid gap-1 text-sm leading-6 text-muted">
-                          {dossier.notes.map((note) => <li key={note}>{note}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} />
-                    {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="btn-quiet mt-2">기회 다시 보기<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>}
-                  </li>
-                ))}
-              </ul>
-            </section>
+        {dossiers.length > 0 && (
+          <section aria-labelledby="dossiers-heading">
+            <h2 id="dossiers-heading" className="text-lg font-semibold text-ink">PRD <span className="num text-sm font-normal text-muted">{dossiers.length}</span></h2>
+            <ul className="rows mt-3">
+              {dossiers.map((dossier) => (
+                <li key={dossier.id} className="py-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <p className="text-[17px] font-semibold leading-snug text-ink">{dossier.title}</p>
+                    <time dateTime={dossier.updated_at} className="shrink-0 text-[13px] text-muted">{formatDate(dossier.updated_at)}</time>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">원문 <span className="num">{dossier.evidence_ids.length}</span>건 · {dossier.prd_markdown ? 'PRD 있음' : 'PRD 없음'} · {dossier.shared === true ? '공유 링크 켜짐' : '공유 안 함'}</p>
+                  {dossier.notes.length > 0 && (
+                    <div className="mt-4 border-l-2 border-seed pl-4">
+                      <p className="label">PRD에서 고칠 것</p>
+                      <ul className="mt-1 grid gap-1 text-sm leading-6 text-ink">
+                        {dossier.notes.map((note) => <li key={note}>{note}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} />
+                  {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="link-seed mt-2">기회 다시 보기 ›</Link>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <section className="flex flex-col gap-2">
+          {savedItems.length > 0 && (
+            <nav aria-label="저장한 것의 종류" className="tabs">
+              {FILTERS.filter((filter) => filter.value === 'all' || counts[filter.value] > 0 || activeType === filter.value).map((filter) => (
+                <Link key={filter.value} href={buildFilterHref(filter.value, query)} aria-current={activeType === filter.value ? 'page' : undefined} className="tab">
+                  {filter.label}
+                  <span className="num">{counts[filter.value] ?? 0}</span>
+                </Link>
+              ))}
+            </nav>
           )}
 
-          <section className="flex flex-col gap-5">
-            {dossiers.length > 0 && <h2 className="text-xl font-extrabold tracking-tight text-ink">저장한 것</h2>}
-            {savedItems.length > 0 && (
-              <nav aria-label="저장한 것의 종류" className="tabs self-start">
-                {FILTERS.filter((filter) => filter.value === 'all' || counts[filter.value] > 0 || activeType === filter.value).map((filter) => (
-                  <Link key={filter.value} href={buildFilterHref(filter.value, query)} aria-current={activeType === filter.value ? 'page' : undefined} className="tab">
-                    {filter.label}
-                    <span className="num">{counts[filter.value] ?? 0}</span>
-                  </Link>
-                ))}
-              </nav>
-            )}
-
-            {!filteredItems.length ? (
+          {!filteredItems.length ? (
+            <div className="mt-4">
               <EmptyState
                 title={savedItems.length ? '조건에 맞는 것이 없습니다' : '아직 저장한 것이 없습니다'}
-                description={savedItems.length ? '찾는 말이나 종류를 바꿔 보세요.' : '기회에서 근거를 담거나 글, 저장소, 제품의 책갈피를 누르면 여기에 모입니다.'}
+                description={savedItems.length ? '찾는 말이나 종류를 바꿔 보세요.' : '기회에서 원문을 담거나 글, 저장소, 제품의 책갈피를 누르면 여기에 모입니다.'}
                 actionHref={savedItems.length ? '/scrap' : '/opportunities'}
                 actionLabel={savedItems.length ? '전체 보기' : '기회 살펴보기'}
               />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredItems.map((item) => {
-                  const Icon = iconMap[item.item_type as keyof typeof iconMap] ?? Bookmark;
-                  const contentHref = getContentHref(item.item_type, item.item_id);
-
-                  return (
-                    <article key={item.id} className="card flex min-h-56 flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
-                      <p className="flex items-center gap-1.5 text-[13px] text-muted">
-                        <Icon aria-hidden="true" className="h-3.5 w-3.5" />
-                        <span className="font-bold text-ink">{TYPE_LABELS[item.item_type] ?? item.item_type}</span>
-                        <span>· {formatDate(item.created_at)}</span>
-                      </p>
-                      <Link href={`/scrap/${item.id}`} className="mt-2.5 block">
-                        <h3 className="line-clamp-3 text-lg font-bold leading-snug text-ink">{item.title}</h3>
-                      </Link>
-                      {item.description && <p className="mt-2.5 line-clamp-3 text-[15px] leading-7 text-muted">{item.description}</p>}
-                      <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-                        <Link href={contentHref} className="btn-quiet">
-                          원본 열기
-                          <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                        </Link>
-                        {item.tag && <span className="chip max-w-[45%] truncate">{item.tag}</span>}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-      </main>
+            </div>
+          ) : (
+            <ul className="rows [&>:first-child]:border-t-0">
+              {filteredItems.map((item) => (
+                <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-4">
+                  <div className="min-w-0 flex-1 basis-72">
+                    <Link href={`/scrap/${item.id}`} className="text-[17px] font-semibold leading-snug text-ink underline-offset-4 hover:underline">{item.title}</Link>
+                    {item.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{item.description}</p>}
+                    <p className="mt-1 text-[13px] text-muted">
+                      {[TYPE_LABELS[item.item_type] ?? item.item_type, item.tag].filter(Boolean).join(' · ')} · <Link href={getContentHref(item.item_type, item.item_id)} className="font-medium text-seed underline-offset-4 hover:underline">원본 ›</Link>
+                    </p>
+                  </div>
+                  <time dateTime={item.created_at} className="shrink-0 text-[13px] text-muted">{formatDate(item.created_at)}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </WorkShell>
       <Footer />
     </>
   );

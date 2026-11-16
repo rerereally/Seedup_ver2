@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
-import Header from '@/components/Header';
+import Logo from '@/components/Logo';
 import { createAdminClient } from '@/lib/supabase/admin';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import SpecActions from './SpecActions';
 
 export const metadata: Metadata = {
   title: '공유된 PRD',
@@ -28,24 +29,41 @@ export default async function SharedSpecPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const spec = await getSharedSpec(id);
   if (!spec) notFound();
+  const quotes = Array.isArray(spec.evidence_ids) ? spec.evidence_ids.length : 0;
 
   return (
     <>
-      <Header />
-      <main id="main-content" className="page-shell page-stack grow">
-        <header>
-          <p className="label">Seedup 근거 추적 PRD</p>
-          <h1 className="page-intro-title mt-2">{spec.title}</h1>
-          <p className="page-intro-description">
-            개발자 증언 {Array.isArray(spec.evidence_ids) ? spec.evidence_ids.length : 0}건을 원문과 대조해 만든 PRD입니다. 모든 요구사항은 아래 근거 원문 번호(E-n)로 이어집니다.
-          </p>
-        </header>
-        {/* Plain text on purpose: the markdown is user-saved content, so it is never rendered as HTML. */}
-        <pre className="card overflow-x-auto whitespace-pre-wrap break-words p-5 font-sans text-[15px] leading-7 text-ink md:p-7">{spec.prd_markdown}</pre>
-        <div className="flex flex-wrap gap-2">
-          {spec.opportunity_slug && <Link href={`/opportunities/${spec.opportunity_slug}`} className="btn">이 기회의 증언 보기</Link>}
-          <Link href="/opportunities" className="btn-quiet">다른 기회 살펴보기</Link>
+      {/* A visitor from a shared link gets a slim bar, not the app menu: one way in, to make their own. */}
+      <header className="sticky top-0 z-50 border-b border-outline-soft bg-white">
+        <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center gap-4 px-5 sm:px-6 md:px-8">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-[19px] font-bold tracking-tight text-ink"><Logo />Seedup</Link>
+          <span className="hidden text-sm text-muted sm:inline">공유된 PRD · 로그인 없이 보는 중</span>
+          <Link href="/opportunities" className="btn ml-auto bg-ink">내 PRD 만들기</Link>
         </div>
+      </header>
+      <main id="main-content" className="page-shell grow">
+        <nav className="text-sm text-muted" aria-label="위치">
+          <Link href="/opportunities" className="hover:text-ink">기회</Link>
+          {spec.opportunity_slug && <> <span aria-hidden="true">›</span> <Link href={`/opportunities/${spec.opportunity_slug}`} className="hover:text-ink">이 PRD의 기회</Link></>}
+        </nav>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-outline-soft pb-6">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-[clamp(26px,3vw,34px)] font-bold leading-tight tracking-tight">{spec.title} PRD</h1>
+            <p className="text-sm text-muted"><span className="font-medium text-seed">개발자 원문 {quotes}건</span> · {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' }).format(new Date(spec.updated_at))}</p>
+          </div>
+          <SpecActions markdown={spec.prd_markdown} />
+        </div>
+
+        <div className="mt-8 grid gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+          {/* Plain text on purpose: the markdown is user-saved content, so it is never rendered as HTML. */}
+          <pre className="min-w-0 whitespace-pre-wrap break-words font-sans text-[15px] leading-8 text-ink">{spec.prd_markdown}</pre>
+          <aside className="card h-fit p-6 lg:sticky lg:top-24">
+            <h2 className="text-[15px] font-semibold">이 PRD의 근거</h2>
+            <p className="mt-2 text-sm leading-7 text-tertiary">개발자 원문 {quotes}건을 원문과 글자 단위로 대조해 만들었습니다. 모든 요구사항은 근거 원문 번호(E-n)로 이어지고, 원문이 없는 줄은 가설로 표시했습니다.</p>
+            {spec.opportunity_slug && <Link href={`/opportunities/${spec.opportunity_slug}`} className="link-seed mt-3">이 기회의 원문 보기 ›</Link>}
+          </aside>
+        </div>
+        <p className="mt-12 text-[13px] text-muted">Seedup으로 만들었습니다 · <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">다른 기회 살펴보기</Link></p>
       </main>
       <Footer />
     </>

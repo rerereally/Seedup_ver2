@@ -5,7 +5,8 @@ import Header from '@/components/Header';
 import { createClient } from '@/lib/supabase/client';
 import PageIntro from '@/components/PageIntro';
 import ScrapButton from '@/components/ScrapButton';
-import { ArrowRight, Loader2, RotateCcw, X } from 'lucide-react';
+import { Loader2, RotateCcw, X } from 'lucide-react';
+import WorkShell from '@/components/WorkShell';
 import { useEffect, useState } from 'react';
 
 type RecentIdea = {
@@ -168,15 +169,12 @@ export default function Ideas() {
 
   const isIdle = !activeRun && status !== 'saving' && status !== 'error';
   const composer = (
-    <div className="card overflow-hidden transition-colors focus-within:border-ink">
-      <label htmlFor="idea-chat-input" className="label block px-5 pt-4">무엇을 만들려고 하나요?</label>
-      <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 취업 준비생에게 맞춤형 프로젝트와 학습 계획을 추천하는 서비스" className="block h-32 w-full resize-none rounded-none border-0 bg-transparent px-5 py-3 text-base leading-7 text-ink placeholder:text-muted/60" style={{ outline: 'none' }} onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
-      <div className="flex flex-col gap-3 border-t border-outline-soft px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[13px] leading-5 text-muted">시장성, 차별성, 구현 난이도, 포트폴리오 가치, MVP 계획을 봅니다.</p>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-xs text-muted sm:inline">⌘/Ctrl + Enter</span>
-          <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn w-full disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">{status === 'saving' ? '분석 중…' : '평가하기'}<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>
-        </div>
+    <div className="max-w-[760px]">
+      <label htmlFor="idea-chat-input" className="text-sm font-semibold text-ink">만들고 싶은 것</label>
+      <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 데이터베이스마다 다른 CLI 명령을 하나로 통일해 주는 도구" className="mt-2 block h-28 w-full resize-y border bg-white px-4 py-3 text-[15px] leading-7 text-ink placeholder:text-muted focus:border-seed focus:outline-none" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[13px] leading-5 text-muted">시장성, 차별성, 구현 난이도, 포트폴리오 가치, MVP 계획을 봅니다. <span className="hidden sm:inline">⌘/Ctrl + Enter</span></p>
+        <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn disabled:cursor-not-allowed">{status === 'saving' ? '분석 중…' : '검증하기'}</button>
       </div>
     </div>
   );
@@ -184,74 +182,62 @@ export default function Ideas() {
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro title="아이디어 평가" description="만들려는 것을 적어 주세요. 모아 둔 뉴스, 논문, 오픈소스, 제품 자료에 비춰 어디가 강하고 어디가 비었는지 짚습니다." />
+      <WorkShell>
+        <PageIntro title="아이디어 검증" description="내 아이디어가 자랄 씨앗인지, 모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 확인합니다." />
 
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="flex min-w-0 flex-col gap-6">
-              {isIdle && composer}
+        {composer}
 
-              {isIdle && (
-                <div>
-                  <h2 className="label">예시로 시작하기</h2>
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    {EXAMPLE_IDEAS.map((example) => (
-                      <button key={example.title} type="button" onClick={() => setIdea(example.description)} className="group rounded-[20px] border border-outline-soft p-5 text-left transition-colors hover:border-outline-strong hover:bg-white">
-                        <span className="block text-[13px] text-muted">{example.category}</span>
-                        <span className="mt-1.5 block text-[15px] font-bold leading-6 text-ink">{example.title}</span>
-                        <span className="mt-2 block text-[13px] leading-6 text-muted">{example.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeRun && (
-                <>
-                  <p className="ml-auto max-w-[88%] rounded-[20px] rounded-br-md bg-surface-high px-5 py-3.5 text-[15px] leading-7 text-ink">{activeRun.idea}</p>
-                  <div className="card p-5 md:p-7"><EvaluationPanel run={activeRun} /></div>
-                </>
-              )}
-
-              {status === 'saving' && <div className="card flex min-h-[260px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-ink" /><p className="mt-4 font-bold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
-              {status === 'error' && <div className="card flex min-h-[260px] items-center justify-center p-6 text-center"><div><p className="font-bold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
-
-              {!isIdle && composer}
-            </section>
-
-            <aside className="flex flex-col gap-5">
-              <div className="card p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="label">최근 평가</h2>
-                  <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
-                </div>
-                {recentIdeas.length ? (
-                  <ul className="mt-2 divide-y divide-outline-soft">
-                    {recentIdeas.slice(0, 3).map((item) => (
-                      <li key={item.id}>
-                        <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-3 py-3 text-left">
-                          <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
-                          <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-sm leading-6 text-muted">{isLoggedIn ? '아직 평가한 아이디어가 없습니다.' : '로그인하면 평가한 아이디어가 여기에 남습니다.'}</p>
-                )}
-                {recentIdeas.length > 3 && <button type="button" onClick={() => setIsRecentModalOpen(true)} className="mt-2 text-[13px] text-muted underline underline-offset-4 hover:text-ink">전체 {recentIdeas.length}개 보기</button>}
-              </div>
-              <p className="px-1 text-[13px] leading-6 text-muted">점수는 참고용입니다. 근거로 삼은 자료가 없으면 결과 아래에 그렇게 적습니다.</p>
-            </aside>
+        {isIdle && (
+          <div>
+            <h2 className="label">예시로 시작하기</h2>
+            <ul className="rows mt-3 max-w-[760px]">
+              {EXAMPLE_IDEAS.map((example) => (
+                <li key={example.title}>
+                  <button type="button" onClick={() => setIdea(example.description)} className="block w-full py-4 text-left transition-colors hover:bg-surface-low">
+                    <span className="block text-[13px] text-muted">{example.category}</span>
+                    <span className="mt-0.5 block text-[15px] font-semibold leading-6 text-ink">{example.title}</span>
+                    <span className="mt-1 block text-sm leading-6 text-muted">{example.description}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        )}
+
+        {status === 'saving' && <div className="card flex min-h-[220px] max-w-[760px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-seed" /><p className="mt-4 font-semibold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
+        {status === 'error' && <div role="alert" className="card flex min-h-[220px] max-w-[760px] items-center justify-center p-6 text-center"><div><p className="font-semibold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
+
+        {activeRun && status !== 'saving' && <div className="card max-w-[760px] p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
+
+        <section className="max-w-[760px]">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-ink">최근 검증</h2>
+            <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
+          </div>
+          {recentIdeas.length ? (
+            <ul className="rows mt-3">
+              {recentIdeas.slice(0, 3).map((item) => (
+                <li key={item.id}>
+                  <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-3 py-3 text-left">
+                    <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
+                    <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-muted">{isLoggedIn ? '아직 검증한 아이디어가 없습니다.' : '로그인하면 검증한 아이디어가 여기에 남습니다.'}</p>
+          )}
+          {recentIdeas.length > 3 && <button type="button" onClick={() => setIsRecentModalOpen(true)} className="link-seed mt-2">전체 {recentIdeas.length}개 보기 ›</button>}
+          <p className="mt-4 text-[13px] leading-6 text-muted">점수는 참고용입니다. 근거로 삼은 자료가 없으면 결과 아래에 그렇게 적습니다.</p>
+        </section>
+
         {isRecentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">
             <div className="card w-full max-w-2xl overflow-hidden">
               <div className="flex items-center justify-between border-b border-outline-soft px-6 py-4">
-                <h2 id="recent-evaluations-title" className="text-lg font-extrabold tracking-tight text-ink">최근 평가</h2>
-                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-high hover:text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
+                <h2 id="recent-evaluations-title" className="text-lg font-semibold tracking-tight text-ink">최근 검증</h2>
+                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 검증 닫기" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-mid hover:text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
               </div>
               <ul className="max-h-[70vh] divide-y divide-outline-soft overflow-y-auto px-6">
                 {recentIdeas.map((item) => (
@@ -266,7 +252,7 @@ export default function Ideas() {
             </div>
           </div>
         )}
-      </main>
+      </WorkShell>
       <Footer />
     </>
   );
@@ -341,17 +327,22 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
   return (
     <div className="divide-y divide-outline-soft [&>section]:py-7 [&>section:first-child]:pt-0 [&>section:last-child]:pb-0">
       <section>
+        <p className="label">판정</p>
+        <h2 className="mt-1 text-2xl font-bold leading-snug tracking-tight text-ink">{evaluation.verdict}</h2>
+        <dl className="mt-5 grid grid-cols-3 gap-4 border-y border-outline-soft py-4">
+          <div><dt className="label">종합 점수</dt><dd className="mt-1 text-xl font-bold text-ink">{evaluation.score} / 100</dd></div>
+          <div><dt className="label">구현 난이도</dt><dd className="mt-1 text-xl font-bold text-ink">{evaluation.difficulty}</dd></div>
+          <div><dt className="label">평가 신뢰도</dt><dd className="mt-1 text-xl font-bold text-ink">{confidenceLabel ?? '–'}</dd></div>
+        </dl>
+        <blockquote className="mt-5 border-l-2 border-seed pl-4">
+          <p className="text-[15px] leading-7 text-ink">“{run.idea}”</p>
+          <footer className="mt-1 text-[13px] text-muted">검증한 아이디어</footer>
+        </blockquote>
         {run.id && scrapSaved !== null && (
-          <div className="mb-5 flex justify-end">
+          <div className="mt-5">
             <ScrapButton key={run.id} itemType="idea" itemId={run.id} title={run.idea.trim().slice(0, 80)} initialSaved={scrapSaved} className="btn-quiet" />
           </div>
         )}
-        <dl className="flex flex-wrap gap-x-12 gap-y-5">
-          <div><dt className="label">종합 점수</dt><dd className="num mt-1 text-[44px] font-semibold leading-none text-hot">{evaluation.score}<span className="ml-1 text-base font-normal text-muted">/ 100</span></dd></div>
-          <div><dt className="label">구현 난이도</dt><dd className="mt-2 text-xl font-bold text-ink">{evaluation.difficulty}</dd></div>
-          {confidenceLabel && <div><dt className="label">평가 신뢰도</dt><dd className="mt-2 text-xl font-bold text-ink">{confidenceLabel}</dd></div>}
-        </dl>
-        <p className="mt-6 max-w-[42em] text-[17px] leading-8 text-ink">{evaluation.verdict}</p>
         {(!!evaluation.strengths?.length || !!evaluation.weaknesses?.length) && (
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             {!!evaluation.strengths?.length && <DetailList title="좋은 점" items={evaluation.strengths} />}
@@ -377,7 +368,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
               return (
                 <div key={label}>
                   <div className="flex items-baseline justify-between gap-3"><span className="text-[15px] font-bold text-ink">{label}</span><span className="num text-ink">{value}</span></div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-high"><div className="h-full rounded-full bg-ink" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-mid"><div className="h-full rounded-full bg-seed" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
                   {reason && (
                     <dl className="mt-3 grid gap-1 text-[13px] leading-6 text-muted">
                       {!!reason.positive.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">더한 이유</dt><dd>{reason.positive.join(' · ')}</dd></div>}

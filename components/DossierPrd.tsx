@@ -59,8 +59,8 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
   return (
     <div className="mt-4">
       {markdown && (
-        <details className="group rounded-xl border border-outline-soft bg-surface">
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold text-ink">PRD 전문 보기</summary>
+        <details className="group rounded-xl border border-outline-soft bg-surface-low">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-seed">PRD 전문 보기</summary>
           {/* Plain text on purpose: the markdown came from the client, so it is never rendered as HTML. */}
           <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words border-t border-outline-soft px-4 py-3 font-sans text-[13px] leading-6 text-ink">{markdown}</pre>
         </details>

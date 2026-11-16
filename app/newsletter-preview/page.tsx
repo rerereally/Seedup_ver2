@@ -1,32 +1,28 @@
 import type { Metadata } from 'next';
+import { updateNewsletterSubscription } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import PageIntro from '@/components/PageIntro';
+import Logo from '@/components/Logo';
+import SubmitButton from '@/components/SubmitButton';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
+import { getOpportunities } from '@/lib/opportunities/data';
+import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import {
   DEMO_NEWSLETTER_PROFILES,
   isRecommendableNewsItem,
   pickNewsletterSections,
   scoreNewsletterItems,
   toNewsletterContentItems,
-  type ScoredNewsletterItem,
 } from '@/lib/recommendations';
-import { MailCheck } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '뉴스레터 미리보기',
+  title: '주간 신호',
 };
 
-const SECTION_LABELS = [
-  ['dailyBriefing', '오늘의 핵심 뉴스'],
-  ['productRadar', '오늘의 AI 제품'],
-  ['githubPick', '오늘의 저장소'],
-  ['buildIdea', '만들어 볼 것'],
-  ['careerTip', '커리어'],
-  ['deepDive', '깊이 읽을 글'],
-  ['paperToProject', '논문에서 프로젝트로'],
-] as const;
+const SECTION_KEYS = ['dailyBriefing', 'productRadar', 'githubPick', 'buildIdea', 'careerTip', 'deepDive', 'paperToProject'] as const;
+const READS_IN_MAIL = 5;
 
 export default async function NewsletterPreviewPage({
   searchParams,
@@ -35,12 +31,17 @@ export default async function NewsletterPreviewPage({
 }) {
   const params = await searchParams;
   const profile = DEMO_NEWSLETTER_PROFILES.find((item) => item.user_id === params.profile) ?? DEMO_NEWSLETTER_PROFILES[0];
-  const [news, products, repos, projects, papers] = await Promise.all([
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const [news, products, repos, projects, papers, { opportunities }, onboarding, dossiers] = await Promise.all([
     getNewsItems(),
     getAIProducts(),
     getGitHubTrends(),
     getProjectIdeas(),
     getResearchPapers(20),
+    getOpportunities(),
+    user && supabase ? supabase.from('user_onboarding').select('newsletter_subscribed').eq('user_id', user.id).maybeSingle() : null,
+    user && supabase ? supabase.from('evidence_dossiers').select('opportunity_slug').not('opportunity_slug', 'is', null).limit(50) : null,
   ]);
   const lookbackDays = getLookbackDays(news.length + products.length + repos.length + projects.length + papers.length);
   const cutoff = getCutoffTimestamp(lookbackDays);
@@ -53,92 +54,131 @@ export default async function NewsletterPreviewPage({
   });
   const scored = scoreNewsletterItems(items.length ? items : buildFallbackItems(), profile);
   const sections = pickNewsletterSections(scored);
-  const selectedCount = SECTION_LABELS.reduce((sum, [key]) => sum + sections[key].length, 0);
+  const reads = SECTION_KEYS.flatMap((key) => sections[key]).slice(0, READS_IN_MAIL);
+
+  const subscribed = onboarding?.data?.newsletter_subscribed ?? true;
+  // A problem is watched once the reader has saved quotes from it.
+  const watchedSlugs = new Set((dossiers?.data ?? []).map((row) => row.opportunity_slug as string));
+  const watched = opportunities.filter((item) => watchedSlugs.has(item.slug));
+  const ranked = [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length);
+  const passed = ranked.find((item) => item.qualified);
+  const moved = ranked.filter((item) => item !== passed).slice(0, 2);
+  const quote = passed?.evidence[0];
 
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            title="뉴스레터 미리보기"
-            description="같은 자료라도 읽는 사람에 따라 고르는 글이 달라집니다. 예시 프로필 세 개로 어떻게 달라지는지 보여 줍니다."
-            meta={<>최근 <span className="num text-ink">{lookbackDays}</span>일 · 후보 <span className="num text-ink">{scored.length}</span>개 중 <span className="num text-ink">{selectedCount}</span>개를 골랐습니다</>}
-          />
+      <main id="main-content" className="grid grow lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+        <section className="border-outline-soft bg-white px-5 py-10 sm:px-8 lg:border-r lg:px-12 lg:py-16">
+          <h1 className="page-intro-title">주간 신호</h1>
+          <p className="page-intro-description">지켜보는 문제가 어떻게 움직였는지, 관심 분야에서 무엇이 새로 검증됐는지, 무엇을 읽으면 좋을지 골라 보냅니다.</p>
 
-          <section className="grid gap-4 lg:grid-cols-3">
-            {DEMO_NEWSLETTER_PROFILES.map((demoProfile) => {
-              const active = demoProfile.user_id === profile.user_id;
-              return (
-                <Link
-                  key={demoProfile.user_id}
-                  href={`/newsletter-preview?profile=${demoProfile.user_id}`}
-                  aria-current={active ? 'true' : undefined}
-                  className={`card block p-5 transition-colors md:p-6 ${active ? 'border-ink' : 'hover:border-outline-strong'}`}
-                >
-                  <p className="text-[13px] text-muted">{demoProfile.frequency === 'weekly' ? '매주' : '매일'}{active ? ' · 지금 보는 프로필' : ''}</p>
-                  <h2 className="mt-1.5 text-lg font-bold text-ink">{demoProfile.label}</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {demoProfile.level} · {demoProfile.goals.slice(0, 2).join(' / ')}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {demoProfile.interests.slice(0, 3).map((tag) => <span key={tag} className="chip">{tag}</span>)}
-                  </div>
-                </Link>
-              );
-            })}
-          </section>
+          <h2 className="mt-10 text-sm font-semibold">관심 분야</h2>
+          <nav className="seg mt-3" aria-label="예시 프로필">
+            {DEMO_NEWSLETTER_PROFILES.map((demo) => (
+              <Link key={demo.user_id} href={`/newsletter-preview?profile=${demo.user_id}`} scroll={false} aria-current={demo.user_id === profile.user_id ? 'true' : undefined}>{demo.label}</Link>
+            ))}
+          </nav>
+          <p className="mt-3 text-sm leading-6 text-tertiary">{profile.interests.join(', ')}</p>
+          <p className="mt-1 text-[13px] leading-6 text-muted">예시 프로필로 미리 봅니다. 실제 메일은 내 관심 분야를 기준으로 고릅니다. <Link href="/onboarding" className="text-seed underline-offset-4 hover:underline">관심 분야 설정하기</Link></p>
 
-          <section className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-            <div className="space-y-9">
-              {SECTION_LABELS.map(([key, label]) => (
-                sections[key].length ? <NewsletterSection key={key} title={label} items={sections[key]} /> : null
+          <h2 className="mt-10 text-sm font-semibold">지켜보는 문제</h2>
+          {watched.length ? (
+            <ul className="rows mt-3">
+              {watched.map((item) => (
+                <li key={item.slug}>
+                  <Link href={`/opportunities/${item.slug}`} className="flex items-baseline justify-between gap-4 py-3.5 text-[15px] hover:bg-surface-low">
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    <span className={`shrink-0 text-sm ${item.qualified ? 'font-medium text-seed' : 'text-muted'}`}>{item.qualified ? '기준 통과' : `원문 ${item.evidence.length}건`}</span>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
+          ) : (
+            <p className="mt-3 border-y border-outline-soft py-4 text-sm leading-6 text-muted">아직 지켜보는 문제가 없습니다. <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">기회 살펴보기</Link></p>
+          )}
+          <p className="mt-3 text-[13px] text-muted">원문을 담은 문제는 자동으로 추가됩니다.</p>
 
-            <aside className="card h-fit p-5 md:p-6">
-              <h2 className="label">받는 사람에게 보이는 머리말</h2>
-              <p className="mt-2 text-xl font-extrabold leading-snug tracking-tight text-ink">{profile.label}를 위한 이번 주 개발 브리핑</p>
-              <p className="mt-3 text-sm leading-7 text-muted">
-                {profile.interests.join(', ')} 관심사와 {profile.goals.join(', ')} 목표에 맞춰 골랐습니다. 뉴스는 짧게 훑고, 만들어 볼 수 있는 것은 따로 모았습니다.
+          <h2 className="mt-10 text-sm font-semibold">받는 방식</h2>
+          <p className="mt-3 text-[15px]">매주 월요일 정리</p>
+          <p className="mt-0.5 text-sm text-muted">기준 통과, 움직인 문제, 읽을거리</p>
+          {user ? (
+            <form action={updateNewsletterSubscription} className="mt-5 flex flex-wrap items-center gap-3">
+              <input type="hidden" name="subscribed" value={subscribed ? 'false' : 'true'} />
+              <SubmitButton pendingText="저장 중" className={subscribed ? 'btn-quiet' : 'btn'}>{subscribed ? '구독 해지' : '주간 신호 구독'}</SubmitButton>
+              <span className="text-sm text-muted">{subscribed ? `${user.email}로 받고 있습니다.` : '지금은 받지 않습니다.'}</span>
+            </form>
+          ) : (
+            <Link href="/login?next=/newsletter-preview" className="btn mt-5">로그인하고 구독하기</Link>
+          )}
+        </section>
+
+        <section className="bg-surface-mid px-5 py-10 sm:px-8 lg:px-12 lg:py-16" aria-labelledby="mail-heading">
+          <div className="mx-auto max-w-[680px]">
+            <h2 id="mail-heading" className="text-[13px] text-muted">다음 메일 미리보기</h2>
+            <article className="card mt-3 p-6 shadow-[0_12px_40px_rgba(0,0,0,.06)] sm:p-11">
+              <p className="flex items-center gap-2 text-sm font-semibold"><Logo className="h-4 w-4" />Seedup 주간 신호</p>
+              <p className="mt-5 text-[clamp(22px,2.6vw,26px)] font-bold leading-snug tracking-[-0.02em] [text-wrap:balance]">
+                {passed ? '이번 주, 기준을 통과한 문제가 있습니다.' : '이번 주에 움직인 문제와 읽을거리입니다.'}
               </p>
-              <div className="mt-5 border-t border-outline-soft pt-4">
-                <h3 className="label">이 프로필</h3>
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {[profile.level, ...profile.preferred_stack.slice(0, 3)].map((tag) => <span key={tag} className="chip">{tag}</span>)}
-                </div>
-              </div>
-            </aside>
-          </section>
-        </div>
+
+              {passed && (
+                <section className="mt-9">
+                  <h3 className="text-[13px] text-muted">기준 통과</h3>
+                  <p className="mt-2 text-lg font-semibold">{passed.name}</p>
+                  <p className="mt-1 text-sm text-muted">원문 {passed.evidence.length}건 · {passed.directCount ? `직접 경쟁 도구 ${passed.directCount}개` : '직접 경쟁 도구 없음'}</p>
+                  {quote && (
+                    <blockquote className="mt-4 border-l-2 border-seed pl-4">
+                      <p lang="en" className="text-[15px] leading-7">“{quote.quote}”</p>
+                      <footer className="mt-1 text-[13px] text-muted">{PLATFORM_LABELS[quote.platform]}</footer>
+                    </blockquote>
+                  )}
+                  <Link href={`/prd?opportunity=${encodeURIComponent(passed.slug)}`} className="btn mt-5">이 문제로 PRD 만들기</Link>
+                </section>
+              )}
+
+              {moved.length > 0 && (
+                <section className="mt-9">
+                  <h3 className="text-[13px] text-muted">움직인 문제</h3>
+                  <ul className="mt-1 divide-y divide-outline-soft border-b border-outline-soft">
+                    {moved.map((item) => {
+                      const before = item.history?.at(-2);
+                      return (
+                        <li key={item.slug}>
+                          <Link href={`/opportunities/${item.slug}`} className="flex items-baseline justify-between gap-4 py-3.5 text-[15px] hover:underline hover:underline-offset-4">
+                            <span className="min-w-0 truncate">{item.name}</span>
+                            <span className="shrink-0 text-sm text-muted">{before && before.evidence !== item.evidence.length ? `원문 ${before.evidence}건 → ${item.evidence.length}건` : `원문 ${item.evidence.length}건`}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              {reads.length > 0 && (
+                <section className="mt-9">
+                  <h3 className="text-[13px] text-muted">읽을거리 · <span className="font-semibold text-tertiary">{profile.interests.slice(0, 2).join(', ')}</span></h3>
+                  <ul className="mt-1 divide-y divide-outline-soft">
+                    {reads.map(({ content, reasons }) => (
+                      <li key={content.id}>
+                        <Link href={content.href} className="block py-4 hover:underline hover:underline-offset-4">
+                          <span className="block text-[15px] font-medium leading-6">{content.title}</span>
+                          <span className="mt-1 block text-[13px] text-muted">{[content.sourceLabel, reasons[0]].filter(Boolean).join(' · ')}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              <p className="mt-9 text-[13px] text-muted">최근 {lookbackDays}일 · 후보 {scored.length}개 중에서 골랐습니다.</p>
+            </article>
+          </div>
+        </section>
       </main>
       <Footer />
     </>
-  );
-}
-
-function NewsletterSection({ title, items }: { title: string; items: ScoredNewsletterItem[] }) {
-  return (
-    <section>
-      <h2 className="flex items-baseline gap-2 text-xl font-extrabold tracking-tight text-ink">{title} <span className="num text-base font-medium text-muted">{items.length}</span></h2>
-      <div className="mt-3 grid gap-3">
-        {items.map(({ content, score, reasons }) => (
-          <Link key={content.id} href={content.href} className="card block p-5 transition-colors hover:border-outline-strong md:p-6">
-            <p className="flex items-center justify-between gap-3 text-[13px] text-muted">
-              <span className="font-bold text-ink">{content.sourceLabel}</span>
-              <span>맞춤 점수 <span className="num text-ink">{Math.round(score)}</span></span>
-            </p>
-            <h3 className="mt-2 text-lg font-bold leading-snug text-ink">{content.title}</h3>
-            <p className="mt-2 text-[15px] leading-7 text-muted">{content.metadata.short_summary}</p>
-            {reasons.length > 0 && (
-              <ul className="mt-3 border-l-2 border-outline-strong pl-3 text-[13px] leading-6 text-muted">
-                {reasons.map((reason) => <li key={reason}>{reason}</li>)}
-              </ul>
-            )}
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }
 

@@ -109,7 +109,7 @@ export default function OpportunityStage({ opportunities, news, header }: {
 
     (async () => {
       const [{ default: Matter }, { ChipPile: Pile }] = await Promise.all([import('matter-js'), import('./chip-pile')]);
-      await Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((resolve) => setTimeout(resolve, 1_500))]);
+      await Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((resolve) => setTimeout(resolve, 600))]);
       if (cancelled) return;
       const elements = [...stage.querySelectorAll<HTMLElement>('[data-chip]')];
       const pile = new Pile({
@@ -252,7 +252,7 @@ export default function OpportunityStage({ opportunities, news, header }: {
         </div>
 
         {chips.map((chip) => (
-          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang={chip.quoteKo && !en ? undefined : 'en'} title={chip.quoteKo && !en ? `${chip.quoteKo}\n원문: ${chip.quote}` : undefined} aria-label={en ? `${chip.quote}. Collect as evidence` : `${chip.quoteKo || chip.quote}. 근거로 담기`}>
+          <button key={chip.id} type="button" className={styles.chip} data-chip={chip.id} lang={chip.quoteKo && !en ? undefined : 'en'} title={chip.quoteKo && !en ? `${chip.quoteKo}\n원문: ${chip.quote}` : chip.quote} aria-label={en ? `${chip.quote}. Collect as evidence` : `${chip.quoteKo || chip.quote}. 근거로 담기`}>
             <span className={styles.chipBody} style={{ '--chip-bg': chip.bg, '--chip-fg': chip.fg } as CSSProperties}>{en ? chip.quote : chip.quoteKo || chip.quote}</span>
           </button>
         ))}

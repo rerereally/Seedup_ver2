@@ -45,23 +45,23 @@ const EDGES: Array<[string, 'seed' | 'line' | 'guess']> = [
   ['M810 197C842 197 838 257 870 257', 'line'],
   ['M810 325C848 325 836 264 870 264', 'guess'],
 ];
-const GREEN = '#1f6b4a';
+// Colours come from theme tokens (Tailwind fill-/stroke- classes), so the picture follows dark mode.
 
 function TraceExample() {
   return (
     <svg viewBox="0 0 1100 380" className="block w-full min-w-[760px]" role="img" aria-label="예시: 개발자 원문 세 건이 요구사항, 기능, 화면으로 이어지고, 원문이 없는 줄은 점선 가설로 남습니다.">
       {['개발자 원문', '요구사항', '기능', '화면'].map((label, index) => (
-        <text key={label} x={[60, 345, 615, 870][index]} y={18} fontSize="11" fill="#6b6b72">{label}</text>
+        <text key={label} x={[60, 345, 615, 870][index]} y={18} fontSize="11" className="fill-muted">{label}</text>
       ))}
       {EDGES.map(([d, kind]) => (
-        <path key={d} d={d} fill="none" stroke={kind === 'seed' ? GREEN : '#b4b4bb'} strokeWidth={kind === 'seed' ? 1.5 : 1.2} strokeDasharray={kind === 'guess' ? '4 4' : undefined} />
+        <path key={d} d={d} fill="none" className={kind === 'seed' ? 'stroke-seed' : 'stroke-outline-strong'} strokeWidth={kind === 'seed' ? 1.5 : 1.2} strokeDasharray={kind === 'guess' ? '4 4' : undefined} />
       ))}
       {NODES.map((node) => (
         <g key={node.tag}>
-          <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="9" fill="#fff" stroke={node.kind === 'quote' ? GREEN : node.kind === 'guess' ? '#a1a1a8' : '#e4e4e7'} strokeWidth={node.kind === 'quote' ? 1.6 : 1} strokeDasharray={node.kind === 'guess' ? '4 3' : undefined} />
-          <text x={node.x + 12} y={node.y + 20} fontSize="10.5" fontWeight="600" fill={node.kind === 'quote' ? GREEN : '#6b6b72'}>{node.tag}</text>
+          <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="9" className={`fill-white ${node.kind === 'quote' ? 'stroke-seed' : node.kind === 'guess' ? 'stroke-outline-strong' : 'stroke-outline-soft'}`} strokeWidth={node.kind === 'quote' ? 1.6 : 1} strokeDasharray={node.kind === 'guess' ? '4 3' : undefined} />
+          <text x={node.x + 12} y={node.y + 20} fontSize="10.5" fontWeight="600" className={node.kind === 'quote' ? 'fill-seed' : 'fill-muted'}>{node.tag}</text>
           {node.lines.map((line, index) => (
-            <text key={line} x={node.x + 12} y={node.y + 39 + index * 18} fontSize="12.5" fill={node.kind === 'quote' || !node.kind ? '#151517' : '#6b6b72'}>{line}</text>
+            <text key={line} x={node.x + 12} y={node.y + 39 + index * 18} fontSize="12.5" className={node.kind === 'quote' || !node.kind ? 'fill-ink' : 'fill-muted'}>{line}</text>
           ))}
         </g>
       ))}
@@ -75,8 +75,8 @@ function SubscribeForm({ label, onGreen = false }: { label: string; onGreen?: bo
     <form action="/login" className="mx-auto flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:flex-wrap">
       <input type="hidden" name="next" value="/newsletter-preview" />
       <input type="email" name="email" required autoComplete="email" aria-label="이메일 주소" placeholder="이메일 주소" className="h-[52px] min-w-0 flex-1 border bg-white px-4 text-base text-ink placeholder:text-muted" />
-      <button type="submit" className={`h-[52px] shrink-0 rounded-[10px] px-6 text-base font-semibold text-white transition-opacity hover:opacity-90 ${onGreen ? 'bg-ink' : 'bg-seed'}`}>{label}</button>
-      <p className={`basis-full text-center text-[13px] ${onGreen ? 'text-white/75' : 'text-muted'}`}>이 주소의 Google 계정으로 로그인하면 구독이 끝납니다.</p>
+      <button type="submit" className={`h-[52px] shrink-0 rounded-[10px] px-6 text-base font-semibold transition-opacity hover:opacity-90 ${onGreen ? 'bg-ink text-white' : 'bg-seed text-on-seed'}`}>{label}</button>
+      <p className={`basis-full text-center text-[13px] ${onGreen ? 'text-on-deep/75' : 'text-muted'}`}>이 주소의 Google 계정으로 로그인하면 구독이 끝납니다.</p>
     </form>
   );
 }
@@ -217,7 +217,7 @@ export default async function Home() {
         </section>
 
         <section className="page-shell">
-          <div className="rounded-[28px] bg-seed px-6 py-16 text-center text-white md:py-20">
+          <div className="rounded-[28px] bg-seed-deep px-6 py-16 text-center text-on-deep md:py-20">
             <h2 className="text-[clamp(32px,4.6vw,56px)] font-bold leading-[1.15] tracking-[-0.04em]">매주 월요일,<br />자랄 신호만.</h2>
             <div className="mt-9"><SubscribeForm label="구독하기" onGreen /></div>
           </div>

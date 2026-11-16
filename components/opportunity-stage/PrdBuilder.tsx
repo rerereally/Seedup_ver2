@@ -628,7 +628,7 @@ function GraphEdges({ spec, evidenceCount, trace }: { spec: Spec; evidenceCount:
     <svg ref={svgRef} aria-hidden="true" className={styles.specEdges} width={size.w} height={size.h}>
       {paths.map((path) => {
         const on = trace ? lit(path.from, path.to) : null;
-        return <path key={path.key} d={path.d} fill="none" stroke={path.quote ? '#1f6b4a' : '#a9a9b0'} strokeWidth={on ? 2.2 : 1.3} strokeDasharray={path.guess ? '4 4' : undefined} opacity={on === false ? 0.12 : 1} />;
+        return <path key={path.key} d={path.d} fill="none" className={path.quote ? 'stroke-seed' : 'stroke-outline-strong'} strokeWidth={on ? 2.2 : 1.3} strokeDasharray={path.guess ? '4 4' : undefined} opacity={on === false ? 0.12 : 1} />;
       })}
     </svg>
   );

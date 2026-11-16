@@ -1,0 +1,50 @@
+'use client';
+
+import { useSyncExternalStore } from 'react';
+import { Moon, Sun } from 'lucide-react';
+import { useLang } from '@/components/LangProvider';
+import { translator } from '@/lib/i18n';
+
+/** Where the reader's choice is kept; the inline script in the root layout reads the same key before paint. */
+const THEME_KEY = 'seedup:theme';
+const CHANGED = 'seedup-theme';
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+function currentTheme(): 'light' | 'dark' {
+  const picked = document.documentElement.dataset.theme;
+  if (picked === 'light' || picked === 'dark') return picked;
+  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
+}
+
+function subscribe(onChange: () => void) {
+  const media = window.matchMedia(DARK_QUERY);
+  media.addEventListener('change', onChange);
+  window.addEventListener(CHANGED, onChange);
+  return () => {
+    media.removeEventListener('change', onChange);
+    window.removeEventListener(CHANGED, onChange);
+  };
+}
+
+/** One button: shows the theme you would switch to, and remembers the choice in this browser. */
+export default function ThemeToggle() {
+  const t = translator(useLang());
+  const theme = useSyncExternalStore(subscribe, currentTheme, () => 'light' as const);
+  const next = theme === 'dark' ? 'light' : 'dark';
+
+  const toggle = () => {
+    document.documentElement.dataset.theme = next;
+    try {
+      window.localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Private mode: the switch still works for this visit.
+    }
+    window.dispatchEvent(new Event(CHANGED));
+  };
+
+  return (
+    <button type="button" onClick={toggle} aria-label={next === 'dark' ? t('다크 모드로 보기', 'Switch to dark mode') : t('라이트 모드로 보기', 'Switch to light mode')} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-tertiary transition-colors hover:bg-surface-low hover:text-ink">
+      {next === 'dark' ? <Moon className="h-[18px] w-[18px]" aria-hidden="true" /> : <Sun className="h-[18px] w-[18px]" aria-hidden="true" />}
+    </button>
+  );
+}

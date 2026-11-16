@@ -237,7 +237,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea }: { pool: P
                           return (
                             <li key={row.id}>
                               <label className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-[13.5px] leading-6 transition-colors ${on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white hover:border-outline-strong'}`}>
-                                <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-[#1f6b4a]" />
+                                <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-seed" />
                                 <span className="min-w-0">
                                   <q lang="en" className="line-clamp-3 text-ink">{row.quote}</q>
                                   {!en && row.quoteKo && <span className="mt-0.5 line-clamp-2 block text-muted">{row.quoteKo}</span>}

@@ -27,8 +27,11 @@ export const viewport: Viewport = {
 export default async function RootLayout({children}: {children: React.ReactNode}) {
   const lang = await getLang();
   return (
-    <html lang={lang}>
+    // The theme attribute is set by the script below before React loads, so the server markup never has it.
+    <html lang={lang} suppressHydrationWarning>
       <head>
+        {/* Applies a theme the reader picked before the first paint, so a dark page never flashes white. Key: components/ThemeToggle.tsx */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('seedup:theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}" }} />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossOrigin="anonymous" />
       </head>

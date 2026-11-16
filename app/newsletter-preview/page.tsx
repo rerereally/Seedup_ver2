@@ -4,12 +4,15 @@ import { updateNewsletterSubscription } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import NewsletterIssue from '@/components/NewsletterIssue';
+import OpportunityBrowser from '@/components/OpportunityBrowser';
 import SubmitButton from '@/components/SubmitButton';
 import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
 import { listIssues } from '@/lib/newsletter/issues';
 import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { pickReads } from '@/lib/newsletter/reads';
+import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -23,14 +26,15 @@ const day = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', we
 
 /**
  * The newsletter's home on the web: this week's issue first, exactly what the Monday mail carries,
- * then how to subscribe and every past issue.
+ * then how to subscribe and every past issue. Below it is every problem the issue was picked from,
+ * which used to be a separate page.
  */
-export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<{ profile?: string }> }) {
+export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<{ profile?: string; stage?: string; q?: string; all?: string }> }) {
   const params = await searchParams;
   const profile = DEMO_NEWSLETTER_PROFILES.find((item) => item.user_id === params.profile) ?? DEMO_NEWSLETTER_PROFILES[0];
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  const [news, products, repos, projects, papers, { opportunities }, onboarding, dossiers, archive] = await Promise.all([
+  const [news, products, repos, projects, papers, { opportunities, generatedAt }, onboarding, dossiers, archive, lang] = await Promise.all([
     getNewsItems(),
     getAIProducts(),
     getGitHubTrends(),
@@ -40,6 +44,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
     user && supabase ? supabase.from('user_onboarding').select('newsletter_subscribed').eq('user_id', user.id).maybeSingle() : null,
     user && supabase ? supabase.from('evidence_dossiers').select('opportunity_slug').not('opportunity_slug', 'is', null).limit(50) : null,
     listIssues(createAdminClient()),
+    getLang(),
   ]);
 
   const lookbackDays = getLookbackDays(news.length + products.length + repos.length + projects.length + papers.length);
@@ -135,12 +140,23 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-sm leading-6 text-muted">원문을 담은 문제가 자동으로 여기에 들어오고, 메일에서 먼저 보입니다. <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">기회 살펴보기</Link></p>
+                  <p className="mt-3 text-sm leading-6 text-muted">원문을 담은 문제가 자동으로 여기에 들어오고, 메일에서 먼저 보입니다. <Link href="#problems" className="text-seed underline-offset-4 hover:underline">기회 살펴보기</Link></p>
                 )}
               </section>
             )}
           </aside>
         </div>
+
+        <section id="problems" aria-labelledby="problems-heading" className="page-stack mt-20 scroll-mt-24 border-t border-outline-strong pt-12">
+          <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            <div className="min-w-0">
+              <h2 id="problems-heading" className="text-[clamp(26px,3vw,34px)] font-bold tracking-[-0.03em]">모든 기회</h2>
+              <p className="page-intro-description !max-w-none">개발자들이 실제로 말한 문제 {opportunities.length}개. 원문 {MIN_EVIDENCE}건과 플랫폼 {MIN_PLATFORMS}곳을 넘으면 기준을 통과하고, 주간 신호에 실립니다.</p>
+            </div>
+            <Link href="/prd" className="btn-quiet">내 아이디어로 PRD 만들기</Link>
+          </header>
+          <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} q={params.q} all={params.all} basePath="/newsletter-preview" keep={{ profile: params.profile }} />
+        </section>
       </main>
       <Footer />
     </>

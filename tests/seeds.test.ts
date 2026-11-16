@@ -38,11 +38,12 @@ test('near opportunities need two keyword hits or a strong similarity', () => {
 
 test('model output keeps only known repos and known opportunities', () => {
   const ideas = parseIdeas({ repos: [
-    { name: 'rag-eval-kit', summary: '요약', paperQuery: 'RAG evaluation; DROP', features: [{ title: '기능', why: '이유', opportunity: 'made-up' }, { title: '', why: '빈 제목' }, { title: '둘', why: '이유', opportunity: 'schema' }] },
+    { name: 'rag-eval-kit', summary: '요약', paperQuery: 'RAG evaluation; DROP', improvements: [{ title: '설치 안내', why: 'README에 실행 방법이 없다' }, { title: '', why: '빈 제목' }], features: [{ title: '기능', why: '이유', opportunity: 'made-up' }, { title: '', why: '빈 제목' }, { title: '둘', why: '이유', opportunity: 'schema' }] },
     { name: 'not-mine', summary: 'x', features: [] },
   ] }, [repo], [opportunity('schema', [])]);
   assert.deepEqual(Object.keys(ideas), ['rag-eval-kit']);
   assert.equal(ideas['rag-eval-kit'].features.length, 2);
+  assert.deepEqual(ideas['rag-eval-kit'].improvements, [{ title: '설치 안내', why: 'README에 실행 방법이 없다' }]);
   assert.equal(ideas['rag-eval-kit'].features[0].opportunity, null);
   assert.equal(ideas['rag-eval-kit'].features[1].opportunity?.slug, 'schema');
   assert.equal(ideas['rag-eval-kit'].paperQuery, 'RAG evaluation DROP');

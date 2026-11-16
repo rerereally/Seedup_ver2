@@ -18,7 +18,9 @@ const GENERIC_TERMS = new Set(['app', 'apps', 'web', 'api', 'test', 'tests', 'de
 export type SeedOpportunityRef = { slug: string; name: string; problem: string; status: OpportunityStatus; evidenceCount: number; quote: string };
 export type SeedLink = { title: string; href: string; meta: string; external: boolean };
 export type SeedFeature = { title: string; why: string; opportunity: SeedOpportunityRef | null };
-export type SeedIdea = { summary: string; features: SeedFeature[]; paperQuery: string };
+export type SeedNote = { title: string; why: string };
+/** `improvements` is missing on results saved in the browser before the review was added. */
+export type SeedIdea = { summary: string; improvements?: SeedNote[]; features: SeedFeature[]; paperQuery: string };
 export type SeedPaper = { title: string; url: string; year: string; summary: string };
 export type Linkable = { title: string; href: string; meta: string; external: boolean; text: string };
 
@@ -85,7 +87,7 @@ export async function repoSimilarity(repo: SeedRepo, embeddings: Record<string, 
   return Object.fromEntries(Object.entries(embeddings).map(([slug, stored]) => [slug, cosineSimilarity(vector, stored)]));
 }
 
-type ModelIdeas = { repos?: Array<{ name?: string; summary?: string; paperQuery?: string; features?: Array<{ title?: string; why?: string; opportunity?: string }> }> };
+type ModelIdeas = { repos?: Array<{ name?: string; summary?: string; paperQuery?: string; improvements?: Array<{ title?: string; why?: string }>; features?: Array<{ title?: string; why?: string; opportunity?: string }> }> };
 
 const clean = (value: unknown, max: number) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
@@ -104,7 +106,12 @@ export function parseIdeas(raw: ModelIdeas | null, repos: SeedRepo[], opportunit
       const matched = bySlug.get(clean(feature.opportunity, 80));
       return [{ title, why, opportunity: matched ? toRef(matched) : null }];
     }).slice(0, FEATURES_PER_REPO);
-    ideas[name] = { summary: clean(row.summary, 160), features, paperQuery: clean(row.paperQuery, 80).replace(/[^a-zA-Z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim() };
+    const improvements = (Array.isArray(row.improvements) ? row.improvements : []).flatMap((note) => {
+      const title = clean(note?.title, 80);
+      const why = clean(note?.why, 240);
+      return title && why ? [{ title, why }] : [];
+    }).slice(0, FEATURES_PER_REPO);
+    ideas[name] = { summary: clean(row.summary, 160), improvements, features, paperQuery: clean(row.paperQuery, 80).replace(/[^a-zA-Z0-9 -]/g, ' ').replace(/\s+/g, ' ').trim() };
   }
   return ideas;
 }
@@ -129,11 +136,12 @@ ${opportunityBlock}
 
 For each repository, write in Korean:
 - summary: one sentence saying what the project is. If the data is too thin to tell, say that plainly.
+- improvements: up to ${FEATURES_PER_REPO} things to fix or strengthen in what already exists, such as unclear scope, setup friction, or missing docs. Use only what the description and readme actually show. Each needs a short title and a "why" of one or two sentences.
 - features: up to ${FEATURES_PER_REPO} features worth adding next. Each needs a short title and a "why" of one or two sentences tied to what the repository already does.
   Set "opportunity" to a slug from the list only when the feature would really solve that problem for this repository's users. Otherwise use "".
 - paperQuery: 2 to 4 English words to search arXiv for research that would help this project, or "" when research is not relevant to it.
 Do not invent facts about the repository. Fewer features are better than vague ones.
-Return JSON only: {"repos":[{"name":"","summary":"","features":[{"title":"","why":"","opportunity":""}],"paperQuery":""}]}`;
+Return JSON only: {"repos":[{"name":"","summary":"","improvements":[{"title":"","why":""}],"features":[{"title":"","why":"","opportunity":""}],"paperQuery":""}]}`;
 
   const answer = await Promise.race([
     callJsonModel<ModelIdeas>(prompt, { maxTokens: 3_000, timeoutMs: 40_000, title: 'Seedup seeds' }),

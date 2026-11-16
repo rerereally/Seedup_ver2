@@ -8,7 +8,6 @@ const TABS = [
   { name: '오픈소스', href: '/github-trends' },
   { name: 'AI 제품', href: '/ai-products' },
   { name: 'AI 모델', href: '/trends?tab=models' },
-  { name: '프로젝트 아이디어', href: '/projects' },
   { name: '논문', href: '/news?tab=paper' },
 ];
 

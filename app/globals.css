@@ -11,8 +11,13 @@
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  /* bg-white is the card surface and text-white is the text on a filled button. */
+  /* bg-white is the card surface and text-white the text on an ink button; both flip in dark mode. */
   --color-white: #ffffff;
+  /* Text on a filled green surface. It stays readable when the green brightens in dark mode. */
+  --color-on-seed: #ffffff;
+  /* A large green surface (the closing call to action): deep in both themes, always with white text. */
+  --color-seed-deep: #1f6b4a;
+  --color-on-deep: #ffffff;
   --color-ink: #151517;
   --color-brand-primary: #151517;
   --color-brand-secondary: #3f3f46;
@@ -40,7 +45,76 @@
   --color-emerald-700: #1f6b4a;
 }
 
+/*
+ * Dark mode: the same tokens, darker values. It follows the system unless the reader picked a theme,
+ * which the inline script in the root layout writes to <html data-theme> before the first paint.
+ * The green brightens so text and lines stay readable on dark grey; filled green then takes dark text (on-seed).
+ */
 @layer base {
+  :root[data-theme="dark"] {
+    --color-white: #1b1b1e;
+    --color-on-seed: #0c1f15;
+    --color-seed-deep: #1b4a35;
+    --color-ink: #f2f2f4;
+    --color-brand-primary: #f2f2f4;
+    --color-brand-secondary: #c2c2c8;
+    --color-brand-surface: #202024;
+    --color-brand-border: #2c2c31;
+    --color-surface: #111113;
+    --color-surface-lowest: #1b1b1e;
+    --color-surface-low: #202024;
+    --color-surface-mid: #26262b;
+    --color-surface-high: #303036;
+    --color-muted: #9a9aa2;
+    --color-outline-soft: #2c2c31;
+    --color-outline-strong: #46464d;
+    --color-tertiary: #c2c2c8;
+    --color-seed: #4caf80;
+    --color-seed-soft: #15251d;
+    --color-hot: #4caf80;
+    --color-red-50: #2a1414;
+    --color-red-200: #5c2323;
+    --color-red-700: #f58a8a;
+    --color-emerald-50: #15251d;
+    --color-emerald-200: #24533c;
+    --color-emerald-500: #4caf80;
+    --color-emerald-700: #6cc59b;
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-white: #1b1b1e;
+      --color-on-seed: #0c1f15;
+      --color-seed-deep: #1b4a35;
+      --color-ink: #f2f2f4;
+      --color-brand-primary: #f2f2f4;
+      --color-brand-secondary: #c2c2c8;
+      --color-brand-surface: #202024;
+      --color-brand-border: #2c2c31;
+      --color-surface: #111113;
+      --color-surface-lowest: #1b1b1e;
+      --color-surface-low: #202024;
+      --color-surface-mid: #26262b;
+      --color-surface-high: #303036;
+      --color-muted: #9a9aa2;
+      --color-outline-soft: #2c2c31;
+      --color-outline-strong: #46464d;
+      --color-tertiary: #c2c2c8;
+      --color-seed: #4caf80;
+      --color-seed-soft: #15251d;
+      --color-hot: #4caf80;
+      --color-red-50: #2a1414;
+      --color-red-200: #5c2323;
+      --color-red-700: #f58a8a;
+      --color-emerald-50: #15251d;
+      --color-emerald-200: #24533c;
+      --color-emerald-500: #4caf80;
+      --color-emerald-700: #6cc59b;
+      color-scheme: dark;
+    }
+  }
+
   html {
     color-scheme: light;
   }
@@ -77,18 +151,18 @@
 
 @layer utilities {
   .bg-dotted-pattern {
-    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+    background-image: radial-gradient(var(--color-outline-soft) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
   .dot-grid {
     background-size: 20px 20px;
-    background-image: radial-gradient(circle, #e4e4e7 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--color-outline-soft) 1px, transparent 1px);
   }
 
   .blueprint-grid {
-    background-color: #fafafa;
-    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+    background-color: var(--color-surface);
+    background-image: radial-gradient(var(--color-outline-soft) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
@@ -296,6 +370,8 @@ body {
   /* Terminal block on the light page. */
   .terminal {
     @apply overflow-x-auto rounded-2xl bg-[#111214] p-6 font-mono text-[13px] leading-7 text-[#e7e7ea];
+    /* Stays dark in both themes; the hairline keeps it apart from a dark page. */
+    box-shadow: 0 0 0 1px var(--color-outline-soft);
   }
 
   /* Left rail of the "my work" pages. */
@@ -313,7 +389,7 @@ body {
 
   /* One filled action per view; everything else is the outlined one. */
   .btn {
-    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-seed px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50;
+    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-seed px-4 text-sm font-semibold text-on-seed transition-opacity hover:opacity-90 disabled:opacity-50;
   }
 
   .btn-quiet {

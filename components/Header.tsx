@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { FileText, List, Mail, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
 import { createClient } from '@/lib/supabase/client';
 import { saveLang, useLang } from '@/components/LangProvider';
@@ -80,6 +81,7 @@ export default function Header() {
             </Link>
             <Link href={EXPLORE.href} className="inline-flex h-10 items-center px-2 text-sm text-tertiary hover:text-ink lg:hidden">{t(EXPLORE.name, EXPLORE.en)}</Link>
             {isAdmin && <Link href="/admin/ingest" className="hidden h-10 items-center px-2 text-sm text-tertiary hover:text-ink sm:inline-flex">{t('관리', 'Admin')}</Link>}
+            <ThemeToggle />
             <button type="button" onClick={switchLang} lang={lang === 'en' ? 'ko' : 'en'} className="inline-flex h-10 items-center px-2 text-sm text-tertiary hover:text-ink" aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}>
               {lang === 'en' ? '한국어' : 'EN'}
             </button>

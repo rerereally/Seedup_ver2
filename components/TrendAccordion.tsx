@@ -13,7 +13,7 @@ const CATEGORY_TABS = [ALL, '개발 워크플로우', 'AI 도구·모델', '구�
 const STATUS: Record<string, { label: string; dot: string }> = {
   hot: { label: '가장 뜨거움', dot: 'bg-hot' },
   rising: { label: '오르는 중', dot: 'bg-emerald-500' },
-  new: { label: '새로 등장', dot: 'bg-[#3b82f6]' },
+  new: { label: '새로 등장', dot: 'bg-seed' },
   steady: { label: '꾸준함', dot: 'bg-outline-strong' },
   cooling: { label: '식는 중', dot: 'bg-outline-strong' },
   watch: { label: '지켜보는 중', dot: 'bg-outline-strong' },

@@ -5,22 +5,25 @@ import Header from '@/components/Header';
 import { getNewsItems } from '@/lib/data';
 import { getOpportunities, summarizeFunnel } from '@/lib/opportunities/data';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS } from '@/lib/opportunities/types';
+import { cached } from '@/lib/cache';
+import { samplePrdSlug } from '@/lib/opportunities/prd-cache';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const STEPS = [
   ['01 발견', '매일 신호를 골라 매주 보냅니다.', '뉴스, 논문, 오픈소스, 개발자 커뮤니티에서 오늘 읽을 글을 고릅니다.'],
   ['02 검증', '실제 개발자의 말로 확인합니다.', `인용은 원문과 글자 단위로 맞아야 남고, 원문 ${MIN_EVIDENCE}건·플랫폼 ${MIN_PLATFORMS}곳을 넘어야 기회가 됩니다.`],
   ['03 설계', '근거가 붙은 PRD로 키웁니다.', '요구사항, 기능, 화면까지 이어지고 원문 없는 줄은 가설로 표시합니다.'],
-  ['04 키우기', '코딩 에이전트가 이어서 만듭니다.', 'MCP로 Claude Code, Cursor가 PRD를 직접 가져가거나 AGENTS.md로 내보냅니다.'],
+  ['04 구현', '코딩 에이전트가 이어서 만듭니다.', 'MCP로 Claude Code, Cursor가 PRD를 직접 가져가거나 AGENTS.md로 내보냅니다.'],
 ];
 
 // The hero picture: one worked example of a quote becoming a requirement, a feature and a screen.
-type Node = { x: number; y: number; w: number; h: number; tag: string; lines: string[]; kind?: 'quote' | 'muted' | 'guess' };
+type Node = { x: number; y: number; w: number; h: number; tag: string; lines: string[]; kind?: 'quote' | 'guess' };
 const NODES: Node[] = [
   { x: 60, y: 40, w: 225, h: 92, tag: 'E1 · Hacker News', lines: ['“every time I wanted to try a', 'different LLM provider, I had to', 'rewrite…”'], kind: 'quote' },
   { x: 60, y: 152, w: 225, h: 74, tag: 'E2 · Hacker News', lines: ['“What is your AI harness that lets', 'you switch LLM models easily?”'], kind: 'quote' },
-  { x: 60, y: 270, w: 225, h: 74, tag: 'E3 · Stack Overflow · 인용 제외', lines: ['“Amazon Bedrock does not provide', 'an API that returns:”'], kind: 'muted' },
-  { x: 345, y: 62, w: 215, h: 54, tag: 'R1 · 원문 2', lines: ['어느 제공사든 같은 요청 형식'] },
+  { x: 60, y: 270, w: 225, h: 74, tag: 'E3 · Stack Overflow', lines: ['“Amazon Bedrock does not provide', 'an API that returns…”'], kind: 'quote' },
+  { x: 345, y: 62, w: 215, h: 54, tag: 'R1 · 원문 3', lines: ['어느 제공사든 같은 요청 형식'] },
   { x: 345, y: 170, w: 215, h: 54, tag: 'R2 · 원문 1', lines: ['설정 한 줄로 모델 전환'] },
   { x: 345, y: 297, w: 215, h: 56, tag: 'H1 · 가설', lines: ['쓸 수 있는 모델 목록'], kind: 'guess' },
   { x: 615, y: 62, w: 195, h: 54, tag: 'F1', lines: ['통합 요청 스키마'] },
@@ -33,6 +36,7 @@ const EDGES: Array<[string, 'seed' | 'line' | 'guess']> = [
   ['M285 86H345', 'seed'],
   ['M285 190C318 190 312 96 345 96', 'seed'],
   ['M285 197H345', 'seed'],
+  ['M285 307C322 307 308 104 345 104', 'seed'],
   ['M560 89H615', 'line'],
   ['M560 197H615', 'line'],
   ['M560 325H615', 'guess'],
@@ -45,7 +49,7 @@ const GREEN = '#1f6b4a';
 
 function TraceExample() {
   return (
-    <svg viewBox="0 0 1100 380" className="block w-full min-w-[760px]" role="img" aria-label="예시: 개발자 원문 두 건이 요구사항, 기능, 화면으로 이어지고, 원문이 없는 줄은 점선 가설로 남습니다.">
+    <svg viewBox="0 0 1100 380" className="block w-full min-w-[760px]" role="img" aria-label="예시: 개발자 원문 세 건이 요구사항, 기능, 화면으로 이어지고, 원문이 없는 줄은 점선 가설로 남습니다.">
       {['개발자 원문', '요구사항', '기능', '화면'].map((label, index) => (
         <text key={label} x={[60, 345, 615, 870][index]} y={18} fontSize="11" fill="#6b6b72">{label}</text>
       ))}
@@ -65,13 +69,14 @@ function TraceExample() {
   );
 }
 
-/** Subscribing needs an account, so the address is handed to the sign-in page as the Google account hint. */
+/** Subscribing needs an account, so the address is handed to the sign-in page as the Google account hint, and the note says so. */
 function SubscribeForm({ label, onGreen = false }: { label: string; onGreen?: boolean }) {
   return (
-    <form action="/login" className="mx-auto flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row">
+    <form action="/login" className="mx-auto flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:flex-wrap">
       <input type="hidden" name="next" value="/newsletter-preview" />
       <input type="email" name="email" required autoComplete="email" aria-label="이메일 주소" placeholder="이메일 주소" className="h-[52px] min-w-0 flex-1 border bg-white px-4 text-base text-ink placeholder:text-muted" />
       <button type="submit" className={`h-[52px] shrink-0 rounded-[10px] px-6 text-base font-semibold text-white transition-opacity hover:opacity-90 ${onGreen ? 'bg-ink' : 'bg-seed'}`}>{label}</button>
+      <p className={`basis-full text-center text-[13px] ${onGreen ? 'text-white/75' : 'text-muted'}`}>이 주소의 Google 계정으로 로그인하면 구독이 끝납니다.</p>
     </form>
   );
 }
@@ -87,10 +92,15 @@ export default async function Home() {
   if (user) redirect('/news');
 
   const [{ opportunities }, news] = await Promise.all([getOpportunities(), getNewsItems()]);
+  // The hero picture shows the schema problem, so its saved PRD is the first choice for the example link.
+  const candidates = opportunities.filter((item) => item.qualified).sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'));
+  const sample = await cached('sample-prd', () => samplePrdSlug(createAdminClient(), candidates), 10 * 60_000).catch(() => null);
   const funnel = summarizeFunnel(opportunities);
   const ranked = [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length);
   const passed = ranked.find((item) => item.qualified);
-  const quotes = ranked.flatMap((item) => item.evidence.slice(0, 1)).slice(0, 2);
+  // One readable sentence per problem: no shouting, no fragments cut off mid-sentence.
+  const readable = (text: string) => text.length >= 40 && text.length <= 220 && text !== text.toUpperCase() && !/[:,]$/.test(text.trim());
+  const quotes = ranked.flatMap((item) => item.evidence.filter((row) => readable(row.quote)).slice(0, 1).map((row) => ({ ...row, problem: item.name }))).slice(0, 2);
   const reads = news.filter((item) => Boolean(item.content?.trim())).sort((a, b) => Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0)).slice(0, 2);
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com').replace(/\/+$/, '');
   const monthYear = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long' });
@@ -104,7 +114,7 @@ export default async function Home() {
           <h1 className="mt-5 text-[clamp(40px,7vw,84px)] font-bold leading-[1.08] tracking-[-0.045em] [text-wrap:balance]">작은 신호를,<br />만들 가치가 있는 제품으로.</h1>
           <p className="mx-auto mt-7 max-w-[34em] text-[clamp(17px,1.6vw,20px)] leading-[1.7] text-tertiary">매일 개발자 커뮤니티와 논문, 오픈소스에서 신호를 고르고, 실제 개발자의 말로 검증한 뒤, 근거가 붙은 PRD로 키워 코딩 에이전트에 넘깁니다.</p>
           <div className="mt-9"><SubscribeForm label="주간 신호 구독" /></div>
-          <Link href="/prd" className="link-seed mt-4">예시 PRD 둘러보기 ›</Link>
+          <Link href={sample ? `/prd?opportunity=${encodeURIComponent(sample)}` : '/prd'} className="link-seed mt-4">예시 PRD 둘러보기 ›</Link>
 
           <figure className="mx-auto mt-16 max-w-[1100px] text-left">
             <div className="card overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,.07)]">
@@ -117,6 +127,7 @@ export default async function Home() {
               </div>
               <div className="overflow-x-auto px-2 py-4"><TraceExample /></div>
             </div>
+            <p className="mt-3 text-center text-[13px] text-muted sm:hidden">옆으로 밀면 화면까지 이어진 전체 그림이 보입니다.</p>
             <figcaption className="mt-6 text-center text-[13px] text-muted">모든 기능은 왼쪽의 개발자 원문에서 출발합니다. 원문이 없는 줄은 점선, 가설로 남습니다.</figcaption>
           </figure>
         </section>
@@ -161,7 +172,7 @@ export default async function Home() {
             {quotes.map((quote) => (
               <li key={quote.id} className="border-l-2 border-seed pl-5">
                 <p lang="en" className="text-xl leading-8">“{quote.quote}”</p>
-                <p className="mt-1.5 text-[13px] text-muted">{[PLATFORM_LABELS[quote.platform], quote.postedAt ? monthYear.format(new Date(quote.postedAt)) : null, '원문과 일치'].filter(Boolean).join(' · ')}</p>
+                <p className="mt-1.5 text-[13px] text-muted">{[quote.problem, PLATFORM_LABELS[quote.platform], quote.postedAt ? monthYear.format(new Date(quote.postedAt)) : null, '원문과 일치'].filter(Boolean).join(' · ')}</p>
               </li>
             ))}
           </ul>
@@ -175,7 +186,7 @@ export default async function Home() {
 
         <section className="page-shell grid items-center gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
           <div>
-            <p className={kicker}>키우기</p>
+            <p className={kicker}>구현</p>
             <h2 className={h2}>기획서에서 멈추지 않고,<br />코드까지.</h2>
             <p className={lead}>Seedup은 MCP 서버로 동작합니다. 코딩 에이전트가 검증된 PRD를 직접 불러와 첫 기능부터 만듭니다.</p>
             <Link href="/profile" className="link-seed mt-5">에이전트 연결하기 ›</Link>
@@ -184,7 +195,7 @@ export default async function Home() {
             <span className="text-[#8b8b94]">$ </span>claude mcp add --transport http seedup {siteUrl}/api/mcp{'\n\n'}
             <span className="text-[#8b8b94]">&gt; </span>&quot;제공사별 모델 스키마 차이&quot; PRD로 F1부터 만들어 줘{'\n\n'}
             <span className="text-[#7fd1a6]">seedup.generate_verified_prd</span>{'\n'}
-            {'  R1 어느 제공사든 같은 요청 형식   원문 2\n'}
+            {'  R1 어느 제공사든 같은 요청 형식   원문 3\n'}
             {'  R2 설정 한 줄로 모델 전환         원문 1\n'}
             <span className="text-[#8b8b94]">{'  H1 쓸 수 있는 모델 목록          가설'}</span>
           </code></pre>

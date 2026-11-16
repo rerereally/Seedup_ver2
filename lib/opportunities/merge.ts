@@ -10,7 +10,7 @@ const MAX_KEYWORDS = 14;
 const MAX_HISTORY = 30;
 const STALE_AFTER_DAYS = 21;
 const STATUS_RANK = { open: 0, narrowing: 1, unknown: 2, closed: 3 };
-const STATUS_WORDS = { open: '열림', narrowing: '좁아지는 중', closed: '닫힘', unknown: '조사 중' };
+const STATUS_WORDS = { open: '경쟁 적음', narrowing: '경쟁 늘어남', closed: '경쟁 많음', unknown: '확인 중' };
 
 type Run = { opportunities: Opportunity[]; embeddings: Record<string, number[]> };
 export type MergeSummary = { added: string[]; grown: string[]; statusChanged: string[]; carried: number; expired: string[] };
@@ -133,11 +133,11 @@ export function mergeRuns(previous: (Run & { generatedAt: string }) | null, next
 /** What changed since the point before the latest one, in the words shown on the opportunity page. */
 export function describeChange(before: OpportunityPoint, after: OpportunityPoint) {
   const parts: string[] = [];
-  if (after.evidence !== before.evidence) parts.push(`증언 ${before.evidence}건 → ${after.evidence}건`);
-  if (after.platforms !== before.platforms) parts.push(`플랫폼 ${before.platforms}종 → ${after.platforms}종`);
+  if (after.evidence !== before.evidence) parts.push(`원문 ${before.evidence}건 → ${after.evidence}건`);
+  if (after.platforms !== before.platforms) parts.push(`플랫폼 ${before.platforms}곳 → ${after.platforms}곳`);
   if (after.direct !== before.direct) parts.push(`직접 경쟁 ${before.direct}개 → ${after.direct}개`);
   if (after.status !== before.status) parts.push(`${STATUS_WORDS[before.status]} → ${STATUS_WORDS[after.status]}`);
-  if (after.qualified !== before.qualified) parts.push(after.qualified ? '근거 기준 통과' : '근거 기준 미달로 내려감');
+  if (after.qualified !== before.qualified) parts.push(after.qualified ? '기준 통과' : '기준 미달로 내려감');
   return parts;
 }
 

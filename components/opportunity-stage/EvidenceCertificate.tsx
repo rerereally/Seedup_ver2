@@ -72,7 +72,7 @@ export default function EvidenceCertificate({ chips, typed, leadName, gap, direc
           <div><dt>{t('플랫폼', 'Platforms')}</dt><dd>{platformCount}{t('종', '')}</dd></div>
           <div><dt>{t('직접 경쟁', 'Direct rivals')}</dt><dd>{directCount === null ? '-' : `${directCount}${t('개', '')}`}</dd></div>
         </dl>
-        {chips.length === 0 && <p className={`${styles.empty} ${styles.notice}`}>{t('화면의 증언을 끌어서 폴더에 넣거나 눌러서 담아 보세요.', 'Drag quotes into the folder, or tap them to collect.')}</p>}
+        {chips.length === 0 && <p className={`${styles.empty} ${styles.notice}`}>{t('화면의 원문을 끌어서 폴더에 넣거나 눌러서 담아 보세요.', 'Drag quotes into the folder, or tap them to collect.')}</p>}
         {chips.length > 0 && (
           <ul className={styles.quoteList}>
             {chips.map((chip, index) => (

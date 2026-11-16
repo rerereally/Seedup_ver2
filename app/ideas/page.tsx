@@ -174,7 +174,7 @@ export default function Ideas() {
       <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 데이터베이스마다 다른 CLI 명령을 하나로 통일해 주는 도구" className="mt-2 block h-28 w-full resize-y border bg-white px-4 py-3 text-[15px] leading-7 text-ink placeholder:text-muted focus:border-seed focus:outline-none" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] leading-5 text-muted">시장성, 차별성, 구현 난이도, 포트폴리오 가치, MVP 계획을 봅니다. <span className="hidden sm:inline">⌘/Ctrl + Enter</span></p>
-        <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn disabled:cursor-not-allowed">{status === 'saving' ? '분석 중…' : '검증하기'}</button>
+        <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn disabled:cursor-not-allowed">{status === 'saving' ? '분석 중…' : '평가하기'}</button>
       </div>
     </div>
   );
@@ -183,7 +183,7 @@ export default function Ideas() {
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="아이디어 검증" description="내 아이디어가 자랄 씨앗인지, 모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 확인합니다." />
+        <PageIntro title="아이디어 평가" description="모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 내 아이디어를 평가합니다. 원문 대조가 아니라 AI가 매기는 참고 점수입니다." />
 
         {composer}
 
@@ -211,7 +211,7 @@ export default function Ideas() {
 
         <section className="max-w-[760px]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-ink">최근 검증</h2>
+            <h2 className="text-lg font-semibold text-ink">최근 평가</h2>
             <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
           </div>
           {recentIdeas.length ? (
@@ -236,8 +236,8 @@ export default function Ideas() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">
             <div className="card w-full max-w-2xl overflow-hidden">
               <div className="flex items-center justify-between border-b border-outline-soft px-6 py-4">
-                <h2 id="recent-evaluations-title" className="text-lg font-semibold tracking-tight text-ink">최근 검증</h2>
-                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 검증 닫기" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-mid hover:text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
+                <h2 id="recent-evaluations-title" className="text-lg font-semibold tracking-tight text-ink">최근 평가</h2>
+                <button type="button" onClick={() => setIsRecentModalOpen(false)} aria-label="최근 평가 닫기" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-mid hover:text-ink"><X aria-hidden="true" className="h-5 w-5" /></button>
               </div>
               <ul className="max-h-[70vh] divide-y divide-outline-soft overflow-y-auto px-6">
                 {recentIdeas.map((item) => (

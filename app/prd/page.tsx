@@ -7,12 +7,13 @@ import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { localizedOpportunity } from '@/lib/opportunities/types';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'PRD' };
-
-const MAX_EVIDENCE = 12;
 
 /**
  * The PRD workspace at full width: one opportunity (?opportunity=slug) or quotes collected elsewhere
@@ -26,12 +27,15 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
 
   if (!params.opportunity && !params.evidence) {
     const qualified = opportunities.filter((item) => item.qualified);
+    // Saved PRDs open at once for anyone, so the list says which ones are ready to read.
+    const service = createAdminClient();
+    const saved = new Set((await Promise.all(qualified.map(async (item) => ((await readPrdCache(service, item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
     return (
       <>
         <Header />
         <main id="main-content" className="page-shell grow">
           <h1 className="page-intro-title">PRD</h1>
-          <p className="page-intro-description">{t('검증을 통과한 문제에서 시작합니다. 원문만 근거로 요구사항, 기능, 화면까지 이어진 PRD를 만들어 코딩 에이전트에 넘깁니다.', 'Start from a verified problem. The PRD traces requirements, features and screens back to developer quotes, ready for a coding agent.')}</p>
+          <p className="page-intro-description">{t('기준을 통과한 문제에서 시작합니다. 원문만 근거로 요구사항, 기능, 화면까지 이어진 PRD를 만들어 코딩 에이전트에 넘깁니다.', 'Start from a verified problem. The PRD traces requirements, features and screens back to developer quotes, ready for a coding agent.')}</p>
           {qualified.length ? (
             <ul className="rows mt-10">
               {qualified.map((item) => {
@@ -43,7 +47,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
                         <span className="block text-[17px] font-semibold text-ink underline-offset-4 group-hover:underline">{text.name}</span>
                         <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{text.problem}</span>
                       </span>
-                      <span className="shrink-0 text-sm text-muted"><span className="font-medium text-seed">{t('기준 통과', 'Verified')}</span> · {t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}</span>
+                      <span className="shrink-0 text-right text-sm text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}<span className={`mt-0.5 block font-medium ${saved.has(item.slug) ? 'text-seed' : ''}`}>{saved.has(item.slug) ? t('PRD 바로 보기', 'Read the PRD') : t('PRD 만들기', 'Make a PRD')} ›</span></span>
                     </Link>
                   </li>
                 );
@@ -66,6 +70,12 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
   const picked = findEvidence(opportunities, requestedIds.slice(0, MAX_EVIDENCE));
   if (!picked.length) notFound();
 
+  const pickedIds = picked.map((item) => item.evidence.id);
+  const supabase = await createClient();
+  const [user, saved] = await Promise.all([
+    supabase ? supabase.auth.getUser().then(({ data }) => data.user) : null,
+    readPrdCache(createAdminClient(), pickedIds),
+  ]);
   const ready = meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const slugs = [...new Set(picked.map((item) => item.slug))];
   const lead = opportunity ?? opportunities.find((item) => item.slug === slugs[0]) ?? null;
@@ -87,11 +97,11 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
             {slugs.length > 1 ? t(` · 기회 ${slugs.length}개`, ` · ${slugs.length} opportunities`) : ''}
             {' · '}
             {t('요구사항 → 기능 → 화면까지 이어진 PRD를 만듭니다. 항목을 누르면 그 항목이 기대는 원문이 함께 강조됩니다.', 'Build a PRD traced from requirements to features to screens. Click any item to light up the quotes behind it.')}
-            {!ready && <> {t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐 가설 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so it is made as a hypothesis draft.')}</>}
+            {!ready && <> {t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐 가설 초안으로 만듭니다.', 'The quotes are below the bar (3 quotes, 2 platforms), so it is made as a hypothesis draft.')}</>}
           </p>
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
-          <PrdBuilder title={title} evidenceIds={picked.map((item) => item.evidence.id)} ready={ready} loginNext={self} />
+          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} />
         </section>
       </main>
       <Footer />

@@ -209,10 +209,10 @@ export default function OpportunityStage({ opportunities, news, header }: {
 
   return (
     <>
-      <section className={`${styles.stage} ${ready ? styles.ready : ''}`} ref={stageRef} aria-label={t('아이디어로 현장 증언 찾기', 'Find real developer quotes for your idea')}>
+      <section className={`${styles.stage} ${ready ? styles.ready : ''}`} ref={stageRef} aria-label={t('아이디어로 개발자 원문 찾기', 'Find real developer quotes for your idea')}>
         {header}
         <div className={styles.ask} id="main-content" ref={askRef}>
-          <h1 className="sr-only">{t('만들고 싶은 것을 입력하면 실제 개발자의 증언이 반응합니다', 'Type what you want to build and real developer quotes respond')}</h1>
+          <h1 className="sr-only">{t('만들고 싶은 것을 입력하면 실제 개발자의 원문이 반응합니다', 'Type what you want to build and real developer quotes respond')}</h1>
           <label className="sr-only" htmlFor="stage-query">{t('무엇을 만들고 싶나요?', 'What do you want to build?')}</label>
           <div className={styles.inputWrap}>
             <input
@@ -232,13 +232,13 @@ export default function OpportunityStage({ opportunities, news, header }: {
           </div>
           <p className={styles.readout} aria-live="polite">
             {!match.active && (en ? <><b>{chips.length}</b> things developers actually said are here. Type what you want to build.</> : <>개발자들이 실제로 한 말 <b>{chips.length}개</b>가 쌓여 있습니다. 만들고 싶은 것을 입력해 보세요.</>)}
-            {match.active && !hasMatches && t('아직 이 주제의 증언이 없습니다. 다른 표현으로 입력해 보세요.', 'No quotes on this topic yet. Try other words.')}
-            {hasMatches && (en ? <><b>{match.chips.length}</b> quotes · <b>{new Set(match.chips.map((chip) => chip.platform)).size}</b> platforms · <b>{match.top?.directCount ?? 0}</b> direct rivals</> : <>증언 <b>{match.chips.length}개</b> · 플랫폼 <b>{new Set(match.chips.map((chip) => chip.platform)).size}종</b> · 직접 경쟁 <b>{match.top?.directCount ?? 0}개</b></>)}
+            {match.active && !hasMatches && t('아직 이 주제의 원문이 없습니다. 다른 표현으로 입력해 보세요.', 'No quotes on this topic yet. Try other words.')}
+            {hasMatches && (en ? <><b>{match.chips.length}</b> quotes · <b>{new Set(match.chips.map((chip) => chip.platform)).size}</b> platforms · <b>{match.top?.directCount ?? 0}</b> direct rivals</> : <>원문 <b>{match.chips.length}건</b> · 플랫폼 <b>{new Set(match.chips.map((chip) => chip.platform)).size}곳</b> · 직접 경쟁 <b>{match.top?.directCount ?? 0}개</b></>)}
           </p>
           <div className={styles.tools}>
             {remaining.length > 0 && (
               <button type="button" className={`${styles.pill} ${styles.collect}`} onClick={() => pileRef.current?.collectMany(remaining.map((chip) => chip.id))}>
-                {t(`반응한 증언 ${remaining.length}개 모두 담기`, `Collect all ${remaining.length} matching quotes`)}
+                {t(`반응한 원문 ${remaining.length}개 모두 담기`, `Collect all ${remaining.length} matching quotes`)}
               </button>
             )}
             {!typed && suggestions.map((text) => (
@@ -248,7 +248,7 @@ export default function OpportunityStage({ opportunities, news, header }: {
               <button type="button" className={styles.pill} onClick={() => { setQuery(''); inputRef.current?.focus(); }}>{t('지우기', 'Clear')}</button>
             )}
           </div>
-          {hasMatches && <p className={styles.hint}>{t('증언을 끌어서 폴더에 넣거나, 눌러서 담을 수 있습니다.', 'Drag quotes into the folder, or tap to collect them.')}</p>}
+          {hasMatches && <p className={styles.hint}>{t('원문을 끌어서 폴더에 넣거나, 눌러서 담을 수 있습니다.', 'Drag quotes into the folder, or tap to collect them.')}</p>}
         </div>
 
         {chips.map((chip) => (

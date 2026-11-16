@@ -7,7 +7,7 @@ import TrendAccordion from '@/components/TrendAccordion';
 import { getModelIntelligence, getTrends } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: '트렌드',
+  title: '탐색',
 };
 
 export default async function Trends({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {

@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Spec, SpecInput } from './spec';
 
+/** A PRD is made from at most this many quotes; the API and the PRD page cut the list the same way. */
+export const PRD_MAX_EVIDENCE = 12;
+
 /** Same quotes, same key, whatever order they were picked in. */
 export const prdCacheKey = (evidenceIds: string[]) => createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 40);
 
@@ -15,4 +18,12 @@ export async function writePrdCache(service: SupabaseClient | null, evidenceIds:
   if (!service || !evidenceIds.length) return;
   const { error } = await service.from('prd_cache').upsert({ evidence_key: prdCacheKey(evidenceIds), input, spec, created_at: new Date().toISOString() });
   if (error) console.error('PRD cache write failed', error.message);
+}
+
+/** The first of these opportunities that already has a saved PRD, so the front page can link straight to a filled one. */
+export async function samplePrdSlug(service: SupabaseClient | null, candidates: Array<{ slug: string; evidence: Array<{ id: string }> }>) {
+  for (const item of candidates) {
+    if (await readPrdCache(service, item.evidence.slice(0, PRD_MAX_EVIDENCE).map((row) => row.id))) return item.slug;
+  }
+  return null;
 }

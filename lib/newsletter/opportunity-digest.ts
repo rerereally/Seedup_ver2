@@ -5,7 +5,7 @@ export type DigestKind = 'weekly' | 'changes';
 export type DigestLine = { slug: string; name: string; note: string; important: boolean };
 export type OpportunityDigest = { subject: string; lines: DigestLine[]; html: string; text: string };
 
-const STATUS_WORDS: Record<OpportunityStatus, string> = { open: '열림', narrowing: '좁아지는 중', closed: '닫힘', unknown: '조사 중' };
+const STATUS_WORDS: Record<OpportunityStatus, string> = { open: '경쟁 적음', narrowing: '경쟁 늘어남', closed: '경쟁 많음', unknown: '확인 중' };
 const MAX_LINES = 8;
 
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -31,13 +31,13 @@ export function changeSince(opportunity: Opportunity, since: string): DigestLine
   if (!latest || latest.at <= since) return null;
   const before = [...history].reverse().find((point) => point.at <= since);
   const base = { slug: opportunity.slug, name: opportunity.name };
-  if (!before) return { ...base, note: `새로 찾았습니다. 증언 ${latest.evidence}건, ${STATUS_WORDS[latest.status]}`, important: latest.qualified };
+  if (!before) return { ...base, note: `새로 찾았습니다. 원문 ${latest.evidence}건, ${STATUS_WORDS[latest.status]}`, important: latest.qualified };
 
   const notes: string[] = [];
-  if (latest.qualified && !before.qualified) notes.push('근거 기준을 통과했습니다');
+  if (latest.qualified && !before.qualified) notes.push('기준을 통과했습니다');
   if (latest.status !== before.status) notes.push(`${STATUS_WORDS[before.status]}에서 ${STATUS_WORDS[latest.status]}(으)로 바뀌었습니다`);
   const important = notes.length > 0;
-  if (latest.evidence > before.evidence) notes.push(`증언 ${before.evidence}건 → ${latest.evidence}건`);
+  if (latest.evidence > before.evidence) notes.push(`원문 ${before.evidence}건 → ${latest.evidence}건`);
   if (latest.direct !== before.direct) notes.push(`직접 경쟁 ${before.direct}개 → ${latest.direct}개`);
   return notes.length ? { ...base, note: notes.join(', '), important } : null;
 }

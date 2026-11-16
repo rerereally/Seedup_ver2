@@ -50,9 +50,9 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
         <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
           <div className="min-w-0">
             <h1 className="page-intro-title">{t('기회', 'Opportunities')}</h1>
-            <p className="page-intro-description !max-w-none">{t(`개발자들이 실제로 말한 문제 ${opportunities.length}개. 원문 ${MIN_EVIDENCE}건과 플랫폼 ${MIN_PLATFORMS}곳을 넘으면 검증된 기회가 됩니다.`, `${opportunities.length} problems developers actually described. ${MIN_EVIDENCE} quotes on ${MIN_PLATFORMS} platforms makes one a verified opportunity.`)}</p>
+            <p className="page-intro-description !max-w-none">{t(`개발자들이 실제로 말한 문제 ${opportunities.length}개. 원문 ${MIN_EVIDENCE}건과 플랫폼 ${MIN_PLATFORMS}곳을 넘으면 기준을 통과한 기회가 됩니다.`, `${opportunities.length} problems developers actually described. ${MIN_EVIDENCE} quotes on ${MIN_PLATFORMS} platforms makes one a verified opportunity.`)}</p>
           </div>
-          <Link href="/ideas" className="btn-quiet">{t('내 아이디어 검증하기', 'Check my idea')}</Link>
+          <Link href="/ideas" className="btn-quiet">{t('내 아이디어 평가하기', 'Rate my idea')}</Link>
         </header>
 
         <div className="flex flex-col gap-4">
@@ -63,8 +63,8 @@ export default async function OpportunitiesPage({ searchParams }: { searchParams
             </form>
             <nav className="seg" aria-label={t('단계로 걸러 보기', 'Filter by stage')}>
               <Link href={href({})} aria-current={stage === 'verified' || stage === 'gathering' ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
-              <Link href={href({ stage: 'verified' })} aria-current={stage === 'verified' ? 'page' : undefined}>{t('검증됨', 'Verified')} {verified}</Link>
-              <Link href={href({ stage: 'gathering' })} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('근거 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
+              <Link href={href({ stage: 'verified' })} aria-current={stage === 'verified' ? 'page' : undefined}>{t('기준 통과', 'Verified')} {verified}</Link>
+              <Link href={href({ stage: 'gathering' })} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('원문 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
             </nav>
           </div>
 

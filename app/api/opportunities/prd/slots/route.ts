@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
 
   if (!(await consumeDailyUsage(supabase, 'prd_slots', DAILY_SLOT_LIMIT))) {
-    return NextResponse.json({ error: `개발 준비 슬롯은 하루 ${DAILY_SLOT_LIMIT}번까지 채울 수 있습니다.` }, { status: 429 });
+    return NextResponse.json({ error: `개발 준비 칸은 하루 ${DAILY_SLOT_LIMIT}번까지 채울 수 있습니다.` }, { status: 429 });
   }
   const slots = await generateSlots(input, feature, requirements, toLang(body?.lang)).catch((error) => {
     console.error('Readiness slots failed', error);

@@ -96,8 +96,8 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
       <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
         <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
-      {summary && <p className={lead ? 'mt-3 text-[17px] leading-8 text-tertiary' : 'mt-3 line-clamp-2 text-[15px] leading-7 text-muted'}>{summary}</p>}
-      {lead && item.why_it_matters && <p className="mt-4 text-[15px] leading-7 text-tertiary"><span className="font-semibold text-ink">왜 중요한가</span> · {item.why_it_matters}</p>}
+      {summary && <p className={lead ? 'mt-3 line-clamp-3 text-[17px] leading-8 text-tertiary' : 'mt-3 line-clamp-2 text-[15px] leading-7 text-muted'}>{summary}</p>}
+      {lead && item.why_it_matters && <p className="mt-4 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="font-semibold text-ink">왜 중요한가</span> · {item.why_it_matters}</p>}
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${lead ? 'mt-6' : 'mt-3'}`}>
         {lead && <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />}
         {lead && <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>}
@@ -204,7 +204,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                       <span className="block font-semibold text-ink">{item.name}</span>
                       <span className="mt-1.5 block text-sm text-muted">
                         {item.qualified && <><span className="font-medium text-seed">기준 통과</span> · </>}
-                        원문 {item.evidence.length}건 · {item.directCount ? `경쟁 도구 ${item.directCount}개` : '경쟁 도구 없음'}
+                        원문 {item.evidence.length}건 · {item.directCount ? `직접 경쟁 ${item.directCount}개` : '직접 경쟁 없음'}
                       </span>
                     </Link>
                   </li>

@@ -1,7 +1,7 @@
 import { toLang } from '@/lib/i18n';
 import { specInputFor } from '@/lib/opportunities/context';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
-import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
+import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { generatePrd } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -14,7 +14,6 @@ export const maxDuration = 110;
 
 const DAILY_PRD_LIMIT = 10;
 const MAX_TITLE_LENGTH = 120;
-const MAX_EVIDENCE = 12;
 
 export async function POST(request: Request) {
   const supabase = await createClient();

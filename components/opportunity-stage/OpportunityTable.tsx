@@ -4,17 +4,17 @@ import type { Opportunity, OpportunityStatus, Platform } from '@/lib/opportuniti
 import type { OpportunityFunnel } from '@/lib/opportunities/data';
 
 export const STATUS_LABELS: Record<OpportunityStatus, string> = {
-  open: '열림',
-  narrowing: '좁아지는 중',
-  closed: '닫힘',
-  unknown: '조사 중',
+  open: '경쟁 적음',
+  narrowing: '경쟁 늘어남',
+  closed: '경쟁 많음',
+  unknown: '확인 중',
 };
 
-const STATUS_LABELS_EN: Record<OpportunityStatus, string> = { open: 'Open', narrowing: 'Narrowing', closed: 'Closed', unknown: 'Researching' };
+const STATUS_LABELS_EN: Record<OpportunityStatus, string> = { open: 'Few rivals', narrowing: 'Rivals growing', closed: 'Crowded', unknown: 'Checking' };
 
 const STATUS_DOTS: Record<OpportunityStatus, string> = {
-  open: 'bg-emerald-500',
-  narrowing: 'bg-[#d97706]',
+  open: 'bg-seed',
+  narrowing: 'bg-ink',
   closed: 'bg-outline-strong',
   unknown: 'bg-outline-strong',
 };
@@ -39,10 +39,10 @@ export function FunnelStrip({ funnel, lang = 'ko' }: { funnel: OpportunityFunnel
     [funnel.qualified, 'Passed the bar', `${MIN_EVIDENCE}+ posts on ${MIN_PLATFORMS}+ platforms`],
     [funnel.open, 'Open now', 'Few direct rivals so far'],
   ] : [
-    [funnel.quotes, '원문과 일치한 증언', '지어낸 문장은 여기서 탈락합니다'],
+    [funnel.quotes, '원문과 일치한 인용', '지어낸 문장은 여기서 탈락합니다'],
     [funnel.problems, '묶인 문제', '같은 불만끼리 모았습니다'],
-    [funnel.qualified, '기준 통과', `게시글 ${MIN_EVIDENCE}건, 플랫폼 ${MIN_PLATFORMS}종 이상`],
-    [funnel.open, '지금 열린 기회', '직접 경쟁이 아직 적습니다'],
+    [funnel.qualified, '기준 통과', `원문 ${MIN_EVIDENCE}건, 플랫폼 ${MIN_PLATFORMS}곳 이상`],
+    [funnel.open, '경쟁이 적은 기회', '직접 경쟁이 아직 적습니다'],
   ];
   return (
     <ol className="grid grid-cols-2 overflow-hidden rounded-[20px] border border-outline-soft lg:grid-cols-4">
@@ -65,7 +65,7 @@ const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', s
 
 /** What a problem still needs before it counts as verified, in the reader's words. */
 function stageLabel(item: Opportunity, en: boolean) {
-  if (item.qualified) return en ? 'Verified' : '검증됨';
+  if (item.qualified) return en ? 'Verified' : '기준 통과';
   const quotes = MIN_EVIDENCE - item.evidence.length;
   if (quotes > 0) return en ? `${quotes} more needed` : `${quotes}건 더 필요`;
   const platforms = Math.max(1, MIN_PLATFORMS - item.platforms.length);

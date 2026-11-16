@@ -29,7 +29,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -40,14 +40,18 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   endpoint?: string;
   requestBody?: Record<string, unknown>;
   generateLabel?: string;
+  /** The last PRD made from the same quotes, shown right away so visitors see a result without signing in. */
+  initial?: { input: SpecInput; spec: Spec; createdAt: string } | null;
+  /** false: say up front that making a PRD needs an account, instead of after a failed click. */
+  signedIn?: boolean;
 }) {
   const lang = useLang();
   const t = translator(lang);
-  const [input, setInput] = useState<SpecInput | null>(null);
+  const [input, setInput] = useState<SpecInput | null>(initial?.input ?? null);
   const [pickedIds, setPickedIds] = useState<string[] | null>(null);
   const ids = pickedIds ?? evidenceIds;
   const customSource = Boolean(requestBody);
-  const [spec, setSpec] = useState<Spec | null>(null);
+  const [spec, setSpec] = useState<Spec | null>(initial?.spec ?? null);
   const [previous, setPrevious] = useState<Spec | null>(null);
   const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [slotPending, setSlotPending] = useState<string[]>([]);
   const [instruction, setInstruction] = useState('');
   const [format, setFormat] = useState<ExportFormat>('agents');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initial ? t(`같은 원문으로 ${new Date(initial.createdAt).toLocaleDateString('ko-KR')}에 만든 PRD입니다.`, `Made from the same quotes on ${new Date(initial.createdAt).toLocaleDateString('en-US')}.`) : '');
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -126,7 +130,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         setFocus(null);
         setInstruction('');
         setSaveState('idle');
-        setMessage(t(`"${instruction.trim()}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 증언 목록은 그대로입니다.`, `Applied "${instruction.trim()}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
+        setMessage(t(`"${instruction.trim()}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${instruction.trim()}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
       }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -291,14 +295,20 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={spec ? 'btn-quiet' : 'btn h-11 px-5'} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
-          {status === 'loading' ? t('PRD 작성 중, 최대 1분 30초', 'Writing the PRD, up to 90 s') : spec ? t('PRD 다시 만들기', 'Make the PRD again') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
-        </button>
+        {signedIn === false ? (
+          <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className={spec ? 'btn-quiet' : 'btn h-11 px-5'}>
+            {spec ? t('로그인하고 다시 만들기', 'Sign in to make it again') : t('로그인하고 PRD 만들기', 'Sign in to make a PRD')}
+          </Link>
+        ) : (
+          <button type="button" className={spec ? 'btn-quiet' : 'btn h-11 px-5'} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
+            {status === 'loading' ? t('PRD 작성 중, 최대 1분 30초', 'Writing the PRD, up to 90 s') : spec ? t('PRD 다시 만들기', 'Make the PRD again') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
+          </button>
+        )}
         <button type="button" className={`btn-quiet ${spec ? '' : 'h-11'}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
           {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
         </button>
       </div>
-      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
+      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
       {children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
         {needsLogin && <p><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
@@ -388,7 +398,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     {spec.screens.length > 0 && (
                       <section>
                         <h4 id="prd-screens" className={h2}>{t('화면', 'Screens')}</h4>
-                        <p className="mt-1 text-[13px] text-muted">{t('증언에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}</p>
+                        <p className="mt-1 text-[13px] text-muted">{t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}</p>
                         <ul className="rows mt-3">{spec.screens.map((row) => docRow(row.id, <>{row.name}<span className="block text-sm leading-6 text-muted">{row.does ? `${row.does} ` : ''}({row.featureIds.join(', ')})</span></>))}</ul>
                       </section>
                     )}

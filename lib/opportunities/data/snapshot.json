@@ -1,64 +1,72 @@
 {
- "generatedAt": "2026-11-10T14:00:21.834Z",
+ "generatedAt": "2026-11-16T08:45:41.658Z",
  "stats": {
-  "collected": 399,
+  "collected": 1284,
   "sampled": 360,
   "batchesOk": 45,
   "batchesTotal": 45,
-  "painsVerified": 32,
-  "quotesRejected": 29,
-  "candidates": 28,
+  "painsVerified": 40,
+  "quotesRejected": 9,
+  "candidates": 44,
   "qualified": 2,
-  "llmCalls": 158,
-  "llmFailures": 18,
+  "llmCalls": 160,
+  "llmFailures": 19,
   "supplyCoverage": [
    "github",
    "npm",
    "show_hn",
-   "vscode"
+   "vscode",
+   "appstore"
   ],
   "actors": [
    {
     "id": "devto-discussions",
     "status": "ok",
-    "items": 20,
+    "items": 22,
     "errors": 0,
-    "durationMs": 1142
+    "durationMs": 1068
    },
    {
     "id": "lobsters-ask",
     "status": "ok",
     "items": 4,
     "errors": 0,
-    "durationMs": 2789
+    "durationMs": 2786
    },
    {
     "id": "hn-ask",
     "status": "ok",
-    "items": 68,
+    "items": 231,
     "errors": 0,
-    "durationMs": 4956
+    "durationMs": 4780
    },
    {
     "id": "hn-pain-comments",
     "status": "ok",
-    "items": 68,
+    "items": 561,
     "errors": 0,
-    "durationMs": 8438
+    "durationMs": 10852
    },
    {
     "id": "stackoverflow-unanswered",
     "status": "ok",
-    "items": 106,
+    "items": 107,
     "errors": 0,
-    "durationMs": 15858
+    "durationMs": 31450
    },
    {
     "id": "github-feature-requests",
     "status": "ok",
-    "items": 133,
+    "items": 132,
     "errors": 0,
-    "durationMs": 39955
+    "durationMs": 40132
+   },
+   {
+    "id": "stackexchange-work",
+    "status": "ok",
+    "items": 227,
+    "errors": 0,
+    "durationMs": 65290
    }
   ]
  },
@@ -292,6 +300,380 @@
      "direct": 4,
      "status": "narrowing",
      "qualified": true
+    }
+   ]
+  },
+  {
+   "slug": "canopy-fisheye-distortion-analyzer",
+   "name": "캐노피 왜곡 분석기",
+   "problem": "수목 연구자가 어안 렌즈 왜곡을 분석하는 소프트웨어가 필요하다.",
+   "gap": "기존 제품은 어안 렌즈 투영 왜곡을 분석하는 산림 캐노피 연구용 소프트웨어를 제공하지 않는다.",
+   "nameEn": "Canopy Fisheye Analyzer",
+   "problemEn": "Forest canopy researchers need software to analyze fisheye lens projection distortion.",
+   "gapEn": "Existing products do not provide software for analyzing fisheye lens projection distortion for forest canopy research.",
+   "keywords": [
+    "fisheye",
+    "distortion",
+    "canopy",
+    "fisheye lens",
+    "canopy researcher",
+    "fisheye calibration",
+    "lens distortion",
+    "canopy analysis",
+    "수목",
+    "연구자"
+   ],
+   "audience": "수목 연구자",
+   "audienceEn": "canopy researcher",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange",
+    "github"
+   ],
+   "evidence": [
+    {
+     "id": "ev_b201bf463c9ee0ee",
+     "platform": "stackexchange",
+     "quote": "Is there a tool available that can determine the projection distortion of my lens for me?",
+     "quoteKo": "내 렌즈의 투영 왜곡을 측정해 줄 수 있는 도구가 있나요?",
+     "url": "https://photo.stackexchange.com/questions/138417/how-to-determine-the-projection-distortion-of-a-sigma-8mm-f3-5-ex-dg-fisheye-len",
+     "score": 1,
+     "postedAt": "2026-03-25T14:25:52.000Z"
+    },
+    {
+     "id": "ev_43bda4ac6f7b4b58",
+     "platform": "github",
+     "quote": "Check if our cameras have a normal lens or a fisheye lens, and measure the lens distortion for each camera model",
+     "quoteKo": "우리 카메라에 일반 렌즈가 있는지 어안 렌즈가 있는지 확인하고, 각 카메라 모델별로 렌즈 왜곡을 측정하세요.",
+     "url": "https://github.com/pyronear/vision-rd/issues/106",
+     "score": 0,
+     "postedAt": "2026-10-02T07:47:06Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "appstore",
+     "name": "Fish Eye Camera - Selfie Photo Editor with Lens, Color Filter Effects",
+     "description": "Fish Eye not only have a simulated 178-degree wide-angle view and a live fish eye viewfinder. Further more, it contains a set of lens, filters and Ring Texture ",
+     "popularity": 2724,
+     "url": "https://apps.apple.com/us/app/fish-eye-camera-selfie-photo-editor-with-lens-color/id994815579",
+     "createdAt": "2015-05-21T11:04:28Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Fisheye Lens - Lomo Camera",
+     "description": "The most authentic, versatile, and easy to use fisheye camera on the App Store. VIEWFINDER ■ Total live view. What you see in the viewfinder is the picture you ",
+     "popularity": 1886,
+     "url": "https://apps.apple.com/us/app/fisheye-lens-lomo-camera/id462155908",
+     "createdAt": "2011-09-21T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Fish eye camera & Video Square",
+     "description": "Want to create fun awesome Fisheye photos and video with Fisheye Camera? You can now create pro fisheye style photos with many professional fisheye emulation ul",
+     "popularity": 450,
+     "url": "https://apps.apple.com/us/app/fish-eye-camera-video-square/id1599241785",
+     "createdAt": "2022-01-07T08:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "iFish-plenty of fisheye camera",
+     "description": "【The most interesting fisheye camera】 Take pictures or videos easily. Visual distortion brings unprecedented pleasure to see the wider world through the fish ey",
+     "popularity": 120,
+     "url": "https://apps.apple.com/us/app/ifish-plenty-of-fisheye-camera/id1441080668",
+     "createdAt": "2018-11-04T05:27:14Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Fisheye Camera - Pro Fish Eye Lens with Live Lense Filter Effect Editor",
+     "description": "Boring with normal camera in taking photos and selfies? Fisheye Camera gives you a cool way to take your beautiful photos with nice fish eye effect! It also com",
+     "popularity": 59,
+     "url": "https://apps.apple.com/us/app/fisheye-camera-pro-fish-eye-lens-with-live-lense/id1071673882",
+     "createdAt": "2016-01-09T15:49:54Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Canopy Cover",
+     "description": "Canopy Cover measures % Canopy Cover non destructively using your device's camera. Canopy cover is calculated from green canopy area. Adjust the sliders to corr",
+     "popularity": 1,
+     "url": "https://apps.apple.com/us/app/canopy-cover/id6447323877",
+     "createdAt": "2023-04-14T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@jimp/plugin-fisheye",
+     "description": "@jimp/plugin-fisheye Apply a fisheye effect to an image",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@jimp/plugin-fisheye",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-03-25T14:25:52.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 2,
+     "platforms": 2,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "cofounder-ai-conversation-visibility",
+   "name": "공동창업자 AI 대화 가시성",
+   "problem": "공동창업자의 AI 코딩 에이전트 대화 내용을 확인할 수 없어 의사 결정 맥락을 잃는다.",
+   "gap": "기존 제품은 AI 코딩 에이전트 대화를 개인적으로 기록·분석할 뿐, 공동 창업자 간 대화 가시성과 의사 결정 맥락 공유를 직접 해결하지 못한다.",
+   "nameEn": "Cofounder AI conversation visibility",
+   "problemEn": "The developer cofounder cannot see their cofounder's AI coding agent conversations, losing decision context.",
+   "gapEn": "Existing products only individually log or analyze AI coding agent conversations but do not directly enable cofounders to see each other's conversations and share decision context.",
+   "keywords": [
+    "ai",
+    "agent",
+    "cofounder",
+    "developer",
+    "conversation",
+    "visibility",
+    "logs",
+    "공동창업자",
+    "대화",
+    "가시성"
+   ],
+   "audience": "개발자 공동창업자",
+   "audienceEn": "developer cofounder",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_7de6966b5f0552c9",
+     "platform": "hn",
+     "quote": "I've no idea about the conversation he is having with his agents.",
+     "quoteKo": "저는 그가 에이전트들과 나누고 있는 대화에 대해 전혀 알지 못합니다.",
+     "url": "https://news.ycombinator.com/item?id=50472301",
+     "score": 5,
+     "postedAt": "2026-11-12T18:55:11Z"
+    },
+    {
+     "id": "ev_5451f7c42201386a",
+     "platform": "hn",
+     "quote": "Without the conversation log linked to the commit, you're reviewing output without context.",
+     "quoteKo": "커밋에 연결된 대화 로그 없이는 맥락 없이 결과물을 검토하게 됩니다.",
+     "url": "https://news.ycombinator.com/item?id=47322623",
+     "score": 0,
+     "postedAt": "2026-03-10T12:55:04Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "LLM Chat History - Export, explore and share your AI chat history",
+     "description": "Export, explore and share your AI chat history",
+     "popularity": 608,
+     "url": "https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history",
+     "createdAt": "2025-12-23T12:03:49.92+00:00",
+     "relation": "direct"
+    },
+    {
+     "kind": "vscode",
+     "name": "PromptVault — GitHub Copilot Logger",
+     "description": "Automatically logs every GitHub Copilot chat prompt and response to organized daily text files. Never lose a Copilot conversation again.",
+     "popularity": 38,
+     "url": "https://marketplace.visualstudio.com/items?itemName=ironclawdevs27.promptvault-copilot",
+     "createdAt": "2026-05-31T19:11:57.77+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: VoltAgent – Open-Source Observability-First TS AI Agent Framework",
+     "description": "",
+     "popularity": 32,
+     "url": "https://news.ycombinator.com/item?id=43888290",
+     "createdAt": "2025-05-04T18:02:41Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Memograph CLI- A tool to diagnose 'memory failures' in AI agents",
+     "description": "",
+     "popularity": 6,
+     "url": "https://news.ycombinator.com/item?id=47153242",
+     "createdAt": "2026-02-25T15:55:55Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: MindCheck – Analyze your AI coding logs for over-delegation",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47933613",
+     "createdAt": "2026-04-28T12:30:09Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2026-03-10T12:55:04Z",
+   "followersAfterSignal": 2,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "caller-transcription-confidence",
+   "name": "발신자 전사 신뢰도 확인",
+   "problem": "소음 환경에서 발신자 발음의 전사 신뢰도를 확인하지 않으면 음성 에이전트가 잘못된 답변을 할 수 있다.",
+   "gap": "기존 제품은 발신자 전사 신뢰도 점수를 제공하지 않아 소음이 많은 통화에서 잘못 들은 질문에 답변하는 것을 막지 못합니다.",
+   "nameEn": "caller transcription confidence check",
+   "problemEn": "Voice agent developers need caller transcription confidence scores to avoid answering misheard questions on noisy calls.",
+   "gapEn": "Existing products do not provide caller transcription confidence scores to prevent answering misheard questions on noisy calls.",
+   "keywords": [
+    "voice agent",
+    "음성 에이전트",
+    "transcription confidence",
+    "전사 신뢰도",
+    "asr",
+    "stt",
+    "caller audio",
+    "발신자 음성",
+    "speech recognition",
+    "신뢰도 점수"
+   ],
+   "audience": "음성 AI 개발자",
+   "audienceEn": "voice AI developer",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "github",
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_67a00321614277f7",
+     "platform": "github",
+     "quote": "`caller_confidence` is `1.0` on every turn, because Whisper always reports 1.0",
+     "quoteKo": "모든 턴에서 `caller_confidence`는 `1.0`입니다. Whisper가 항상 1.0을 보고하기 때문입니다.",
+     "url": "https://github.com/yuviz-ai/yuviz-public/issues/113",
+     "score": 0,
+     "postedAt": "2026-10-16T06:23:31Z"
+    },
+    {
+     "id": "ev_5472d26b50645f72",
+     "platform": "stackoverflow",
+     "quote": "I want to check how confident the transcription of the caller's turn was",
+     "quoteKo": "발신자 턴의 전사본이 얼마나 신뢰할 수 있는지 확인하고 싶습니다.",
+     "url": "https://stackoverflow.com/questions/80009681/how-to-get-confidence-for-the-user-s-audio-transcription-before-the-response-is",
+     "score": -3,
+     "postedAt": "2026-10-13T11:18:08.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "appstore",
+     "name": "SpeakApp AI: Voice Notes",
+     "description": "SpeakApp AI: Voice-to-Text SpeakApp captures your voice with a single tap and transforms it into text. Record and summarize meetings, take voice notes, write em",
+     "popularity": 9792,
+     "url": "https://apps.apple.com/us/app/speakapp-ai-voice-notes/id6468764490",
+     "createdAt": "2024-01-01T08:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "iRecord: Transcribe Voice Memo",
+     "description": "iRecord: High-quality Recorder with Accurate Voice Transcription iRecord is the perfect app for anyone looking to record high-quality voice recordings and trans",
+     "popularity": 8951,
+     "url": "https://apps.apple.com/us/app/irecord-transcribe-voice-memo/id1617942783",
+     "createdAt": "2022-06-02T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Cursor for Speech - Voice to Text",
+     "description": "🎤 Advanced voice-to-text panel with Web Speech API and OpenAI Whisper support. Requires OpenAI API key for premium Whisper transcription. Created by Vrishn Vis",
+     "popularity": 1701,
+     "url": "https://marketplace.visualstudio.com/items?itemName=VrishnViswaSathyamoorthy.cursorforspeech",
+     "createdAt": "2025-09-20T03:20:45.753+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Speech to Text with Whisper",
+     "description": "Transform speech to text using OpenAI Whisper API with seamless VS Code and Cursor IDE integration",
+     "popularity": 1552,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Speak-Y.speech-to-text-whisper",
+     "createdAt": "2025-06-06T09:57:57.967+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Notta Transcribe Voice to Text",
+     "description": "Notta: Your AI Note Taker for Smarter Workflows Notta is an intelligent AI note taker that transforms speech into text with outstanding precision and speed. Say",
+     "popularity": 1489,
+     "url": "https://apps.apple.com/us/app/notta-transcribe-voice-to-text/id1480649572",
+     "createdAt": "2019-12-19T08:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "PromtEngineer/Verbi",
+     "description": "A modular voice assistant application for experimenting with state-of-the-art transcription, response generation, and text-to-speech models. Supports OpenAI, Gr",
+     "popularity": 1126,
+     "url": "https://github.com/PromtEngineer/Verbi",
+     "createdAt": "2024-05-20T04:36:58Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Transcribe AI: Voice to Text",
+     "description": "Not just a Transcriber Turn your voice to text. Just speak into your phone, and voila, we'll convert your words into a handy transcription. But there is more. W",
+     "popularity": 861,
+     "url": "https://apps.apple.com/us/app/transcribe-ai-voice-to-text/id6451265628",
+     "createdAt": "2023-08-01T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "Voice to Text — Local Whisper Transcription",
+     "description": "Record and transcribe speech to text locally using OpenAI Whisper. 100% private — no cloud, no API keys. macOS with Metal GPU acceleration.",
+     "popularity": 536,
+     "url": "https://marketplace.visualstudio.com/items?itemName=gorav.voicetotext",
+     "createdAt": "2026-03-11T20:58:25.577+00:00",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-10-13T11:18:08.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 2,
+     "platforms": 2,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
     }
    ]
   },
@@ -701,6 +1083,937 @@
     {
      "at": "2026-11-10T07:14:24.805Z",
      "evidence": 2,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "us-uk-academic-english-converter",
+   "name": "미국영어 영국영어 변환",
+   "problem": "저널 투고를 위해 학술 논문의 미국 영어 표현을 영국 영어로 변환해야 한다.",
+   "gap": "기존 제품 중 학술 논문을 미국 영어에서 영국 영어로 변환하는 기능을 직접 제공하는 제품이 없다.",
+   "nameEn": "US-UK academic English converter",
+   "problemEn": "Researchers must convert academic papers from American English to British English for journal submission.",
+   "gapEn": "No existing product directly converts academic papers from American English to British English.",
+   "keywords": [
+    "us",
+    "uk",
+    "english",
+    "american",
+    "british",
+    "논문교정",
+    "영어변환",
+    "저널투고",
+    "academic",
+    "writing",
+    "spelling",
+    "converter"
+   ],
+   "audience": "연구자",
+   "audienceEn": "academic researcher",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_f9b629d1aa333c07",
+     "platform": "stackexchange",
+     "quote": "Is there a tool that could help me to put my article into British English?",
+     "quoteKo": "내 기사를 영국 영어 스타일로 바꿔주는 도구가 있을까요?",
+     "url": "https://academia.stackexchange.com/questions/226889/is-there-a-tool-that-could-help-me-to-put-my-article-into-british-english",
+     "score": 16,
+     "postedAt": "2026-06-05T12:20:29.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "appstore",
+     "name": "Ginger Writer",
+     "description": "Write better and faster with Ginger's AI-powered writing assistant, trusted by over 8 million users. Ginger corrects all types of mistakes, from grammar and spe",
+     "popularity": 3495,
+     "url": "https://apps.apple.com/us/app/ginger-writer/id822797943",
+     "createdAt": "2014-03-16T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Grammar Checker & AI Keyboard",
+     "description": "Write Professional English with Confidence Need to write clear, professional English for work? iGrammar is an AI-powered writing assistant designed for professi",
+     "popularity": 2450,
+     "url": "https://apps.apple.com/us/app/grammar-checker-ai-keyboard/id6448904682",
+     "createdAt": "2023-05-30T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Grammar Check゜",
+     "description": "Would you like to sound more professional and make sure that you don’t make a mistake in your texts? Use the Lexi Grammar Checker and you will not need to brain",
+     "popularity": 357,
+     "url": "https://apps.apple.com/us/app/grammar-check/id1535594368",
+     "createdAt": "2020-10-14T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "English Editor & Proofreading",
+     "description": "Boost your English writing with the English Writing Editor! Writing editor, headline analyzer and sentence search engine in one app! English editor; checks gram",
+     "popularity": 312,
+     "url": "https://apps.apple.com/us/app/english-editor-proofreading/id1530975556",
+     "createdAt": "2020-12-22T08:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "JSS Style Checker",
+     "description": "Lint LaTeX/BibTeX manuscripts against the JSS style guide.",
+     "popularity": 17,
+     "url": "https://marketplace.visualstudio.com/items?itemName=kollerma.jss-style-checker",
+     "createdAt": "2026-07-18T10:11:29.153+00:00",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-06-05T12:20:29.000Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "video-repost-and-edit-detection",
+   "name": "영상 무단 재게시 문제",
+   "problem": "창작자가 자신의 영상이 무단으로 복제되거나 편집되어 재게시되는지 확인하기 어렵다.",
+   "gap": "웹 전반에서 무단 복제 및 편집된 동영상 리포스트를 직접 탐지하는 기존 제품이 없다.",
+   "nameEn": "Unauthorized video repost problem",
+   "problemEn": "Creators struggle to detect unauthorized copies and edited reposts of their videos across the web.",
+   "gapEn": "No existing product detects unauthorized copies and edited reposts of videos across the web.",
+   "keywords": [
+    "video repost detection",
+    "무단 복제",
+    "영상 도용",
+    "content id",
+    "copyright monitoring",
+    "edited repost",
+    "video fingerprinting",
+    "퍼셉추얼 해싱"
+   ],
+   "audience": "영상 크리에이터",
+   "audienceEn": "video creators",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_386373871a503339",
+     "platform": "stackexchange",
+     "quote": "Would reverse video search be a better approach for finding unauthorized copies",
+     "quoteKo": "역방향 동영상 검색이 무단 복제물을 찾는 더 나은 방법일까요?",
+     "url": "https://video.stackexchange.com/questions/39353/how-can-i-find-out-if-someone-has-reposted-my-videos-online-without-my-permissio",
+     "score": 1,
+     "postedAt": "2026-09-10T11:46:48.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "xwen99/CCF-BDCI-VideoCopyDetection",
+     "description": "2019 CCF 大数据与计算智能大赛 视频版权检测算法 复赛第8名方案 | 8th place solution of Video Copyright Detection Algorithm Track, 2019 CCF Big Data & Computing Intelligence Contest",
+     "popularity": 30,
+     "url": "https://github.com/xwen99/CCF-BDCI-VideoCopyDetection",
+     "createdAt": "2019-10-12T19:29:30Z",
+     "relation": "direct"
+    }
+   ],
+   "directCount": 1,
+   "firstSeenAt": "2026-09-10T11:46:48.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 1,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "warc-wacz-archive-viewer",
+   "name": "WARC WACZ 뷰어",
+   "problem": "웹 아카이빙 개발자가 WARC/WACZ 아카이브를 여러 차원으로 쉽게 탐색하고 이해할 방법이 부족하다.",
+   "gap": "기존 제품은 개발자가 WARC/WACZ 아카이브를 여러 차원으로 쉽게 탐색할 수 있는 방법을 제공하지 않는다.",
+   "nameEn": "WARC WACZ archive viewer",
+   "problemEn": "Web archiving developers lack an easy way to explore WARC/WACZ archives across multiple dimensions.",
+   "gapEn": "Existing products do not provide an easy way for developers to explore WARC/WACZ archives across multiple dimensions.",
+   "keywords": [
+    "warc",
+    "wacz",
+    "web archiving",
+    "아카이브",
+    "뷰어",
+    "탐색기",
+    "웹 아카이빙",
+    "archive viewer",
+    "웹아카이브",
+    "데이터 탐색"
+   ],
+   "audience": "웹아카이빙개발자",
+   "audienceEn": "web archiving developer",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_dd23710a66667da0",
+     "platform": "hn",
+     "quote": "it would be nice to have an easier way to explore what you’ve captured",
+     "quoteKo": "캡처한 내용을 더 쉽게 탐색할 수 있으면 좋겠어요.",
+     "url": "https://news.ycombinator.com/item?id=50347401",
+     "score": 0,
+     "postedAt": "2026-11-03T02:50:03Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "appstore",
+     "name": "Wayback Machine",
+     "description": "Archive Web pages and Tweets to the Wayback Machine! To archive Web pages or Tweets simply \"Share\" them to this app. From Safari - select the \"Share\" icon at th",
+     "popularity": 291,
+     "url": "https://apps.apple.com/us/app/wayback-machine/id1201888313",
+     "createdAt": "2017-06-19T15:35:53Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "HAR Viewer & HAR File Analyzer (HTTP Archive, Network Log)",
+     "description": "HAR viewer and HAR file analyzer for .har files from browser DevTools: a request table with a timing waterfall, filters, headers, cookies and bodies. Copy as cU",
+     "popularity": 13,
+     "url": "https://marketplace.visualstudio.com/items?itemName=zovo.zovo-har-viewer",
+     "createdAt": "2026-11-07T17:29:39.003+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: I Built a TikTok-Style Browser for the Internet Archive",
+     "description": "",
+     "popularity": 1,
+     "url": "https://news.ycombinator.com/item?id=43005159",
+     "createdAt": "2025-02-10T21:06:45Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "warcio",
+     "description": "Streaming web archive (WARC) file support for modern browsers and Node.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/warcio",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-11-03T02:50:03Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "landscape-photo-village-identifier",
+   "name": "사진 속 마을 식별",
+   "problem": "현재 도구는 산이나 일반 위치만 인식해 풍경 사진 속 특정 마을을 식별하기 어렵다.",
+   "gap": "기존 제품들은 풍경 사진에서 특정 마을을 식별하지 못하고 산이나 일반 위치만 인식한다.",
+   "nameEn": "landscape photo village identification",
+   "problemEn": "Current tools recognize only mountains or general locations, making it hard to identify specific villages in landscape photos.",
+   "gapEn": "Existing products do not identify specific villages in landscape photos, only recognizing mountains or general locations.",
+   "keywords": [
+    "풍경사진",
+    "landscape photo",
+    "마을 식별",
+    "village identification",
+    "사진 위치",
+    "photo location",
+    "자동 태깅",
+    "auto tagging"
+   ],
+   "audience": "풍경사진작가",
+   "audienceEn": "landscape photographer",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_bc17c2d6af433df4",
+     "platform": "stackexchange",
+     "quote": "Tools to assist in identifying villages in landscape photos",
+     "quoteKo": "풍경 사진에서 마을을 식별하는 데 도움을 주는 도구들",
+     "url": "https://photo.stackexchange.com/questions/138694/tools-to-assist-in-identifying-villages-in-landscape-photos",
+     "score": 0,
+     "postedAt": "2026-10-28T18:17:47.000Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-10-28T18:17:47.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "ai-code-quality-control",
+   "name": "AI 생성 코드 품질 관리",
+   "problem": "개발자가 AI 생성 코드의 품질을 일관되게 관리하고 동작 정의를 추적하기 어렵다.",
+   "gap": "기존 제품은 AI 생성 코드의 품질을 일관되게 관리하고 행동 정의를 추적하는 기능을 제공하지 않는다.",
+   "nameEn": "AI-generated code quality control",
+   "problemEn": "Developers struggle to consistently manage quality and track behavior definitions in AI-generated code.",
+   "gapEn": "Existing products do not provide consistent quality management and behavior definition tracking for AI-generated code.",
+   "keywords": [
+    "ai code quality",
+    "ai 생성 코드",
+    "코드 리뷰",
+    "vibe coding",
+    "자동 코드 검사",
+    "ai code review",
+    "code quality tool",
+    "소프트웨어 품질"
+   ],
+   "audience": "개발자",
+   "audienceEn": "Software developers",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_48a28a13c9e2566b",
+     "platform": "hn",
+     "quote": "How do you keep up quality when you vibe-code?",
+     "quoteKo": "바이브 코딩을 할 때 품질을 어떻게 유지하나요?",
+     "url": "https://news.ycombinator.com/item?id=50444380",
+     "score": 78,
+     "postedAt": "2026-11-10T18:41:15Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "npm",
+     "name": "glm-review",
+     "description": "GLM-5 powered code review CLI for Claude Code",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/glm-review",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-11-10T18:41:15Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "corrupted-excel-recovery",
+   "name": "손상된 엑셀 파일 복구",
+   "problem": "내장 복구 기능이 실패할 때 손상된 엑셀 파일을 복구할 무료 또는 저비용 도구가 필요하다.",
+   "gap": "기존 제품 중 손상된 Excel 파일을 복구하는 무료 또는 저비용 도구는 없으며, XLSX 파싱·읽기 기능만 제공한다.",
+   "nameEn": "Corrupted Excel file recovery",
+   "problemEn": "Office workers need a free or low-cost tool to recover corrupted Excel files when built-in repair fails.",
+   "gapEn": "No existing product provides a free or low-cost tool to recover corrupted Excel files; they only offer XLSX parsing or reading.",
+   "keywords": [
+    "엑셀 복구",
+    "excel recovery",
+    "손상된 엑셀",
+    "corrupted excel",
+    "xlsx 복구",
+    "excel repair",
+    "파일 복구",
+    "엑셀 열리지 않음"
+   ],
+   "audience": "사무직원",
+   "audienceEn": "office worker",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_a1fd5dc27315e387",
+     "platform": "stackexchange",
+     "quote": "So I have not had a lot of success with Excel's built-in",
+     "quoteKo": "그래서 Excel 내장 기능으로는 큰 성공을 거두지 못했습니다.",
+     "url": "https://softwarerecs.stackexchange.com/questions/95187/gratis-or-low-cost-solution-for-corrupted-excel-files",
+     "score": 3,
+     "postedAt": "2026-02-10T18:31:05.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "npm",
+     "name": "@clazic/kordoc",
+     "description": "Parse Korean documents (HWP, HWPX, PDF, XLSX, DOCX) to Markdown",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@clazic/kordoc",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "82excel",
+     "description": "82excel — read xlsx, xls and csv files in the browser or Node and validate them against a header schema. Korean-friendly (NFC headers, EUC-KR CSV).",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/82excel",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-02-10T18:31:05.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "qgis-layer-refresh",
+   "name": "QGIS 레이어 갱신",
+   "problem": "QGIS Server에서 원격 레이어를 갱신하려면 서버 전체를 재시작해야 한다.",
+   "gap": "기존 제품들은 QGIS Server에서 원격 레이어를 전체 재시작 없이 갱신하는 문제를 해결하지 못한다.",
+   "nameEn": "QGIS layer refresh",
+   "problemEn": "QGIS Server requires a full server restart to refresh remote layers.",
+   "gapEn": "Existing products do not solve the problem of refreshing remote layers in QGIS Server without a full server restart.",
+   "keywords": [
+    "qgis",
+    "qgis server",
+    "layer refresh",
+    "레이어 갱신",
+    "서버 재시작",
+    "gis 서버",
+    "qgis 플러그인",
+    "layer reload",
+    "캐시 삭제",
+    "cache clear"
+   ],
+   "audience": "QGIS 관리자",
+   "audienceEn": "QGIS Server administrator",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_74a921ba743ebeb2",
+     "platform": "stackexchange",
+     "quote": "For the data to be refreshed, I have to restart QGIS Server.",
+     "quoteKo": "데이터를 갱신하려면 QGIS Server를 다시 시작해야 합니다.",
+     "url": "https://gis.stackexchange.com/questions/498326/refresh-a-remote-layer-in-qgis-server",
+     "score": 5,
+     "postedAt": "2025-12-04T10:20:09.000Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2025-12-04T10:20:09.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "rag-citation-verification",
+   "name": "RAG 인용 검증",
+   "problem": "RAG 애플리케이션에서 LLM이 생성한 인용이 실제 검색된 문서와 일치하는지 검증하는 것이 어렵다.",
+   "gap": "기존 제품은 RAG 파이프라인에서 LLM이 생성한 인용이 검색된 소스 문서와 일치하는지 직접 검증하는 기능을 제공하지 않는다.",
+   "nameEn": "RAG citation verification",
+   "problemEn": "RAG application developers need a reliable way to verify that LLM-generated citations match the retrieved source documents.",
+   "gapEn": "Existing products do not directly verify that LLM-generated citations in RAG pipelines match the retrieved source documents.",
+   "keywords": [
+    "rag",
+    "citation",
+    "verification",
+    "llm",
+    "hallucination",
+    "retrieved",
+    "문서",
+    "출처",
+    "검증",
+    "인용",
+    "생성형 ai",
+    "chunk"
+   ],
+   "audience": "RAG 개발자",
+   "audienceEn": "RAG application developers",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackoverflow"
+   ],
+   "evidence": [
+    {
+     "id": "ev_193be7fd3d0020e4",
+     "platform": "stackoverflow",
+     "quote": "I already check every cited ID against the retrieved list in code and reject unknown IDs.",
+     "quoteKo": "이미 코드에서 인용된 모든 ID를 검색된 목록과 대조했으며, 알 수 없는 ID는 거부합니다.",
+     "url": "https://stackoverflow.com/questions/80009709/how-do-i-enforce-that-an-llm-only-cites-chunk-ids-from-the-retrieved-set-when-t",
+     "score": -5,
+     "postedAt": "2026-10-13T12:38:22.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "raga-ai-hub/RagaAI-Catalyst",
+     "description": "Python SDK for Agent AI Observability, Monitoring and Evaluation Framework. Includes features like agent, llm and tools tracing, debugging multi-agentic system,",
+     "popularity": 16189,
+     "url": "https://github.com/raga-ai-hub/RagaAI-Catalyst",
+     "createdAt": "2024-08-26T12:13:15Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "modelscope/evalscope",
+     "description": "A streamlined and customizable framework for efficient large model (LLM, VLM, AIGC) evaluation and performance benchmarking.",
+     "popularity": 3699,
+     "url": "https://github.com/modelscope/evalscope",
+     "createdAt": "2023-12-07T06:10:49Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "1517005260/graph-rag-agent",
+     "description": "拼好RAG：手搓并融合了GraphRAG、LightRAG、Neo4j-llm-graph-builder进行知识图谱构建以及搜索；整合DeepSearch技术实现私域RAG的推理；自制针对GraphRAG的评估框架| Integrate GraphRAG, LightRAG, and Neo4j-llm-graph-",
+     "popularity": 2359,
+     "url": "https://github.com/1517005260/graph-rag-agent",
+     "createdAt": "2025-02-12T15:11:51Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "trpc-group/trpc-agent-go",
+     "description": "A Go framework for building production agent systems with graph workflows, tools, memory, A2A, AG-UI, MCP, evaluation, and observability.",
+     "popularity": 1931,
+     "url": "https://github.com/trpc-group/trpc-agent-go",
+     "createdAt": "2025-05-14T13:51:35Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "rudrankriyam/Foundation-Models-Framework-Lab",
+     "description": "A practical lab for building, testing, and evaluating apps with Apple's Foundation Models framework.",
+     "popularity": 1192,
+     "url": "https://github.com/rudrankriyam/Foundation-Models-Framework-Lab",
+     "createdAt": "2025-06-09T19:29:16Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "cuihuash/CiteVerify",
+     "description": "A local tool for verifying references in research papers. It extracts citations from PDF and docx files, searches for matching scholarly records online, and cre",
+     "popularity": 76,
+     "url": "https://github.com/cuihuash/CiteVerify",
+     "createdAt": "2026-08-13T01:46:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "kirinccchang/citereview",
+     "description": "Citation verification tool: detect hallucinated authorities and verify citation accuracy for legal writing",
+     "popularity": 22,
+     "url": "https://github.com/kirinccchang/citereview",
+     "createdAt": "2026-04-22T20:29:06Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "rpatrik96/research-agora",
+     "description": "Research Agora: Claude Code skills, benchmarks & tools for ML researchers — paper writing, citation verification, experiment tracking, LaTeX automation",
+     "popularity": 19,
+     "url": "https://github.com/rpatrik96/research-agora",
+     "createdAt": "2026-01-29T19:01:02Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-10-13T12:38:22.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "gnucash-transaction-counter",
+   "name": "GnuCash 거래 건수 확인",
+   "problem": "GnuCash에서 특정 기간 거래 건수를 세려면 수동으로 하나씩 세야 합니다.",
+   "gap": "기존 제품은 GnuCash 특정 기간 거래 건수를 자동으로 세어주는 기능을 제공하지 않는다.",
+   "nameEn": "GnuCash transaction counter",
+   "problemEn": "GnuCash users must manually count transactions one by one to determine the total number of entries for a specific time period.",
+   "gapEn": "Existing products do not provide a feature to automatically count the total number of GnuCash transactions for a specific time period.",
+   "keywords": [
+    "gnucash",
+    "transaction",
+    "counter",
+    "count",
+    "회계",
+    "장부",
+    "건수",
+    "세기",
+    "bookkeeping",
+    "회계 프로그램"
+   ],
+   "audience": "회계 담당자",
+   "audienceEn": "small business bookkeeper",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_b38a9939f9aa044e",
+     "platform": "stackexchange",
+     "quote": "I need to determine the total number of transaction entries in my GNU Cash DB for the last accounting year.",
+     "quoteKo": "지난 회계 연도의 GNU Cash DB에서 거래 항목의 총 개수를 확인해야 합니다.",
+     "url": "https://money.stackexchange.com/questions/169610/how-to-count-transactions-for-time-period-in-gnu-cash",
+     "score": 1,
+     "postedAt": "2026-05-18T15:31:12.000Z"
+    }
+   ],
+   "supply": [],
+   "directCount": 0,
+   "firstSeenAt": "2026-05-18T15:31:12.000Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "gis-polygon-point-generation",
+   "name": "폴리곤 내부 점 생성",
+   "problem": "GIS 분석가가 폴리곤 레이어 안에 균등한 점을 자동으로 생성하는 데 어려움을 겪는다.",
+   "gap": "기존 제품 중 다각형 내부에 균등하게 간격을 둔 점을 자동으로 생성하는 기능을 직접 제공하는 제품이 없습니다.",
+   "nameEn": "polygon interior point generation",
+   "problemEn": "GIS analysts struggle to automatically generate evenly spaced points inside polygon layers instead of doing it manually.",
+   "gapEn": "None of the existing products directly provide the ability to automatically generate evenly spaced points within polygons.",
+   "keywords": [
+    "gis",
+    "polygon",
+    "point generation",
+    "qgis",
+    "arcgis",
+    "공간정보",
+    "다각형",
+    "점 생성",
+    "automated sampling",
+    "feature generation"
+   ],
+   "audience": "GIS 분석가",
+   "audienceEn": "GIS analyst",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_5afd1150c2a87f4a",
+     "platform": "stackexchange",
+     "quote": "Doing this manually would be imprecise and extremely time-consuming.",
+     "quoteKo": "이를 수동으로 하면 부정확하고 시간이 극도로 많이 걸립니다.",
+     "url": "https://gis.stackexchange.com/questions/498198/is-there-a-qgis-plugin-that-creates-evenly-spaced-points-within-a-polygon-layer",
+     "score": 3,
+     "postedAt": "2025-11-24T09:18:51.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "ArcGIS API for JavaScript Snippets",
+     "description": "Code snippets for the ArcGIS API for JavaScript for 2D and 3D mapping and visualization.",
+     "popularity": 10006,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Esri.arcgis-jsapi-snippets",
+     "createdAt": "2019-06-27T18:11:38.023+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "ArcGIS AppStudio",
+     "description": "Build ArcGIS AppStudio apps in Visual Studio Code",
+     "popularity": 7459,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Esri.appstudio-vscode",
+     "createdAt": "2019-08-16T00:00:29.447+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "ArcGIS Maps SDK for JavaScript Snippets",
+     "description": "Code snippets for the ArcGIS Maps SDK for JavaScript for 2D and 3D mapping and visualization.",
+     "popularity": 6675,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Esri.arcgis-maps-sdk-js-snippets",
+     "createdAt": "2023-09-29T17:43:19.57+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "ArcGIS Pro Debugger",
+     "description": "Helps you debug Python toolboxes and scripts in ArcGIS Pro",
+     "popularity": 4223,
+     "url": "https://marketplace.visualstudio.com/items?itemName=Esri.arcgis-pro-debugger",
+     "createdAt": "2025-05-19T18:50:36.623+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "vscode",
+     "name": "图层预览",
+     "description": "图层预览 (dpviewlayer) - 图像查看器，也适用于 GIS 栅格预览。支持 PNG/JPEG/BMP/TIFF/GeoTIFF、样式拉伸、多图层与像元识别。右键「新视图打开 / 添加为图层」。",
+     "popularity": 53,
+     "url": "https://marketplace.visualstudio.com/items?itemName=yxfangcs.dpviewlayer",
+     "createdAt": "2026-07-28T06:52:06.837+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "qwc2",
+     "description": "QGIS Web Client",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/qwc2",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@arcgis/core",
+     "description": "ArcGIS Maps SDK for JavaScript: A complete 2D and 3D mapping and data visualization API",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@arcgis/core",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "@arcgis/toolkit",
+     "description": "Collection of common internal patterns and utilities for ArcGIS Maps SDK for JavaScript components.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@arcgis/toolkit",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2025-11-24T09:18:51.000Z",
+   "followersAfterSignal": 1,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 0,
+     "status": "open",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "technical-illustration-graph-builder",
+   "name": "기술 일러스트 그래프 제작",
+   "problem": "기술 일러스트레이터가 어도비 일러스트레이터에서 방향 인수 그래프를 수작업으로 그리는 데 너무 많은 시간을 쓴다.",
+   "gap": "기존 제품은 기술 일러스트레이터를 위해 방향성 논증 그래프를 베지어 곡선으로 자동 생성하여 일러스트레이터 수작업을 대체하지 못한다.",
+   "nameEn": "Technical illustration graph builder",
+   "problemEn": "Technical illustrators spend too much time manually drawing directed argumentation graphs as Bézier curves in Adobe Illustrator.",
+   "gapEn": "Existing products do not automatically generate directed argumentation graphs as Bézier curves to replace manual drawing in Adobe Illustrator for technical illustrators.",
+   "keywords": [
+    "technical illustrator",
+    "기술 일러스트레이터",
+    "directed graph",
+    "방향 그래프",
+    "bezier curve",
+    "베지에 곡선",
+    "argumentation diagram",
+    "논증 도표",
+    "svg export",
+    "graph builder"
+   ],
+   "audience": "기술 일러스트레이터",
+   "audienceEn": "Technical illustrator",
+   "status": "open",
+   "qualified": false,
+   "platforms": [
+    "stackexchange"
+   ],
+   "evidence": [
+    {
+     "id": "ev_0b2802b87a85d8e0",
+     "platform": "stackexchange",
+     "quote": "Efficient workflow for recreating argumentation-style directed graphs in Adobe Illustrator",
+     "quoteKo": "Adobe Illustrator에서 논증 스타일 방향 그래프를 효율적으로 재현하는 워크플로우",
+     "url": "https://graphicdesign.stackexchange.com/questions/171085/efficient-workflow-for-recreating-argumentation-style-directed-graphs-in-adobe-i",
+     "score": 0,
+     "postedAt": "2026-06-13T19:22:44.000Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "vscode",
+     "name": "Git Graph",
+     "description": "View a Git Graph of your repository, and perform Git actions from the graph.",
+     "popularity": 15726139,
+     "url": "https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph",
+     "createdAt": "2019-02-09T22:28:52.903+00:00",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Concepts",
+     "description": "Think, plan & create – Concepts is a flexible vector-based sketchbook where you can take your ideas from concept to reality. Concepts reimagines the ideation pr",
+     "popularity": 26644,
+     "url": "https://apps.apple.com/us/app/concepts/id560586497",
+     "createdAt": "2012-10-06T04:59:35Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Morpholio Trace - Sketch CAD",
+     "description": "SKETCH, DESIGN, CREATE Trace is the ALL-IN-ONE design & architecture app. Awarded “Best App,” Trace is a truly unique drawing tool that allows you to easily dev",
+     "popularity": 10682,
+     "url": "https://apps.apple.com/us/app/morpholio-trace-sketch-cad/id547274918",
+     "createdAt": "2012-09-25T07:52:09Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Wand - AI canvas",
+     "description": "Wand is an AI creative tool designed to give artists the visual control they need to bring their ideas to life. ~ In Wand it’s not just about text prompts: you ",
+     "popularity": 2680,
+     "url": "https://apps.apple.com/us/app/wand-ai-canvas/id1635194640",
+     "createdAt": "2023-08-16T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "Visme - Presentation & Charts",
+     "description": "Visme is your all-in-one tool for creating a variety of visual content ranging from engaging presentations, documents and data visualizations to impressive info",
+     "popularity": 1095,
+     "url": "https://apps.apple.com/us/app/visme-presentation-charts/id1550800427",
+     "createdAt": "2022-08-16T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "JustSketchMe",
+     "description": "Simple enough for the aspiring artist; powerful enough for the veteran illustrator. JustSketchMe helps artists take their idea from concept to creation fast. Sp",
+     "popularity": 171,
+     "url": "https://apps.apple.com/us/app/justsketchme/id1543663234",
+     "createdAt": "2021-10-10T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "github",
+     "name": "Mohannadcse/DepsRAG",
+     "description": "Interactive LLM Chatbot that constructs direct and transitive software dependencies as a knowledge graph and answers user's questions leveraging RAG and critic-",
+     "popularity": 34,
+     "url": "https://github.com/Mohannadcse/DepsRAG",
+     "createdAt": "2024-03-05T15:36:18Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Mycelium – A graph viewer library for neural networks",
+     "description": "",
+     "popularity": 4,
+     "url": "https://news.ycombinator.com/item?id=41463916",
+     "createdAt": "2024-09-06T07:46:24Z",
+     "relation": "partial"
+    }
+   ],
+   "directCount": 0,
+   "firstSeenAt": "2026-06-13T19:22:44.000Z",
+   "followersAfterSignal": 2,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
      "platforms": 1,
      "direct": 0,
      "status": "open",
@@ -2049,6 +3362,132 @@
    ]
   },
   {
+   "slug": "overdue-payment-collection",
+   "name": "미수금 독촉",
+   "problem": "사업자가 미수금과 정기결제 실패 건을 수작업으로 추적하여 고객 관계에 부담을 느낀다.",
+   "gap": "",
+   "nameEn": "overdue payment collection",
+   "problemEn": "Business owners manually chase overdue invoices and failed subscription payments, straining customer relationships and wasting time.",
+   "keywords": [
+    "미수금",
+    "dunning",
+    "overdue invoice",
+    "failed payment",
+    "payment reminder",
+    "정기결제",
+    "미수 관리",
+    "accounts receivable",
+    "자동 독촉",
+    "subscription recovery"
+   ],
+   "audience": "사업자",
+   "audienceEn": "small business operators",
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_06ec606e2a7734d1",
+     "platform": "hn",
+     "quote": "chasing overdue invoices is manual, awkward, and nobody has a good system for it",
+     "quoteKo": "미수금 추적은 수작업으로 이루어지고 번거롭으며, 이를 위한 좋은 시스템을 갖춘 곳이 거의 없습니다.",
+     "url": "https://news.ycombinator.com/item?id=47638685",
+     "score": 89,
+     "postedAt": "2026-04-04T12:58:45Z"
+    },
+    {
+     "id": "ev_804c76837778023b",
+     "platform": "hn",
+     "quote": "I was tired of manually chasing customers when their subscription payments failed on my gym SaaS.",
+     "quoteKo": "내 헬스장 SaaS에서 구독 결제가 실패했을 때, 고객을 수동으로 추적하는 것에 지쳤습니다.",
+     "url": "https://news.ycombinator.com/item?id=46752629",
+     "score": 0,
+     "postedAt": "2026-01-25T10:16:40Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "appstore",
+     "name": "BILL AP & AR Business Payments",
+     "description": "The BILL AP & AR app simplifies business payments and receivables for companies of all sizes. Whether you’re focused on accounts payable, accounts receivable, o",
+     "popularity": 48759,
+     "url": "https://apps.apple.com/us/app/bill-ap-ar-business-payments/id980353334",
+     "createdAt": "2015-04-20T09:55:34Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "github",
+     "name": "GrottoPress/bill",
+     "description": "Accounts Receivable automation for Lucky framework",
+     "popularity": 12,
+     "url": "https://github.com/GrottoPress/bill",
+     "createdAt": "2021-09-29T21:23:48Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: We Built an AI Agent to Recover Past-Due Accounts",
+     "description": "",
+     "popularity": 1,
+     "url": "https://news.ycombinator.com/item?id=42956453",
+     "createdAt": "2025-02-05T22:46:50Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "@emilgroup/dunning-sdk-node",
+     "description": "OpenAPI client for @emilgroup/dunning-sdk-node",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@emilgroup/dunning-sdk-node",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "appstore",
+     "name": "Jobber Field Service Software",
+     "description": "Jobber helps field service businesses schedule jobs, send invoices, and get paid faster. Whether you're in HVAC, cleaning, landscaping, or construction, our all",
+     "popularity": 21651,
+     "url": "https://apps.apple.com/us/app/jobber-field-service-software/id1014146758",
+     "createdAt": "2015-08-21T06:44:14Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "appstore",
+     "name": "DoorLoop",
+     "description": "Running properties means juggling rent, maintenance, leasing, and accounting. DoorLoop puts all of it in one app, with AI that handles the busy work so your tea",
+     "popularity": 7784,
+     "url": "https://apps.apple.com/us/app/doorloop/id1590868801",
+     "createdAt": "2021-10-26T07:00:00Z",
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "latepayers",
+     "description": "Accounts receivable aging report from an invoice CSV: who owes what, how late, and who to chase first. MCP server and CLI; your data stays on your machine.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/latepayers",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 4,
+   "firstSeenAt": "2026-01-25T10:16:40Z",
+   "followersAfterSignal": 0,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 2,
+     "platforms": 1,
+     "direct": 4,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
+  },
+  {
    "slug": "unified-ai-conversation-viewer",
    "name": "AI 대화 통합 뷰어",
    "problem": "개발자가 여러 AI 플랫폼 대화를 한 곳에서 검색하고 결합할 방법이 없다.",
@@ -2273,6 +3712,115 @@
      "evidence": 2,
      "platforms": 1,
      "direct": 7,
+     "status": "narrowing",
+     "qualified": false
+    }
+   ]
+  },
+  {
+   "slug": "full-company-tech-stack-detection",
+   "name": "회사 전체 기술 스택 탐지",
+   "problem": "개발자가 기존 도구로 인프라를 포함한 회사의 전체 기술 스택을 확인하기 어렵다.",
+   "gap": "기존 제품은 주로 웹사이트의 표면적 기술 스택만 탐지할 뿐 인프라를 포함한 전체 기술 스택을 포괄적으로 탐지하지 못한다.",
+   "nameEn": "Full company tech stack detection",
+   "problemEn": "Developers struggle to detect a company's full tech stack, including infrastructure, using existing tools.",
+   "gapEn": "Existing products mainly detect only the surface-level website tech stack and do not comprehensively detect the full tech stack including infrastructure.",
+   "keywords": [
+    "기술스택",
+    "기술 스택",
+    "웹 기술",
+    "인프라 탐지",
+    "스택 감지",
+    "tech stack",
+    "wappalyzer alternative",
+    "website technology",
+    "infrastructure detection",
+    "stack scanner"
+   ],
+   "audience": "개발자",
+   "audienceEn": "Developers",
+   "status": "narrowing",
+   "qualified": false,
+   "platforms": [
+    "hn"
+   ],
+   "evidence": [
+    {
+     "id": "ev_c28b1d893165dbde",
+     "platform": "hn",
+     "quote": "Is there a tool (open source preferably or inexpensive) that can show me the entire tech stack of a company?",
+     "quoteKo": "회사의 전체 기술 스택을 보여주는 도구가 있을까요? (가능하면 오픈소스이거나 저렴한 것이 좋습니다)",
+     "url": "https://news.ycombinator.com/item?id=46899540",
+     "score": 7,
+     "postedAt": "2026-02-05T13:40:45Z"
+    }
+   ],
+   "supply": [
+    {
+     "kind": "github",
+     "name": "miraihack/tech_detector",
+     "description": "A browser extension (Chrome/Firefox compatible, Manifest V3) that comprehensively detects and analyzes the technology stack and security configuration used on w",
+     "popularity": 26,
+     "url": "https://github.com/miraihack/tech_detector",
+     "createdAt": "2026-02-28T04:03:31Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "show_hn",
+     "name": "Show HN: Stack Detector – a clean, fast tech stack analyzer (5K+ scans)",
+     "description": "",
+     "popularity": 3,
+     "url": "https://news.ycombinator.com/item?id=47598203",
+     "createdAt": "2026-04-01T08:11:15Z",
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "@wrongstack/security-scanner",
+     "description": "WrongStack security scanner — standalone package extracted from @wrongstack/core. Tech-stack detector, secret scanner, report generator, and interactive slash-c",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@wrongstack/security-scanner",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "@apiverve/techstackdetector",
+     "description": "Website Tech Stack Detector identifies the technologies a website runs on, such as its CMS, ecommerce platform, JavaScript framework, analytics, CDN and hosting",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/@apiverve/techstackdetector",
+     "createdAt": null,
+     "relation": "direct"
+    },
+    {
+     "kind": "npm",
+     "name": "n8n-nodes-apivault-website-tech-detector",
+     "description": "n8n community connector for Tech Stack Detector on Apify. Run, resume and read results with diagnostics.",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/n8n-nodes-apivault-website-tech-detector",
+     "createdAt": null,
+     "relation": "partial"
+    },
+    {
+     "kind": "npm",
+     "name": "website-tech-stack-detector",
+     "description": "Website Tech Stack Detector - CMS & Framework — free API client for the Apify platform. No API key setup, thousands of structured results, export to JSON, CSV o",
+     "popularity": 0,
+     "url": "https://www.npmjs.com/package/website-tech-stack-detector",
+     "createdAt": null,
+     "relation": "partial"
+    }
+   ],
+   "directCount": 4,
+   "firstSeenAt": "2026-02-05T13:40:45Z",
+   "followersAfterSignal": 2,
+   "lastSeenAt": "2026-11-16T08:45:41.658Z",
+   "history": [
+    {
+     "at": "2026-11-16T08:45:41.658Z",
+     "evidence": 1,
+     "platforms": 1,
+     "direct": 4,
      "status": "narrowing",
      "qualified": false
     }

@@ -1,4 +1,4 @@
-import { cosineSimilarity, countFollowers, meetsEvidenceBar } from './rules';
+import { cosineSimilarity, countFollowers, isListable, meetsEvidenceBar } from './rules';
 import type { Evidence, Opportunity, OpportunityPoint, OpportunitySnapshot, SupplyItem } from './types';
 
 // Measured on two runs over the same posts: the same problem scored 0.55 to 0.90, different problems at most 0.46.
@@ -117,7 +117,8 @@ export function mergeRuns(previous: (Run & { generatedAt: string }) | null, next
   const staleBefore = new Date(now).getTime() - STALE_AFTER_DAYS * 86_400_000;
   for (const old of remaining.values()) {
     const lastSeenAt = old.lastSeenAt ?? previous?.generatedAt ?? now;
-    if (new Date(lastSeenAt).getTime() < staleBefore) {
+    // Results from before single-source candidates were dropped are cleared out the same way as stale ones.
+    if (new Date(lastSeenAt).getTime() < staleBefore || !isListable(old)) {
       summary.expired.push(old.name);
       continue;
     }

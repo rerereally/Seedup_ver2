@@ -35,7 +35,7 @@ test('the same problem found again gains evidence and keeps its link and name', 
 });
 
 test('different problems are never merged', () => {
-  const previous = { generatedAt: DAY1, opportunities: [opp('a', [ev(1)])], embeddings: { a: vec(1, 0) } };
+  const previous = { generatedAt: DAY1, opportunities: [opp('a', [ev(1), ev(4)])], embeddings: { a: vec(1, 0) } };
   const { opportunities, summary } = mergeRuns(previous, { opportunities: [opp('b', [ev(2)])], embeddings: { b: vec(0.4, 0.9) } }, DAY2);
   assert.deepEqual(opportunities.map((item) => item.slug).sort(), ['a', 'b']);
   assert.deepEqual(summary.added, ['b']);
@@ -51,7 +51,7 @@ test('a run that could not review supply does not erase an earlier status', () =
 });
 
 test('an opportunity not seen for three weeks is dropped', () => {
-  const previous = { generatedAt: DAY1, opportunities: [opp('old', [ev(1)], { lastSeenAt: '2026-10-01T00:00:00.000Z' }), opp('recent', [ev(2)], { lastSeenAt: DAY1 })], embeddings: {} };
+  const previous = { generatedAt: DAY1, opportunities: [opp('old', [ev(1)], { lastSeenAt: '2026-10-01T00:00:00.000Z' }), opp('recent', [ev(2), ev(4)], { lastSeenAt: DAY1 })], embeddings: {} };
   const { opportunities, summary } = mergeRuns(previous, { opportunities: [opp('new', [ev(3)])], embeddings: {} }, DAY2);
   assert.deepEqual(opportunities.map((item) => item.slug).sort(), ['new', 'recent']);
   assert.deepEqual(summary.expired, ['old']);
@@ -94,4 +94,11 @@ test('digest reports only what changed after the given moment', () => {
   assert.ok(alert?.text.includes('https://seedup.example/opportunities/passed'));
   assert.equal(buildOpportunityDigest([quiet, grew], since, 'https://seedup.example', 'changes'), null);
   assert.equal(buildOpportunityDigest([quiet, passed, grew, fresh], since, 'https://seedup.example', 'weekly')?.lines.length, 3);
+});
+
+test('an earlier single-source result is not carried into the next run', () => {
+  const previous = { generatedAt: DAY1, opportunities: [opp('lonely', [ev(1)]), opp('pair', [ev(2), ev(3, 'github')])], embeddings: {} };
+  const { opportunities, summary } = mergeRuns(previous, { opportunities: [], embeddings: {} }, DAY2);
+  assert.deepEqual(opportunities.map((item) => item.slug), ['pair']);
+  assert.deepEqual(summary.expired, ['lonely']);
 });

@@ -1,6 +1,9 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
+import { normalizeFeatureId } from '@/lib/opportunities/build-progress';
+import type { BuildProgress } from '@/lib/opportunities/build-progress';
 import { specInputFor } from '@/lib/opportunities/context';
+import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { EXPORT_FILES, renderAgentBrief, renderSpecMarkdown } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecInput } from '@/lib/opportunities/spec';
@@ -16,6 +19,9 @@ export type McpDeps = {
   generate: (input: SpecInput, draft: boolean) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
+  /** This user's done features for one opportunity. */
+  progress: (slug: string) => Promise<BuildProgress>;
+  setProgress: (slug: string, feature: { id: string; title: string }, done: boolean, note: string) => Promise<void>;
 };
 
 type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
@@ -48,6 +54,25 @@ export const TOOLS = [
     },
   },
   {
+    name: 'get_build_checklist',
+    description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its done criteria and whether it is already marked done. Build one feature at a time and check it against these criteria.',
+    inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
+  },
+  {
+    name: 'mark_feature_done',
+    description: 'Mark one PRD feature as done (or not done) once its done criteria pass. The progress shows on the PRD page of the Seedup site.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string' },
+        feature: { type: 'string', description: 'Feature id, e.g. F-01' },
+        done: { type: 'boolean', description: 'Default true; false clears the mark' },
+        note: { type: 'string', description: 'One line on what was built or how it was checked' },
+      },
+      required: ['slug', 'feature'],
+    },
+  },
+  {
     name: 'find_related_content',
     description: 'News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
@@ -72,6 +97,29 @@ function describe(item: Opportunity, siteUrl: string) {
   return `${item.name} (${item.slug}) — ${item.qualified ? 'verified' : 'below evidence bar'}, ${item.evidence.length} quotes on ${item.platforms.join(', ')}, ${item.directCount} direct competitors, status ${item.status}\n  ${item.problem}\n  ${siteUrl}/opportunities/${item.slug}`;
 }
 
+/** The checklist an agent works through: one box per feature, its done criteria under it. Pure, for tests. */
+export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string) {
+  const done = spec.features.filter((feature) => progress[feature.id]).length;
+  const lines = spec.features.map((feature) => {
+    const mark = progress[feature.id];
+    const criteria = feature.slots?.done.length
+      ? feature.slots.done.map((line) => `    - ${line}`).join('\n')
+      : '    - (no done criteria yet: fill the blanks for this feature on the PRD page, or write tests that prove the detail above)';
+    return `- [${mark ? 'x' : ' '}] ${feature.id} ${feature.title} (serves ${feature.requirementIds.join(', ') || '-'})
+    ${feature.detail}
+  Done when:
+${criteria}${mark?.note ? `\n  Note: ${mark.note}` : ''}`;
+  });
+  return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}
+Work on one unchecked feature at a time. When its criteria pass, call mark_feature_done with its id.
+PRD page: ${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}
+
+${lines.join('\n\n') || 'This PRD has no features.'}`;
+}
+
+/** The evidence the site and generate_verified_prd both build from, so all three read the same cached PRD. */
+const prdEvidence = (opportunity: Opportunity) => opportunity.evidence.slice(0, PRD_MAX_EVIDENCE);
+
 async function callTool(name: string, args: Record<string, unknown>, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
   const opportunities = await deps.opportunities();
   if (name === 'search_opportunities') {
@@ -80,7 +128,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
-  if (name === 'get_opportunity' || name === 'generate_verified_prd') {
+  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done'].includes(name)) {
     if (!opportunity) return text(`Unknown opportunity "${slug}". Call search_opportunities first.`, true);
   }
   if (name === 'get_opportunity' && opportunity) {
@@ -90,7 +138,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   if (name === 'generate_verified_prd' && opportunity) {
     const format = (['agents', 'claude', 'cursor', 'prd'].includes(String(args.format)) ? String(args.format) : 'agents') as ExportFormat | 'prd';
-    const picked = opportunity.evidence.slice(0, 12).map((evidence) => ({ evidence, slug }));
+    const picked = prdEvidence(opportunity).map((evidence) => ({ evidence, slug }));
     const ids = picked.map((item) => item.evidence.id);
     let result = args.fresh ? null : await deps.cachedSpec(ids);
     if (!result) {
@@ -104,6 +152,17 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     }
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format);
     return text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`);
+  }
+  if ((name === 'get_build_checklist' || name === 'mark_feature_done') && opportunity) {
+    const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
+    if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
+    if (name === 'mark_feature_done') {
+      const id = normalizeFeatureId(String(args.feature ?? ''));
+      const feature = id ? cached.spec.features.find((row) => row.id === id) : undefined;
+      if (!feature) return text(`Unknown feature "${String(args.feature ?? '')}". Features: ${cached.spec.features.map((row) => row.id).join(', ') || 'none'}.`, true);
+      await deps.setProgress(slug, feature, args.done !== false, String(args.note ?? '').trim());
+    }
+    return text(renderChecklist(opportunity, cached.spec, await deps.progress(slug), siteUrl));
   }
   if (name === 'find_related_content') {
     const idea = String(args.idea ?? '').trim().slice(0, 500);
@@ -128,7 +187,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {} },
         serverInfo: { name: 'seedup', version: '1.0.0' },
-        instructions: 'Seedup finds build opportunities from verified developer quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo.',
+        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. Then call get_build_checklist, build one feature at a time, and call mark_feature_done when its done criteria pass.',
       });
     }
     case 'ping':

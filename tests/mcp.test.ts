@@ -26,6 +26,8 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     generate: async () => { calls.push('generate'); return normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1] }], features: [{ title: 'Store notes', requirements: [1] }] }, 3); },
     consume: async () => { calls.push('consume'); return true; },
     related: async () => [],
+    progress: async () => ({}),
+    setProgress: async () => undefined,
     ...over,
   };
 }
@@ -46,9 +48,9 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
   assert.equal(garbage.error.code, -32700);
 });
 
-test('tools/list exposes the four tools', async () => {
+test('tools/list exposes the six tools', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'find_related_content']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'find_related_content']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -83,4 +85,43 @@ test('a cached PRD is returned without spending the daily limit; a used-up limit
 test('a batch answers every request and drops notifications', async () => {
   const answer = await handleRpc([{ jsonrpc: '2.0', id: 1, method: 'ping' }, { jsonrpc: '2.0', method: 'notifications/initialized' }], deps(), '') as unknown[];
   assert.equal(answer.length, 1);
+});
+
+import { normalizeFeatureId } from '../lib/opportunities/build-progress';
+import type { BuildProgress } from '../lib/opportunities/build-progress';
+
+test('feature ids are read the way agents type them', () => {
+  assert.equal(normalizeFeatureId('F1'), 'F-01');
+  assert.equal(normalizeFeatureId('f-01'), 'F-01');
+  assert.equal(normalizeFeatureId('F-12'), 'F-12');
+  assert.equal(normalizeFeatureId('F0'), null);
+  assert.equal(normalizeFeatureId('R-01'), null);
+});
+
+test('the checklist needs a PRD, lists done criteria, and marking a feature shows it as done', async () => {
+  const progress: BuildProgress = {};
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1] }], features: [{ title: 'Store notes', requirements: [1] }, { title: 'Search notes', requirements: [1] }] }, 3);
+  spec.features[0].slots = { inputs: [], rules: [], errors: [], access: [], data: [], done: ['saving a note returns its id'] };
+  const withSpec = deps({
+    cachedSpec: async () => ({ input: {} as never, spec }),
+    progress: async () => progress,
+    setProgress: async (_slug, feature, done, note) => { if (done) progress[feature.id] = { title: feature.title, note, doneAt: 'now' }; else delete progress[feature.id]; },
+  });
+
+  const missing = await handleRpc(call('get_build_checklist', { slug: 'memory' }), deps(), '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+  assert.equal(missing.result.isError, true);
+
+  const before = await handleRpc(call('get_build_checklist', { slug: 'memory' }), withSpec, 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(before.result.content[0].text, /0\/2 done/);
+  assert.match(before.result.content[0].text, /- \[ \] F-01 Store notes[\s\S]*saving a note returns its id/);
+
+  const marked = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass' }), withSpec, '') as { result: { content: Array<{ text: string }> } };
+  assert.match(marked.result.content[0].text, /1\/2 done/);
+  assert.match(marked.result.content[0].text, /- \[x\] F-01/);
+
+  const wrong = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F9' }), withSpec, '') as { result: { isError?: boolean } };
+  assert.equal(wrong.result.isError, true);
+
+  await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F-01', done: false }), withSpec, '');
+  assert.equal(progress['F-01'], undefined);
 });

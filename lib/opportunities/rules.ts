@@ -15,12 +15,46 @@ export function meetsEvidenceBar(evidenceCount: number, platformCount: number) {
   return evidenceCount >= MIN_EVIDENCE && platformCount >= MIN_PLATFORMS;
 }
 
+/** One quote from one place is an anecdote, so such a candidate is not listed at all, not even as below the bar. */
+export function isListable(item: { evidence: unknown[] }) {
+  return item.evidence.length >= 2;
+}
+
+/**
+ * Greedy clustering: each vector joins the group whose mean it is closest to, if close enough, or starts a new one.
+ * Returns groups of indices into `vectors`, in first-seen order.
+ */
+export function clusterByEmbedding(vectors: number[][], threshold: number) {
+  const groups: Array<{ members: number[]; sum: number[] }> = [];
+  vectors.forEach((vector, index) => {
+    let best: (typeof groups)[number] | null = null;
+    let bestScore = threshold;
+    for (const group of groups) {
+      const score = cosineSimilarity(vector, group.sum);
+      if (score >= bestScore) {
+        bestScore = score;
+        best = group;
+      }
+    }
+    if (!best) {
+      groups.push({ members: [index], sum: [...vector] });
+      return;
+    }
+    best.members.push(index);
+    // The sum points the same way as the mean, which is all cosine similarity reads.
+    for (let i = 0; i < vector.length; i += 1) best.sum[i] += vector[i];
+  });
+  return groups.map((group) => group.members);
+}
+
 export function classifySupply(supply: SupplyItem[], reviewed: boolean): OpportunityStatus {
   if (!reviewed) return 'unknown';
   const direct = supply.filter((item) => item.relation === 'direct');
   const topStars = Math.max(0, ...direct.filter((item) => item.kind === 'github').map((item) => item.popularity));
-  if (direct.length >= 8 || topStars >= 20_000) return 'closed';
-  if (direct.length >= 3 || topStars >= 2_000) return 'narrowing';
+  // Outside developer tools the incumbent is an app, and its size shows in store ratings, not stars.
+  const topRatings = Math.max(0, ...direct.filter((item) => item.kind === 'appstore').map((item) => item.popularity));
+  if (direct.length >= 8 || topStars >= 20_000 || topRatings >= 50_000) return 'closed';
+  if (direct.length >= 3 || topStars >= 2_000 || topRatings >= 5_000) return 'narrowing';
   return 'open';
 }
 

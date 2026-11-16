@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/server';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Evidence, SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
-const SUPPLY_LABELS: Record<SupplyKind, string> = { github: 'GitHub', npm: 'npm', show_hn: 'Show HN', vscode: 'VS Code' };
+const SUPPLY_LABELS: Record<SupplyKind, string> = { github: 'GitHub', npm: 'npm', show_hn: 'Show HN', vscode: 'VS Code', appstore: 'App Store', web: 'Web' };
 
 // Asked about what already happened, never about a hypothetical product, so the answers are not just politeness.
 const FIRST_USER_QUESTIONS = [
@@ -40,6 +40,7 @@ function supplyMetric(item: SupplyItem) {
   if (item.kind === 'github') return `★ ${compact.format(item.popularity)}`;
   if (item.kind === 'vscode') return `설치 ${compact.format(item.popularity)}`;
   if (item.kind === 'show_hn') return `${compact.format(item.popularity)}점`;
+  if (item.kind === 'appstore') return `평가 ${compact.format(item.popularity)}`;
   return compact.format(item.popularity);
 }
 
@@ -277,10 +278,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             <OpportunityPrd lang={lang} ready={opportunity.qualified} slug={opportunity.slug} evidenceCount={opportunity.evidence.length} />
             <section aria-labelledby="supply-heading">
               <h2 id="supply-heading" className="text-lg font-semibold tracking-tight">{t('이미 있는 도구', 'Existing tools')}</h2>
-              <p className="mb-4 mt-1 text-[13px] text-muted">{opportunity.supply.length === 0 ? '조사한 범위에서 관련 도구를 찾지 못했습니다.' : t('GitHub, npm, Show HN, VS Code 마켓에서 찾았습니다.', 'Found on GitHub, npm, Show HN and the VS Code marketplace.')}</p>
+              <p className="mb-4 mt-1 text-[13px] text-muted">{opportunity.supply.length === 0 ? t('조사한 범위에서 관련 도구를 찾지 못했습니다.', 'No related tools were found in the sources searched.') : t('웹 검색, GitHub, npm, Show HN, VS Code 마켓, App Store에서 찾았습니다. 직접 경쟁인지 일부 겹치는지는 AI가 판정했습니다.', 'Found through web search, GitHub, npm, Show HN, the VS Code marketplace and the App Store. Whether each is a direct rival or a partial overlap was judged by AI.')}</p>
               <div className="[&>ul+ul>:first-child]:border-t-0">
-                <SupplyGroup title={t('직접 경쟁', 'Direct rival')} items={direct} />
-                <SupplyGroup title={t('일부 겹침', 'Partial overlap')} items={partial} />
+                <SupplyGroup title={t('직접 경쟁 · AI 판정', 'Direct rival · AI judged')} items={direct} />
+                <SupplyGroup title={t('일부 겹침 · AI 판정', 'Partial overlap · AI judged')} items={partial} />
               </div>
             </section>
             <section aria-labelledby="fit-heading">

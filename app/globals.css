@@ -221,7 +221,7 @@ body {
   }
 
   .page-intro-title {
-    @apply text-[clamp(30px,4vw,46px)] font-extrabold leading-[1.12] tracking-tight text-ink;
+    @apply text-[clamp(30px,4vw,48px)] font-semibold leading-[1.15] tracking-[-0.035em] text-ink;
     text-wrap: balance;
   }
 

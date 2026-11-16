@@ -57,8 +57,19 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
             {!ready && <> {t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐 가설 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so it is made as a hypothesis draft.')}</>}
           </p>
         </header>
-        <section className="mt-8 rounded-[24px] bg-[#fbfbfa] p-5 text-[#111113] md:p-8" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
-          <PrdBuilder title={title} evidenceIds={picked.map((item) => item.evidence.id)} ready={ready} loginNext={self} />
+        {/* A window around the document: the PRD reads as the product's output, not one more card on the page. */}
+        <section className="mt-8 overflow-hidden rounded-[24px] border border-outline-soft bg-[#1b1b1f] shadow-[0_30px_80px_rgba(0,0,0,.45)]" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
+          <div className="flex items-center gap-3 border-b border-outline-soft px-4 py-3" aria-hidden="true">
+            <span className="flex gap-1.5">
+              <span className="size-3 rounded-full bg-[#ff5f57]" />
+              <span className="size-3 rounded-full bg-[#febc2e]" />
+              <span className="size-3 rounded-full bg-[#28c840]" />
+            </span>
+            <span className="num min-w-0 truncate text-[13px] text-muted">PRD.md · {t(`근거 ${picked.length}건`, `${picked.length} sources`)}</span>
+          </div>
+          <div className="m-2 rounded-[18px] bg-[#fbfbfa] p-5 text-[#111113] md:m-3 md:p-8">
+            <PrdBuilder title={title} evidenceIds={picked.map((item) => item.evidence.id)} ready={ready} loginNext={self} />
+          </div>
         </section>
       </main>
       <Footer />

@@ -3,6 +3,7 @@ import { translator } from '@/lib/i18n';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import EvidenceStory from '@/components/EvidenceStory';
 import OpportunityStage from '@/components/opportunity-stage/OpportunityStage';
 import OpportunityTable, { FunnelStrip } from '@/components/opportunity-stage/OpportunityTable';
 import type { NewsItem } from '@/lib/data';
@@ -84,6 +85,8 @@ export default async function Home() {
     <>
       <main className="grow">
         <OpportunityStage opportunities={toStageOpportunities(opportunities)} news={toStageNews(stageNews)} header={<Header overlay />} />
+
+        <EvidenceStory opportunities={opportunities} lang={lang} />
 
         <section className="page-shell" aria-labelledby="opportunities-heading">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">

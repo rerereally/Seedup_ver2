@@ -134,11 +134,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             </dl>
             {firstSeen && <p className="mt-3 text-[13px] text-muted">{t(`가장 이른 증언은 ${firstSeen}에 나왔습니다.`, `First quote: ${firstSeen}.`)}</p>}
 
-            <section className="mt-12" aria-labelledby="score-heading">
+            <details className="group mt-12">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden">
               <h2 id="score-heading" className="flex items-baseline gap-3 text-2xl font-extrabold tracking-tight">
                 {t('점수 내역', 'Score breakdown')}
                 <span className="text-base font-medium text-muted"><span className="num text-[28px] font-semibold leading-none text-hot">{score.total}</span> / 100</span>
               </h2>
+              <span aria-hidden="true" className="ml-auto text-xl font-normal text-muted transition-transform group-open:rotate-45">+</span>
+              </summary>
               <p className="mt-1 text-sm text-muted">{t('저장된 수치만으로 계산합니다. AI가 매긴 점수가 아닙니다.', 'Computed from stored numbers only, not scored by AI.')}</p>
               <dl className="card mt-5 overflow-hidden">
                 {score.parts.map((part, index) => (
@@ -154,10 +157,13 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                   </div>
                 ))}
               </dl>
-            </section>
+            </details>
 
-            <section className="mt-12" aria-labelledby="timing-heading">
+            <details className="group mt-12">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden">
               <h2 id="timing-heading" className="text-2xl font-extrabold tracking-tight">{t('왜 지금인가', 'Why now')}</h2>
+              <span aria-hidden="true" className="ml-auto text-xl font-normal text-muted transition-transform group-open:rotate-45">+</span>
+              </summary>
               <p className="mt-1 max-w-[40em] text-sm leading-6 text-muted">{timing.headline}</p>
               {timing.events.length > 0 && (
                 <ol className="card mt-5 overflow-hidden">
@@ -173,26 +179,29 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                   ))}
                 </ol>
               )}
-            </section>
+            </details>
 
             {history.length > 0 && (
-              <section className="mt-12" aria-labelledby="growth-heading">
+              <details className="group mt-12">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden">
                 <h2 id="growth-heading" className="text-2xl font-extrabold tracking-tight">{t('성장 기록', 'Track record')}</h2>
+                <span aria-hidden="true" className="ml-auto text-xl font-normal text-muted transition-transform group-open:rotate-45">+</span>
+                </summary>
                 <p className="mt-1 text-sm text-muted">
-                  {history.length > 1 ? '분석을 돌릴 때마다 달라진 점만 남깁니다.' : '아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.'}
+                  {history.length > 1 ? t('분석을 돌릴 때마다 달라진 점만 남깁니다.', 'Only what changed between runs is kept.') : t('아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.', 'Analyzed once so far. Changes in quotes or rivals in later runs will appear here.')}
                 </p>
                 <ol className="card mt-5 overflow-hidden">
                   {[...history].reverse().map((entry, index) => (
                     <li key={entry.at} className={`flex flex-wrap items-baseline gap-x-4 gap-y-1 px-5 py-3.5 sm:px-6 ${index ? 'border-t border-outline-soft' : ''}`}>
                       <time dateTime={entry.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(entry.at))}</time>
                       <span className="min-w-0 flex-1 text-sm leading-6">
-                        {entry.changes.length ? entry.changes.join(' · ') : `증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`}
+                        {entry.changes.length ? entry.changes.join(' · ') : t(`증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
                       </span>
                       <StatusLabel status={entry.status} />
                     </li>
                   ))}
                 </ol>
-              </section>
+              </details>
             )}
 
             <h2 className="mt-12 flex items-baseline gap-2 text-2xl font-extrabold tracking-tight">{t('현장 증언', 'Developer quotes')} <span className="num text-base font-medium text-muted">{opportunity.evidence.length}</span></h2>

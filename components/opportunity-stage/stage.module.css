@@ -268,8 +268,8 @@
 
 /* Evidence-traced spec workspace (PRD builder). Layout lives in the component; these are the node states. */
 .draftBadge { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 6px; background: #fff4e5; color: #8a4b00; font-size: 12.5px; font-weight: 600; }
-.specCols { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 20px 28px; padding: 24px; border: 1px solid var(--color-outline-soft); border-radius: 16px; background-color: var(--color-surface); background-image: radial-gradient(#dcdce0 1px, transparent 1px); background-size: 18px 18px; }
-.specCol { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.specCols { position: relative; display: grid; grid-template-columns: repeat(4, minmax(190px, 1fr)); gap: 20px 56px; overflow-x: auto; padding: 24px; border: 1px solid var(--color-outline-soft); border-radius: 16px; background-color: var(--color-surface); background-image: radial-gradient(#dcdce0 1px, transparent 1px); background-size: 18px 18px; }
+.specCol { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .specCol h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0; font-size: 13px; font-weight: 500; color: var(--color-muted); }
 .specItem { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; min-height: 44px; padding: 12px 14px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--color-outline-soft); color: var(--color-ink); font-size: 14px; line-height: 1.5; text-align: left; cursor: pointer; transition: opacity 0.15s ease, box-shadow 0.15s ease; }
 .specItem q { overflow-wrap: anywhere; }
@@ -292,3 +292,27 @@
 .existing { padding: 12px 14px; border-radius: 12px; background: var(--color-surface-low); font-size: 14px; line-height: 1.6; }
 .existing summary { cursor: pointer; font-weight: 600; }
 .existing ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* Feature-spec graph: lines sit under the boxes and scroll with them. */
+.specEdges { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+
+/* Lo-fi wireframe: grey boxes on white, the way a sketch reads, with numbered pins that match the notes below. */
+.wireFrame { margin-top: 20px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px var(--color-outline-soft), 0 24px 60px rgba(17, 17, 19, 0.06); overflow: hidden; }
+.wireBar { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--color-outline-soft); }
+.wireBar i { width: 9px; height: 9px; border-radius: 999px; background: #dcdce1; }
+.wireBar span { margin-left: 10px; font-size: 12.5px; color: var(--color-muted); }
+.wireBody { padding: 18px; background: #f6f6f8; }
+.wireNav { display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 14px; margin-bottom: 16px; border-radius: 8px; background: #fff; border: 1.5px solid #c9c9cf; }
+.wireNav i, .wireBlock i { display: block; height: 9px; border-radius: 3px; background: #dcdce1; }
+.wireNav .wireLogo { width: 22px; height: 22px; border-radius: 6px; background: #c9c9cf; }
+.wireGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wireBlock { position: relative; display: flex; flex-direction: column; gap: 9px; min-height: 120px; padding: 16px 18px; border: 1.5px solid #8e8e93; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
+.wireBlock:first-child { grid-column: 1 / -1; min-height: 150px; }
+.wireBlock[aria-pressed='true'] { border-color: var(--color-ink); box-shadow: 0 0 0 2px var(--color-ink); }
+.wireGuess { border-style: dashed; background: #fbfbfc; }
+.wireTitle { font-size: 13.5px; font-weight: 600; color: var(--color-ink); padding-right: 28px; }
+.wireBlock .wireAction { width: 96px; height: 30px; margin-top: auto; border-radius: 7px; background: #8e8e93; }
+.wirePin, .wirePinStatic { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: var(--color-ink); color: #fff; font-size: 12px; font-weight: 600; }
+.wirePin { position: absolute; top: 12px; right: 12px; }
+.wireGuess .wirePin, .wirePinGuess { background: #fff; color: var(--color-muted); box-shadow: inset 0 0 0 1.5px #8e8e93; }
+@media (max-width: 640px) { .wireGrid { grid-template-columns: minmax(0, 1fr); } }

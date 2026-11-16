@@ -1,6 +1,6 @@
 import { toLang } from '@/lib/i18n';
-import { specInputFor } from '@/lib/opportunities/context';
-import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { getOpportunities } from '@/lib/opportunities/data';
+import { inputFromBody } from '@/lib/opportunities/idea';
 import { reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeSlots } from '@/lib/opportunities/spec';
@@ -13,7 +13,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 110;
 
 const DAILY_REVISE_LIMIT = 20;
-const MAX_EVIDENCE = 12;
 
 const clip = (value: unknown, limit: number) => (typeof value === 'string' ? value.trim().slice(0, limit) : '');
 const list = (value: unknown, limit: number) => (Array.isArray(value) ? value : []).slice(0, limit);
@@ -48,6 +47,7 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
     risks: strings('risks', 6),
     metrics: strings('metrics', 5),
     draft,
+    ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
     lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
     ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
@@ -61,15 +61,13 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const instruction = clip(body?.instruction, 300);
   if (instruction.length < 2) return NextResponse.json({ error: '어떻게 고칠지 적어 주세요.' }, { status: 400 });
-  const evidenceIds: string[] = list(body?.evidenceIds, MAX_EVIDENCE).filter((id): id is string => typeof id === 'string');
-
   const { opportunities } = await getOpportunities();
-  const picked = findEvidence(opportunities, evidenceIds);
-  const input = specInputFor(opportunities, picked, clip(body?.title, 120), toLang(typeof body?.spec?.lang === 'string' ? body.spec.lang : null));
-  if (!input) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
+  const resolved = inputFromBody(opportunities, body, toLang(typeof body?.spec?.lang === 'string' ? body.spec.lang : null));
+  if (!resolved) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
+  const { input, picked } = resolved;
   const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const current = readSpec(body?.spec, input.evidence.length, draft);
-  if (!current?.requirements.length) return NextResponse.json({ error: '고칠 PRD가 없습니다.' }, { status: 400 });
+  if (!current || !(current.requirements.length + (current.origin === 'idea' ? current.hypotheses.length : 0))) return NextResponse.json({ error: '고칠 PRD가 없습니다.' }, { status: 400 });
 
   if (!(await consumeDailyUsage(supabase, 'prd_revise', DAILY_REVISE_LIMIT))) {
     return NextResponse.json({ error: `대화형 수정은 하루 ${DAILY_REVISE_LIMIT}번까지 할 수 있습니다.` }, { status: 429 });

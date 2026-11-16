@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
@@ -11,9 +11,9 @@ import { translator } from '@/lib/i18n';
 import { downloadText } from './download';
 import styles from './stage.module.css';
 
-type View = 'trace' | 'tree' | 'flow' | 'doc';
+type View = 'trace' | 'tree' | 'flow' | 'wire' | 'doc';
 
-const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['tree', '구조 트리', 'IA tree'], ['flow', '유저플로우', 'User flow']];
+const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['flow', '유저플로우', 'User flow'], ['wire', '와이어프레임', 'Wireframe'], ['tree', '구조 트리', 'IA tree']];
 
 async function postJson(url: string, body: unknown) {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -29,7 +29,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -44,6 +44,16 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   initial?: { input: SpecInput; spec: Spec; createdAt: string } | null;
   /** false: say up front that making a PRD needs an account, instead of after a failed click. */
   signedIn?: boolean;
+  /** Bumped by a parent (the idea chat) to start generating without the user pressing this panel's button. */
+  generateSignal?: number;
+  /** Told when a PRD arrives, so a parent can react (the idea chat posts a reply). */
+  onSpec?: (spec: Spec) => void;
+  /** The parent owns the start button (the idea chat), so this panel does not show its own. */
+  hideControls?: boolean;
+  /** A change request typed somewhere else (the idea chat); each new id is sent once. */
+  externalInstruction?: { id: number; text: string } | null;
+  /** Told when a call fails, so the chat can say so instead of waiting forever. */
+  onError?: (message: string) => void;
 }) {
   const lang = useLang();
   const t = translator(lang);
@@ -86,6 +96,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         setPickedIds(Array.isArray(json.evidenceIds) ? json.evidenceIds : null);
         if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(json.cachedAt).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(json.cachedAt).toLocaleString('en-US')}.`));
         setSpec(json.spec as Spec);
+        onSpec?.(json.spec as Spec);
         setPrevious(null);
         setFocus(null);
         setSaveState('idle');
@@ -97,12 +108,31 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     }
   };
 
+  // Only a change of the signal starts a run, never the first render, and never twice for one press.
+  const startedSignal = useRef(generateSignal);
+  useEffect(() => {
+    if (generateSignal === startedSignal.current) return;
+    startedSignal.current = generateSignal;
+    void generate();
+    // generate reads the latest props at call time; re-running on its identity would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generateSignal]);
+
+  useEffect(() => {
+    if (error) onError?.(error);
+    else if (needsLogin) onError?.('login');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, needsLogin]);
+
+  // Idea PRDs carry the user's brief, so follow-up calls rebuild the same context on the server.
+  const ideaBrief = requestBody?.brief ? { brief: requestBody.brief } : {};
+
   const fillSlots = async (feature: SpecFeature) => {
     if (!spec) return;
     setSlotPending((before) => [...before, feature.id]);
     try {
-      const requirements = feature.requirementIds.flatMap((rid) => spec.requirements.find((row) => row.id === rid) ?? []);
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang });
+      const requirements = feature.requirementIds.flatMap((rid) => [...spec.requirements, ...spec.hypotheses].find((row) => row.id === rid) ?? []);
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, ...ideaBrief });
       if (!ok) fail(code, json, t('슬롯을 채우지 못했습니다.', 'Could not fill the slots.'));
       else setSpec((current) => current && { ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
     } catch {
@@ -115,22 +145,23 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   // Two at a time keeps the free model under its rate limit; a failed feature just stays empty.
   const fillAll = () => spec && inBatches(spec.features.filter((row) => !row.slots && !slotPending.includes(row.id)), 2, fillSlots);
 
-  const revise = async () => {
-    if (!spec || instruction.trim().length < 2) return;
+  const revise = async (text = instruction) => {
+    if (!spec || text.trim().length < 2) return;
     setStatus('revising');
     setError('');
     setMessage('');
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction: text, ...ideaBrief });
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
         setPrevious(spec);
         setSpec(next);
+        onSpec?.(next);
         setFocus(null);
         setInstruction('');
         setSaveState('idle');
-        setMessage(t(`"${instruction.trim()}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${instruction.trim()}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
+        setMessage(t(`"${text.trim()}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${text.trim()}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
       }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -138,6 +169,15 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       setStatus('idle');
     }
   };
+
+  const sentInstruction = useRef(externalInstruction?.id ?? 0);
+  useEffect(() => {
+    if (!externalInstruction || externalInstruction.id === sentInstruction.current) return;
+    sentInstruction.current = externalInstruction.id;
+    void revise(externalInstruction.text);
+    // Same as above: one run per new request id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalInstruction]);
 
   const undo = () => {
     if (!previous) return;
@@ -173,11 +213,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     }
   };
 
+  // A feature stands on evidence when at least one of its requirements cites a quote; otherwise it is a hypothesis.
+  const backed = (feature: SpecFeature) => Boolean(spec?.requirements.some((row) => feature.requirementIds.includes(row.id)));
   const tone = (itemId: string) => (!trace ? '' : trace.ids.has(itemId) ? styles.specOn : styles.specDim);
   const evidenceTone = (n: number) => (!trace ? '' : trace.evidence.has(n) ? styles.specOn : styles.specDim);
   const pick = (itemId: string) => setFocus((current) => (current === itemId ? null : itemId));
   const item = (itemId: string, body: React.ReactNode, className = '') => (
-    <button key={itemId} type="button" className={`${styles.specItem} ${tone(itemId)} ${className}`} aria-pressed={focus === itemId} onClick={() => pick(itemId)}>
+    <button key={itemId} type="button" data-node={itemId} className={`${styles.specItem} ${tone(itemId)} ${className}`} aria-pressed={focus === itemId} onClick={() => pick(itemId)}>
       <span className={styles.specId}>{itemId}</span>
       {body}
     </button>
@@ -294,7 +336,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      {!hideControls && <div className="flex flex-wrap items-center gap-2">
         {signedIn === false ? (
           <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className={spec ? 'btn-quiet' : 'btn h-11 px-5'}>
             {spec ? t('로그인하고 다시 만들기', 'Sign in to make it again') : t('로그인하고 PRD 만들기', 'Sign in to make a PRD')}
@@ -307,7 +349,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         <button type="button" className={`btn-quiet ${spec ? '' : 'h-11'}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
           {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
         </button>
-      </div>
+      </div>}
       {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
       {children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
@@ -392,7 +434,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     {spec.features.length > 0 && (
                       <section>
                         <h4 id="prd-features" className={h2}>{t('기능', 'Features')}</h4>
-                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>))}</ul>
+                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}{!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>, !backed(row)))}</ul>
                       </section>
                     )}
                     {spec.screens.length > 0 && (
@@ -448,10 +490,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               {view === 'trace' && (
                 <>
                   <div className={styles.specCols}>
+                    <GraphEdges spec={spec} evidenceCount={input.evidence.length} trace={trace} />
                     <div className={styles.specCol}>
                       <h4>{t('개발자 원문', 'Developer quotes')}</h4>
                       {input.evidence.map((row, index) => (
-                        <button key={row.id} type="button" className={`${styles.specItem} ${styles.specQuote} ${evidenceTone(index + 1)}`} aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)}>
+                        <button key={row.id} type="button" data-node={`E-${index + 1}`} className={`${styles.specItem} ${styles.specQuote} ${evidenceTone(index + 1)}`} aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)}>
                           <span className={styles.specId}>E-{index + 1} · {PLATFORM_LABELS[row.platform]}</span>
                           <q lang="en">{row.quote.length > 140 ? `${row.quote.slice(0, 140)}…` : row.quote}</q>
                         </button>
@@ -467,22 +510,22 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         {t('기능', 'Features')}
                         {spec.features.some((row) => !row.slots) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
                       </h4>
-                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)} · {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>))}
+                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)} · {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>, backed(row) ? '' : styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>{t('화면', 'Screens')}</h4>
                       {spec.screens.map((row) => item(row.id, <><span>{row.name}</span><small>{row.featureIds.join(', ')}</small></>))}
                     </div>
                   </div>
-                  <p className="mt-3 text-[13px] text-muted">{t('초록 테두리는 개발자 원문, 점선은 원문 없는 가설입니다. 항목을 누르면 이어진 원문·기능·화면이 함께 강조되고 오른쪽에 명세가 열립니다.', 'Green edges are developer quotes; dashed ones are hypotheses with no quote. Click an item to light up what it connects to and open its spec on the right.')}</p>
+                  <p className="mt-3 text-[13px] text-muted">{t('초록 선은 개발자 원문에서 나온 연결, 점선 상자는 원문 없는 가설입니다. 항목을 누르면 이어진 원문·요구사항·기능·화면이 함께 강조되고 오른쪽에 명세가 열립니다.', 'Green lines start from developer quotes; dashed boxes are hypotheses with no quote. Click an item to light up its chain and open its spec on the right.')}</p>
                 </>
               )}
 
               {view === 'tree' && (
                 <ul className={styles.specTree}>
-                  {spec.requirements.map((requirement) => (
+                  {[...spec.requirements, ...spec.hypotheses].map((requirement) => (
                     <li key={requirement.id}>
-                      <span className={styles.specId}>{requirement.id}</span> <b className="font-semibold">{requirement.title}</b> <small>({requirement.evidence.map((n) => `E-${n}`).join(', ')})</small>
+                      <span className={styles.specId}>{requirement.id}</span> <b className="font-semibold">{requirement.title}</b> <small>({requirement.evidence.length ? requirement.evidence.map((n) => `E-${n}`).join(', ') : t('가설 · 원문 없음', 'hypothesis · no quote')})</small>
                       <ul>
                         {spec.features.filter((feature) => feature.requirementIds.includes(requirement.id)).map((feature) => (
                           <li key={feature.id}>
@@ -497,9 +540,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       </ul>
                     </li>
                   ))}
-                  {spec.hypotheses.length > 0 && <li className="text-muted">{t('검증 필요 가설', 'Hypotheses to validate')}: {spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ')}</li>}
                 </ul>
               )}
+
+              {view === 'wire' && <Wireframes spec={spec} focus={focus} pick={pick} lang={lang} />}
 
               {view === 'flow' && (
                 <div>
@@ -533,5 +577,121 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         </section>
       )}
     </>
+  );
+}
+
+type Trace = ReturnType<typeof traceOf>;
+
+/** Lines between the columns of the feature spec, measured from the rendered boxes so they follow every resize. */
+function GraphEdges({ spec, evidenceCount, trace }: { spec: Spec; evidenceCount: number; trace: Trace | null }) {
+  // The graph box is this svg's parent: a parent's ref is not attached yet when a child's layout effect runs.
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [paths, setPaths] = useState<Array<{ key: string; d: string; from: string; to: string; quote: boolean; guess: boolean }>>([]);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const links = useMemo(() => {
+    const hypotheses = new Set(spec.hypotheses.map((row) => row.id));
+    return [
+      ...spec.requirements.flatMap((row) => row.evidence.filter((n) => n <= evidenceCount).map((n) => ({ from: `E-${n}`, to: row.id, quote: true, guess: false }))),
+      ...spec.features.flatMap((row) => row.requirementIds.map((rid) => ({ from: rid, to: row.id, quote: false, guess: hypotheses.has(rid) }))),
+      ...spec.screens.flatMap((row) => row.featureIds.map((fid) => ({ from: fid, to: row.id, quote: false, guess: false }))),
+    ];
+  }, [spec, evidenceCount]);
+
+  useLayoutEffect(() => {
+    const box = svgRef.current?.parentElement;
+    if (!box) return;
+    const measure = () => {
+      const origin = box.getBoundingClientRect();
+      const rect = (id: string) => box.querySelector<HTMLElement>(`[data-node="${id}"]`)?.getBoundingClientRect();
+      setPaths(links.flatMap((link) => {
+        const a = rect(link.from);
+        const b = rect(link.to);
+        // On a narrow screen the columns stack; a line drawn backwards would only add noise.
+        if (!a || !b || b.left <= a.right) return [];
+        const x1 = a.right - origin.left + box.scrollLeft;
+        const y1 = a.top + a.height / 2 - origin.top + box.scrollTop;
+        const x2 = b.left - origin.left + box.scrollLeft;
+        const y2 = b.top + b.height / 2 - origin.top + box.scrollTop;
+        const mid = (x1 + x2) / 2;
+        return [{ ...link, key: `${link.from}>${link.to}`, d: `M${x1} ${y1}C${mid} ${y1} ${mid} ${y2} ${x2} ${y2}` }];
+      }));
+      setSize({ w: box.scrollWidth, h: box.scrollHeight });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [links]);
+
+  const lit = (from: string, to: string) => (from.startsWith('E-') ? trace!.evidence.has(Number(from.slice(2))) : trace!.ids.has(from)) && trace!.ids.has(to);
+  return (
+    <svg ref={svgRef} aria-hidden="true" className={styles.specEdges} width={size.w} height={size.h}>
+      {paths.map((path) => {
+        const on = trace ? lit(path.from, path.to) : null;
+        return <path key={path.key} d={path.d} fill="none" stroke={path.quote ? '#1f6b4a' : '#a9a9b0'} strokeWidth={on ? 2.2 : 1.3} strokeDasharray={path.guess ? '4 4' : undefined} opacity={on === false ? 0.12 : 1} />;
+      })}
+    </svg>
+  );
+}
+
+/** Lo-fi screens built from the spec: one numbered box per feature, each tracing back to its requirements and quotes. */
+function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: string | null; pick: (id: string) => void; lang: 'ko' | 'en' }) {
+  const t = translator(lang);
+  const [current, setCurrent] = useState(spec.screens[0]?.id ?? '');
+  const screen = spec.screens.find((row) => row.id === current) ?? spec.screens[0];
+  if (!screen) return <p className="text-[15px] leading-7 text-muted">{t('정해진 화면이 없습니다. 수정 요청으로 화면을 추가해 보세요.', 'No screens yet. Ask for screens in a change request.')}</p>;
+
+  const features = screen.featureIds.flatMap((id) => spec.features.find((row) => row.id === id) ?? []);
+  const quotesOf = (feature: SpecFeature) => [...new Set(spec.requirements.filter((row) => feature.requirementIds.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b);
+  return (
+    <div>
+      <div className="tabs" role="tablist" aria-label={t('화면', 'Screens')}>
+        {spec.screens.map((row) => (
+          <button key={row.id} type="button" role="tab" aria-selected={row.id === screen.id} className="tab" onClick={() => setCurrent(row.id)}>
+            <span className="text-xs font-medium text-muted">{row.id}</span>{row.name}
+          </button>
+        ))}
+      </div>
+      {screen.does && <p className="mt-4 text-[15px] leading-7 text-tertiary">{screen.does}</p>}
+
+      <div className={styles.wireFrame}>
+        <div className={styles.wireBar} aria-hidden="true"><i /><i /><i /><span>{screen.name}</span></div>
+        <div className={styles.wireBody}>
+          <div className={styles.wireNav} aria-hidden="true"><i className={styles.wireLogo} /><i style={{ width: '16%' }} /><i style={{ width: '10%' }} /><i style={{ width: '10%' }} /></div>
+          <div className={styles.wireGrid}>
+            {features.map((feature, index) => (
+              <button key={feature.id} type="button" aria-pressed={focus === feature.id} onClick={() => pick(feature.id)} className={`${styles.wireBlock} ${quotesOf(feature).length ? '' : styles.wireGuess}`}>
+                <span className={styles.wirePin}>{index + 1}</span>
+                <span className={styles.wireTitle}>{feature.title}</span>
+                <i style={{ width: '88%' }} /><i style={{ width: '66%' }} />
+                {index === 0 && <i className={styles.wireAction} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <ol className="rows mt-6">
+        {features.map((feature, index) => {
+          const quotes = quotesOf(feature);
+          return (
+            <li key={feature.id}>
+              <button type="button" onClick={() => pick(feature.id)} aria-pressed={focus === feature.id} className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 py-3.5 text-left text-[15px] leading-6 aria-pressed:bg-seed-soft">
+                <span className={`${styles.wirePinStatic} ${quotes.length ? '' : styles.wirePinGuess}`}>{index + 1}</span>
+                <span className="min-w-0">
+                  <b className="font-semibold">{feature.title}</b>
+                  <span className="block text-[13px] text-muted">
+                    {feature.id} · {feature.requirementIds.join(', ')}
+                    {' · '}
+                    {quotes.length ? <span className="font-medium text-seed">{t('원문', 'Quotes')} {quotes.map((n) => `E-${n}`).join(', ')}</span> : t('가설 · 원문 없음', 'Hypothesis · no quote')}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-3 text-[13px] text-muted">{t('번호를 누르면 그 기능의 명세가 오른쪽에 열립니다. 점선 상자는 원문이 받쳐 주지 않는 가설 기능입니다.', 'Click a number to open that feature on the right. Dashed boxes are features no quote backs.')}</p>
+    </div>
   );
 }

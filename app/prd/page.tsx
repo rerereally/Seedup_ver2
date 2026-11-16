@@ -35,9 +35,15 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
         <Header />
         <main id="main-content" className="page-shell grow">
           <h1 className="page-intro-title">PRD</h1>
-          <p className="page-intro-description">{t('기준을 통과한 문제에서 시작합니다. 원문만 근거로 요구사항, 기능, 화면까지 이어진 PRD를 만들어 코딩 에이전트에 넘깁니다.', 'Start from a verified problem. The PRD traces requirements, features and screens back to developer quotes, ready for a coding agent.')}</p>
+          <p className="page-intro-description">{t('내 아이디어로 시작하거나, 기준을 통과한 문제에서 시작합니다. 어느 쪽이든 원문이 받쳐 주는 줄만 근거로 표시하고 나머지는 가설로 남깁니다.', 'Start from your own idea or from a problem that passed the bar. Either way, only lines quotes back count as evidence; the rest stay hypotheses.')}</p>
+          <form action="/prd/new" className="mt-8 flex max-w-[760px] flex-col gap-2.5 rounded-2xl border border-outline-strong bg-white p-2.5 focus-within:border-ink sm:flex-row sm:items-center">
+            <label htmlFor="prd-idea" className="sr-only">{t('만들고 싶은 것', 'What you want to build')}</label>
+            <input id="prd-idea" name="idea" required minLength={4} maxLength={300} placeholder={t('만들고 싶은 것을 적어 주세요. 예: AI 에이전트의 DB 접근을 막는 가드레일', 'What do you want to build? e.g. guardrails for AI agents')} className="h-12 min-w-0 flex-1 border-0 bg-transparent px-3 text-base outline-none placeholder:text-muted" />
+            <button type="submit" className="btn h-12 px-5">{t('아이디어로 PRD 만들기', 'Make a PRD from my idea')}</button>
+          </form>
+          <h2 id="verified" className="mt-16 scroll-mt-24 text-xl font-bold tracking-tight">{t('기준을 통과한 문제로 시작하기', 'Start from a problem that passed the bar')}</h2>
           {qualified.length ? (
-            <ul className="rows mt-10">
+            <ul className="rows mt-5">
               {qualified.map((item) => {
                 const text = localizedOpportunity(item, lang);
                 return (

@@ -63,6 +63,8 @@ export type Spec = {
   existing?: Array<{ name: string; does: string }>;
   /** Language the model wrote in; exports and follow-up calls use the same one. */
   lang?: Lang;
+  /** Started from the user's own idea: features may serve hypotheses, which stay marked as unverified. */
+  origin?: 'idea';
 };
 
 export type SpecInput = {
@@ -113,7 +115,7 @@ export function normalizeSlots(raw: unknown): ReadinessSlots | null {
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
  * so nothing in the spec floats free of the evidence chain. Indexes in the raw draft are 1-based.
  */
-export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false): Spec {
+export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false, options: { idea?: boolean } = {}): Spec {
   const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
@@ -129,7 +131,10 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
       requirements.push(kept);
       requirementId.set(index + 1, kept.id);
     } else {
-      hypotheses.push({ id: id('H', hypotheses.length), ...row, evidence: [] });
+      const kept = { id: id('H', hypotheses.length), ...row, evidence: [] };
+      hypotheses.push(kept);
+      // From an idea, what the user asked for is a real (if unverified) requirement that features may serve.
+      if (options.idea) requirementId.set(index + 1, kept.id);
     }
   });
 
@@ -164,6 +169,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     risks: stringList(raw.risks, 6),
     metrics: stringList(raw.metrics, 5),
     draft,
+    ...(options.idea ? { origin: 'idea' as const } : {}),
     ...(Array.isArray(raw.existing) ? {
       existing: raw.existing.slice(0, 12).flatMap((row) => {
         const record = (row ?? {}) as RawRow;

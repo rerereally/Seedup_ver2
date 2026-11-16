@@ -3,8 +3,12 @@ import { resolve } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Opportunity, OpportunitySnapshot } from '@/lib/opportunities/types';
 import { buildOpportunityDigest } from './opportunity-digest';
-import type { DigestKind, DigestLine } from './opportunity-digest';
+import type { DigestIssue, DigestKind, DigestLine, DigestRead } from './opportunity-digest';
+import { behaviorSignals, buildRecommendationProfile, scoreNewsletterItems } from '@/lib/recommendations';
+import type { NewsletterContentItem } from '@/lib/recommendations';
 import { selectInChunks } from '@/lib/supabase/chunks';
+import { saveIssue } from './issues';
+import { loadReadCandidates, pickReads } from './reads';
 import { claimSend, releaseSend } from './sends';
 
 const WINDOW_HOURS: Record<DigestKind, number> = { changes: 26, weekly: 7 * 24 };
@@ -39,9 +43,19 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
   if (!opportunities.length && existsSync(snapshotFile)) opportunities = (JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot).opportunities;
 
   const since = new Date(Date.now() - WINDOW_HOURS[kind] * 3_600_000).toISOString();
-  const digest = buildOpportunityDigest(opportunities, since, siteUrl || 'http://localhost:3000', kind);
+  const period = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+  // The weekly issue carries curated reads; everyone gets the general pick, subscribers their own below.
+  const candidates: NewsletterContentItem[] = kind === 'weekly' && service ? await loadReadCandidates(service).catch(() => []) : [];
+  const generalReads: DigestRead[] = candidates.length ? pickReads(scoreNewsletterItems(candidates, buildRecommendationProfile(null))) : [];
+  const digest = buildOpportunityDigest(opportunities, since, siteUrl || 'http://localhost:3000', kind, Date.now(), undefined, generalReads);
   if (!digest) return { status: 'empty', since };
   if (dryRun) return { status: 'preview', subject: digest.subject, text: digest.text, lines: digest.lines };
+
+  // Archived before the mail settings are checked, so the web archive fills up even while mail is not set up.
+  if (kind === 'weekly' && service) {
+    const issue: DigestIssue = { kind: digest.kind, subject: digest.subject, headline: digest.headline, lines: digest.lines, top: digest.top, reads: digest.reads };
+    await saveIssue(service, period, issue);
+  }
 
   // A mail whose links point at localhost helps nobody, so a deployed address is required too.
   if (!service || !resendKey || !from || !/^https:\/\//.test(siteUrl)) {
@@ -59,7 +73,16 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
   for (const row of dossiers) {
     if (row.opportunity_slug) savedSlugs.set(row.user_id, [...(savedSlugs.get(row.user_id) ?? []), row.opportunity_slug]);
   }
-  const period = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+  // What each reader saved and reacted to on the site steers their reads, as on the site itself.
+  const [scraps, reactions] = candidates.length ? await Promise.all([
+    selectInChunks<{ user_id: string; item_type: string; item_id: string | null; title: string; tag: string | null }>(subscriberIds, (chunk) => service.from('scraps').select('user_id,item_type,item_id,title,tag').in('user_id', chunk)),
+    selectInChunks<{ user_id: string; item_type: string; item_id: string; reaction: string }>(subscriberIds, (chunk) => service.from('content_reactions').select('user_id,item_type,item_id,reaction').in('user_id', chunk)),
+  ]) : [[], []];
+  const readsFor = (userId: string, answers: Record<string, unknown>) => {
+    if (!candidates.length) return [];
+    const behavior = behaviorSignals(scraps.filter((row) => row.user_id === userId), reactions.filter((row) => row.user_id === userId), candidates);
+    return pickReads(scoreNewsletterItems(candidates, { ...buildRecommendationProfile(answers, behavior.liked), ...behavior }));
+  };
   let sent = 0;
   let duplicates = 0;
   let failed = 0;
@@ -74,7 +97,7 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
       const value = answers[key];
       return (Array.isArray(value) ? value : value ? [value] : []).map(String);
     });
-    const mail = buildOpportunityDigest(opportunities, since, siteUrl, kind, Date.now(), { slugs: savedSlugs.get(userId) ?? [], keywords }) ?? digest;
+    const mail = buildOpportunityDigest(opportunities, since, siteUrl, kind, Date.now(), { slugs: savedSlugs.get(userId) ?? [], keywords }, readsFor(userId, answers)) ?? digest;
     const claim = await claimSend(service, `opportunity-${kind}`, period, userId);
     if (claim === 'duplicate') {
       duplicates += 1;

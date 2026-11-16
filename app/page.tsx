@@ -114,7 +114,10 @@ export default async function Home() {
           <h1 className="mt-5 text-[clamp(40px,7vw,84px)] font-bold leading-[1.08] tracking-[-0.045em] [text-wrap:balance]">작은 신호를,<br />만들 가치가 있는 제품으로.</h1>
           <p className="mx-auto mt-7 max-w-[34em] text-[clamp(17px,1.6vw,20px)] leading-[1.7] text-tertiary">매일 개발자 커뮤니티와 논문, 오픈소스에서 신호를 고르고, 실제 개발자의 말로 검증한 뒤, 근거가 붙은 PRD로 키워 코딩 에이전트에 넘깁니다.</p>
           <div className="mt-9"><SubscribeForm label="주간 신호 구독" /></div>
-          <Link href={sample ? `/prd?opportunity=${encodeURIComponent(sample)}` : '/prd'} className="link-seed mt-4">예시 PRD 둘러보기 ›</Link>
+          <p className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
+            <Link href="/prd/new" className="link-seed">내 아이디어로 PRD 만들기 ›</Link>
+            <Link href={sample ? `/prd?opportunity=${encodeURIComponent(sample)}` : '/prd'} className="link-seed">예시 PRD 둘러보기 ›</Link>
+          </p>
 
           <figure className="mx-auto mt-16 max-w-[1100px] text-left">
             <div className="card overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,.07)]">

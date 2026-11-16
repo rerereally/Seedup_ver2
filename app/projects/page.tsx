@@ -3,10 +3,9 @@ import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import PageIntro from '@/components/PageIntro';
+import ExploreTabs from '@/components/ExploreTabs';
 import { getProjectIdeas, getScrapKeySet } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
-import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -44,19 +43,14 @@ export default async function Projects({ searchParams }: { searchParams: Promise
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            title="만들어 볼 프로젝트"
-            description="뉴스, 논문, 오픈소스에서 본 것을 작게 배포할 수 있는 크기로 줄였습니다. 난이도와 기간을 보고 고르세요."
-            meta={projects.length ? <>프로젝트 <span className="num text-ink">{projects.length}</span>개 · 초급 <span className="num text-ink">{beginnerProjects}</span>개</> : undefined}
-          />
+      <main id="main-content" className="page-shell page-stack grow">
+        <ExploreTabs />
 
-          {projects.length > 0 && <nav aria-label="프로젝트 조건" className="tabs self-start">
+          {projects.length > 0 && <nav aria-label="프로젝트 조건" className="seg self-start">
             {FILTERS.map((filter) => (
-              <Link key={filter} href={buildHref(filter)} aria-current={activeFilter === filter ? 'page' : undefined} className="tab">
+              <Link key={filter} href={buildHref(filter)} aria-current={activeFilter === filter ? 'page' : undefined}>
                 {filter}
-                {activeFilter === filter && <span className="num">{filteredProjects.length}</span>}
+                {activeFilter === filter && <span className="num text-xs text-muted">{filteredProjects.length}</span>}
               </Link>
             ))}
           </nav>}
@@ -64,59 +58,56 @@ export default async function Projects({ searchParams }: { searchParams: Promise
           {!filteredProjects.length ? (
             <EmptyState title={projects.length ? '조건에 맞는 프로젝트가 없습니다' : '아직 정리된 프로젝트가 없습니다'} description={projects.length ? '조건을 바꾸거나 전체를 확인해 보세요.' : '수집이 한 번 돌고 나면 여기에 프로젝트가 올라옵니다.'} />
           ) : (
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {paginatedProjects.map((project) => {
-                const isScrapped = scrapKeys.has(`project:${project.id}`);
-                const displayTitle = cleanProjectTitle(project.title);
-                const planPreview = project.build_plan?.length
-                  ? project.build_plan.slice(0, 3).map((step) => step.title ?? '실행 단계')
-                  : (project.plan ?? []).slice(0, 3);
-                const durationLabel = project.duration_estimate?.minimum_days && project.duration_estimate.maximum_days
-                  ? `${project.duration_estimate.minimum_days}~${project.duration_estimate.maximum_days}일`
-                  : project.duration_days ? `${project.duration_days}일` : null;
-                const meta = [project.level, durationLabel, project.related_trend].filter(Boolean);
+            <div>
+              <table className="w-full table-fixed border-collapse text-[15px]">
+                <colgroup>
+                  <col className="sm:w-[36%] lg:w-[30%]" />
+                  <col className="hidden sm:table-column" />
+                  <col className="hidden w-[90px] lg:table-column" />
+                  <col className="w-[84px]" />
+                  <col className="w-[48px]" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted">프로젝트</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted hidden sm:table-cell">설명</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted hidden lg:table-cell">난이도</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted !text-right">기간</th>
+                    <th scope="col"><span className="sr-only">저장</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedProjects.map((project) => {
+                    const isScrapped = scrapKeys.has(`project:${project.id}`);
+                    const displayTitle = cleanProjectTitle(project.title);
+                    const durationLabel = project.duration_estimate?.minimum_days && project.duration_estimate.maximum_days
+                      ? `${project.duration_estimate.minimum_days}~${project.duration_estimate.maximum_days}일`
+                      : project.duration_days ? `${project.duration_days}일` : null;
+                    const sub = [project.related_trend, ...(project.stack ?? []).slice(0, 4)].filter(Boolean).join(' · ');
 
-                return (
-                  <article key={project.id} className="card flex flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 pt-2.5 text-[13px] text-muted">{meta.length ? <><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</> : '프로젝트'}</p>
-                      <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={isScrapped} iconOnly className="-mr-2 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-high hover:text-ink" />
-                    </div>
-                    <Link href={`/projects/${project.id}`} className="mt-1 block">
-                      <h2 className="line-clamp-2 text-xl font-bold leading-snug text-ink">{displayTitle}</h2>
-                    </Link>
-                    {project.description && <p className="mt-2.5 line-clamp-3 text-[15px] leading-7 text-muted">{project.description}</p>}
-
-                    {planPreview.length > 0 && (
-                      <div className="mt-5">
-                        <h3 className="label">처음 세 단계</h3>
-                        <ol className="mt-1 divide-y divide-outline-soft">
-                          {planPreview.map((step, index) => (
-                            <li key={`${project.id}-${step}-${index}`} className="flex gap-3 py-2 text-sm leading-6">
-                              <span className="num w-4 shrink-0 text-muted">{index + 1}</span>
-                              <span className="line-clamp-1 text-ink">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-
-                    {!!project.stack?.length && (
-                      <div className="mt-4 flex flex-wrap gap-1.5">
-                        {project.stack.slice(0, 5).map((tech, techIndex) => <span key={`${project.id}-${tech}-${techIndex}`} className="chip">{tech}</span>)}
-                      </div>
-                    )}
-
-                    <div className="mt-auto pt-5">
-                      <Link href={`/projects/${project.id}`} className="btn-quiet">
-                        계획 보기
-                        <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </section>
+                    return (
+                      <tr key={project.id} className="group relative border-t border-outline-soft align-top transition-colors last:border-b hover:bg-surface-low">
+                        <td className="py-5 pr-4">
+                          {/* The stretched link makes the whole row a target; the save button sits above it. */}
+                          <Link href={`/projects/${project.id}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{displayTitle}</Link>
+                          {project.level && <p className="mt-1 text-[13px] text-muted lg:hidden">{project.level}</p>}
+                        </td>
+                        <td className="hidden py-5 pr-6 sm:table-cell">
+                          {project.description && <p className="line-clamp-2 leading-6 text-tertiary">{project.description}</p>}
+                          {sub && <p className="mt-1 line-clamp-1 text-[13px] text-muted">{sub}</p>}
+                        </td>
+                        <td className="hidden py-5 text-muted lg:table-cell">{project.level ?? '-'}</td>
+                        <td className="num py-5 text-right text-ink">{durationLabel ?? '-'}</td>
+                        <td className="py-3">
+                          <ScrapButton itemType="project" itemId={project.id} title={displayTitle} description={project.description} tag={project.related_trend ?? project.level ?? 'project'} initialSaved={isScrapped} iconOnly className="relative z-10 ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-mid hover:text-ink" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-5 text-[13px] leading-6 text-muted">뉴스, 논문, 오픈소스에서 본 것을 작게 배포할 수 있는 크기로 줄였습니다. 단계별 계획은 각 프로젝트 안에 있습니다. 프로젝트 <span className="num">{projects.length}</span>개 · 초급 <span className="num">{beginnerProjects}</span>개.</p>
+            </div>
           )}
 
           {filteredProjects.length > PAGE_SIZE && (
@@ -128,7 +119,6 @@ export default async function Projects({ searchParams }: { searchParams: Promise
               <Link href={buildHref(activeFilter, Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>다음</Link>
             </nav>
           )}
-        </div>
       </main>
       <Footer />
     </>

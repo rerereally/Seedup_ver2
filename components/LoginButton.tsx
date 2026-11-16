@@ -10,18 +10,22 @@ export default function LoginButton() {
       return;
     }
     const origin = window.location.origin;
-    const next = new URLSearchParams(window.location.search).get('next') ?? '/';
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next') ?? '/';
+    // The landing page's subscribe form passes the typed address, so Google opens on that account.
+    const email = params.get('email');
 
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        ...(email ? { queryParams: { login_hint: email } } : {}),
       },
     });
   };
 
   return (
-    <button type="button" onClick={handleLogin} className="flex h-[52px] w-full items-center justify-center gap-3 rounded-full bg-ink text-[15px] font-bold text-white transition-opacity hover:opacity-90">
+    <button type="button" onClick={handleLogin} className="flex h-14 w-full items-center justify-center gap-3 rounded-xl border border-outline-strong bg-white text-base font-medium text-ink transition-colors hover:bg-surface-low">
       <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" aria-hidden="true">
         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z" />
         <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33A9 9 0 0 0 9 18Z" />

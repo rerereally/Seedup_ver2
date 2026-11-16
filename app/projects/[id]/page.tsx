@@ -8,7 +8,6 @@ import { getExistingScrap, getProjectIdea } from '@/lib/data';
 import { cleanProjectTitle } from '@/lib/utils';
 import MarkdownContent from '@/components/MarkdownContent';
 import {
-  ArrowLeft,
   ArrowRight,
   Calendar,
   CheckCircle2,
@@ -123,10 +122,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         {/* 뒤로가기 */}
         <Link
           href="/projects"
-          className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-muted hover:text-ink"
+          className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" />
-          프로젝트 목록으로
+          <span aria-hidden="true">‹</span>
+          프로젝트 목록
         </Link>
 
         <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -138,7 +137,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             <div className="min-w-0">
               {/* 메타 배지 */}
               <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
-                <span className="chip bg-ink text-white">
+                <span className="chip bg-seed-soft font-medium text-seed">
                   {project.level ?? '추천'}
                 </span>
                 {durationLabel && (
@@ -166,7 +165,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
             {/* 프로젝트 상세 설명 — 마크다운 렌더링 */}
             {project.description && (
-              <div className="card p-5 md:p-7">
+              <div>
                 <MarkdownContent content={project.description} />
               </div>
             )}
@@ -197,8 +196,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </div>
 
             {/* 프로젝트 개요 카드 3열 */}
-            <div className="card grid overflow-hidden md:grid-cols-3">
-              <div className="border-b border-outline-soft p-5 md:border-b-0 md:border-r">
+            <div className="grid border-y border-outline-soft md:grid-cols-3">
+              <div className="border-b border-outline-soft py-5 md:border-b-0 md:border-r md:px-6 md:first:pl-0">
                 <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-muted">
                   <Rocket className="h-4 w-4" />
                   완성 목표
@@ -207,7 +206,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   작게라도 배포 가능한 MVP를 만들고 README에 문제 정의, 핵심 기능, 배운 점을 정리합니다.
                 </p>
               </div>
-              <div className="border-b border-outline-soft p-5 md:border-b-0 md:border-r">
+              <div className="border-b border-outline-soft py-5 md:border-b-0 md:border-r md:px-6 md:first:pl-0">
                 <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-muted">
                   <Code2 className="h-4 w-4" />
                   추천 수준
@@ -216,7 +215,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   {project.level ?? '초급'} 개발자 기준 {durationLabel} 플랜입니다. {project.project_constraints?.primary_language ? `${project.project_constraints.primary_language} 한 가지 언어와 핵심 기능 ${project.project_constraints.core_feature_count ?? 3}개 기준으로 범위를 제한했습니다. ` : ''}{project.schedule_reasoning ?? duration?.reasoning ?? '핵심 흐름을 먼저 검증하고 확장 기능은 뒤로 미룹니다.'}
                 </p>
               </div>
-              <div className="p-5">
+              <div className="py-5 md:pl-6">
                 <div className="mb-3 flex items-center gap-2 text-[13px] font-medium text-muted">
                   <Trophy className="h-4 w-4" />
                   포트폴리오 포인트
@@ -229,27 +228,27 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
             {(project.mvp_acceptance || project.scope || project.prerequisites?.length || project.difficulty_reasons?.length || project.technical_limitations?.length || project.assumptions?.length || project.validation_metrics?.length) && (
               <section className="grid gap-4 md:grid-cols-2">
-                {project.mvp_acceptance && <div className="card border-ink bg-ink p-5 text-white md:col-span-2"><p className="text-[13px] font-medium text-white/60">완료 기준</p><p className="mt-3 max-w-3xl text-sm leading-7">{project.mvp_acceptance}</p></div>}
-                {project.scope && <div className="card p-5 md:col-span-2"><h2 className="text-base font-extrabold tracking-tight text-ink">MVP 범위</h2><div className="mt-4 grid gap-4 md:grid-cols-3">{[['이번 플랜에 포함', project.scope.must_have], ['권장 확장', project.scope.should_have], ['이번 플랜에서 제외', project.scope.excluded]].map(([label, items]) => <div key={String(label)}><p className="text-[13px] font-medium text-muted">{String(label)}</p><ul className="mt-2 grid gap-1">{(Array.isArray(items) ? items : []).map((item, itemIndex) => <li key={`${String(label)}-${itemIndex}`} className="text-xs leading-5 text-muted">- {item}</li>)}</ul></div>)}</div></div>}
-                {project.prerequisites?.length ? <div className="card p-5"><h2 className="text-base font-extrabold tracking-tight text-ink">필요한 선행 지식</h2><ul className="mt-3 grid gap-2">{project.prerequisites.map((item, itemIndex) => <li key={`prerequisite-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
-                {project.difficulty_reasons?.length ? <div className="card p-5"><h2 className="text-base font-extrabold tracking-tight text-ink">추천 수준인 이유</h2><ul className="mt-3 grid gap-2">{project.difficulty_reasons.map((item, itemIndex) => <li key={`difficulty-reason-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
-                {project.technical_limitations?.length ? <div className="card p-5"><h2 className="text-base font-extrabold tracking-tight text-ink">기술적 한계</h2><ul className="mt-3 grid gap-2">{project.technical_limitations.map((item, itemIndex) => <li key={`limitation-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
-                {project.assumptions?.length ? <div className="card p-5"><h2 className="text-base font-extrabold tracking-tight text-ink">전제 조건</h2><ul className="mt-3 grid gap-2">{project.assumptions.map((item, itemIndex) => <li key={`assumption-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
-                {project.validation_metrics?.length ? <div className="card p-5 md:col-span-2"><h2 className="text-base font-extrabold tracking-tight text-ink">검증 지표</h2><div className="mt-3 grid gap-2 md:grid-cols-3">{project.validation_metrics.map((item, itemIndex) => <div key={`metric-${itemIndex}`} className="rounded-2xl bg-surface p-4"><p className="text-xs font-extrabold text-ink">{item.metric ?? '검증 항목'}</p><p className="mt-1 text-xs leading-5 text-muted">목표: {item.target ?? '-'}</p><p className="mt-1 text-xs leading-5 text-muted">방법: {item.method ?? '-'}</p></div>)}</div></div> : null}
+                {project.mvp_acceptance && <div className="rounded-2xl border border-emerald-200 bg-seed-soft p-5 md:col-span-2"><p className="text-[13px] font-medium text-seed">완료 기준</p><p className="mt-3 max-w-3xl text-sm leading-7">{project.mvp_acceptance}</p></div>}
+                {project.scope && <div className="card p-5 md:col-span-2"><h2 className="text-base font-bold tracking-tight text-ink">MVP 범위</h2><div className="mt-4 grid gap-4 md:grid-cols-3">{[['이번 플랜에 포함', project.scope.must_have], ['권장 확장', project.scope.should_have], ['이번 플랜에서 제외', project.scope.excluded]].map(([label, items]) => <div key={String(label)}><p className="text-[13px] font-medium text-muted">{String(label)}</p><ul className="mt-2 grid gap-1">{(Array.isArray(items) ? items : []).map((item, itemIndex) => <li key={`${String(label)}-${itemIndex}`} className="text-xs leading-5 text-muted">- {item}</li>)}</ul></div>)}</div></div>}
+                {project.prerequisites?.length ? <div className="card p-5"><h2 className="text-base font-bold tracking-tight text-ink">필요한 선행 지식</h2><ul className="mt-3 grid gap-2">{project.prerequisites.map((item, itemIndex) => <li key={`prerequisite-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                {project.difficulty_reasons?.length ? <div className="card p-5"><h2 className="text-base font-bold tracking-tight text-ink">추천 수준인 이유</h2><ul className="mt-3 grid gap-2">{project.difficulty_reasons.map((item, itemIndex) => <li key={`difficulty-reason-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                {project.technical_limitations?.length ? <div className="card p-5"><h2 className="text-base font-bold tracking-tight text-ink">기술적 한계</h2><ul className="mt-3 grid gap-2">{project.technical_limitations.map((item, itemIndex) => <li key={`limitation-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                {project.assumptions?.length ? <div className="card p-5"><h2 className="text-base font-bold tracking-tight text-ink">전제 조건</h2><ul className="mt-3 grid gap-2">{project.assumptions.map((item, itemIndex) => <li key={`assumption-${itemIndex}`} className="text-sm leading-6 text-muted">- {item}</li>)}</ul></div> : null}
+                {project.validation_metrics?.length ? <div className="card p-5 md:col-span-2"><h2 className="text-base font-bold tracking-tight text-ink">검증 지표</h2><div className="mt-3 grid gap-2 md:grid-cols-3">{project.validation_metrics.map((item, itemIndex) => <div key={`metric-${itemIndex}`} className="rounded-xl bg-surface-low p-4"><p className="text-xs font-bold text-ink">{item.metric ?? '검증 항목'}</p><p className="mt-1 text-xs leading-5 text-muted">목표: {item.target ?? '-'}</p><p className="mt-1 text-xs leading-5 text-muted">방법: {item.method ?? '-'}</p></div>)}</div></div> : null}
               </section>
             )}
 
             {/* 기술 스택 */}
-            <section className="card p-5 md:p-6">
-              <h2 className="mb-4 flex items-center gap-2 text-xl font-extrabold tracking-tight text-ink">
+            <section className="border-t border-outline-soft pt-6">
+              <h2 className="mb-4 flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
                 <Layers className="h-4 w-4" />
-                Tech Stack
+                기술 스택
               </h2>
               <div className="flex flex-wrap gap-2">
                 {tools.map((tool) => (
                   <span
                     key={tool}
-                    className="chip px-3 py-1.5 text-sm font-bold"
+                    className="chip px-3 py-1.5 text-sm"
                   >
                     {tool}
                   </span>
@@ -258,10 +257,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </section>
 
             {/* Day별 빌드 플랜 */}
-            <section className="card overflow-hidden">
-              <div className="flex items-center gap-2 border-b border-outline-soft p-5">
+            <section className="border-t border-outline-soft">
+              <div className="flex items-center gap-2 border-b border-outline-soft py-5">
                 <Terminal className="h-5 w-5 text-ink" />
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">만드는 순서</h2>
+                <h2 className="text-xl font-bold tracking-tight text-ink">만드는 순서</h2>
                 <span className="ml-auto text-[13px] font-medium text-muted">
                   {durationLabel}{hoursLabel ? ` · ${hoursLabel}` : ''}
                 </span>
@@ -270,23 +269,23 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <div className="divide-y divide-outline-soft">
                 {planSteps.length > 0
                   ? planSteps.map(({ index, day, title, meta, objective, tasks, tools: stepTools, deliverable, doneWhen, acceptanceCriteria, risks, hours }) => (
-                      <div key={`${index}-${title}`} className="p-5">
+                      <div key={`${index}-${title}`} className="py-5">
                         <div className="flex items-start gap-4">
                           {/* Day 번호 */}
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-extrabold text-white">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-seed-soft text-sm font-semibold text-seed">
                             {day ? day.replace(/Day\s*/i, '') : index + 1}
                           </div>
 
                           <div className="flex-1 min-w-0">
                             {/* 작업 제목 */}
                             <div className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 shrink-0 text-ink" />
-                              <span className="font-extrabold text-ink">{title}</span>
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-seed" />
+                              <span className="font-bold text-ink">{title}</span>
                             </div>
 
                             {objective && <p className="mt-2 text-sm leading-6 text-muted">{objective}</p>}
                             {!!tasks.length && <ul className="mt-3 grid gap-1">{tasks.map((task) => <li key={task} className="text-xs leading-5 text-muted">- {task}</li>)}</ul>}
-                            {(deliverable || doneWhen || hours || stepTools.length > 0 || acceptanceCriteria.length || risks.length) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="rounded-2xl bg-surface p-3 text-xs"><span className="font-extrabold text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="rounded-2xl bg-surface p-3 text-xs"><span className="font-extrabold text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="rounded-2xl bg-surface p-3 text-xs sm:col-span-2"><span className="font-extrabold text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="rounded-2xl bg-surface p-3 text-xs sm:col-span-2"><span className="font-extrabold text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}{acceptanceCriteria.length > 0 && <div className="rounded-2xl bg-surface p-3 text-xs sm:col-span-2"><span className="font-extrabold text-ink">검증 기준 </span><span className="text-muted">{acceptanceCriteria.join(' · ')}</span></div>}{risks.length > 0 && <div className="rounded-2xl bg-surface p-3 text-xs sm:col-span-2"><span className="font-extrabold text-ink">주의할 점 </span><span className="text-muted">{risks.join(' · ')}</span></div>}</div>}
+                            {(deliverable || doneWhen || hours || stepTools.length > 0 || acceptanceCriteria.length || risks.length) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}{acceptanceCriteria.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">검증 기준 </span><span className="text-muted">{acceptanceCriteria.join(' · ')}</span></div>}{risks.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">주의할 점 </span><span className="text-muted">{risks.join(' · ')}</span></div>}</div>}
 
                             {/* 이전 문자열 plan 호환용 메타 */}
                             {meta.length > 0 && (
@@ -294,7 +293,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                                 {meta.map(({ label, value }, metaIndex) => (
                                   <div
                                     key={`${label}-${metaIndex}`}
-                                    className="flex gap-2 rounded-2xl bg-surface p-3 text-sm"
+                                    className="flex gap-2 rounded-xl bg-surface-low p-3 text-sm"
                                   >
                                     <span className="shrink-0 font-bold text-ink">
                                       {label}
@@ -310,7 +309,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     ))
                   : (
                     // 플랜 없을 때 기본 안내
-                    <div className="p-5 text-sm leading-7 text-muted">
+                    <div className="py-5 text-sm leading-7 text-muted">
                       <div className="grid gap-3">
                         {[
                           { day: '01', title: '문제 정의와 핵심 화면', tool: '마크다운, Figma', method: '핵심 사용자와 기능 3개를 정하고 제외 범위를 기록한다' },
@@ -319,26 +318,26 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                           { day: '04', title: '배포와 README', tool: 'Vercel', method: '배포 URL과 실행 방법, 제한 사항을 문서화한다' },
                         ].map((step) => (
                           <div key={step.day} className="flex items-start gap-4">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-extrabold text-white">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-seed-soft text-sm font-semibold text-seed">
                               {step.day}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-ink" />
-                                <span className="font-extrabold text-ink">{step.title}</span>
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-seed" />
+                                <span className="font-bold text-ink">{step.title}</span>
                               </div>
                               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                                <div className="flex gap-2 rounded-2xl bg-surface p-3 text-sm">
+                                <div className="flex gap-2 rounded-xl bg-surface-low p-3 text-sm">
                                   <span className="shrink-0 font-bold text-ink">도구</span>
                                   <span className="text-muted">{step.tool}</span>
                                 </div>
                                 {'lang' in step && (
-                                  <div className="flex gap-2 rounded-2xl bg-surface p-3 text-sm">
+                                  <div className="flex gap-2 rounded-xl bg-surface-low p-3 text-sm">
                                     <span className="shrink-0 font-bold text-ink">언어</span>
                                     <span className="text-muted">{step.lang}</span>
                                   </div>
                                 )}
-                                <div className="flex gap-2 rounded-2xl bg-surface p-3 text-sm sm:col-span-2">
+                                <div className="flex gap-2 rounded-xl bg-surface-low p-3 text-sm sm:col-span-2">
                                   <span className="shrink-0 font-bold text-ink">방법</span>
                                   <span className="text-muted">{step.method}</span>
                                 </div>
@@ -355,11 +354,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
           {/* ── 우측 사이드바 ── */}
           <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
-            {/* Next Actions */}
+            {/* 다음에 할 것 */}
             <section className="card overflow-hidden">
-              <h2 className="flex items-center gap-2 border-b border-outline-soft p-5 text-xl font-extrabold tracking-tight text-ink">
+              <h2 className="flex items-center gap-2 border-b border-outline-soft p-5 text-xl font-bold tracking-tight text-ink">
                 <Lightbulb className="h-4 w-4" />
-                Next Actions
+                다음에 할 것
               </h2>
               <ul className="divide-y divide-outline-soft">
                 {[
@@ -382,7 +381,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   <li key={action.label}>
                     <Link
                       href={action.href}
-                      className="flex items-center justify-between gap-3 p-4 text-sm font-bold text-ink hover:bg-surface"
+                      className="flex items-center justify-between gap-3 p-4 text-sm font-semibold text-ink hover:bg-surface-low"
                     >
                       <div>
                         <div>{action.label}</div>

@@ -1,21 +1,19 @@
 'use client';
 
-import type { ModelIntelligence, Trend, TrendSnapshot } from '@/lib/data';
-import ModelIntelligencePanel from '@/components/ModelIntelligencePanel';
+import type { Trend, TrendSnapshot } from '@/lib/data';
 import { ArrowUpRight, ChevronDown, Code2, FileText, PackageSearch, Radio } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 const ALL = '전체';
-const MODELS = '모델 인텔리전스';
-const CATEGORY_TABS = [ALL, '개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어', '모델 인텔리전스'] as const;
+const CATEGORY_TABS = [ALL, '개발 워크플로우', 'AI 도구·모델', '구현 패턴', '오픈소스 프로젝트', '빌드 아이디어'] as const;
 
 // What the ranking step decided about a topic, in the words a reader would use.
 const STATUS: Record<string, { label: string; dot: string }> = {
   hot: { label: '가장 뜨거움', dot: 'bg-hot' },
-  rising: { label: '오르는 중', dot: 'bg-[#3ddc84]' },
-  new: { label: '새로 등장', dot: 'bg-[#6ea8ff]' },
+  rising: { label: '오르는 중', dot: 'bg-emerald-500' },
+  new: { label: '새로 등장', dot: 'bg-[#3b82f6]' },
   steady: { label: '꾸준함', dot: 'bg-outline-strong' },
   cooling: { label: '식는 중', dot: 'bg-outline-strong' },
   watch: { label: '지켜보는 중', dot: 'bg-outline-strong' },
@@ -120,7 +118,7 @@ function InterestBars({ snapshots }: { snapshots: TrendSnapshot[] }) {
       <div className="mt-3 flex h-24 items-end gap-1.5">
         {snapshots.map((item, index) => (
           <div key={item.date} title={`${formatDate(item.date)} · ${item.score}점`} className="flex h-full min-w-0 max-w-10 flex-1 flex-col justify-end">
-            <div className={`w-full rounded-t-[5px] ${index === snapshots.length - 1 ? 'bg-ink' : 'bg-surface-high'}`} style={{ height: `${Math.max(6, Math.round((item.score / max) * 100))}%` }} />
+            <div className={`w-full rounded-t-[5px] ${index === snapshots.length - 1 ? 'bg-seed' : 'bg-surface-high'}`} style={{ height: `${Math.max(6, Math.round((item.score / max) * 100))}%` }} />
           </div>
         ))}
       </div>
@@ -175,7 +173,7 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
   const nextActions = ideas.length ? ideas : [`이 주제가 무엇인지 한 문단으로 정리하기`, '근거가 된 저장소 하나를 직접 돌려 보기', '작은 예제를 만들어 막히는 지점 적어 두기'];
 
   return (
-    <div id={id} className="grid gap-x-12 gap-y-8 border-t border-outline-soft px-5 py-6 md:px-7 md:py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    <div id={id} className="grid gap-x-12 gap-y-8 border-t border-outline-soft bg-white px-4 py-6 md:px-6 md:py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="grid content-start gap-8">
         <p className="max-w-[40em] text-[15px] leading-7 text-ink">{trend.summary ?? '최근 모인 개발 신호에서 감지된 주제입니다.'}</p>
 
@@ -205,7 +203,7 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
             <dl className="mt-2 divide-y divide-outline-soft">
               {signals.map((row) => (
                 <div key={row.type} className="flex items-baseline gap-3 py-2.5 text-sm">
-                  <dt className="w-28 shrink-0 font-bold text-ink">{row.type}</dt>
+                  <dt className="w-28 shrink-0 font-semibold text-ink">{row.type}</dt>
                   <dd className="min-w-0 flex-1 text-muted">{row.meaning}</dd>
                   <dd className="num text-ink">{row.count}</dd>
                 </div>
@@ -217,7 +215,7 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
         {!!related.length && (
           <Block title="함께 보는 기술">
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {related.map((item) => <span key={item} className="rounded-full bg-surface-high px-2.5 py-1 text-xs text-ink">{item}</span>)}
+              {related.map((item) => <span key={item} className="chip">{item}</span>)}
             </div>
           </Block>
         )}
@@ -249,7 +247,7 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
 
 type Category = (typeof CATEGORY_TABS)[number];
 
-export default function TrendAccordion({ trends, models = [] }: { trends: Trend[]; models?: ModelIntelligence[] }) {
+export default function TrendAccordion({ trends }: { trends: Trend[] }) {
   const [category, setCategory] = useState<Category>(ALL);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -264,7 +262,7 @@ export default function TrendAccordion({ trends, models = [] }: { trends: Trend[
 
   return (
     <section className="grid gap-5">
-      <div className="tabs justify-self-start">
+      <div className="seg justify-self-start">
         {CATEGORY_TABS.map((item) => (
           <button
             key={item}
@@ -274,16 +272,18 @@ export default function TrendAccordion({ trends, models = [] }: { trends: Trend[
               setCategory(item);
               setOpenId(null);
             }}
-            className="tab"
           >
             {item}
-            {item !== MODELS && <span className="num">{counts[item] ?? 0}</span>}
+            <span className="num text-xs">{counts[item] ?? 0}</span>
           </button>
         ))}
       </div>
 
-      {category === MODELS ? <ModelIntelligencePanel models={models} /> : visibleTrends.length ? (
-        <ol className="card overflow-hidden">
+      {visibleTrends.length ? (
+        <ol className="rows">
+          <li aria-hidden="true" className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] gap-x-3 px-2 py-3 text-[13px] text-muted md:grid-cols-[2.25rem_minmax(0,1fr)_auto]">
+            <span>순위</span><span>주제</span><span className="pr-7">점수</span>
+          </li>
           {visibleTrends.map((trend, index) => {
             const isOpen = openId === trend.id;
             const growth = Math.round(numberValue(trend.weekly_growth_rate));
@@ -291,19 +291,19 @@ export default function TrendAccordion({ trends, models = [] }: { trends: Trend[
             const score = scoreOf(trend);
             const detailId = `trend-${trend.id}`;
             return (
-              <li key={trend.id} className="border-t border-outline-soft first:border-t-0">
+              <li key={trend.id}>
                 <button
                   type="button"
                   aria-expanded={isOpen}
                   aria-controls={detailId}
                   onClick={() => setOpenId(isOpen ? null : trend.id)}
-                  className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 px-5 py-4 text-left transition-colors hover:bg-surface-low md:grid-cols-[2.25rem_minmax(0,1fr)_auto] md:px-7"
+                  className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 px-2 py-4 text-left transition-colors hover:bg-surface-low md:grid-cols-[2.25rem_minmax(0,1fr)_auto]"
                 >
                   <span className="num text-sm text-muted">{index + 1}</span>
                   <span className="min-w-0">
-                    <span className="block truncate text-[17px] font-bold leading-snug text-ink">{trend.display_name ?? trend.keyword}</span>
+                    <span className="block truncate text-[15px] font-semibold leading-snug text-ink">{trend.display_name ?? trend.keyword}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted">
-                      <span className="inline-flex items-center gap-1.5 text-ink"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>
+                      <span className="inline-flex items-center gap-1.5 text-tertiary"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>
                       {trend.trend_direction !== 'new' && growth !== 0 && <span className="num">{growth > 0 ? '▲' : '▼'} {Math.abs(growth)}%</span>}
                       {category === ALL && <span>{categoryOf(trend)}</span>}
                       <span className="truncate">{compactMix(trend)}</span>
@@ -311,9 +311,9 @@ export default function TrendAccordion({ trends, models = [] }: { trends: Trend[
                   </span>
                   <span className="flex items-center gap-3 md:gap-4">
                     <span aria-hidden="true" className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-surface-high sm:block">
-                      <span className={`block h-full rounded-full ${index === 0 ? 'bg-hot' : 'bg-ink'}`} style={{ width: `${Math.max(4, Math.round((score / top) * 100))}%` }} />
+                      <span className={`block h-full rounded-full ${index === 0 ? 'bg-seed' : 'bg-outline-strong'}`} style={{ width: `${Math.max(4, Math.round((score / top) * 100))}%` }} />
                     </span>
-                    <span className={`num w-9 text-right text-xl font-semibold ${index === 0 ? 'text-hot' : 'text-ink'}`}><span className="sr-only">점수 </span>{score}</span>
+                    <span className={`num w-9 text-right text-[15px] font-semibold ${index === 0 ? 'text-seed' : 'text-ink'}`}><span className="sr-only">점수 </span>{score}</span>
                     <ChevronDown aria-hidden="true" className={`h-4 w-4 text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                   </span>
                 </button>

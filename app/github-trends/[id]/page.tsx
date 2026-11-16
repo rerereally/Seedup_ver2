@@ -37,7 +37,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
-        <Link href="/github-trends" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">←</span> 오픈소스 목록</Link>
+        <Link href="/github-trends" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> 오픈소스 목록</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0">
             <p className="text-sm text-muted">{['오픈소스', repo.language].filter(Boolean).join(' · ')}</p>
@@ -53,9 +53,9 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
               <ShareButton title={repo.repo_full_name} url={repo.repo_url} />
             </div>
 
-            <dl className="card mt-8 grid grid-cols-2 overflow-hidden sm:grid-cols-4">
+            <dl className="mt-8 grid grid-cols-2 gap-x-6 border-y border-outline-soft sm:grid-cols-4">
               {stats.map(([label, value], index) => (
-                <div key={label} className={`border-outline-soft px-5 py-4 ${index % 2 ? 'border-l' : ''} ${index > 1 ? 'border-t sm:border-t-0' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
+                <div key={label} className={`py-5 ${index > 1 ? 'border-t border-outline-soft sm:border-t-0' : ''}`}>
                   <dt className="label">{label}</dt>
                   <dd className={`mt-1 truncate text-[26px] font-semibold leading-tight text-ink ${index === 2 ? '' : 'num'}`}>{value}</dd>
                 </div>
@@ -64,13 +64,13 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
 
             {repo.beginner_summary && (
               <section className="mt-10">
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">처음 보는 사람을 위한 설명</h2>
+                <h2 className="text-xl font-bold tracking-tight text-ink">처음 보는 사람을 위한 설명</h2>
                 <p className="mt-3 max-w-[40em] text-[17px] leading-8 text-ink">{repo.beginner_summary}</p>
               </section>
             )}
             {repo.ai_review && (
               <section className="mt-10">
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">왜 볼 만한가</h2>
+                <h2 className="text-xl font-bold tracking-tight text-ink">왜 볼 만한가</h2>
                 <p className="mt-3 max-w-[40em] text-[17px] leading-8 text-ink">{repo.ai_review}</p>
                 <p className="mt-2 text-[13px] text-muted">AI가 저장소 설명을 읽고 쓴 글입니다.</p>
               </section>
@@ -95,7 +95,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
             )}
             <Link href="/opportunities" className="card group flex items-center justify-between gap-3 p-5 transition-colors hover:border-outline-strong">
               <span>
-                <span className="block text-[15px] font-bold text-ink">무엇을 만들지 아직 못 정했다면</span>
+                <span className="block text-[15px] font-semibold text-ink">무엇을 만들지 아직 못 정했다면</span>
                 <span className="mt-0.5 block text-[13px] text-muted">개발자들이 실제로 남긴 불만부터 보세요.</span>
               </span>
               <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted transition-colors group-hover:text-ink" />

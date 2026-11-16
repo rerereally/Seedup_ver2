@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { MIN_EVIDENCE, MIN_PLATFORMS, localizedOpportunity } from '@/lib/opportunities/types';
-import type { Opportunity, OpportunityStatus } from '@/lib/opportunities/types';
+import type { Opportunity, OpportunityStatus, Platform } from '@/lib/opportunities/types';
 import type { OpportunityFunnel } from '@/lib/opportunities/data';
 
 export const STATUS_LABELS: Record<OpportunityStatus, string> = {
@@ -13,13 +13,11 @@ export const STATUS_LABELS: Record<OpportunityStatus, string> = {
 const STATUS_LABELS_EN: Record<OpportunityStatus, string> = { open: 'Open', narrowing: 'Narrowing', closed: 'Closed', unknown: 'Researching' };
 
 const STATUS_DOTS: Record<OpportunityStatus, string> = {
-  open: 'bg-[#3ddc84]',
-  narrowing: 'bg-[#ffc400]',
+  open: 'bg-emerald-500',
+  narrowing: 'bg-[#d97706]',
   closed: 'bg-outline-strong',
   unknown: 'bg-outline-strong',
 };
-
-const NEUTRAL = '#62626a';
 
 export function StatusLabel({ status, lang = 'ko' }: { status: OpportunityStatus; lang?: 'ko' | 'en' }) {
   const quiet = status === 'closed' || status === 'unknown';
@@ -29,35 +27,6 @@ export function StatusLabel({ status, lang = 'ko' }: { status: OpportunityStatus
       {(lang === 'en' ? STATUS_LABELS_EN : STATUS_LABELS)[status]}
     </span>
   );
-}
-
-/** The count next to a bar that fills up at the pass mark, so a row shows how close it is at a glance. */
-function Meter({ value, bar, color }: { value: number; bar: number; color: string }) {
-  return (
-    <span className="inline-flex items-center justify-end gap-2.5">
-      <span aria-hidden="true" className="flex gap-[3px]">
-        {Array.from({ length: bar }, (_, index) => (
-          <span key={index} className="h-3.5 w-[5px] rounded-full" style={{ background: index < value ? color : 'var(--color-surface-high)' }} />
-        ))}
-      </span>
-      <span className="num w-5 text-right">{value}</span>
-    </span>
-  );
-}
-
-function TopSupply({ item, lang }: { item: Opportunity; lang: 'ko' | 'en' }) {
-  const direct = item.supply.filter((supply) => supply.relation === 'direct');
-  const biggest = direct.filter((supply) => supply.kind === 'github').sort((a, b) => b.popularity - a.popularity)[0];
-  if (biggest) {
-    return (
-      <span className="inline-flex max-w-full items-baseline justify-end gap-2">
-        <span className="truncate text-muted">{biggest.name}</span>
-        <span className="num shrink-0 text-ink">★{biggest.popularity.toLocaleString('en-US')}</span>
-      </span>
-    );
-  }
-  if (item.directCount) return lang === 'en' ? <span className="text-muted"><span className="num text-ink">{item.directCount}</span> direct rivals</span> : <span className="text-muted">직접 경쟁 <span className="num text-ink">{item.directCount}</span>개</span>;
-  return <span className="text-muted">{lang === 'en' ? 'None yet' : '아직 없음'}</span>;
 }
 
 // Two columns on a phone, four in a row on a wide screen; each step only draws the lines that face a neighbour.
@@ -92,56 +61,54 @@ export function FunnelStrip({ funnel, lang = 'ko' }: { funnel: OpportunityFunnel
   );
 }
 
-export default function OpportunityTable({ opportunities, colors, lang = 'ko' }: { opportunities: Opportunity[]; colors: Record<string, { bg: string }>; lang?: 'ko' | 'en' }) {
+const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters' };
+
+/** What a problem still needs before it counts as verified, in the reader's words. */
+function stageLabel(item: Opportunity, en: boolean) {
+  if (item.qualified) return en ? 'Verified' : '검증됨';
+  const quotes = MIN_EVIDENCE - item.evidence.length;
+  if (quotes > 0) return en ? `${quotes} more needed` : `${quotes}건 더 필요`;
+  const platforms = Math.max(1, MIN_PLATFORMS - item.platforms.length);
+  return en ? `${platforms} more platform` : `플랫폼 ${platforms}곳 더 필요`;
+}
+
+export default function OpportunityTable({ opportunities, lang = 'ko' }: { opportunities: Opportunity[]; lang?: 'ko' | 'en' }) {
   const en = lang === 'en';
   if (!opportunities.length) return <p className="empty-state">{en ? 'No opportunity matches yet.' : '이 조건에 맞는 기회가 아직 없습니다.'}</p>;
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-outline-soft">
-      <table className="w-full table-fixed border-collapse text-[15px]">
-        <colgroup>
-          <col />
-          <col className="w-[112px] sm:w-[132px]" />
-          <col className="hidden w-[104px] sm:table-column" />
-          <col className="hidden w-[104px] sm:table-column" />
-          <col className="hidden w-[250px] lg:table-column" />
-        </colgroup>
-        <thead>
-          <tr className="text-left text-[13px] text-muted">
-            <th scope="col" className="px-5 py-3 font-medium">{en ? 'Opportunity' : '기회'}</th>
-            <th scope="col" className="px-2 py-3 font-medium">{en ? 'Status' : '상태'}</th>
-            <th scope="col" className="hidden px-2 py-3 text-right font-medium sm:table-cell">{en ? 'Quotes' : '근거'}</th>
-            <th scope="col" className="hidden px-2 py-3 text-right font-medium sm:table-cell">{en ? 'Platforms' : '플랫폼'}</th>
-            <th scope="col" className="hidden px-5 py-3 text-right font-medium lg:table-cell">{en ? 'Biggest existing tool' : '가장 큰 기존 도구'}</th>
+    <table className="w-full table-fixed border-collapse text-[15px]">
+      <colgroup>
+        <col />
+        <col className="hidden w-[80px] sm:table-column" />
+        <col className="hidden w-[190px] md:table-column" />
+        <col className="hidden w-[100px] md:table-column" />
+        <col className="w-[104px] sm:w-[120px]" />
+      </colgroup>
+      <thead>
+        <tr className="border-b border-outline-strong text-left text-[13px] text-muted">
+          <th scope="col" className="py-3 pr-4 font-normal">{en ? 'Problem' : '문제'}</th>
+          <th scope="col" className="hidden py-3 pr-4 font-normal sm:table-cell">{en ? 'Quotes' : '원문'}</th>
+          <th scope="col" className="hidden py-3 pr-4 font-normal md:table-cell">{en ? 'Platforms' : '플랫폼'}</th>
+          <th scope="col" className="hidden py-3 pr-4 font-normal md:table-cell">{en ? 'Direct rivals' : '직접 경쟁'}</th>
+          <th scope="col" className="py-3 font-normal">{en ? 'Stage' : '단계'}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {opportunities.map((item) => (
+          <tr key={item.slug} className="relative border-b border-outline-soft transition-colors hover:bg-surface-low">
+            <td className="py-5 pr-4">
+              {/* The stretched link makes the whole row a target while the table stays a real table. */}
+              <Link href={`/opportunities/${item.slug}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
+              <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{localizedOpportunity(item, lang).problem}</p>
+            </td>
+            <td className="num hidden py-5 pr-4 sm:table-cell">{item.evidence.length}</td>
+            <td className="hidden py-5 pr-4 md:table-cell">{item.platforms.map((platform) => SHORT_PLATFORM[platform]).join(' · ')}</td>
+            <td className="num hidden py-5 pr-4 md:table-cell">{item.directCount}</td>
+            <td className={`py-5 text-sm ${item.qualified ? 'font-medium text-seed' : 'text-muted'}`}>{stageLabel(item, en)}</td>
           </tr>
-        </thead>
-        <tbody>
-          {opportunities.map((item) => {
-            const color = colors[item.slug]?.bg ?? NEUTRAL;
-            return (
-              <tr key={item.slug} className="group relative border-t border-outline-soft transition-colors hover:bg-surface-low">
-                <td className="px-5 py-4">
-                  <div className="flex items-start gap-3.5">
-                    <span aria-hidden="true" className="mt-[7px] h-2.5 w-6 shrink-0 rounded-full" style={{ background: color }} />
-                    <div className="min-w-0">
-                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {/* The stretched link makes the whole row a target while the table stays a real table. */}
-                        <Link href={`/opportunities/${item.slug}`} className="font-bold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
-                        {item.qualified && <span className="rounded-full bg-[#0f2a1c] px-2 py-0.5 text-xs font-bold text-[#5fe3a1]">{en ? 'Passed' : '기준 통과'}</span>}
-                      </p>
-                      <p className="mt-0.5 line-clamp-2 text-sm text-muted sm:line-clamp-1">{localizedOpportunity(item, lang).problem}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-2 py-4 align-top text-sm"><StatusLabel status={item.status} lang={lang} /></td>
-                <td className="hidden px-2 py-4 text-right align-top sm:table-cell"><Meter value={item.evidence.length} bar={MIN_EVIDENCE} color={color} /></td>
-                <td className="hidden px-2 py-4 text-right align-top sm:table-cell"><Meter value={item.platforms.length} bar={MIN_PLATFORMS} color={color} /></td>
-                <td className="hidden px-5 py-4 text-right align-top text-sm lg:table-cell"><TopSupply item={item} lang={lang} /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }

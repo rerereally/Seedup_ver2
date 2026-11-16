@@ -11,8 +11,8 @@ export default function Loading() {
         <div aria-hidden="true" className="flex animate-pulse flex-col gap-4">
           <div className="h-10 w-56 rounded-xl bg-surface-high" />
           <div className="h-5 w-full max-w-[32em] rounded-lg bg-surface-high" />
-          <div className="mt-6 h-40 rounded-[20px] bg-white" />
-          <div className="h-40 rounded-[20px] bg-white" />
+          <div className="mt-6 h-40 rounded-2xl bg-surface-mid" />
+          <div className="h-40 rounded-2xl bg-surface-mid" />
         </div>
       </main>
     </>

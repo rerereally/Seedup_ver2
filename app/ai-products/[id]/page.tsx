@@ -6,10 +6,9 @@ import ContentEngagement from '@/components/ContentEngagement';
 import ViewTracker from '@/components/ViewTracker';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import type { AIProduct } from '@/lib/data';
 import { getAIProduct, getAIProductReviews, getExistingScrap } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
-import { Bot, Code2, ExternalLink, ImageIcon, SquareTerminal, Star } from 'lucide-react';
+import { ExternalLink, Star } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -28,19 +27,11 @@ function known(value: string | null | undefined, labels: Record<string, string> 
   return labels[key] ?? value;
 }
 
-function productGlyph(product: AIProduct) {
-  const text = `${product.name} ${product.category ?? ''}`.toLowerCase();
-  if (text.includes('image') || text.includes('midjourney') || text.includes('photo')) return <ImageIcon className="h-6 w-6" />;
-  if (text.includes('code') || text.includes('cursor') || text.includes('copilot')) return <Code2 className="h-6 w-6" />;
-  if (text.includes('chat') || text.includes('llm') || text.includes('gpt')) return <Bot className="h-6 w-6" />;
-  return <SquareTerminal className="h-6 w-6" />;
-}
-
 function RatingStars({ rating, size = 'h-4 w-4' }: { rating: number; size?: string }) {
   return (
     <div className="flex items-center gap-0.5" aria-label={`${rating}점`}>
       {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className={`${size} ${index < rating ? 'fill-ink text-ink' : 'text-muted'}`} />
+        <Star key={index} className={`${size} ${index < rating ? 'fill-seed text-seed' : 'text-outline-strong'}`} />
       ))}
     </div>
   );
@@ -77,14 +68,11 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
-        <Link href="/ai-products" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">←</span> AI 제품 목록</Link>
+        <Link href="/ai-products" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> AI 제품 목록</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0">
-            <div className="flex items-center gap-4">
-              <span aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface-high text-ink">{productGlyph(product)}</span>
-              <p className="text-sm text-muted">{meta}</p>
-            </div>
-            <h1 className="page-intro-title mt-4 break-words md:text-[52px] md:leading-[1.08]">{product.name}</h1>
+            <p className="text-sm text-muted">{meta}</p>
+            <h1 className="page-intro-title mt-3 break-words md:text-[52px] md:leading-[1.08]">{product.name}</h1>
             {product.description && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{product.description}</p>}
 
             <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -97,13 +85,13 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
               <ScrapButton itemType="ai_product" itemId={product.id} title={product.name} description={product.description} tag={product.category ?? 'ai_product'} initialSaved={Boolean(existingScrap)} savedLabel="저장됨" className="btn-quiet" />
             </div>
 
-            <dl className="card mt-8 grid grid-cols-2 overflow-hidden sm:grid-cols-4">
+            <dl className="mt-8 grid grid-cols-2 gap-x-6 border-y border-outline-soft sm:grid-cols-4">
               <ProductRatingSummary productId={product.id} ratingAverage={product.user_rating_average ?? null} ratingCount={product.rating_count} />
-              <div className="border-t border-outline-soft px-5 py-4 sm:border-l sm:border-t-0">
+              <div className="border-t border-outline-soft py-5 sm:border-t-0">
                 <dt className="label">리뷰</dt>
                 <dd className="num mt-1 text-[28px] font-semibold leading-tight text-ink">{reviews.length}</dd>
               </div>
-              <div className="border-l border-t border-outline-soft px-5 py-4 sm:border-t-0">
+              <div className="border-t border-outline-soft py-5 sm:border-t-0">
                 <dt className="label">조회</dt>
                 <dd className="num mt-1 text-[28px] font-semibold leading-tight text-ink">{Number(product.view_count ?? 0).toLocaleString('en-US')}</dd>
               </div>
@@ -111,7 +99,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
 
             {useCases.length > 0 && (
               <section className="mt-10">
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">이럴 때 씁니다</h2>
+                <h2 className="text-xl font-bold tracking-tight text-ink">이럴 때 씁니다</h2>
                 <ul className="mt-2 divide-y divide-outline-soft">
                   {useCases.map((item) => <li key={item} className="py-3 text-[15px] leading-7 text-ink">{item}</li>)}
                 </ul>
@@ -119,13 +107,13 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
             )}
 
             <section className="mt-12">
-              <h2 className="flex items-baseline gap-2 text-xl font-extrabold tracking-tight text-ink">써 본 사람의 리뷰 <span className="num text-base font-medium text-muted">{reviews.length}</span></h2>
+              <h2 className="flex items-baseline gap-2 text-xl font-bold tracking-tight text-ink">써 본 사람의 리뷰 <span className="num text-base font-medium text-muted">{reviews.length}</span></h2>
               {reviews.length ? (
-                <ul className="mt-4 grid gap-3">
+                <ul className="rows mt-4">
                   {reviews.map((review) => (
-                    <li key={review.id} className="card p-5 md:p-6">
+                    <li key={review.id} className="py-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-[13px] text-muted"><span className="font-bold text-ink">{review.author_name ?? 'Seedup 사용자'}</span> · {new Date(review.created_at).toLocaleDateString('ko-KR')}</p>
+                        <p className="text-[13px] text-muted"><span className="font-medium text-ink">{review.author_name ?? 'Seedup 사용자'}</span> · {new Date(review.created_at).toLocaleDateString('ko-KR')}</p>
                         <RatingStars rating={review.rating} />
                       </div>
                       {review.title && <h3 className="mt-3 text-[17px] font-bold leading-snug text-ink">{review.title}</h3>}
@@ -147,15 +135,15 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                       <legend className="label">평점</legend>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {[1, 2, 3, 4, 5].map((score) => (
-                          <label key={score} className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-outline-soft px-3.5 text-sm text-ink has-[:checked]:border-ink has-[:checked]:font-bold">
+                          <label key={score} className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[10px] border border-outline-strong bg-white px-3.5 text-sm text-ink has-[:checked]:border-seed has-[:checked]:bg-seed-soft has-[:checked]:font-semibold has-[:checked]:text-seed">
                             <input className="sr-only" type="radio" name="rating" value={score} required />
                             <span className="num">{score}</span>점
                           </label>
                         ))}
                       </div>
                     </fieldset>
-                    <input name="title" maxLength={80} aria-label="리뷰 제목" placeholder="제목 (선택)" className="h-11 border bg-transparent px-3.5 text-sm text-ink placeholder:text-muted" />
-                    <textarea name="body" minLength={5} maxLength={1200} required aria-label="리뷰 내용" placeholder="써 보니 어떤 점이 좋았고, 어떤 상황에서는 아쉬웠나요?" className="min-h-32 resize-y border bg-transparent p-3.5 text-sm leading-7 text-ink placeholder:text-muted" />
+                    <input name="title" maxLength={80} aria-label="리뷰 제목" placeholder="제목 (선택)" className="h-11 border bg-white px-3.5 text-sm text-ink placeholder:text-muted" />
+                    <textarea name="body" minLength={5} maxLength={1200} required aria-label="리뷰 내용" placeholder="써 보니 어떤 점이 좋았고, 어떤 상황에서는 아쉬웠나요?" className="min-h-32 resize-y border bg-white p-3.5 text-sm leading-7 text-ink placeholder:text-muted" />
                     <div className="flex justify-end">
                       <button type="submit" className="btn">리뷰 올리기</button>
                     </div>
@@ -176,8 +164,8 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
               <div className="mt-3"><AIProductRatingControl productId={product.id} isLoggedIn={isLoggedIn} /></div>
             </section>
 
-            <section className="card px-5 py-3 md:px-6">
-              <dl className="divide-y divide-outline-soft">
+            <section>
+              <dl className="divide-y divide-outline-soft border-t border-outline-soft">
                 <InfoRow label="분류" value={known(product.category, CATEGORY_LABELS)} />
                 <InfoRow label="가격" value={known(product.pricing_type, PRICING_LABELS)} />
                 <InfoRow label="누구에게" value={known(product.target_user)} />

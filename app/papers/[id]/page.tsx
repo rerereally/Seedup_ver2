@@ -8,7 +8,7 @@ import MarkdownContent from '@/components/MarkdownContent';
 import ShareButton from '@/components/ShareButton';
 import ViewTracker from '@/components/ViewTracker';
 import { getExistingScrap, getResearchPaper } from '@/lib/data';
-import { ArrowLeft, ArrowRight, Code2, ExternalLink, FlaskConical, Lightbulb } from 'lucide-react';
+import { ArrowRight, Code2, ExternalLink, FlaskConical, Lightbulb } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -80,9 +80,9 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
       <Header />
       <main id="main-content" className="page-shell grow">
         <article className="min-w-0">
-          <Link href="/news?tab=paper" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-muted hover:text-ink">
-            <ArrowLeft className="h-4 w-4" />
-            논문 아티클 목록으로
+          <Link href="/news?tab=paper" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink">
+            <span aria-hidden="true">‹</span>
+            논문 목록
           </Link>
 
           <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -119,8 +119,8 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
 
-              <section className="card p-5 md:p-6">
-                <h2 className="text-xl font-extrabold tracking-tight text-ink">논문 정보</h2>
+              <section className="border-t border-outline-soft pt-6">
+                <h2 className="text-xl font-bold tracking-tight text-ink">논문 정보</h2>
                 <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
                   {scoreCards.map(([label, value]) => (
                     <div key={label} className="border-t border-outline-soft pt-3">
@@ -132,8 +132,8 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </section>
 
               {!!readingPoints.length && (
-                <section className="card p-5 md:p-6">
-                  <h2 className="text-xl font-extrabold tracking-tight text-ink">읽을 때 볼 것</h2>
+                <section className="border-t border-outline-soft pt-6">
+                  <h2 className="text-xl font-bold tracking-tight text-ink">읽을 때 볼 것</h2>
                   <ol className="mt-2 divide-y divide-outline-soft">
                     {readingPoints.map((point, index) => (
                       <li key={String(point)} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
@@ -148,8 +148,8 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               {paperMarkdown && <div><MarkdownContent content={paperMarkdown} /></div>}
 
               {!!paper.key_points?.length && (
-                <section className="card p-5 md:p-6">
-                  <h2 className="text-xl font-extrabold tracking-tight text-ink">핵심 내용</h2>
+                <section className="border-t border-outline-soft pt-6">
+                  <h2 className="text-xl font-bold tracking-tight text-ink">핵심 내용</h2>
                   <ol className="mt-2 divide-y divide-outline-soft">
                     {paper.key_points.map((point, index) => (
                       <li key={point} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
@@ -161,10 +161,10 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                 </section>
               )}
 
-              <section className="card p-5 md:p-6">
-                <h2 className="mb-2 flex items-center gap-2 text-xl font-extrabold tracking-tight text-ink">
+              <section className="border-t border-outline-soft pt-6">
+                <h2 className="mb-2 flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
                   <FlaskConical className="h-5 w-5" />
-                  PAPER_INFO.TS
+                  읽기 전에
                 </h2>
                 <dl className="grid gap-0 text-sm md:grid-cols-2 md:gap-x-6">
                   {[
@@ -185,17 +185,17 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                     <h3 className="mb-3 text-[13px] font-bold text-ink">연관 기술</h3>
                     <div className="flex flex-wrap gap-2">
                       {paper.related_skills.map((skill) => (
-                        <span key={skill} className="chip font-bold">{skill}</span>
+                        <span key={skill} className="chip">{skill}</span>
                       ))}
                     </div>
                   </div>
                 )}
               </section>
 
-              <section className="card overflow-hidden">
-                <h2 className="flex items-center gap-2 border-b border-outline-soft p-5 text-xl font-extrabold tracking-tight text-ink">
+              <section className="border-t border-outline-soft">
+                <h2 className="flex items-center gap-2 border-b border-outline-soft py-5 text-xl font-bold tracking-tight text-ink">
                   <Lightbulb className="h-4 w-4" />
-                  Next Actions
+                  다음에 할 것
                 </h2>
                 <ul className="divide-y divide-outline-soft">
                   {[
@@ -204,7 +204,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                     { label: '논문 목록으로', href: '/news?tab=paper' },
                   ].map((action) => (
                     <li key={action.label}>
-                      <Link href={action.href} target={action.external ? '_blank' : undefined} className="group flex items-center justify-between gap-3 p-4 text-sm font-bold text-ink hover:bg-surface">
+                      <Link href={action.href} target={action.external ? '_blank' : undefined} className="group flex items-center justify-between gap-3 py-3.5 text-[15px] font-medium text-seed">
                         <span className="group-hover:underline group-hover:underline-offset-4">{action.label}</span>
                         <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
                       </Link>
@@ -221,7 +221,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                 <section className="card p-5 md:p-6">
                   <h2 className="mb-3 flex items-center gap-2 text-[17px] font-bold text-ink">
                     <Lightbulb className="h-5 w-5" />
-                    Build Direction
+                    만들어 볼 방향
                   </h2>
                   <p className="text-sm leading-7 text-muted">{paper.implementation_idea ?? paper.service_idea}</p>
                 </section>

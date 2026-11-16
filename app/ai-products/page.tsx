@@ -3,10 +3,9 @@ import ScrapButton from '@/components/ScrapButton';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import type { AIProduct } from '@/lib/data';
 import { getAIProducts, getScrapKeySet } from '@/lib/data';
-import PageIntro from '@/components/PageIntro';
-import { Bot, Code2, ImageIcon, Search, SquareTerminal, Star } from 'lucide-react';
+import ExploreTabs from '@/components/ExploreTabs';
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -49,14 +48,6 @@ function pricingLabel(pricing?: string | null) {
   return PRICING_LABELS[key] ?? pricing;
 }
 
-function ProductIcon({ product }: { product: AIProduct }) {
-  const text = `${product.name} ${product.category ?? ''}`.toLowerCase();
-  if (text.includes('chatgpt') || text.includes('llm')) return <Bot className="h-5 w-5" />;
-  if (text.includes('image') || text.includes('midjourney')) return <ImageIcon className="h-5 w-5" />;
-  if (text.includes('code') || text.includes('cursor') || text.includes('copilot')) return <Code2 className="h-5 w-5" />;
-  return <SquareTerminal className="h-5 w-5" />;
-}
-
 export default async function AIProducts({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; category?: string; pricing?: string }> }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? '';
@@ -81,35 +72,28 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            title="AI 제품"
-            description="개발할 때 붙여 쓸 만한 AI 제품을 모았습니다. 무엇을 하는 제품인지 한국어로 줄여 두었습니다."
-            meta={products.length ? <>제품 <span className="num text-ink">{products.length}</span>개</> : undefined}
-            aside={(
-              <form action="/ai-products" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-full border border-outline-soft bg-white px-4 transition-colors focus-within:border-ink sm:w-72">
-                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-                <input name="q" defaultValue={query} aria-label="AI 제품 검색" placeholder="제품 이름이나 쓰임새" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
-                {category !== 'all' && <input type="hidden" name="category" value={category} />}
-                {pricing !== 'all' && <input type="hidden" name="pricing" value={pricing} />}
-              </form>
-            )}
-          />
+      <main id="main-content" className="page-shell page-stack grow">
+        <ExploreTabs />
 
           {products.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
-              <nav aria-label="분류" className="tabs">
-                <Link href={buildHref({ q: query, pricing })} aria-current={category === 'all' ? 'page' : undefined} className="tab">전체</Link>
+              <form action="/ai-products" role="search" className="flex h-11 min-w-0 flex-1 basis-64 items-center gap-2.5 rounded-[10px] border border-outline-strong bg-white px-4 transition-colors focus-within:border-ink">
+                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
+                <input name="q" defaultValue={query} aria-label="AI 제품 검색" placeholder="제품 이름이나 쓰임새로 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
+                {category !== 'all' && <input type="hidden" name="category" value={category} />}
+                {pricing !== 'all' && <input type="hidden" name="pricing" value={pricing} />}
+              </form>
+              <nav aria-label="분류" className="seg">
+                <Link href={buildHref({ q: query, pricing })} aria-current={category === 'all' ? 'page' : undefined}>전체</Link>
                 {categories.map((item) => (
-                  <Link key={item} href={buildHref({ q: query, category: item, pricing })} aria-current={normalized(category) === normalized(item) ? 'page' : undefined} className="tab">{categoryLabel(item)}</Link>
+                  <Link key={item} href={buildHref({ q: query, category: item, pricing })} aria-current={normalized(category) === normalized(item) ? 'page' : undefined}>{categoryLabel(item)}</Link>
                 ))}
               </nav>
               {pricingTypes.length > 0 && (
-                <nav aria-label="가격" className="tabs">
-                  <Link href={buildHref({ q: query, category })} aria-current={pricing === 'all' ? 'page' : undefined} className="tab">가격 전체</Link>
+                <nav aria-label="가격" className="seg">
+                  <Link href={buildHref({ q: query, category })} aria-current={pricing === 'all' ? 'page' : undefined}>가격 전체</Link>
                   {pricingTypes.map((item) => (
-                    <Link key={item} href={buildHref({ q: query, category, pricing: item })} aria-current={normalized(pricing) === normalized(item) ? 'page' : undefined} className="tab">{pricingLabel(item)}</Link>
+                    <Link key={item} href={buildHref({ q: query, category, pricing: item })} aria-current={normalized(pricing) === normalized(item) ? 'page' : undefined}>{pricingLabel(item)}</Link>
                   ))}
                 </nav>
               )}
@@ -124,34 +108,55 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
               actionLabel={products.length ? '전체 보기' : undefined}
             />
           ) : (
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {paginatedProducts.map((product) => {
-                const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
-                const rating = displayRating(product.user_rating_average ?? null, product.rating_count);
-                const ratingCount = product.rating_count ?? 0;
-                const meta = [categoryLabel(product.category), pricingLabel(product.pricing_type)].filter(Boolean).join(' · ');
+            <div>
+              <table className="w-full table-fixed border-collapse text-[15px]">
+                <colgroup>
+                  <col className="sm:w-[30%] lg:w-[24%]" />
+                  <col className="hidden sm:table-column" />
+                  <col className="hidden w-[170px] lg:table-column" />
+                  <col className="w-[96px]" />
+                  <col className="w-[48px]" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted">제품</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted hidden sm:table-cell">설명</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted hidden lg:table-cell">분류</th>
+                    <th scope="col" className="py-3 text-left text-[13px] font-normal text-muted !text-right">평가</th>
+                    <th scope="col"><span className="sr-only">저장</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedProducts.map((product) => {
+                    const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
+                    const rating = displayRating(product.user_rating_average ?? null, product.rating_count);
+                    const ratingCount = product.rating_count ?? 0;
+                    const meta = [categoryLabel(product.category), pricingLabel(product.pricing_type)].filter(Boolean).join(' · ');
 
-                return (
-                  <article key={product.id} className="card group relative flex min-h-[230px] flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
-                    <div className="flex items-center gap-3">
-                      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-high text-ink"><ProductIcon product={product} /></span>
-                      <div className="min-w-0">
-                        {/* The stretched link makes the whole card a target; the save button sits above it. */}
-                        <h2 className="truncate text-lg font-bold leading-snug text-ink"><Link href={`/ai-products/${product.id}`} className="after:absolute after:inset-0 after:content-['']">{product.name}</Link></h2>
-                        <p className="text-[13px] text-muted">{meta}</p>
-                      </div>
-                    </div>
-                    <p className="mt-4 line-clamp-3 text-[15px] leading-7 text-muted">{product.description ?? product.target_user ?? ''}</p>
-                    <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-[13px] text-muted">
-                      {ratingCount > 0
-                        ? <span className="inline-flex items-center gap-1.5"><Star aria-hidden="true" className="h-3.5 w-3.5" /><span className="num text-ink">{rating}</span><span className="num">({ratingCount.toLocaleString('en-US')})</span></span>
-                        : <span>아직 평가가 없습니다</span>}
-                      <ScrapButton itemType="ai_product" itemId={product.id} title={product.name} description={product.description} tag={product.category ?? 'ai_product'} initialSaved={isScrapped} iconOnly className="relative z-10 -mr-2 flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-high hover:text-ink" />
-                    </div>
-                  </article>
-                );
-              })}
-            </section>
+                    return (
+                      <tr key={product.id} className="group relative border-t border-outline-soft align-top transition-colors last:border-b hover:bg-surface-low">
+                        <td className="py-5 pr-4">
+                          {/* The stretched link makes the whole row a target; the save button sits above it. */}
+                          <Link href={`/ai-products/${product.id}`} className="break-words font-semibold text-ink after:absolute after:inset-0 after:content-['']">{product.name}</Link>
+                          <p className="mt-1 text-[13px] text-muted lg:hidden">{meta}</p>
+                        </td>
+                        <td className="hidden py-5 pr-6 sm:table-cell"><p className="line-clamp-2 leading-6 text-tertiary">{product.description ?? product.target_user ?? ''}</p></td>
+                        <td className="hidden py-5 text-muted lg:table-cell">{meta}</td>
+                        <td className="py-5 text-right">
+                          {ratingCount > 0
+                            ? <><span className="num text-ink">{rating}</span> <span className="num text-[13px] text-muted">({ratingCount.toLocaleString('en-US')})</span></>
+                            : <span className="text-muted">-</span>}
+                        </td>
+                        <td className="py-3">
+                          <ScrapButton itemType="ai_product" itemId={product.id} title={product.name} description={product.description} tag={product.category ?? 'ai_product'} initialSaved={isScrapped} iconOnly className="relative z-10 ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-mid hover:text-ink" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-5 text-[13px] leading-6 text-muted">개발할 때 붙여 쓸 만한 AI 제품을 모아, 무엇을 하는 제품인지 한국어로 줄여 두었습니다. 평가는 Seedup 사용자가 매긴 별점입니다. 제품 <span className="num">{products.length}</span>개.</p>
+            </div>
           )}
 
           {filteredProducts.length > PAGE_SIZE && (
@@ -161,7 +166,6 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
               ))}
             </nav>
           )}
-        </div>
       </main>
       <Footer />
     </>

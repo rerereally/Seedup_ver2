@@ -1,17 +1,16 @@
 import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
-import ArticleHeroCarousel from '@/components/ArticleHeroCarousel';
 import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
-import PageIntro from '@/components/PageIntro';
+import { getOpportunities } from '@/lib/opportunities/data';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '아티클',
+  title: '오늘의 신호',
 };
 
 const PAGE_SIZE = 10;
@@ -74,12 +73,6 @@ function popularityCompare(left: ArticleFeedItem, right: ArticleFeedItem, editor
   return (categorySignal(right) - categorySignal(left)) * editorialWeight;
 }
 
-function isWithinDays(value: string | null | undefined, days: number) {
-  if (!value) return false;
-  const time = new Date(value).getTime();
-  return Number.isFinite(time) && time >= Date.now() - days * 24 * 60 * 60 * 1000;
-}
-
 function buildHref(params: { tab: string; page?: number; category?: string; q?: string }) {
   const query = new URLSearchParams();
   if (params.tab && params.tab !== 'new') query.set('tab', params.tab);
@@ -90,41 +83,26 @@ function buildHref(params: { tab: string; page?: number; category?: string; q?: 
   return `/news${search ? `?${search}` : ''}`;
 }
 
-function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string }) {
+/** One row of the feed. The first one on a page is set larger and carries the save and ask actions. */
+function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; lead: boolean }) {
   const itemType = item.type === 'paper' ? 'paper' : 'news';
   const section = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
-  const audience = [...(item.target_levels ?? []), ...(item.target_goals ?? [])].slice(0, 2).join(' · ');
-  const tags = [...new Set([...(item.skill_tags ?? []), ...(item.related_skills ?? []), ...(item.topic_tags ?? [])])].slice(0, 3);
-  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean);
+  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean).join(' · ');
 
   return (
-    <article className="card flex flex-col p-5 transition-colors hover:border-outline-strong md:p-6">
-      <p className="text-[13px] text-muted"><span className="font-bold text-ink">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
-      <Link href={itemHref(item)} className="mt-2.5 block">
-        <h3 className="line-clamp-2 text-[19px] font-bold leading-snug text-ink">{item.title}</h3>
+    <article className={lead ? 'pb-10 pt-2' : 'py-7'}>
+      <p className="text-[13px] text-muted">{meta}</p>
+      <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
+        <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
-      {summary && <p className="mt-2.5 line-clamp-3 text-[15px] leading-7 text-muted">{summary}</p>}
-      {item.why_it_matters && (
-        <p className="mt-4 line-clamp-2 border-l-2 border-outline-strong pl-3 text-sm leading-6 text-ink">
-          <span className="text-muted">왜 중요한가 · </span>{item.why_it_matters}
-        </p>
-      )}
-      {(tags.length > 0 || audience) && (
-        <div className="mt-4 flex flex-wrap items-center gap-1.5">
-          {tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}
-          {audience && <span className="text-[13px] text-muted">{tags.length > 0 ? '· ' : ''}{audience}</span>}
-        </div>
-      )}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-5">
-        <ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
-        <div className="flex gap-2">
-          <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />
-          <Link href={itemHref(item)} className="btn">
-            읽기
-            <ArrowRight aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        </div>
+      {summary && <p className={lead ? 'mt-3 text-[17px] leading-8 text-tertiary' : 'mt-3 line-clamp-2 text-[15px] leading-7 text-muted'}>{summary}</p>}
+      {lead && item.why_it_matters && <p className="mt-4 text-[15px] leading-7 text-tertiary"><span className="font-semibold text-ink">왜 중요한가</span> · {item.why_it_matters}</p>}
+      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${lead ? 'mt-6' : 'mt-3'}`}>
+        {lead && <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />}
+        {lead && <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>}
+        {lead && <Link href="/opportunities" className="link-seed">관련 기회 보기 ›</Link>}
+        <span className={lead ? 'ml-auto' : ''}><ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} /></span>
       </div>
     </article>
   );
@@ -132,7 +110,7 @@ function ArticleCard({ item, isScrapped, returnTo }: { item: ArticleFeedItem; is
 
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; tab?: string; page?: string }> }) {
   const params = await searchParams;
-  const [articles, scrapKeys] = await Promise.all([getArticleFeedItems(), getScrapKeySet()]);
+  const [articles, scrapKeys, { opportunities }] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities()]);
   const tab = ['popular', 'news', 'paper'].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' : 'new';
   const query = params.q?.trim().toLowerCase() ?? '';
   const selectedCategory = params.category?.trim() ?? '';
@@ -148,10 +126,6 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     if (tab === 'popular') return popularityCompare(a, b) || new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
     return new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
   });
-  const todayPopularArticles = [...articles.filter((item) => isWithinDays(item.published_at, 1))].sort((a, b) => popularityCompare(a, b, 1)).slice(0, 5);
-  const weeklyCandidates = [...articles.filter((item) => isWithinDays(item.published_at, 7))].sort((a, b) => popularityCompare(a, b));
-  const popularArticles = (weeklyCandidates.length ? weeklyCandidates : [...articles].sort((a, b) => popularityCompare(a, b))).slice(0, 5);
-  const featuredArticles = todayPopularArticles.length ? todayPopularArticles : [...articles].sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime()).slice(0, 5);
   const totalPages = Math.max(1, Math.ceil(sortedArticles.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paginatedArticles = sortedArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -165,79 +139,86 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   ];
   const linkTo = (target: number) => buildHref({ tab, page: target, category: selectedCategory, q: params.q?.trim() });
 
+  const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date());
+  // Verified problems first, then the ones closest to the bar.
+  const grown = [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length).slice(0, 3);
+
   return (
     <>
       <Header />
-      <main id="main-content" className="grow bg-surface">
-        <div className="page-shell page-stack">
-          <PageIntro
-            title="오늘 읽을 것"
-            description="뉴스와 논문을 한국어로 줄여 두었습니다. 읽고 나서 무엇을 만들지 정할 수 있게, 왜 중요한지를 함께 적습니다."
-            meta={articles.length ? <>글 <span className="num text-ink">{articles.length}</span>편</> : undefined}
-          />
+      <main id="main-content" className="page-shell grid grow content-start gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="min-w-0">
+          <p className="text-sm text-muted">{today} · 고른 글 {articles.length}편</p>
+          <h1 className="page-intro-title mt-2">오늘의 신호</h1>
 
-          {featuredArticles.length > 0 && (
-            <section className="grid gap-5 lg:h-[440px] lg:grid-cols-[minmax(0,1fr)_320px]">
-              <ArticleHeroCarousel items={featuredArticles} label="오늘 가장 많이 읽힌 글" />
-              <aside className="card flex min-h-0 flex-col p-5 md:p-6">
-                <h2 className="label">이번 주 많이 읽힌 글</h2>
-                <ol className="mt-1 flex min-h-0 flex-1 flex-col divide-y divide-outline-soft">
-                  {popularArticles.map((item, index) => (
-                    <li key={item.id} className="flex min-h-0 flex-1 items-center">
-                      <Link href={itemHref(item)} className="group flex w-full items-baseline gap-3 py-2">
-                        <span className="num w-4 shrink-0 text-sm text-muted">{index + 1}</span>
-                        <span className="line-clamp-2 min-w-0 text-sm font-bold leading-5 text-ink group-hover:underline group-hover:underline-offset-4">{item.title}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-              </aside>
-            </section>
-          )}
+          <nav aria-label="글 분류" className="tabs mt-8">
+            {tabs.map((item) => (
+              <Link key={item.key} href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })} scroll={false} aria-current={tab === item.key ? 'page' : undefined} className="tab">{item.label}</Link>
+            ))}
+          </nav>
 
-          <section className="flex flex-col gap-5">
-            <nav aria-label="글 분류" className="tabs self-start">
-              {tabs.map((item) => (
-                <Link key={item.key} href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })} scroll={false} aria-current={tab === item.key ? 'page' : undefined} className="tab">
-                  {item.label}
-                  {tab === item.key && <span className="num">{sortedArticles.length}</span>}
-                </Link>
-              ))}
-            </nav>
-
-            {paginatedArticles.length ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {paginatedArticles.map((item) => {
-                  const itemType = item.type === 'paper' ? 'paper' : 'news';
-                  return <ArticleCard key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} />;
-                })}
-              </div>
-            ) : (
+          {paginatedArticles.length ? (
+            <div className="mt-8 divide-y divide-outline-soft border-b border-outline-soft">
+              {paginatedArticles.map((item, index) => {
+                const itemType = item.type === 'paper' ? 'paper' : 'news';
+                return <ArticleRow key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} lead={index === 0 && currentPage === 1} />;
+              })}
+            </div>
+          ) : (
+            <div className="mt-8">
               <EmptyState
                 title={articles.length ? '조건에 맞는 글이 없습니다' : '아직 정리된 글이 없습니다'}
                 description={articles.length ? '분류를 바꿔 보세요.' : '수집이 한 번 돌고 나면 여기에 한국어로 정리된 글이 올라옵니다.'}
                 actionHref={articles.length ? '/news' : '/opportunities'}
                 actionLabel={articles.length ? '전체 보기' : '기회부터 보기'}
               />
-            )}
+            </div>
+          )}
 
-            {sortedArticles.length > PAGE_SIZE && (
-              <nav aria-label="쪽 이동" className="pager pt-2">
-                <Link href={linkTo(Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>
-                  <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-                  이전
-                </Link>
-                {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
-                  <Link key={index + 1} href={linkTo(index + 1)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+          {sortedArticles.length > PAGE_SIZE && (
+            <nav aria-label="쪽 이동" className="pager pt-8">
+              <Link href={linkTo(Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>
+                <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                이전
+              </Link>
+              {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
+                <Link key={index + 1} href={linkTo(index + 1)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+              ))}
+              <Link href={linkTo(Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>
+                다음
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </nav>
+          )}
+        </section>
+
+        <aside className="flex flex-col gap-10">
+          {grown.length > 0 && (
+            <section aria-labelledby="grown-heading">
+              <h2 id="grown-heading" className="text-lg font-semibold tracking-tight">이번 주 자란 기회</h2>
+              <p className="mt-1 text-sm text-muted">개발자 원문이 모여 검증을 통과한 문제</p>
+              <ul className="rows mt-5">
+                {grown.map((item) => (
+                  <li key={item.slug}>
+                    <Link href={`/opportunities/${item.slug}`} className="block py-5 hover:bg-surface-low">
+                      <span className="block font-semibold text-ink">{item.name}</span>
+                      <span className="mt-1.5 block text-sm text-muted">
+                        {item.qualified && <><span className="font-medium text-seed">기준 통과</span> · </>}
+                        원문 {item.evidence.length}건 · {item.directCount ? `경쟁 도구 ${item.directCount}개` : '경쟁 도구 없음'}
+                      </span>
+                    </Link>
+                  </li>
                 ))}
-                <Link href={linkTo(Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>
-                  다음
-                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                </Link>
-              </nav>
-            )}
+              </ul>
+              <Link href="/opportunities" className="link-seed mt-4">기회 전체 보기 ›</Link>
+            </section>
+          )}
+          <section className="card p-6">
+            <h2 className="text-lg font-semibold tracking-tight">주간 신호</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">이 피드에서 내 관심 분야만 골라 매주 월요일 메일로 보냅니다.</p>
+            <Link href="/newsletter-preview" className="btn mt-5 h-12 w-full text-[15px]">구독 설정하기</Link>
           </section>
-        </div>
+        </aside>
       </main>
       <Footer />
     </>

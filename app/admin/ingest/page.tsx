@@ -110,7 +110,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 <DatabaseZap className="h-4 w-4" />
                 Ingestion Console
               </div>
-              <h1 className="text-4xl font-black text-ink">데이터 수집 관리</h1>
+              <h1 className="text-4xl font-bold text-ink">데이터 수집 관리</h1>
               <p className="mt-3 max-w-2xl leading-7 text-muted">뉴스 RSS와 논문/arXiv는 별도 수집 파이프라인입니다. 모든 소스는 먼저 전처리 데이터로 저장하고, 긴 글이나 Build Idea는 통합 글 생성 단계에서 별도로 만듭니다.</p>
             </div>
             <form action={runFullIngest}>
@@ -145,7 +145,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               [`${qualitySummary.sources.length}`, '감시 소스'],
             ].map(([value, label]) => (
               <div key={label} className="border border-outline-soft bg-white p-5">
-                <p className="text-3xl font-black text-ink">{value}</p>
+                <p className="text-3xl font-bold text-ink">{value}</p>
                 <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
               </div>
             ))}
@@ -159,7 +159,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               [recommendationQuality.useful, '유용 피드백'],
             ].map(([value, label]) => (
               <div key={label} className="border border-outline-soft bg-white p-5">
-                <p className="text-3xl font-black text-ink">{value}</p>
+                <p className="text-3xl font-bold text-ink">{value}</p>
                 <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
               </div>
             ))}
@@ -171,7 +171,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 <div className="mb-4 flex flex-col gap-2 border-b border-outline-soft pb-4 md:flex-row md:items-end md:justify-between">
                   <div>
                     <div className="text-xs font-bold uppercase text-muted">pipeline_stage</div>
-                    <h2 className="mt-1 text-2xl font-black text-ink">{STAGE_LABELS[stage]}</h2>
+                    <h2 className="mt-1 text-2xl font-bold text-ink">{STAGE_LABELS[stage]}</h2>
                   </div>
                   <p className="max-w-xl text-sm leading-6 text-muted">
                     {stage === 'collect'
@@ -185,7 +185,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                   {TASKS.filter((task) => task.stage === stage).map((task) => (
                     <form key={task.key} action={runManualIngest} className="border border-outline-soft bg-surface-lowest p-5">
                       <input type="hidden" name="target" value={task.key} />
-                      <h3 className="text-lg font-black text-ink">{task.label}</h3>
+                      <h3 className="text-lg font-bold text-ink">{task.label}</h3>
                       <p className="mt-2 min-h-20 text-sm leading-6 text-muted">{task.description}</p>
                       <SubmitButton pendingText="실행 중" className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-outline-soft bg-white px-4 py-2 text-sm font-bold text-ink hover:border-ink">
                         <Play className="h-4 w-4" />
@@ -205,7 +205,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                   <Mail className="h-4 w-4" />
                   Manual Newsletter
                 </div>
-                <h2 className="text-2xl font-black text-ink">뉴스레터 수동 발송</h2>
+                <h2 className="text-2xl font-bold text-ink">뉴스레터 수동 발송</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">뉴스, AI 제품, 오픈소스, 프로젝트 아이디어의 최신 데이터를 조합해 구독자에게 Seedup Weekly 이메일을 보냅니다.</p>
               </div>
               <form action={sendManualNewsletter}>
@@ -222,7 +222,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               <Mail className="h-4 w-4" />
               Opportunity Digest
             </div>
-            <h2 className="text-2xl font-black text-ink">기회 다이제스트</h2>
+            <h2 className="text-2xl font-bold text-ink">기회 다이제스트</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">기회 엔진의 변동 알림 또는 주간 요약 메일을 확인하고 구독자에게 보냅니다. 미리보기는 아무것도 보내지 않습니다.</p>
             {digestMessage && (
               <div className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.digest === 'sent' && Number(params.failed ?? 0) === 0 ?'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
@@ -263,7 +263,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
           <section className="border border-outline-soft bg-white">
             <div className="flex items-center gap-2 border-b border-outline-soft px-5 py-4">
               <ShieldCheck className="h-5 w-5 text-ink" />
-              <h2 className="text-lg font-black text-ink">소스별 품질 디버그</h2>
+              <h2 className="text-lg font-bold text-ink">소스별 품질 디버그</h2>
             </div>
             <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
               {qualitySummary.sources.length ? qualitySummary.sources.map((source) => {
@@ -273,10 +273,10 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                   <div key={source.source} className="border border-outline-soft bg-surface p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h3 className="text-base font-black text-ink">{source.source}</h3>
+                        <h3 className="text-base font-bold text-ink">{source.source}</h3>
                         <p className="mt-1 text-xs font-bold uppercase text-muted">acceptance {acceptance}%</p>
                       </div>
-                      <span className="border border-outline-soft bg-white px-2 py-1 text-xs font-black text-ink">Q {source.quality || '-'}</span>
+                      <span className="border border-outline-soft bg-white px-2 py-1 text-xs font-bold text-ink">Q {source.quality || '-'}</span>
                     </div>
                     <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
                       {[
@@ -288,7 +288,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                         [source.duplicates, '중복'],
                       ].map(([value, label]) => (
                         <div key={label} className="border border-outline-soft bg-white p-2">
-                          <p className="text-lg font-black text-ink">{value}</p>
+                          <p className="text-lg font-bold text-ink">{value}</p>
                           <p className="text-[10px] font-bold uppercase text-muted">{label}</p>
                         </div>
                       ))}
@@ -302,7 +302,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
           <section className="border border-outline-soft bg-white">
             <div className="flex items-center gap-2 border-b border-outline-soft px-5 py-4">
               <FileWarning className="h-5 w-5 text-ink" />
-              <h2 className="text-lg font-black text-ink">제외된 기사 로그</h2>
+              <h2 className="text-lg font-bold text-ink">제외된 기사 로그</h2>
             </div>
             {!rejections.length ? (
               <div className="p-6">
@@ -325,7 +325,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                     {rejections.map((item) => (
                       <tr key={item.id}>
                         <td className="px-5 py-4">
-                          <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-black text-ink">{item.reason}</span>
+                          <span className="border border-outline-soft bg-surface px-2 py-1 text-xs font-bold text-ink">{item.reason}</span>
                         </td>
                         <td className="max-w-[360px] px-5 py-4">
                           {item.original_url ? (

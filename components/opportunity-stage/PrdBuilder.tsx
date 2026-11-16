@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
+import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
@@ -12,7 +13,7 @@ import styles from './stage.module.css';
 
 type View = 'trace' | 'tree' | 'flow' | 'doc';
 
-const VIEWS: Array<[View, string, string]> = [['trace', '근거 추적', 'Evidence trace'], ['tree', '구조 트리', 'IA tree'], ['flow', '유저플로우', 'User flow'], ['doc', '문서', 'Document']];
+const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['tree', '구조 트리', 'IA tree'], ['flow', '유저플로우', 'User flow']];
 
 async function postJson(url: string, body: unknown) {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -48,7 +49,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const customSource = Boolean(requestBody);
   const [spec, setSpec] = useState<Spec | null>(null);
   const [previous, setPrevious] = useState<Spec | null>(null);
-  const [view, setView] = useState<View>('trace');
+  const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
   const [slotPending, setSlotPending] = useState<string[]>([]);
@@ -177,163 +178,347 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       {body}
     </button>
   );
-
-  const slotsBlock = (feature: SpecFeature) => (
-    <div className={styles.slots}>
-      {feature.slots ? (
-        <dl>
-          {SLOT_KEYS.map((key) => (
-            <div key={key}>
-              <dt>{slotLabels(lang)[key]}</dt>
-              <dd>{feature.slots![key].length ? feature.slots![key].join(' · ') : <em>{t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</em>}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <button type="button" className={styles.prdButton} disabled={slotPending.includes(feature.id)} onClick={() => void fillSlots(feature)}>
-          {slotPending.includes(feature.id) ? t('슬롯 채우는 중', 'Filling slots') : t('개발 준비 슬롯 채우기', 'Fill readiness slots')}
-        </button>
-      )}
-    </div>
+  const cites = (numbers: number[]) => numbers.length > 0 && <sup className="ml-0.5 font-medium text-seed">{numbers.join(', ')}</sup>;
+  // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
+  const docRow = (id: string, body: React.ReactNode, quiet = false) => (
+    <li key={id}>
+      <button type="button" aria-pressed={focus === id} onClick={() => pick(id)} className={`-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 rounded-lg px-3 py-3.5 text-left text-[15px] leading-7 transition-colors hover:bg-surface-low aria-pressed:bg-seed-soft ${quiet ? 'text-muted' : 'text-ink'}`}>
+        <span className="text-[13px] font-semibold text-muted">{id}</span>
+        <span className="min-w-0">{body}</span>
+      </button>
+    </li>
   );
 
   const busy = status !== 'idle';
+  const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
+  const quietButton = 'btn-quiet w-full justify-start border-0 font-normal';
+  const ready6 = spec ? spec.features.filter((row) => row.slots).length : 0;
+
+  // What the right-hand panel shows for the picked node: what it is, and what it connects to.
+  const detail = (() => {
+    if (!spec || !input || !focus) return null;
+    const evidenceIndex = input.evidence.findIndex((_, index) => focus === `E-${index + 1}`);
+    const quote = input.evidence[evidenceIndex];
+    const requirement = [...spec.requirements, ...spec.hypotheses].find((row) => row.id === focus);
+    const feature = spec.features.find((row) => row.id === focus);
+    const screen = spec.screens.find((row) => row.id === focus);
+    const hypothesis = spec.hypotheses.some((row) => row.id === focus);
+    const names = (ids: string[], rows: Array<{ id: string; title?: string; name?: string }>) => ids.map((id) => `${id} ${rows.find((row) => row.id === id)?.title ?? rows.find((row) => row.id === id)?.name ?? ''}`.trim()).join(', ');
+    const rows: Array<[string, React.ReactNode]> = [];
+    let kind = '';
+    let title = '';
+    let body = '';
+    if (quote) {
+      kind = t('개발자 원문', 'Developer quote');
+      title = PLATFORM_LABELS[quote.platform];
+      body = quote.quote;
+      rows.push([t('출처', 'Source'), <a key="source" href={quote.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')} ›</a>]);
+    } else if (requirement) {
+      kind = hypothesis ? t('가설', 'Hypothesis') : t('요구사항', 'Requirement');
+      title = requirement.title;
+      body = requirement.detail;
+      rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E-${n}`).join(' · ')} ({t('원문과 일치', 'verbatim')})</span>]);
+      rows.push([t('기능', 'Features'), names(spec.features.filter((row) => row.requirementIds.includes(requirement.id)).map((row) => row.id), spec.features) || '-']);
+    } else if (feature) {
+      kind = t('기능', 'Feature');
+      title = feature.title;
+      body = feature.detail;
+      const evidence = [...new Set(spec.requirements.filter((row) => feature.requirementIds.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b);
+      rows.push([t('요구사항', 'Requirements'), names(feature.requirementIds, [...spec.requirements, ...spec.hypotheses]) || '-']);
+      rows.push([t('근거', 'Evidence'), evidence.length ? <span key="evidence" className="font-medium text-seed">{evidence.map((n) => `E-${n}`).join(' · ')} ({t('원문과 일치', 'verbatim')})</span> : t('원문 없음', 'No quote')]);
+      rows.push([t('화면', 'Screens'), names(spec.screens.filter((row) => row.featureIds.includes(feature.id)).map((row) => row.id), spec.screens) || '-']);
+    } else if (screen) {
+      kind = t('화면', 'Screen');
+      title = screen.name;
+      body = screen.does;
+      rows.push([t('기능', 'Features'), names(screen.featureIds, spec.features) || '-']);
+    } else return null;
+
+    return (
+      <section aria-live="polite" aria-label={t('고른 항목', 'Selected item')}>
+        <p className="text-[13px] text-muted">{focus} · {kind}</p>
+        <h3 className="mt-1 text-xl font-bold tracking-tight">{title}</h3>
+        {body && <p className="mt-3 text-sm leading-7 text-tertiary">{body}</p>}
+        <dl className="mt-4 grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-sm">
+          {rows.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted">{label}</dt>
+              <dd className="min-w-0">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {feature && (
+          <>
+            <h4 className="mt-7 text-[15px] font-semibold">{t('개발 준비', 'Build readiness')}</h4>
+            {feature.slots ? (
+              <dl className="rows mt-3 text-sm">
+                {SLOT_KEYS.map((key) => (
+                  <div key={key} className="py-3">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt>{slotLabels(lang)[key]}</dt>
+                      <dd className={feature.slots![key].length ? 'font-medium text-seed' : 'text-muted'}>{feature.slots![key].length ? t('채움', 'Filled') : t('비어 있음', 'Empty')}</dd>
+                    </div>
+                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join(' · ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <button type="button" className="btn-quiet mt-3 w-full" disabled={slotPending.includes(feature.id)} onClick={() => void fillSlots(feature)}>
+                {slotPending.includes(feature.id) ? t('빈 칸 채우는 중', 'Filling') : t('빈 칸 채우기', 'Fill the blanks')}
+              </button>
+            )}
+          </>
+        )}
+      </section>
+    );
+  })();
+
+  const sections: Array<[string, string, boolean]> = spec && input ? [
+    ['overview', t('개요', 'Overview'), true],
+    ['problem', t('문제', 'Problem'), true],
+    ['requirements', t('요구사항', 'Requirements'), true],
+    ['features', t('기능', 'Features'), spec.features.length > 0],
+    ['screens', t('화면', 'Screens'), spec.screens.length > 0],
+    ['non-goals', t('범위 밖', 'Out of scope'), true],
+    ['hypotheses', t('가설', 'Hypotheses'), spec.hypotheses.length > 0],
+    ['risks', t('위험 요소', 'Risks'), spec.risks.length > 0],
+    ['done', t('완료 기준', 'Done when'), true],
+  ] : [];
+  const bullets = (rows: string[]) => rows.length
+    ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{row}</li>)}</ul>
+    : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
 
   return (
     <>
-      <div className={styles.actions}>
-        <button type="button" className={styles.action} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={spec ? 'btn-quiet' : 'btn h-11 px-5'} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
           {status === 'loading' ? t('PRD 작성 중, 최대 1분 30초', 'Writing the PRD, up to 90 s') : spec ? t('PRD 다시 만들기', 'Make the PRD again') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
         </button>
-        <button type="button" className={`${styles.action} ${styles.actionQuiet}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
+        <button type="button" className={`btn-quiet ${spec ? '' : 'h-11'}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
           {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
         </button>
       </div>
-      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className={styles.notice}>{t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
+      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('근거가 기준(증언 3건, 플랫폼 2종)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
       {children}
-      <div aria-live="polite">
-        {needsLogin && <p className={styles.notice}><Link href={`/login?next=${encodeURIComponent(loginNext)}`}>{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
-        {error && <p className={styles.notice}>{error}</p>}
-        {message && <p className={styles.notice}>{message}</p>}
+      <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
+        {needsLogin && <p><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
+        {error && <p className="text-red-700">{error}</p>}
+        {message && <p>{message}</p>}
       </div>
 
       {input && spec && (
-        <section className={styles.prd} aria-label={t('생성된 PRD', 'Generated PRD')}>
-          <div className={styles.prdHead}>
-            <h3>{input.title} PRD</h3>
-            <span>
-              {spec.draft && <b className={styles.draftBadge}>{t('가설 초안', 'Hypothesis draft')}</b>}
-              {t('증언', 'Quotes')} {input.evidence.length} → {t('요구사항', 'Requirements')} {spec.requirements.length} → {t('기능', 'Features')} {spec.features.length} → {t('화면', 'Screens')} {spec.screens.length}
-              {spec.hypotheses.length > 0 ? ` · ${t('검증 필요 가설', 'Hypotheses')} ${spec.hypotheses.length}` : ''}
-            </span>
+        <section className="mt-8" aria-label={t('생성된 PRD', 'Generated PRD')}>
+          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="text-2xl font-bold tracking-tight">{input.title} PRD</h3>
+              <p className="text-sm text-muted">
+                {spec.draft && <b className={styles.draftBadge}>{t('가설 초안', 'Hypothesis draft')}</b>}
+                <span className="font-medium text-seed">{t('근거 있는 요구사항', 'Backed requirements')} {spec.requirements.length}</span>
+                {' · '}{t('가설', 'Hypotheses')} {spec.hypotheses.length}
+                {' · '}{t('개발 준비', 'Ready')} {ready6}/{spec.features.length}
+                {' · '}{t('원문', 'Quotes')} {input.evidence.length} → {t('기능', 'Features')} {spec.features.length} → {t('화면', 'Screens')} {spec.screens.length}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <details className="relative">
+                <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('내보내기', 'Export')}</summary>
+                <div className="absolute right-0 z-20 mt-2 flex w-56 flex-col gap-0.5 rounded-xl border border-outline-soft bg-white p-1.5 shadow-lg">
+                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                  <button type="button" className={quietButton} onClick={() => void copy('PRD', markdown)}>{t('PRD 복사', 'Copy PRD')}</button>
+                  <button type="button" className={quietButton} onClick={() => downloadText('PRD.md', markdown)}>{t('PRD.md 받기', 'Download PRD.md')}</button>
+                  {spec.screens.length > 0 && <button type="button" className={quietButton} onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
+                </div>
+              </details>
+              <select aria-label={t('AI 코딩 도구 파일 형식', 'File format for AI coding tools')} className="h-10 border bg-white px-2.5 text-sm" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
+                {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
+              </select>
+              {/* "Send to the agent" is a copy: the brief goes on the clipboard, ready to paste into the coding tool. */}
+              <button type="button" className="btn" onClick={() => void copy(EXPORT_FILES[format], brief)}>{t('에이전트로 보내기', 'Send to agent')}</button>
+            </div>
           </div>
 
-          <div className={styles.specTabs} role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
+          <div className="tabs mt-5" role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
             {VIEWS.map(([key, label, labelEn]) => (
-              <button key={key} type="button" role="tab" aria-selected={view === key} className={styles.specTab} onClick={() => setView(key)}>{t(label, labelEn)}</button>
+              <button key={key} type="button" role="tab" aria-selected={view === key} className="tab" onClick={() => setView(key)}>{t(label, labelEn)}</button>
             ))}
           </div>
 
-          {spec.existing && spec.existing.length > 0 && (
-            <details className={styles.existing} open>
-              <summary>{t(`기존 구조 ${spec.existing.length}개 · 새 기능이 깨면 안 되는 것`, `Existing structure (${spec.existing.length}) · new work must not break it`)}</summary>
-              <ul>{spec.existing.map((row) => <li key={row.name}><b>{row.name}</b>{row.does ? `: ${row.does}` : ''}</li>)}</ul>
-            </details>
-          )}
+          <div className="mt-8 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0">
+              {spec.existing && spec.existing.length > 0 && (
+                <details className={`${styles.existing} mb-6`} open>
+                  <summary>{t(`기존 구조 ${spec.existing.length}개 · 새 기능이 깨면 안 되는 것`, `Existing structure (${spec.existing.length}) · new work must not break it`)}</summary>
+                  <ul>{spec.existing.map((row) => <li key={row.name}><b>{row.name}</b>{row.does ? `: ${row.does}` : ''}</li>)}</ul>
+                </details>
+              )}
 
-          {view === 'trace' && (
-            <div className={styles.specCols}>
-              <p className={styles.specHint}>{t('항목을 누르면 그 항목이 기대는 증언과, 그 위에 쌓인 기능·화면이 함께 강조됩니다.', 'Click any item to light up the quotes it stands on and the features and screens built on it.')}</p>
-              <div className={styles.specCol}>
-                <h4>{t('증언', 'Quotes')}</h4>
-                {input.evidence.map((item, index) => (
-                  <button key={item.id} type="button" className={`${styles.specItem} ${evidenceTone(index + 1)}`} aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)}>
-                    <span className={styles.specId}>E-{index + 1}</span>
-                    <q lang="en">{item.quote.length > 140 ? `${item.quote.slice(0, 140)}…` : item.quote}</q>
-                  </button>
-                ))}
-              </div>
-              <div className={styles.specCol}>
-                <h4>{t('요구사항', 'Requirements')}</h4>
-                {spec.requirements.map((row) => item(row.id, <><b>{row.title}</b><small>{t('근거', 'Evidence')} {row.evidence.map((n) => `E-${n}`).join(', ')}</small></>))}
-                {spec.hypotheses.map((row) => item(row.id, <><b>{row.title}</b><small>{t('근거 없음: 검증 필요 가설', 'No evidence: hypothesis to validate')}</small></>, styles.specHypo))}
-              </div>
-              <div className={styles.specCol}>
-                <h4>
-                  {t('기능', 'Features')}
-                  {spec.features.some((row) => !row.slots) && <button type="button" className={styles.linkButton} onClick={() => void fillAll()}>{t('슬롯 모두 채우기', 'Fill all slots')}</button>}
-                </h4>
-                {spec.features.map((row) => (
-                  <div key={row.id}>
-                    {item(row.id, <><b>{row.title}</b><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}</small></>)}
-                    {slotsBlock(row)}
+              {view === 'doc' && (
+                <div className="grid gap-x-10 xl:grid-cols-[140px_minmax(0,1fr)]">
+                  <nav className="hidden self-start text-sm xl:sticky xl:top-24 xl:block" aria-label={t('목차', 'Contents')}>
+                    <p className="font-semibold">{t('목차', 'Contents')}</p>
+                    <ul className="mt-2 grid">
+                      {sections.filter(([, , shown]) => shown).map(([id, label]) => <li key={id}><a href={`#prd-${id}`} className="inline-flex min-h-9 items-center text-muted hover:text-ink">{label}</a></li>)}
+                    </ul>
+                  </nav>
+                  <article className="min-w-0 space-y-12">
+                    <section>
+                      <h4 id="prd-overview" className={h2}>{t('개요', 'Overview')}</h4>
+                      <p className="label mt-4">{t('한 줄 정의', 'One line')}</p>
+                      <p className="mt-1 text-[15px] leading-7">{spec.summary}</p>
+                      <p className="label mt-5">{t('대상 사용자', 'Target users')}</p>
+                      <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.join(' · ') || t('정의되지 않음', 'Not defined')}</p>
+                    </section>
+                    <section>
+                      <h4 id="prd-problem" className={h2}>{t('문제', 'Problem')}</h4>
+                      <p className="mt-3 text-[15px] leading-7">{input.problem}</p>
+                      {input.gap && <p className="mt-3 text-[15px] leading-7 text-tertiary">{input.gap}</p>}
+                    </section>
+                    <section>
+                      <h4 id="prd-requirements" className={h2}>{t('요구사항', 'Requirements')}</h4>
+                      {spec.requirements.length
+                        ? <ul className="rows mt-3">{spec.requirements.map((row) => docRow(row.id, <>{row.title}{cites(row.evidence)}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}</>))}</ul>
+                        : <p className="mt-3 text-[15px] leading-7 text-muted">{t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}</p>}
+                    </section>
+                    {spec.features.length > 0 && (
+                      <section>
+                        <h4 id="prd-features" className={h2}>{t('기능', 'Features')}</h4>
+                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>))}</ul>
+                      </section>
+                    )}
+                    {spec.screens.length > 0 && (
+                      <section>
+                        <h4 id="prd-screens" className={h2}>{t('화면', 'Screens')}</h4>
+                        <p className="mt-1 text-[13px] text-muted">{t('증언에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}</p>
+                        <ul className="rows mt-3">{spec.screens.map((row) => docRow(row.id, <>{row.name}<span className="block text-sm leading-6 text-muted">{row.does ? `${row.does} ` : ''}({row.featureIds.join(', ')})</span></>))}</ul>
+                      </section>
+                    )}
+                    <section>
+                      <h4 id="prd-non-goals" className={h2}>{t('범위 밖', 'Out of scope')}</h4>
+                      {bullets(spec.nonGoals)}
+                    </section>
+                    {spec.hypotheses.length > 0 && (
+                      <section>
+                        <h4 id="prd-hypotheses" className={h2}>{t('가설', 'Hypotheses')}</h4>
+                        <p className="mt-1 text-[13px] text-muted">{t('원문이 받쳐 주지 않는 줄입니다. 만들기 전에 사용자에게 확인합니다.', 'No quote backs these lines. Confirm with users before building.')}</p>
+                        <ul className="rows mt-3">{spec.hypotheses.map((row) => docRow(row.id, <>{row.title}{row.detail && <span className="block text-sm leading-6">{row.detail}</span>}</>, true))}</ul>
+                      </section>
+                    )}
+                    {spec.risks.length > 0 && (
+                      <section>
+                        <h4 id="prd-risks" className={h2}>{t('위험 요소', 'Risks')}</h4>
+                        {bullets(spec.risks)}
+                      </section>
+                    )}
+                    <section>
+                      <h4 id="prd-done" className={h2}>{t('완료 기준', 'Done when')}</h4>
+                      {bullets(spec.metrics)}
+                    </section>
+                    {input.competitors.length > 0 && (
+                      <section>
+                        <h4 className={h2}>{t('이미 있는 도구', 'Existing tools')}</h4>
+                        {bullets(input.competitors)}
+                      </section>
+                    )}
+                    <ol className="grid gap-3 border-t border-outline-strong pt-6 text-sm leading-6">
+                      {input.evidence.map((row, index) => (
+                        <li key={row.id} className={`grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 transition-opacity ${trace && !trace.evidence.has(index + 1) ? 'opacity-40' : ''}`}>
+                          <span className="font-semibold text-seed">{index + 1}</span>
+                          <span className="min-w-0 [overflow-wrap:anywhere]">
+                            <q lang="en">{row.quote}</q>{' '}
+                            <span className="text-muted">{PLATFORM_LABELS[row.platform]}{row.postedAt ? `, ${new Date(row.postedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' })}` : ''}</span>{' '}
+                            <a href={row.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')} ›</a>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </article>
+                </div>
+              )}
+
+              {view === 'trace' && (
+                <>
+                  <div className={styles.specCols}>
+                    <div className={styles.specCol}>
+                      <h4>{t('개발자 원문', 'Developer quotes')}</h4>
+                      {input.evidence.map((row, index) => (
+                        <button key={row.id} type="button" className={`${styles.specItem} ${styles.specQuote} ${evidenceTone(index + 1)}`} aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)}>
+                          <span className={styles.specId}>E-{index + 1} · {PLATFORM_LABELS[row.platform]}</span>
+                          <q lang="en">{row.quote.length > 140 ? `${row.quote.slice(0, 140)}…` : row.quote}</q>
+                        </button>
+                      ))}
+                    </div>
+                    <div className={styles.specCol}>
+                      <h4>{t('요구사항', 'Requirements')}</h4>
+                      {spec.requirements.map((row) => item(row.id, <><span>{row.title}</span><small>{t('원문', 'Quotes')} {row.evidence.map((n) => `E-${n}`).join(', ')}</small></>))}
+                      {spec.hypotheses.map((row) => item(row.id, <><span>{row.title}</span><small>{t('가설 · 원문 없음', 'Hypothesis · no quote')}</small></>, styles.specHypo))}
+                    </div>
+                    <div className={styles.specCol}>
+                      <h4>
+                        {t('기능', 'Features')}
+                        {spec.features.some((row) => !row.slots) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
+                      </h4>
+                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)} · {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>))}
+                    </div>
+                    <div className={styles.specCol}>
+                      <h4>{t('화면', 'Screens')}</h4>
+                      {spec.screens.map((row) => item(row.id, <><span>{row.name}</span><small>{row.featureIds.join(', ')}</small></>))}
+                    </div>
                   </div>
-                ))}
-              </div>
-              <div className={styles.specCol}>
-                <h4>{t('화면', 'Screens')}</h4>
-                {spec.screens.map((row) => item(row.id, <><b>{row.name}</b><small>{row.featureIds.join(', ')}</small></>))}
-              </div>
-            </div>
-          )}
+                  <p className="mt-3 text-[13px] text-muted">{t('초록 테두리는 개발자 원문, 점선은 원문 없는 가설입니다. 항목을 누르면 이어진 원문·기능·화면이 함께 강조되고 오른쪽에 명세가 열립니다.', 'Green edges are developer quotes; dashed ones are hypotheses with no quote. Click an item to light up what it connects to and open its spec on the right.')}</p>
+                </>
+              )}
 
-          {view === 'tree' && (
-            <ul className={styles.specTree}>
-              {spec.requirements.map((requirement) => (
-                <li key={requirement.id}>
-                  <span className={styles.specId}>{requirement.id}</span> <b>{requirement.title}</b> <small>({requirement.evidence.map((n) => `E-${n}`).join(', ')})</small>
-                  <ul>
-                    {spec.features.filter((feature) => feature.requirementIds.includes(requirement.id)).map((feature) => (
-                      <li key={feature.id}>
-                        <span className={styles.specId}>{feature.id}</span> {feature.title}
-                        <ul>
-                          {spec.screens.filter((screen) => screen.featureIds.includes(feature.id)).map((screen) => (
-                            <li key={screen.id}><span className={styles.specId}>{screen.id}</span> {screen.name}</li>
-                          ))}
-                        </ul>
+              {view === 'tree' && (
+                <ul className={styles.specTree}>
+                  {spec.requirements.map((requirement) => (
+                    <li key={requirement.id}>
+                      <span className={styles.specId}>{requirement.id}</span> <b className="font-semibold">{requirement.title}</b> <small>({requirement.evidence.map((n) => `E-${n}`).join(', ')})</small>
+                      <ul>
+                        {spec.features.filter((feature) => feature.requirementIds.includes(requirement.id)).map((feature) => (
+                          <li key={feature.id}>
+                            <span className={styles.specId}>{feature.id}</span> {feature.title}
+                            <ul>
+                              {spec.screens.filter((screen) => screen.featureIds.includes(feature.id)).map((screen) => (
+                                <li key={screen.id}><span className={styles.specId}>{screen.id}</span> {screen.name}</li>
+                              ))}
+                            </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                  {spec.hypotheses.length > 0 && <li className="text-muted">{t('검증 필요 가설', 'Hypotheses to validate')}: {spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ')}</li>}
+                </ul>
+              )}
+
+              {view === 'flow' && (
+                <div>
+                  <ol className={styles.flow}>
+                    {spec.screens.map((screen) => (
+                      <li key={screen.id}>
+                        <span className={styles.specId}>{screen.id}</span>
+                        <span className="font-medium">{screen.name}</span>
+                        {screen.does && <small>{screen.does}</small>}
                       </li>
                     ))}
-                  </ul>
-                </li>
-              ))}
-              {spec.hypotheses.length > 0 && <li className={styles.specHypo}>{t('검증 필요 가설', 'Hypotheses to validate')}: {spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ')}</li>}
-            </ul>
-          )}
-
-          {view === 'flow' && (
-            <div>
-              <ol className={styles.flow}>
-                {spec.screens.map((screen) => (
-                  <li key={screen.id}>
-                    <span className={styles.specId}>{screen.id}</span>
-                    <b>{screen.name}</b>
-                    {screen.does && <small>{screen.does}</small>}
-                  </li>
-                ))}
-              </ol>
-              {spec.screens.length > 0 && <button type="button" className={styles.prdButton} onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
+                  </ol>
+                  {spec.screens.length > 0 && <button type="button" className="btn-quiet" onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
+                </div>
+              )}
             </div>
-          )}
 
-          {view === 'doc' && <pre className={styles.prdText} tabIndex={0}>{markdown}</pre>}
-
-          <form className={styles.revise} onSubmit={(event) => { event.preventDefault(); void revise(); }}>
-            <label htmlFor="prd-revise">{t('대화로 고치기', 'Revise by chat')}</label>
-            <div>
-              <input id="prd-revise" value={instruction} maxLength={300} onChange={(event) => setInstruction(event.target.value)} placeholder={t('예: 타겟을 초보 개발자로 좁혀줘', 'e.g. Narrow the target to beginner developers')} disabled={busy} />
-              <button type="submit" className={styles.prdButton} disabled={busy || instruction.trim().length < 2}>{status === 'revising' ? t('고치는 중', 'Revising') : t('고치기', 'Revise')}</button>
-              {previous && <button type="button" className={styles.prdButton} onClick={undo} disabled={busy}>{t('되돌리기', 'Undo')}</button>}
-            </div>
-          </form>
-
-          <div className={styles.prdActions}>
-            <select aria-label={t('AI 코딩 도구 파일 형식', 'File format for AI coding tools')} className={styles.prdSelect} value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-              {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
-            </select>
-            <button type="button" className={styles.prdButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
-            <button type="button" className={styles.prdButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
-            <button type="button" className={styles.prdButton} onClick={() => void copy('PRD', markdown)}>{t('PRD 복사', 'Copy PRD')}</button>
-            <button type="button" className={styles.prdButton} onClick={() => downloadText('PRD.md', markdown)}>{t('PRD.md 받기', 'Download PRD.md')}</button>
+            <aside className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-24 lg:self-start">
+              {detail}
+              <form onSubmit={(event) => { event.preventDefault(); void revise(); }}>
+                <label htmlFor="prd-revise" className="text-[15px] font-semibold">{t('수정 요청', 'Request a change')}</label>
+                <p className="mt-1 text-[13px] text-muted">{t('고친 내용도 원문 검사를 다시 거칩니다.', 'Changes go through the source check again.')}</p>
+                <textarea id="prd-revise" rows={4} value={instruction} maxLength={300} onChange={(event) => setInstruction(event.target.value)} placeholder={t('예: 타겟을 초보 개발자로 좁혀줘', 'e.g. Narrow the target to beginner developers')} disabled={busy} className="mt-3 block w-full border bg-white px-3 py-2.5 text-sm leading-6" />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="submit" className="btn-quiet" disabled={busy || instruction.trim().length < 2}>{status === 'revising' ? t('고치는 중', 'Revising') : t('요청 보내기', 'Send request')}</button>
+                  {previous && <button type="button" className="text-sm font-medium text-seed underline-offset-4 hover:underline" onClick={undo} disabled={busy}>{t('되돌리기', 'Undo')}</button>}
+                </div>
+              </form>
+            </aside>
           </div>
         </section>
       )}

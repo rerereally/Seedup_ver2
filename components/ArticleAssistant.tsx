@@ -108,7 +108,7 @@ export default function ArticleAssistant({
       {!hasConversation && (
         <div className="flex flex-wrap gap-2 px-5 pt-3">
           {['이 글 쉽게 설명해줘', '핵심 기술이 뭐야?'].map((preset) => (
-            <button key={preset} type="button" onClick={() => ask(preset)} className="inline-flex min-h-9 items-center rounded-full border border-outline-soft px-3.5 text-[13px] text-ink transition-colors hover:border-outline-strong">
+            <button key={preset} type="button" onClick={() => ask(preset)} className="inline-flex min-h-9 items-center rounded-[10px] border border-outline-strong bg-white px-3.5 text-[13px] text-ink transition-colors hover:bg-surface-low">
               {preset}
             </button>
           ))}
@@ -118,7 +118,7 @@ export default function ArticleAssistant({
       {hasConversation && (
         <div ref={messageListRef} aria-live="polite" className="mt-4 max-h-[min(58dvh,34rem)] min-h-56 space-y-3 overflow-y-auto border-t border-outline-soft px-5 py-5">
           {messages.map((message, index) => (
-            <div key={`${message.role}-${index}`} className={`max-w-[92%] text-sm leading-6 ${message.role === 'assistant' ? 'text-ink' : 'ml-auto w-fit rounded-[18px] rounded-br-md bg-surface-high px-3.5 py-2 text-ink'}`}>
+            <div key={`${message.role}-${index}`} className={`max-w-[92%] text-sm leading-6 ${message.role === 'assistant' ? 'text-ink' : 'ml-auto w-fit rounded-[14px] rounded-br-md bg-seed-soft px-3.5 py-2 text-ink'}`}>
               {message.content}
             </div>
           ))}
@@ -127,7 +127,7 @@ export default function ArticleAssistant({
 
       <div className="p-5">
         <label htmlFor="article-question" className="sr-only">본문에 대해 질문하기</label>
-        <div className="rounded-2xl border border-outline-soft transition-colors focus-within:border-ink">
+        <div className="rounded-xl border border-outline-strong bg-white transition-colors focus-within:border-ink">
           <textarea
             id="article-question"
             value={question}

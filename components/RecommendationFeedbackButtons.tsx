@@ -37,7 +37,7 @@ export default function RecommendationFeedbackButtons({ itemType, itemId }: { it
           disabled={pending}
           onClick={() => void send(feedback)}
           aria-pressed={selected === feedback}
-          className={`inline-flex min-h-10 items-center border px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${selected === feedback ? 'border-ink bg-ink text-white' : 'border-outline-soft bg-surface text-muted hover:border-ink hover:text-ink'}`}
+          className={`inline-flex min-h-10 items-center rounded-lg border px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${selected === feedback ? 'border-seed bg-seed-soft text-seed' : 'border-outline-strong bg-white text-muted hover:text-ink'}`}
         >
           {selected === feedback ? '반영됨' : label}
         </button>

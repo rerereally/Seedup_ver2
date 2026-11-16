@@ -64,7 +64,7 @@ export default function ScrapButton({
       aria-label={`${title} ${label}`}
       aria-pressed={saved}
     >
-      <Bookmark className={`h-4 w-4 ${saved ? 'fill-ink text-ink' : ''}`} />
+      <Bookmark className={`h-4 w-4 ${saved ? 'fill-seed text-seed' : ''}`} />
       {!iconOnly && label}
     </button>
   );

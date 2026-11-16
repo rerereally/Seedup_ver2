@@ -2,7 +2,6 @@ import { latestEngineActors, summarizeSourceHealth } from '@/lib/ingest/health';
 import type { SourceState } from '@/lib/ingest/health';
 import type { Metadata } from 'next';
 import { runFullIngest, runManualIngest } from '@/app/actions/ingest';
-import { sendManualNewsletter } from '@/app/actions/newsletter';
 import { previewOpportunityDigestMail, sendOpportunityDigestMail } from '@/app/actions/opportunity-digest';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -199,31 +198,12 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
           </section>
 
           <section className="border border-outline-soft bg-white p-5 md:p-6">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="mb-2 inline-flex items-center gap-2 border border-outline-soft bg-surface px-3 py-1 text-xs font-bold uppercase text-ink">
-                  <Mail className="h-4 w-4" />
-                  Manual Newsletter
-                </div>
-                <h2 className="text-2xl font-bold text-ink">뉴스레터 수동 발송</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">뉴스, AI 제품, 오픈소스, 프로젝트 아이디어의 최신 데이터를 조합해 구독자에게 Seedup Weekly 이메일을 보냅니다.</p>
-              </div>
-              <form action={sendManualNewsletter}>
-                <SubmitButton pendingText="발송 중" className="inline-flex w-full items-center justify-center gap-2 bg-ink px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 md:w-auto">
-                  <Mail className="h-4 w-4" />
-                  뉴스레터 발송
-                </SubmitButton>
-              </form>
-            </div>
-          </section>
-
-          <section className="border border-outline-soft bg-white p-5 md:p-6">
             <div className="mb-2 inline-flex items-center gap-2 border border-outline-soft bg-surface px-3 py-1 text-xs font-bold uppercase text-ink">
               <Mail className="h-4 w-4" />
               Opportunity Digest
             </div>
             <h2 className="text-2xl font-bold text-ink">기회 다이제스트</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">기회 엔진의 변동 알림 또는 주간 요약 메일을 확인하고 구독자에게 보냅니다. 미리보기는 아무것도 보내지 않습니다.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">기회 변동 알림, 또는 기회와 맞춤 읽을거리를 담은 주간 신호를 확인하고 구독자에게 보냅니다. 주간 신호는 보낼 때 지난 호 보관함에도 저장됩니다. 미리보기는 아무것도 보내지 않습니다.</p>
             {digestMessage && (
               <div className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.digest === 'sent' && Number(params.failed ?? 0) === 0 ?'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
                 {digestMessage}

@@ -126,7 +126,7 @@ export default async function NewsletterPreviewPage({
                 <section className="mt-9">
                   <h3 className="text-[13px] text-muted">기준 통과</h3>
                   <p className="mt-2 text-lg font-semibold">{passed.name}</p>
-                  <p className="mt-1 text-sm text-muted">원문 {passed.evidence.length}건 · {passed.directCount ? `직접 경쟁 도구 ${passed.directCount}개` : '직접 경쟁 도구 없음'}</p>
+                  <p className="mt-1 text-sm text-muted">원문 {passed.evidence.length}건 · {passed.directCount ? `직접 경쟁 ${passed.directCount}개` : '직접 경쟁 없음'}</p>
                   {quote && (
                     <blockquote className="mt-4 border-l-2 border-seed pl-4">
                       <p lang="en" className="text-[15px] leading-7">“{quote.quote}”</p>

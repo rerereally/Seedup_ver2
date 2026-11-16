@@ -60,7 +60,7 @@ test('an opportunity not seen for three weeks is dropped', () => {
 test('changes are described in the words shown on the page', () => {
   const before = { at: DAY1, evidence: 2, platforms: 1, direct: 0, status: 'open' as const, qualified: false };
   const after = { at: DAY2, evidence: 4, platforms: 2, direct: 0, status: 'open' as const, qualified: true };
-  assert.deepEqual(describeChange(before, after), ['증언 2건 → 4건', '플랫폼 1종 → 2종', '근거 기준 통과']);
+  assert.deepEqual(describeChange(before, after), ['원문 2건 → 4건', '플랫폼 1곳 → 2곳', '기준 통과']);
 });
 
 test('posts that say a tool is missing are read first', () => {

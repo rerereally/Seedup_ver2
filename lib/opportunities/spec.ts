@@ -245,7 +245,7 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const hypotheses = spec.hypotheses.map((row) => `- **${row.id}. ${row.title}**: ${row.detail}`).join('\n');
   const undefinedText = t('정의되지 않음', 'Not defined');
   return `# ${input.title} PRD
-${spec.draft ? `\n> ${t('가설 초안: 근거가 기준(증언 3건, 플랫폼 2종)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
+${spec.draft ? `\n> ${t('가설 초안: 원문이 기준(원문 3건, 플랫폼 2곳)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
 ## ${t('한 줄 요약', 'Summary')}
 ${spec.summary}
 
@@ -255,13 +255,13 @@ ${input.problem}
 ${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing tools')}\n${input.gap}\n\n` : ''}## ${t('대상 사용자', 'Target users')}
 ${bullets(spec.targetUsers, undefinedText)}
 
-## ${t('요구사항 (증언 → R)', 'Requirements (evidence → R)')}
+## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
 ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
 
 ## ${t('기능 명세 (R → F)', 'Features (R → F)')}
 ${features || t('요구사항을 충족하는 기능이 아직 없습니다.', 'No feature serves a requirement yet.')}
 
-${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('증언에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('근거 문장이 뒷받침하지 않아 요구사항에서 제외한 항목입니다.', 'Left out of the requirements because no quote backs them.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
+${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('근거 문장이 뒷받침하지 않아 요구사항에서 제외한 항목입니다.', 'Left out of the requirements because no quote backs them.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
 ${bullets(spec.nonGoals, undefinedText)}
 
 ## ${t('위험 요소', 'Risks')}

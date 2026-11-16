@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 // Mirrors the tools registered in lib/mcp/server.ts.
 const TOOLS = [
   ['search_opportunities', '만들고 싶은 것으로 검증된 기회 찾기'],
-  ['get_opportunity', '원문과 경쟁 도구까지 한 번에'],
+  ['get_opportunity', '원문과 이미 있는 도구까지 한 번에'],
   ['generate_verified_prd', '원문이 붙은 PRD 만들기'],
   ['find_related_content', '관련 글과 오픈소스 찾기'],
 ];

@@ -91,7 +91,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const stats: Array<[string, number]> = [
     [t('개발자 원문', 'Developer quotes'), opportunity.evidence.length],
     [t('플랫폼', 'Platforms'), opportunity.platforms.length],
-    [t('직접 경쟁 도구', 'Direct rivals'), opportunity.directCount],
+    [t('직접 경쟁', 'Direct rivals'), opportunity.directCount],
     [t('점수', 'Score'), score.total],
   ];
   const timing = whyNow(opportunity);
@@ -104,8 +104,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const partial = opportunity.supply.filter((item) => item.relation !== 'direct');
   // How far this problem has grown. Design and build happen after this page, so they are never the current step here.
   const steps = [
-    `${t('신호 발견', 'Signal found')}${firstSeen ? ` · ${firstSeen}` : ''}`,
-    opportunity.qualified ? t('검증 통과', 'Verified') : t('검증', 'Verification'),
+    `${t('발견', 'Found')}${firstSeen ? ` · ${firstSeen}` : ''}`,
+    opportunity.qualified ? t('기준 통과', 'Verified') : t('검증', 'Verification'),
     t('설계', 'Design'),
     t('구현', 'Build'),
   ];
@@ -146,8 +146,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             <h1 className="page-intro-title">{text.name}</h1>
             <p className="mt-4 max-w-[36em] text-lg leading-8 text-tertiary [text-wrap:pretty]">{text.problem}</p>
             <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+              {/* Verdict first (enough quotes?), then the market (how many rivals), so the two never read as one mixed signal. */}
+              <span className={opportunity.qualified ? 'font-semibold text-seed' : ''}>{opportunity.qualified ? t('기준 통과', 'Verified') : t('원문이 아직 부족합니다', 'Not enough quotes yet')}</span>
+              <span aria-hidden="true">·</span>
               <StatusLabel status={opportunity.status} lang={lang} />
-              <span>{opportunity.qualified ? t('근거 기준 통과', 'Passed the evidence bar') : t('근거가 아직 부족합니다', 'Not enough evidence yet')}</span>
             </p>
 
             {text.gap && (
@@ -166,8 +168,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               ))}
             </dl>
             <p className="mt-3 text-[13px] text-muted">
-              {firstSeen && <>{t(`가장 이른 증언은 ${firstSeen}에 나왔습니다.`, `First quote: ${firstSeen}.`)} </>}
-              {t(`첫 증언 뒤 나온 도구 ${opportunity.followersAfterSignal}개.`, `Tools since first quote: ${opportunity.followersAfterSignal}.`)}
+              {firstSeen && <>{t(`가장 이른 원문은 ${firstSeen}에 나왔습니다.`, `First quote: ${firstSeen}.`)} </>}
+              {t(`첫 원문 뒤 나온 도구 ${opportunity.followersAfterSignal}개.`, `Tools since first quote: ${opportunity.followersAfterSignal}.`)}
             </p>
 
             <section className="mt-12" aria-labelledby="quotes-heading">
@@ -228,14 +230,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <details className={fold}>
                   <summary className={foldSummary}>{t('성장 기록', 'Track record')}{chevron}</summary>
                   <p className="pb-4 text-sm text-muted">
-                    {history.length > 1 ? t('분석을 돌릴 때마다 달라진 점만 남깁니다.', 'Only what changed between runs is kept.') : t('아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.', 'Analyzed once so far. Changes in quotes or rivals in later runs will appear here.')}
+                    {history.length > 1 ? t('분석을 돌릴 때마다 달라진 점만 남깁니다.', 'Only what changed between runs is kept.') : t('아직 한 번 분석한 상태입니다. 다음 분석에서 원문이나 이미 있는 도구가 달라지면 여기에 쌓입니다.', 'Analyzed once so far. Changes in quotes or rivals in later runs will appear here.')}
                   </p>
                   <ol className="rows mb-5 [&>:last-child]:border-b-0">
                     {[...history].reverse().map((entry) => (
                       <li key={entry.at} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3.5">
                         <time dateTime={entry.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(entry.at))}</time>
                         <span className="min-w-0 flex-1 text-sm leading-6">
-                          {entry.changes.length ? entry.changes.join(' · ') : t(`증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
+                          {entry.changes.length ? entry.changes.join(' · ') : t(`원문 ${entry.evidence}건, 플랫폼 ${entry.platforms}곳으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
                         </span>
                         <StatusLabel status={entry.status} lang={lang} />
                       </li>
@@ -289,19 +291,19 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 </p>
               ) : fit.matched.length ? (
                 <>
-                  <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개 중 <span className="num font-semibold text-ink">{fit.matched.length}</span>개가 이 문제의 증언과 도구 설명에 나옵니다.</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개 중 <span className="num font-semibold text-ink">{fit.matched.length}</span>개가 이 문제의 원문과 도구 설명에 나옵니다.</p>
                   <ul className="mt-3 flex flex-wrap gap-2">
                     {fit.matched.map((name) => <li key={name} className="chip">{name}</li>)}
                   </ul>
                 </>
               ) : (
-                <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개는 이 문제의 증언과 도구 설명에 나오지 않습니다. 못 만든다는 뜻은 아니고, 익숙한 영역과 거리가 있다는 뜻입니다.</p>
+                <p className="mt-2 text-sm leading-6 text-muted">고른 스택 <span className="num text-ink">{fit.chosen}</span>개는 이 문제의 원문과 도구 설명에 나오지 않습니다. 못 만든다는 뜻은 아니고, 익숙한 영역과 거리가 있다는 뜻입니다.</p>
               )}
             </section>
             {lang === 'ko' && (
               <section aria-labelledby="korea-heading">
                 <h2 id="korea-heading" className="text-lg font-semibold tracking-tight">한국에서도 그런가</h2>
-                <p className="mb-4 mt-1 text-sm leading-6 text-muted">위 증언은 모두 영어권 커뮤니티에서 나왔습니다. 한국 커뮤니티 글은 아직 수집하지 않으니 직접 찾아보세요. 검색어는 <span className="font-semibold text-ink">{korea.query}</span>입니다.</p>
+                <p className="mb-4 mt-1 text-sm leading-6 text-muted">위 원문은 모두 영어권 커뮤니티에서 나왔습니다. 한국 커뮤니티 글은 아직 수집하지 않으니 직접 찾아보세요. 검색어는 <span className="font-semibold text-ink">{korea.query}</span>입니다.</p>
                 <ul className="rows">
                   {korea.places.map((place) => (
                     <li key={place.name}>

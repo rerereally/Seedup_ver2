@@ -26,8 +26,8 @@ export function scoreOpportunity(opportunity: Opportunity, now = Date.now()): Op
   const recent = dated.filter((item) => daysBetween(item.postedAt as string, now) <= RECENT_DAYS).length;
 
   const parts: ScorePart[] = [
-    { key: 'demand', label: '증언 수', max: 30, points: Math.round(Math.min(1, evidence.length / 6) * 30), reason: `서로 다른 글 ${evidence.length}건 (6건이면 만점)` },
-    { key: 'spread', label: '플랫폼 폭', max: 20, points: [0, 5, 14][platforms.length] ?? 20, reason: `${platforms.length}종에서 확인 (3종이면 만점)` },
+    { key: 'demand', label: '원문 수', max: 30, points: Math.round(Math.min(1, evidence.length / 6) * 30), reason: `서로 다른 글 ${evidence.length}건 (6건이면 만점)` },
+    { key: 'spread', label: '플랫폼 폭', max: 20, points: [0, 5, 14][platforms.length] ?? 20, reason: `플랫폼 ${platforms.length}곳에서 확인 (3곳이면 만점)` },
     { key: 'reaction', label: '반응', max: 15, points: Math.round(Math.min(1, Math.log10(1 + reactions) / 3) * 15), reason: `추천과 댓글 합계 ${reactions.toLocaleString('ko-KR')}` },
     { key: 'recency', label: '최근성', max: 15, points: dated.length ? Math.round((recent / dated.length) * 15) : 0, reason: dated.length ? `날짜가 있는 ${dated.length}건 중 ${recent}건이 최근 6개월` : '글 날짜를 알 수 없습니다' },
     { key: 'gap', label: '남은 빈틈', max: 20, points: STATUS_GAP_POINTS[status], reason: `${STATUS_GAP_WORDS[status]} (직접 경쟁 ${directCount}개)` },
@@ -41,7 +41,7 @@ export type WhyNow = { events: TimelineEvent[]; recentVoices: number; toolsAfter
 /** Complaints and competing tools on one time axis, which is what shows whether the timing is early or late. */
 export function whyNow(opportunity: Opportunity, now = Date.now()): WhyNow {
   const voices: TimelineEvent[] = opportunity.evidence.flatMap((item: Evidence) => (item.postedAt
-    ? [{ at: item.postedAt, kind: 'voice' as const, label: `${PLATFORM_LABELS[item.platform]} 증언`, detail: item.quoteKo || item.quote, url: item.url }]
+    ? [{ at: item.postedAt, kind: 'voice' as const, label: `${PLATFORM_LABELS[item.platform]} 원문`, detail: item.quoteKo || item.quote, url: item.url }]
     : []));
   const tools: TimelineEvent[] = opportunity.supply.flatMap((item) => (item.createdAt
     ? [{ at: item.createdAt, kind: 'tool' as const, label: item.relation === 'direct' ? '직접 경쟁 도구 등장' : '일부 겹치는 도구 등장', detail: item.name.replace(/^Show HN:\s*/i, ''), url: item.url }]
@@ -53,10 +53,10 @@ export function whyNow(opportunity: Opportunity, now = Date.now()): WhyNow {
 
   let headline = '글 날짜가 없어 시점을 판단할 수 없습니다.';
   if (first) {
-    if (recentVoices > 0 && toolsAfterFirstVoice === 0) headline = `최근 3개월에도 증언이 ${recentVoices}건 나왔고, 첫 증언 뒤에 나온 도구는 아직 없습니다.`;
-    else if (recentVoices > 0) headline = `최근 3개월에도 증언이 ${recentVoices}건 나왔습니다. 첫 증언 뒤에 도구 ${toolsAfterFirstVoice}개가 나왔지만 불만은 이어지고 있습니다.`;
-    else if (toolsAfterFirstVoice > 0) headline = `최근 3개월에는 새 증언이 없고, 첫 증언 뒤에 도구 ${toolsAfterFirstVoice}개가 나왔습니다. 이미 풀리고 있을 수 있습니다.`;
-    else headline = '최근 3개월에는 새 증언이 없습니다. 지금도 겪는 문제인지 먼저 확인이 필요합니다.';
+    if (recentVoices > 0 && toolsAfterFirstVoice === 0) headline = `최근 3개월에도 원문이 ${recentVoices}건 나왔고, 첫 원문 뒤에 나온 도구는 아직 없습니다.`;
+    else if (recentVoices > 0) headline = `최근 3개월에도 원문이 ${recentVoices}건 나왔습니다. 첫 원문 뒤에 도구 ${toolsAfterFirstVoice}개가 나왔지만 불만은 이어지고 있습니다.`;
+    else if (toolsAfterFirstVoice > 0) headline = `최근 3개월에는 새 원문이 없고, 첫 원문 뒤에 도구 ${toolsAfterFirstVoice}개가 나왔습니다. 이미 풀리고 있을 수 있습니다.`;
+    else headline = '최근 3개월에는 새 원문이 없습니다. 지금도 겪는 문제인지 먼저 확인이 필요합니다.';
   }
   return { events, recentVoices, toolsAfterFirstVoice, headline };
 }
@@ -138,11 +138,11 @@ export function dossierChanges(savedEvidenceIds: string[], savedAt: string, oppo
   const before = [...history].reverse().find((entry) => entry.at <= savedAt) ?? history[0];
   const after = history[history.length - 1];
   const notes: string[] = [];
-  if (added.length) notes.push(`저장한 뒤 증언 ${added.length}건이 새로 붙었습니다. 요구사항의 근거로 추가할 수 있는지 확인하세요.`);
-  if (removed) notes.push(`저장한 증언 중 ${removed}건이 재검증에서 빠졌습니다. 그 증언에만 기대던 요구사항은 가설로 내리세요.`);
+  if (added.length) notes.push(`저장한 뒤 원문 ${added.length}건이 새로 붙었습니다. 요구사항의 근거로 추가할 수 있는지 확인하세요.`);
+  if (removed) notes.push(`저장한 원문 중 ${removed}건이 재검증에서 빠졌습니다. 그 원문에만 기대던 요구사항은 가설로 내리세요.`);
   if (before && after && before !== after) {
-    const changes = describe(before, after).filter((line) => !line.startsWith('증언'));
-    if (changes.length) notes.push(`저장한 뒤 달라진 점: ${changes.join(', ')}. 경쟁 도구와 하지 않을 것을 다시 보세요.`);
+    const changes = describe(before, after).filter((line) => !line.startsWith('원문'));
+    if (changes.length) notes.push(`저장한 뒤 달라진 점: ${changes.join(', ')}. 이미 있는 도구와 하지 않을 것을 다시 보세요.`);
   }
   return { added, removed, notes };
 }

@@ -32,7 +32,7 @@ function connectionKeys(repos: RepoCard[]) {
 }
 
 const NewBadge = () => <span className="ml-2 rounded-md bg-seed-soft px-1.5 py-0.5 text-[11px] font-semibold leading-none text-seed">새로 붙음</span>;
-const STATUS_LABELS: Record<SeedOpportunityRef['status'], string> = { open: '열림', narrowing: '좁아지는 중', closed: '닫힘', unknown: '조사 중' };
+const STATUS_LABELS: Record<SeedOpportunityRef['status'], string> = { open: '경쟁 적음', narrowing: '경쟁 늘어남', closed: '경쟁 많음', unknown: '확인 중' };
 
 const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value)) : '');
 
@@ -51,7 +51,7 @@ function OpportunityLine({ item, fresh = false }: { item: SeedOpportunityRef; fr
       <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-muted">
         <b className="font-bold text-ink">{item.name}</b>
         <span>{STATUS_LABELS[item.status]}</span>
-        <span>증언 <span className="num">{item.evidenceCount}</span>건</span>
+        <span>원문 <span className="num">{item.evidenceCount}</span>건</span>
         {fresh && <NewBadge />}
       </span>
       {item.quote && <span className="mt-1 block text-sm leading-6 text-ink">“{item.quote}”</span>}
@@ -63,7 +63,7 @@ function OpportunityLine({ item, fresh = false }: { item: SeedOpportunityRef; fr
 function issueDraft(feature: SeedFeature, origin: string) {
   const lines = [`## ${feature.title}`, '', feature.why];
   if (feature.opportunity) {
-    lines.push('', '### 근거', `- 개발자 증언 ${feature.opportunity.evidenceCount}건: ${origin}/opportunities/${feature.opportunity.slug}`);
+    lines.push('', '### 근거', `- 개발자 원문 ${feature.opportunity.evidenceCount}건: ${origin}/opportunities/${feature.opportunity.slug}`);
     if (feature.opportunity.quote) lines.push(`- “${feature.opportunity.quote}”`);
   }
   lines.push('', '### 완료 기준', '- [ ] ');
@@ -299,7 +299,7 @@ export default function SeedAdvisor() {
       {result && result.repos.length > 0 && (
         <p aria-live="polite" className="text-sm text-muted">
           {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
-          {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-medium text-seed underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 증언과 소식을 표시합니다.</span></>}
+          {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-medium text-seed underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 원문과 소식을 표시합니다.</span></>}
           {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-medium text-seed underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
           {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
           {!savedAt && pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
@@ -328,7 +328,7 @@ export default function SeedAdvisor() {
               <p className="mt-2 leading-7 text-muted">{idea?.summary || repo.description || '설명이 없는 레포입니다.'}</p>
             </header>
 
-            <Section title="역기획 스펙" note="README·파일 구조와 가까운 기회의 증언으로 기존 구조 + 새 기능 명세를 만듭니다">
+            <Section title="역기획 스펙" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
               <PrdBuilder
                 title={`${repo.name} 역기획`}
                 evidenceIds={[]}
@@ -389,7 +389,7 @@ export default function SeedAdvisor() {
 
             {empty && (
               <p className="border-t border-outline-soft py-5 text-sm leading-6 text-muted">
-                이 레포와 이어지는 증언이나 소식을 찾지 못했습니다. 설명과 토픽을 채우면 더 잘 맞출 수 있습니다.
+                이 레포와 이어지는 원문이나 소식을 찾지 못했습니다. 설명과 토픽을 채우면 더 잘 맞출 수 있습니다.
               </p>
             )}
           </article>

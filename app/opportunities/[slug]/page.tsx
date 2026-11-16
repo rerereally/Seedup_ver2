@@ -228,14 +228,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <details className={fold}>
                   <summary className={foldSummary}>{t('성장 기록', 'Track record')}{chevron}</summary>
                   <p className="pb-4 text-sm text-muted">
-                    {history.length > 1 ? '분석을 돌릴 때마다 달라진 점만 남깁니다.' : '아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.'}
+                    {history.length > 1 ? t('분석을 돌릴 때마다 달라진 점만 남깁니다.', 'Only what changed between runs is kept.') : t('아직 한 번 분석한 상태입니다. 다음 분석에서 증언이나 경쟁 도구가 달라지면 여기에 쌓입니다.', 'Analyzed once so far. Changes in quotes or rivals in later runs will appear here.')}
                   </p>
                   <ol className="rows mb-5 [&>:last-child]:border-b-0">
                     {[...history].reverse().map((entry) => (
                       <li key={entry.at} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3.5">
                         <time dateTime={entry.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(entry.at))}</time>
                         <span className="min-w-0 flex-1 text-sm leading-6">
-                          {entry.changes.length ? entry.changes.join(' · ') : `증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`}
+                          {entry.changes.length ? entry.changes.join(' · ') : t(`증언 ${entry.evidence}건, 플랫폼 ${entry.platforms}종으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
                         </span>
                         <StatusLabel status={entry.status} lang={lang} />
                       </li>

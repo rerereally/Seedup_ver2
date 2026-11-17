@@ -389,3 +389,23 @@ test('a build estimate keeps only a known size, days inside that size, and short
   assert.deepEqual(normalizeBuild({ size: 'weekend', days: 20, stack: ['Next.js', '', 'Supabase', 'a', 'b'], hard: ['결제'] }), { size: 'weekend', days: 3, stack: ['Next.js', 'Supabase', 'a', 'b'], hard: ['결제'] });
   assert.equal(normalizeBuild({ size: 'team', days: 'x' })?.days, 31);
 });
+
+import { interestTokens, profileText, reasonFor } from '../lib/personal';
+
+test('the personal profile uses real answers only and names a matching interest as the reason', () => {
+  const answers = { interests: ['AI/LLM', '잘 모르겠음'], preferred_stack: ['Next.js', 'Supabase'], level: '초보자: 간단한 프로젝트는 만들 수 있어요' };
+  assert.deepEqual(interestTokens(answers), ['AI/LLM', 'Next.js', 'Supabase']);
+  assert.equal(profileText(null, [], []), '');
+  assert.match(profileText(answers, ['repo a'], ['plan b']), /관심: AI\/LLM, Next\.js, Supabase\n만들고 있는 것: plan b\n킵한 것: repo a/);
+  assert.equal(reasonFor('A Supabase starter', ['AI/LLM', 'Supabase'], false), '관심 분야 Supabase');
+  assert.equal(reasonFor('LLM routing', ['AI/LLM'], false), '관심 분야 AI/LLM');
+  assert.equal(reasonFor('nothing here', ['Rust'], true), '킵한 것과 비슷함');
+});
+
+import { mixByKind } from '../lib/personal';
+
+test('the for-you list takes the best of each kind in turn', () => {
+  const row = (kind: string, score: number) => ({ key: `${kind}${score}`, kind, title: '', href: '', source: '', reason: '', score });
+  const mixed = mixByKind([row('repo', 0.9), row('repo', 0.8), row('repo', 0.7), row('read', 0.4), row('problem', 0.25)], 4);
+  assert.deepEqual(mixed.map((item) => item.key), ['repo0.9', 'read0.4', 'problem0.25', 'repo0.8']);
+});

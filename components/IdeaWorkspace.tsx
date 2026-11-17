@@ -262,6 +262,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             </li>
           ))}
         </ol>
+        {/* The model is chosen before anything is written, so it sits in the bar for the whole session. */}
+        {signedIn && <div className="hidden shrink-0 sm:block"><ModelPicker models={models} /></div>}
         {/* Phones see one pane at a time, so the make action also sits here, reachable from the chat. */}
         {!generated && (signedIn
           ? <button type="button" className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden" onClick={generate} disabled={pending !== null}>{t('PRD 만들기', 'Make PRD')}</button>
@@ -318,9 +320,9 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
             {!current && !generated && (
               <Bubble role="assistant">
-                <p>{t('질문이 끝났습니다. 지금 내용으로 PRD를 만들까요? 요구사항, 기능 명세, 유저플로우, 와이어프레임이 함께 만들어집니다.', 'That is everything. Make the PRD now? Requirements, feature spec, user flow and wireframes come together.')}</p>
+                <p>{t('질문이 끝났습니다. 지금 내용으로 PRD 문서를 만들까요? 문서를 먼저 쓰고, 화면 설계와 개발 준비 칸은 문서를 확인한 뒤 버튼 하나로 이어서 만듭니다.', 'That is everything. Write the PRD document now? The document comes first; screens and readiness slots follow with one click once you have checked it.')}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {signedIn && <ModelPicker models={models} />}
+                  {signedIn && <div className="sm:hidden"><ModelPicker models={models} /></div>}
                   {signedIn
                     ? <button type="button" className="btn h-11 px-5" onClick={generate} disabled={pending === 'generate'}>{pending === 'generate' ? t('PRD 작성 중', 'Writing the PRD') : t('PRD 만들기', 'Make the PRD')}</button>
                     : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}

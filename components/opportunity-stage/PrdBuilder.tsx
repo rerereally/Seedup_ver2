@@ -195,6 +195,29 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     }
   };
 
+  // The document comes first; screens (user flow, wireframes) are designed only when the reader asks for them.
+  const designScreens = async () => {
+    if (!spec || status !== 'idle') return;
+    setStatus('revising');
+    setError('');
+    setMessage('');
+    try {
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, mode: 'screens', model, ...ideaBrief });
+      if (!ok) fail(code, json, t('화면을 설계하지 못했습니다.', 'Could not design the screens.'));
+      else {
+        const next = json.spec as Spec;
+        setSpec(next);
+        onSpec?.(next);
+        setSaveState('idle');
+        setMessage(t(`화면 ${next.screens.length}개를 설계했습니다. 유저플로우와 와이어프레임에서 볼 수 있습니다.`, `Designed ${next.screens.length} screens. See them in the user flow and wireframes.`));
+      }
+    } catch {
+      setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
+    } finally {
+      setStatus('idle');
+    }
+  };
+
   const sentInstruction = useRef(externalInstruction?.id ?? 0);
   useEffect(() => {
     if (!externalInstruction || externalInstruction.id === sentInstruction.current) return;
@@ -676,9 +699,17 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 </ul>
               )}
 
-              {view === 'wire' && <Wireframes spec={spec} focus={focus} pick={pick} lang={lang} />}
+              {(view === 'wire' || view === 'flow') && !spec.screens.length && (
+                <div className="rounded-2xl border border-dashed border-outline-strong px-6 py-8">
+                  <p className="text-[15px] font-semibold">{t('아직 화면 설계가 없습니다', 'No screens designed yet')}</p>
+                  <p className="mt-1 text-[14px] leading-6 text-muted">{t('문서를 먼저 확인하고, 기능이 맞으면 화면을 설계하세요. 기능마다 어느 화면에 나오는지, 사용자가 어떤 순서로 만나는지 만듭니다.', 'Check the document first; once the features look right, design the screens: which screen shows each feature and the order users meet them.')}</p>
+                  <button type="button" className="btn mt-4 h-11 px-5" disabled={status !== 'idle'} onClick={() => void designScreens()}>{status === 'revising' ? t('설계하는 중', 'Designing') : t('화면 설계 만들기', 'Design the screens')}</button>
+                </div>
+              )}
 
-              {view === 'flow' && (
+              {view === 'wire' && spec.screens.length > 0 && <Wireframes spec={spec} focus={focus} pick={pick} lang={lang} />}
+
+              {view === 'flow' && spec.screens.length > 0 && (
                 <div>
                   <ol className={styles.flow}>
                     {spec.screens.map((screen) => (

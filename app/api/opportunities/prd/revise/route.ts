@@ -4,7 +4,7 @@ import { inputFromBody } from '@/lib/opportunities/idea';
 import { loadPrdPolicy, pickPrdModel } from '@/lib/opportunities/models';
 import { prdRunLog } from '@/lib/opportunities/prd-runs';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { reviseSpec } from '@/lib/opportunities/prd';
+import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeSlots } from '@/lib/opportunities/spec';
 import type { Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
@@ -63,8 +63,10 @@ export async function POST(request: Request) {
   if (!supabase || !data.user) return NextResponse.json({ error: '로그인 후 사용할 수 있습니다.' }, { status: 401 });
 
   const body = await request.json().catch(() => null);
+  // mode "screens" designs the screens of a document-first PRD; everything else in the spec stays as it is.
+  const screensOnly = body?.mode === 'screens';
   const instruction = clip(body?.instruction, 300);
-  if (instruction.length < 2) return NextResponse.json({ error: '어떻게 고칠지 적어 주세요.' }, { status: 400 });
+  if (!screensOnly && instruction.length < 2) return NextResponse.json({ error: '어떻게 고칠지 적어 주세요.' }, { status: 400 });
   const { opportunities } = await getOpportunities();
   const resolved = inputFromBody(opportunities, body, toLang(typeof body?.spec?.lang === 'string' ? body.spec.lang : null));
   if (!resolved) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
@@ -79,14 +81,17 @@ export async function POST(request: Request) {
   const service = createAdminClient();
   const model = pickPrdModel(body?.model, await loadPrdPolicy(service));
   const run = prdRunLog(service, data.user, 'revise', model ?? 'default');
-  const spec = await reviseSpec(input, current, instruction, model, undefined, run.onUsage).catch((error) => {
+  const work = screensOnly
+    ? generateScreens(input, current, model, run.onUsage).then((screens) => (screens ? { ...current, screens } : null))
+    : reviseSpec(input, current, instruction, model, undefined, run.onUsage);
+  const spec = await work.catch((error) => {
     console.error('PRD revise failed', error);
     return null;
   });
   await run.finish(Boolean(spec), input.title);
   if (!spec) {
     await releaseDailyUsage(supabase, 'prd_revise');
-    return NextResponse.json({ error: '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });
+    return NextResponse.json({ error: screensOnly ? '화면을 설계하지 못했습니다. 잠시 후 다시 시도해주세요.' : '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });
   }
   return NextResponse.json({ ok: true, spec });
 }

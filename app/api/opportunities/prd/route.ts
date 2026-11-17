@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   // Every account may pick a model; the admin's policy decides which ones run. Anything else falls back to free.
   const model = pickPrdModel(body?.model, await loadPrdPolicy(cache));
   const run = prdRunLog(cache, data.user, 'prd', model ?? 'default');
-  const result = await generatePrd(input, { draft, lang: toLang(body?.lang), idea: personal, model, onUsage: run.onUsage, beginner }).catch((error) => {
+  const result = await generatePrd(input, { draft, lang: toLang(body?.lang), idea: personal, model, onUsage: run.onUsage, beginner, screens: false }).catch((error) => {
     console.error('PRD generation failed', error);
     return null;
   });

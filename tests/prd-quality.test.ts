@@ -14,7 +14,7 @@ test('the code check names vague, unserved and unmeasured parts, and stays quiet
   assert.match(issues, /detail이 너무 짧/);
   assert.match(issues, /모호한 표현/);
   assert.match(issues, /충족하는 기능이 없/);
-  assert.match(issues, /측정 가능한 숫자/);
+  assert.match(issues, /metrics 1개에 숫자나 조건이 없습니다/);
 
   const good = normalizeSpec({
     summary: 's',

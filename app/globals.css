@@ -1,5 +1,5 @@
 /* Hallmark · redesign: full (landing) · genre: modern-minimal · job: sign up (make a PRD) · theme: brand (seed green, Pretendard) · nav: dense bar, one action · footer: one row · rules: DESIGN.md */
-/* Hallmark · rebuilt the landing PRD-first (approved 2026-11-17): the four-step list, the quote section and the stats row became the hero walkthrough, the track-record chart and dated figures; the email close became the idea box · sloplint before 4 FAIL 3 REFLEX, after 0 FAIL 0 REFLEX · waive 39b: the PRD graph boxes in the hero demo are 60px diagram nodes that take focus to trace a chain, not form controls */
+/* Hallmark · rebuilt the landing PRD-first (approved 2026-11-17): the four-step list, the quote section and the stats row became the hero walkthrough, the track-record chart and dated figures; the email close became the idea box · sloplint before 4 FAIL 3 REFLEX, after 0 FAIL 0 REFLEX · waive 39b: the PRD graph boxes in the hero demo are 60px diagram nodes that take focus to trace a chain, not form controls · waive 39b (PRD document rows): each requirement, feature and screen line is a tall pressable row that traces its quotes, not a form control · waive 79 (/prd): a start screen centred on its one field, like a search page; the problem list starts below the fold on purpose */
 @import "tailwindcss";
 
 @font-face {

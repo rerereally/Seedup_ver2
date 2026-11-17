@@ -1,7 +1,9 @@
 export type Matchable = { slug: string; name: string; keywords: string[] };
 
 // Words that describe almost every candidate, so they must not select one on their own.
-const WEAK_TERMS = new Set(['ai', '에이전트', 'agent', 'agents', '코딩', 'coding', '개발', '도구', 'tool', 'tools', '서비스', '앱', '툴', '만들기', '위한', '관리']);
+// Includes the glue words of a one-line Korean idea ("…를 한곳에서 관리하는 웹"), which once matched any problem whose
+// name ended in 관리.
+const WEAK_TERMS = new Set(['ai', '에이전트', 'agent', 'agents', '코딩', 'coding', '개발', '도구', 'tool', 'tools', '서비스', '앱', '툴', '만들기', '위한', '관리', '관리하는', '웹', 'web', 'app', 'api', '하는', '있는', '쓰는', '보는', '대신', '한곳에서', '자동으로', '쉽게', '위해', '기반', '플랫폼', 'platform']);
 
 const isAscii = (value: string) => /^[\x00-\x7f]+$/.test(value);
 
@@ -10,8 +12,9 @@ export function queryTokens(query: string) {
 }
 
 function tokenHits(item: Matchable, token: string) {
+  // A weak or one-letter Korean token never selects a problem, not even through its name.
+  if (WEAK_TERMS.has(token) || (!isAscii(token) && token.length < 2)) return false;
   if (item.name.toLowerCase().includes(token)) return true;
-  if (WEAK_TERMS.has(token)) return false;
   return item.keywords.some((keyword) => {
     // Short Latin words such as "ci" need an exact match. Korean words carry particles, as in 규칙을.
     if (isAscii(keyword) && keyword.length < 3) return token === keyword;

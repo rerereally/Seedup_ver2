@@ -498,11 +498,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
                     {t('에이전트 파일', 'Agent file')}
                     <select className="h-9 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
+                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{key === 'prompt' ? t('Lovable·Bolt·v0 프롬프트', 'Lovable·Bolt·v0 prompt') : EXPORT_FILES[key]}</option>)}
                     </select>
                   </label>
                   <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
-                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format].split('/').pop()!, brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
                   <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 에이전트 연결부터', 'First time? Connect your agent')}</Link>
                 </div>
               </details>

@@ -48,12 +48,12 @@ export const TOOLS = [
   },
   {
     name: 'generate_verified_prd',
-    description: 'An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, .cursorrules or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
+    description: 'An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
     inputSchema: {
       type: 'object',
       properties: {
         slug: { type: 'string' },
-        format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prd'], description: 'Default agents (AGENTS.md)' },
+        format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
         fresh: { type: 'boolean', description: 'Generate again instead of returning the last good PRD' },
       },
       required: ['slug'],
@@ -159,7 +159,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     return text(`${describe(opportunity, siteUrl)}\n\nGap: ${opportunity.gap || 'unknown'}\n\nVerified quotes:\n${quotes}\n\nDirect competitors:\n${rivals || '- none found'}`);
   }
   if (name === 'generate_verified_prd' && opportunity) {
-    const format = (['agents', 'claude', 'cursor', 'prd'].includes(String(args.format)) ? String(args.format) : 'agents') as ExportFormat | 'prd';
+    const format = (['agents', 'claude', 'cursor', 'prompt', 'prd'].includes(String(args.format)) ? String(args.format) : 'agents') as ExportFormat | 'prd';
     const picked = prdEvidence(opportunity).map((evidence) => ({ evidence, slug }));
     const ids = picked.map((item) => item.evidence.id);
     let result = args.fresh ? null : await deps.cachedSpec(ids);

@@ -9,7 +9,11 @@ export default function McpConnect({ siteUrl }: { siteUrl: string }) {
   const [message, setMessage] = useState('');
   const endpoint = `${siteUrl.replace(/\/+$/, '')}/api/mcp`;
   const claude = `claude mcp add --transport http seedup ${endpoint} --header "Authorization: Bearer ${token || '[토큰]'}"`;
-  const cursor = JSON.stringify({ mcpServers: { seedup: { url: endpoint, headers: { Authorization: `Bearer ${token || '[토큰]'}` } } } }, null, 2);
+  const server = { url: endpoint, headers: { Authorization: `Bearer ${token || '[토큰]'}` } };
+  const cursor = JSON.stringify({ mcpServers: { seedup: server } }, null, 2);
+  // One-click installs: the editors open their own "add MCP server" dialog with this config filled in.
+  const cursorInstall = `cursor://anysphere.cursor-deeplink/mcp/install?name=seedup&config=${encodeURIComponent(btoa(JSON.stringify(server)))}`;
+  const vscodeInstall = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'seedup', type: 'http', ...server }))}`;
 
   const request = async (method: 'POST' | 'DELETE') => {
     setState('working');
@@ -55,7 +59,15 @@ export default function McpConnect({ siteUrl }: { siteUrl: string }) {
 
       <section>
         <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">2</span> 에이전트에 추가하기</h2>
-        <p className="mt-4 text-sm font-medium text-ink">Claude Code</p>
+        {token ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a className="btn h-11 px-5" href={cursorInstall}>Cursor에 바로 추가</a>
+            <a className="btn-quiet h-11" href={vscodeInstall}>VS Code에 바로 추가</a>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted">토큰을 만들면 Cursor·VS Code에 버튼 한 번으로 추가할 수 있습니다.</p>
+        )}
+        <p className="mt-6 text-sm font-medium text-ink">Claude Code</p>
         <pre className="terminal mt-2 whitespace-pre-wrap break-all">{claude}</pre>
         <button type="button" className="btn-quiet mt-2" onClick={() => void copy(claude)}>명령 복사</button>
         <p className="mt-6 text-sm font-medium text-ink">Cursor (.cursor/mcp.json)</p>

@@ -361,3 +361,22 @@ test('opportunity names get standard casing and known term fixes, nothing else',
   assert.equal(tidyName('github ios 앱'), 'GitHub iOS 앱');
   assert.equal(tidyName('Agent guardrails for databases'), 'Agent guardrails for databases');
 });
+
+import { isBeginner } from '../lib/onboarding';
+
+test('the builder prompt carries backed features and quotes, and the Cursor rule has front matter', () => {
+  const input = { title: 'T', problem: 'P', gap: '', evidence: [evidence(1), evidence(2)], competitors: [] };
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'real', evidence: [1] }, { title: 'guess', evidence: [] }], features: [{ title: 'build it', requirements: [1] }] }, 2);
+  const prompt = renderAgentBrief(input, spec, 'prompt');
+  assert.match(prompt, /1\. build it/);
+  assert.match(prompt, /"quote 1"/);
+  assert.doesNotMatch(prompt, /guess|E-\d|```mermaid/);
+  assert.match(renderAgentBrief(input, spec, 'cursor'), /^---\ndescription: .*\nalwaysApply: true\n---/);
+});
+
+test('only 입문자 and 초보자 count as beginners', () => {
+  assert.equal(isBeginner({ level: '입문자: 개발을 막 시작했어요' }), true);
+  assert.equal(isBeginner({ level: ['초보자: 간단한 프로젝트는 만들 수 있어요'] }), true);
+  assert.equal(isBeginner({ level: '중급자: 서비스 구조와 배포까지 어느 정도 알아요' }), false);
+  assert.equal(isBeginner(null), false);
+});

@@ -90,9 +90,10 @@ export type SpecInput = {
   competitors: string[];
 };
 
-export type ExportFormat = 'agents' | 'claude' | 'cursor';
+export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 
-export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursorrules' };
+/** Where each brief goes. `prompt` is no repo file: it is pasted as the first message in Lovable, Bolt, v0 or Replit. */
+export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursor/rules/seedup.mdc', prompt: 'prompt.md' };
 
 type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown };
 
@@ -299,10 +300,12 @@ ${evidenceSection(input.evidence, lang)}
 
 /** A brief an AI coding tool follows directly. The three formats share one body so they never drift apart. */
 export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents') {
-  const intro: Record<ExportFormat, string> = {
+  if (format === 'prompt') return renderBuilderPrompt(input, spec);
+  const intro: Record<Exclude<ExportFormat, 'prompt'>, string> = {
     agents: `# ${input.title}\n\nInstructions for coding agents (Codex and others) working in this repository.`,
     claude: `# CLAUDE.md: ${input.title}\n\nClaude Code reads this file at the start of every session in this repository.`,
-    cursor: `# ${input.title}: Cursor rules\n\nYou are working in a project defined by the spec below. Follow it exactly.`,
+    // Cursor reads project rules from .cursor/rules/*.mdc; this front matter applies the rule to every request.
+    cursor: `---\ndescription: Product spec for ${input.title.replace(/\s+/g, ' ')}\nalwaysApply: true\n---\n\n# ${input.title}: Cursor rules\n\nYou are working in a project defined by the spec below. Follow it exactly.`,
   };
   const tasks = spec.features.map((feature) => {
     const requirements = feature.requirementIds.map((rid) => spec.requirements.find((row) => row.id === rid)).filter(Boolean);
@@ -335,5 +338,31 @@ ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 
 ## User evidence
 ${evidenceSection(input.evidence, 'en')}
+`;
+}
+
+/**
+ * The first message for app builders (Lovable, Bolt, v0, Replit) that read no repository files: one paste,
+ * only backed features, and a few real quotes so the builder knows who it is for.
+ */
+export function renderBuilderPrompt(input: SpecInput, spec: Spec) {
+  const rows = spec.features.length ? spec.features : spec.requirements;
+  const features = rows.map((row, index) => `${index + 1}. ${row.title}: ${row.detail}`).join('\n');
+  const quotes = input.evidence.slice(0, 3).map((item) => `- "${item.quote}"`).join('\n');
+  const screens = spec.screens.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n');
+  return `Build a simple web app: ${input.title}.
+
+What it does: ${spec.summary}
+${spec.targetUsers.length ? `Who it is for: ${spec.targetUsers.join(', ')}\n` : ''}
+The problem, in real users' words:
+${quotes || `- ${input.problem}`}
+
+Build only these features for the first version, one at a time, and show me each one before the next:
+${features || '1. Confirm the problem with users before building.'}
+${screens ? `\nScreens:\n${screens}\n` : ''}
+Do not build yet:
+${bullets(spec.nonGoals, 'Anything not listed above.')}
+
+Keep it simple: no sign-up unless a feature needs it, use sample data first, and ask me before adding payments or outside APIs.
 `;
 }

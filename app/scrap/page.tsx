@@ -85,7 +85,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
       <WorkShell>
         <PageIntro
           title="보관함"
-          description="담아 둔 원문, 글, PRD."
+          description="저장한 PRD와 킵한 저장소, 글, 논문. 킵한 것은 코딩 에이전트가 MCP get_kept_items로 가져갑니다."
           aside={savedItems.length > 0 ? (
             <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-[10px] border border-outline-strong bg-white px-4 transition-colors focus-within:border-seed sm:w-72">
               <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
@@ -105,7 +105,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                     <p className="text-[17px] font-semibold leading-snug text-ink">{dossier.title}</p>
                     <time dateTime={dossier.updated_at} className="shrink-0 text-[13px] text-muted">{formatDate(dossier.updated_at)}</time>
                   </div>
-                  <p className="mt-1 text-sm text-muted">원문 <span className="num">{dossier.evidence_ids.length}</span>건 · {dossier.prd_markdown ? 'PRD 있음' : 'PRD 없음'} · {dossier.shared === true ? '공유 링크 켜짐' : '공유 안 함'}</p>
+                  <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-muted"><span>원문 <span className="num">{dossier.evidence_ids.length}</span>건</span><span>{dossier.prd_markdown ? 'PRD 있음' : 'PRD 없음'}</span><span>{dossier.shared === true ? '공유 링크 켜짐' : '공유 안 함'}</span></p>
                   {dossier.notes.length > 0 && (
                     <div className="mt-4 border-l-2 border-seed pl-4">
                       <p className="label">PRD에서 고칠 것</p>
@@ -115,7 +115,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                     </div>
                   )}
                   <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} />
-                  {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="link-seed mt-2">기회 다시 보기 ›</Link>}
+                  {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="link-seed mt-2">기회 다시 보기</Link>}
                 </li>
               ))}
             </ul>
@@ -138,9 +138,9 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
             <div className="mt-4">
               <EmptyState
                 title={savedItems.length ? '조건에 맞는 것이 없습니다' : '아직 저장한 것이 없습니다'}
-                description={savedItems.length ? '찾는 말이나 종류를 바꿔 보세요.' : '기회에서 원문을 담거나 글, 저장소, 제품의 책갈피를 누르면 여기에 모입니다.'}
-                actionHref={savedItems.length ? '/scrap' : '/opportunities'}
-                actionLabel={savedItems.length ? '전체 보기' : '기회 살펴보기'}
+                description={savedItems.length ? '찾는 말이나 종류를 바꿔 보세요.' : '글이나 저장소에서 킵하기를 누르거나 PRD를 저장하면 여기에 모입니다.'}
+                actionHref={savedItems.length ? '/scrap' : '/news?tab=github'}
+                actionLabel={savedItems.length ? '전체 보기' : '이번 주 오픈소스 보기'}
               />
             </div>
           ) : (
@@ -150,8 +150,10 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                   <div className="min-w-0 flex-1 basis-72">
                     <Link href={`/scrap/${item.id}`} className="text-[17px] font-semibold leading-snug text-ink underline-offset-4 hover:underline">{item.title}</Link>
                     {item.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{item.description}</p>}
-                    <p className="mt-1 text-[13px] text-muted">
-                      {[TYPE_LABELS[item.item_type] ?? item.item_type, item.tag].filter(Boolean).join(' · ')} · <Link href={getContentHref(item.item_type, item.item_id)} className="font-medium text-seed underline-offset-4 hover:underline">원본 ›</Link>
+                    <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">
+                      <span>{TYPE_LABELS[item.item_type] ?? item.item_type}</span>
+                      {item.tag && <span>{item.tag}</span>}
+                      <Link href={getContentHref(item.item_type, item.item_id)} className="font-semibold text-seed underline-offset-4 hover:underline">원본 보기</Link>
                     </p>
                   </div>
                   <time dateTime={item.created_at} className="shrink-0 text-[13px] text-muted">{formatDate(item.created_at)}</time>

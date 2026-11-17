@@ -351,3 +351,13 @@ test('forum posts drop the replies they quote and are recognised by host', () =>
   assert.equal(forumHostOf('https://forum.cursor.com/t/x/1/2'), 'forum.cursor.com');
   assert.equal(forumHostOf('https://example.com/t/x/1/2'), null);
 });
+
+import { tidyName } from '../lib/opportunities/names';
+
+test('opportunity names get standard casing and known term fixes, nothing else', () => {
+  assert.equal(tidyName('gif 검색 api 대안'), 'GIF 검색 API 대안');
+  assert.equal(tidyName('메시 브레프 변환'), '메시 B-rep 변환');
+  assert.equal(tidyName('ai 라텍스 렌더링 오류'), 'AI LaTeX 렌더링 오류');
+  assert.equal(tidyName('github ios 앱'), 'GitHub iOS 앱');
+  assert.equal(tidyName('Agent guardrails for databases'), 'Agent guardrails for databases');
+});

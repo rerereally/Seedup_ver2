@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import AgentStart from '@/components/AgentStart';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
@@ -109,6 +110,8 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
             {t('요구사항 → 기능 → 화면까지 이어진 PRD를 만듭니다. 항목을 누르면 그 항목이 기대는 원문이 함께 강조됩니다.', 'Build a PRD traced from requirements to features to screens. Click any item to light up the quotes behind it.')}
             {!ready && <> {t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐 가설 초안으로 만듭니다.', 'The quotes are below the bar (3 quotes, 2 platforms), so it is made as a hypothesis draft.')}</>}
           </p>
+          {/* MCP builds from the evidence-only PRD of an opportunity, so the hand-off is offered only for one. */}
+          {opportunity && <AgentStart slug={opportunity.slug} name={title} className="mt-4" />}
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
           <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} models={prdModels(await loadPrdPolicy(createAdminClient()))} />

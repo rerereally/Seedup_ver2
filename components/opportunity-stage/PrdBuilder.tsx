@@ -32,7 +32,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [] }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [], hideRevise = false }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -61,6 +61,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   progress?: BuildProgress;
   /** The server's model menu; the pick is shared with every PRD screen through browser storage. */
   models?: PrdModel[];
+  /** The idea chat takes change requests itself, so the side form would only repeat it. */
+  hideRevise?: boolean;
 }) {
   const lang = useLang();
   const t = translator(lang);
@@ -74,6 +76,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
+  // Seconds since the current PRD request started, so the wait shows where the work usually is.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (status !== 'loading') return;
+    const timer = setInterval(() => setElapsed((seconds) => seconds + 1), 1_000);
+    return () => clearInterval(timer);
+  }, [status]);
   const [slotPending, setSlotPending] = useState<string[]>([]);
   const [instruction, setInstruction] = useState('');
   // The maker's own direction, written before the PRD is made so it shapes the first draft, not a later edit.
@@ -94,6 +103,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   };
 
   const generate = async () => {
+    setElapsed(0);
     setStatus('loading');
     setError('');
     setMessage('');
@@ -371,6 +381,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         </button>
       </div>}
       {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
+      {status === 'loading' && <PrdProgress elapsed={elapsed} lang={lang} />}
       {children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
         {needsLogin && <p><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
@@ -395,16 +406,20 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             <div className="flex flex-wrap items-center gap-2">
               <details className="relative">
                 <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('내보내기', 'Export')}</summary>
-                <div className="absolute right-0 z-20 mt-2 flex w-56 flex-col gap-0.5 rounded-xl border border-outline-soft bg-white p-1.5 shadow-lg">
+                <div className="absolute right-0 z-20 mt-2 flex w-60 flex-col gap-0.5 rounded-xl border border-outline-soft bg-white p-1.5 shadow-lg">
+                  {/* The agent file format lives here, next to the downloads it changes, instead of as its own control. */}
+                  <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
+                    {t('에이전트 파일', 'Agent file')}
+                    <select className="h-8 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
+                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
+                    </select>
+                  </label>
                   <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
                   <button type="button" className={quietButton} onClick={() => void copy('PRD', markdown)}>{t('PRD 복사', 'Copy PRD')}</button>
                   <button type="button" className={quietButton} onClick={() => downloadText('PRD.md', markdown)}>{t('PRD.md 받기', 'Download PRD.md')}</button>
                   {spec.screens.length > 0 && <button type="button" className={quietButton} onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
                 </div>
               </details>
-              <select aria-label={t('AI 코딩 도구 파일 형식', 'File format for AI coding tools')} className="h-10 border bg-white px-2.5 text-sm" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-                {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
-              </select>
               {/* "Send to the agent" is a copy: the brief goes on the clipboard, ready to paste into the coding tool. */}
               <button type="button" className="btn" onClick={() => void copy(EXPORT_FILES[format], brief)}>{t('에이전트로 보내기', 'Send to agent')}</button>
             </div>
@@ -486,7 +501,20 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <h4 id="prd-done" className={h2}>{t('완료 기준', 'Done when')}</h4>
                       {bullets(spec.metrics)}
                     </section>
-                    {input.competitors.length > 0 && (
+                    {spec.rivals?.length ? (
+                      <section>
+                        <h4 className={h2}>{t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}</h4>
+                        <p className="mt-1 text-[13px] text-muted">{t('경쟁 도구 목록과 원문으로만 썼습니다. 도구 설명을 직접 확인한 뒤 쓰세요.', 'Written only from the competitor list and the quotes. Check each tool before relying on it.')}</p>
+                        <ul className="rows mt-3">
+                          {spec.rivals.map((row) => (
+                            <li key={row.name} className="grid gap-1 py-3.5 text-[15px] leading-7 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4">
+                              <b className="font-semibold">{row.name}</b>
+                              <span className="min-w-0">{row.misses}{row.answer && <span className="block text-sm leading-6 text-seed">→ {row.answer}</span>}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : input.competitors.length > 0 && (
                       <section>
                         <h4 className={h2}>{t('이미 있는 도구', 'Existing tools')}</h4>
                         {bullets(input.competitors)}
@@ -584,7 +612,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
             <aside className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-24 lg:self-start">
               {detail}
-              <form onSubmit={(event) => { event.preventDefault(); void revise(); }}>
+              {!hideRevise && <form onSubmit={(event) => { event.preventDefault(); void revise(); }}>
                 <label htmlFor="prd-revise" className="text-[15px] font-semibold">{t('수정 요청', 'Request a change')}</label>
                 <p className="mt-1 text-[13px] text-muted">{t('고친 내용도 원문 검사를 다시 거칩니다.', 'Changes go through the source check again.')}</p>
                 <textarea id="prd-revise" rows={4} value={instruction} maxLength={300} onChange={(event) => setInstruction(event.target.value)} placeholder={t('예: 타겟을 초보 개발자로 좁혀줘', 'e.g. Narrow the target to beginner developers')} disabled={busy} className="mt-3 block w-full border bg-white px-3 py-2.5 text-sm leading-6" />
@@ -592,7 +620,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   <button type="submit" className="btn-quiet" disabled={busy || instruction.trim().length < 2}>{status === 'revising' ? t('고치는 중', 'Revising') : t('요청 보내기', 'Send request')}</button>
                   {previous && <button type="button" className="text-sm font-medium text-seed underline-offset-4 hover:underline" onClick={undo} disabled={busy}>{t('되돌리기', 'Undo')}</button>}
                 </div>
-              </form>
+              </form>}
             </aside>
           </div>
         </section>
@@ -713,6 +741,38 @@ function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: string | n
         })}
       </ol>
       <p className="mt-3 text-[13px] text-muted">{t('번호를 누르면 그 기능의 명세가 오른쪽에 열립니다. 점선 상자는 원문이 받쳐 주지 않는 가설 기능입니다.', 'Click a number to open that feature on the right. Dashed boxes are features no quote backs.')}</p>
+    </div>
+  );
+}
+
+// Where a PRD request usually is after so many seconds. The server answers in one piece, so these are typical
+// timings, said as such, not live reports.
+const PROGRESS_STEPS: Array<[number, string, string]> = [
+  [0, '원문과 의견을 읽는 중', 'Reading the quotes and your notes'],
+  [8, '요구사항을 쓰는 중', 'Writing the requirements'],
+  [30, '기능과 화면을 잇는 중', 'Linking features and screens'],
+  [55, '빠진 곳을 검사하고 보완하는 중', 'Checking for gaps and repairing'],
+];
+const EXPECTED_SECONDS = 90;
+
+function PrdProgress({ elapsed, lang }: { elapsed: number; lang: 'ko' | 'en' }) {
+  const t = translator(lang);
+  const current = PROGRESS_STEPS.filter(([from]) => elapsed >= from).length - 1;
+  return (
+    <div className="mt-5 max-w-[52em] rounded-2xl border border-outline-soft bg-white p-5" role="status" aria-live="polite">
+      <div className="flex items-baseline justify-between gap-4">
+        <p className="text-[15px] font-semibold">{t(PROGRESS_STEPS[current][1], PROGRESS_STEPS[current][2])}</p>
+        <p className="num text-sm text-muted">{elapsed}{t('초', 's')}</p>
+      </div>
+      <span aria-hidden="true" className="mt-3 block h-1.5 overflow-hidden rounded-full bg-surface-high">
+        <span className="block h-full rounded-full bg-seed transition-[width] duration-1000" style={{ width: `${Math.min(95, (elapsed / EXPECTED_SECONDS) * 100)}%` }} />
+      </span>
+      <ol className="mt-4 grid gap-1.5 text-sm sm:grid-cols-4">
+        {PROGRESS_STEPS.map(([from, ko, en], index) => (
+          <li key={from} className={index < current ? 'text-seed' : index === current ? 'font-medium text-ink' : 'text-muted'}>{index < current ? '✓ ' : ''}{t(ko, en)}</li>
+        ))}
+      </ol>
+      <p className="mt-3 text-[13px] text-muted">{t('보통 30초~1분 30초 걸립니다. 무료 모델은 더 오래 걸리거나 실패할 수 있습니다.', 'Usually 30 to 90 seconds. Free models can take longer or fail.')}</p>
     </div>
   );
 }

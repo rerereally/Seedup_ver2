@@ -52,6 +52,7 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
     draft,
     ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
     lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
+    ...(Array.isArray(raw.rivals) ? { rivals: list(raw.rivals, 8).map((row) => { const item = (row ?? {}) as Record<string, unknown>; return { name: clip(item.name, 120), misses: clip(item.misses, 240), answer: clip(item.answer, 240) }; }).filter((row) => row.name && row.misses) } : {}),
     ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
 }

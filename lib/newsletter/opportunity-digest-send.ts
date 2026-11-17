@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Opportunity, OpportunitySnapshot } from '@/lib/opportunities/types';
+import { tidyOpportunity } from '@/lib/opportunities/names';
 import { buildOpportunityDigest } from './opportunity-digest';
 import type { DigestIssue, DigestKind, DigestLine, DigestRead } from './opportunity-digest';
 import { behaviorSignals, buildRecommendationProfile, scoreNewsletterItems } from '@/lib/recommendations';
@@ -37,7 +38,7 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
   if (service) {
     const { data, error } = await service.from('opportunities').select('data').eq('published', true);
     if (error) throw new Error(`could not read opportunities: ${error.message}`);
-    opportunities = (data ?? []).map((row) => row.data as Opportunity);
+    opportunities = (data ?? []).map((row) => tidyOpportunity(row.data as Opportunity));
   }
   const snapshotFile = resolve(process.cwd(), 'lib/opportunities/data/snapshot.json');
   if (!opportunities.length && existsSync(snapshotFile)) opportunities = (JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot).opportunities;

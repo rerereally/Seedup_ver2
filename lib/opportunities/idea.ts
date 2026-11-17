@@ -1,5 +1,6 @@
 import { specInputFor } from './context';
 import { findEvidence } from './data';
+import { readLiveEvidence } from './live-evidence';
 import type { SpecInput } from './spec';
 import type { Evidence, Opportunity } from './types';
 
@@ -65,8 +66,10 @@ export function withNotes(input: SpecInput, notes: string, lang: 'ko' | 'en' = '
 /** One reader for the PRD, revise and slots routes: an idea brief when one is sent, otherwise the classic quote list. */
 export function inputFromBody(opportunities: Opportunity[], body: Record<string, unknown> | null, lang: 'ko' | 'en') {
   const evidenceIds = (Array.isArray(body?.evidenceIds) ? body.evidenceIds : []).filter((id): id is string => typeof id === 'string').slice(0, MAX_EVIDENCE);
-  const picked = findEvidence(opportunities, evidenceIds);
   const brief = readBrief(body?.brief);
+  // Quotes found on the web for this idea count only in idea mode, and only with this server's signature.
+  const live = brief ? readLiveEvidence(body?.liveEvidence, MAX_EVIDENCE).map((evidence) => ({ evidence, slug: 'live' })) : [];
+  const picked = [...findEvidence(opportunities, evidenceIds), ...live].slice(0, MAX_EVIDENCE);
   const notes = readNotes(body);
   if (brief) return { input: withNotes(ideaSpecInput(opportunities, brief, picked, lang), notes, lang), picked, brief, notes };
   const input = specInputFor(opportunities, picked, clip(body?.title, 120), lang);

@@ -121,3 +121,10 @@ test('a top-up adds only new sources and re-judges the evidence bar', () => {
   assert.equal(grown.qualified, true);
   assert.equal(grown.lastSeenAt, DAY2);
 });
+
+import { searchPhrases } from '../lib/opportunities/topup';
+
+test('top-up search phrases pair up English keywords and skip Korean ones', () => {
+  assert.deepEqual(searchPhrases({ keywords: ['cron', '크론', 'queue', 'worker', 'monitoring', 'node.js', 'jobs', 'x'] }), ['cron queue', 'worker monitoring', 'node.js jobs']);
+  assert.deepEqual(searchPhrases({ keywords: ['크론', '큐'] }), []);
+});

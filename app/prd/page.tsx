@@ -3,14 +3,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import { BookOpen, FileSearch, GitBranch } from 'lucide-react';
 import AgentStart from '@/components/AgentStart';
+import IdeaComposer from '@/components/IdeaComposer';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
-import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
+import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache, samplePrdSlug } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { localizedOpportunity } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -32,21 +34,40 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     const qualified = opportunities.filter((item) => item.qualified);
     // Saved PRDs open at once for anyone, so the list says which ones are ready to read.
     const service = createAdminClient();
+    const sample = await samplePrdSlug(service, [...qualified].sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'))).catch(() => null);
     const saved = new Set((await Promise.all(qualified.map(async (item) => ((await readPrdCache(service, item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
     return (
       <>
         <Header />
         <main id="main-content" className="page-shell grow">
-          <h1 className="page-intro-title">PRD</h1>
-          <p className="page-intro-description">{t('내 아이디어로 시작하거나, 기준을 통과한 문제에서 시작합니다. 어느 쪽이든 원문이 받쳐 주는 줄만 근거로 표시하고 나머지는 가설로 남깁니다.', 'Start from your own idea or from a problem that passed the bar. Either way, only lines quotes back count as evidence; the rest stay hypotheses.')}</p>
-          <form action="/prd/new" className="mt-8 flex max-w-[760px] flex-col gap-2.5 rounded-2xl border border-outline-strong bg-white p-2.5 focus-within:border-ink sm:flex-row sm:items-center">
-            <label htmlFor="prd-idea" className="sr-only">{t('만들고 싶은 것', 'What you want to build')}</label>
-            <input id="prd-idea" name="idea" required minLength={4} maxLength={300} placeholder={t('만들고 싶은 것을 적어 주세요. 예: AI 에이전트의 DB 접근을 막는 가드레일', 'What do you want to build? e.g. guardrails for AI agents')} className="h-12 min-w-0 flex-1 border-0 bg-transparent px-3 text-base outline-none placeholder:text-muted" />
-            <button type="submit" className="btn h-12 px-5">{t('아이디어로 PRD 만들기', 'Make a PRD from my idea')}</button>
-          </form>
-          <h2 id="verified" className="mt-16 scroll-mt-24 text-xl font-bold tracking-tight">{t('기준을 통과한 문제로 시작하기', 'Start from a problem that passed the bar')}</h2>
+          <section className="mx-auto flex max-w-[860px] flex-col items-center pt-6 text-center md:pt-14" aria-labelledby="prd-start-heading">
+            <h1 id="prd-start-heading" className="text-[clamp(28px,4vw,44px)] font-bold leading-[1.2] tracking-[-0.035em] [text-wrap:balance]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
+            <p className="mt-3 max-w-[36em] text-[16px] leading-7 text-tertiary">{t('원문이 받쳐 주는 줄만 근거로 표시하고, 나머지는 가설로 남깁니다.', 'Only lines real quotes back count as evidence; the rest stay hypotheses.')}</p>
+            <div className="mt-8 w-full"><IdeaComposer /></div>
+          </section>
+
+          <section className="mx-auto mt-16 max-w-[860px]" aria-labelledby="ways-heading">
+            <h2 id="ways-heading" className="text-[15px] font-semibold text-tertiary">{t('다른 방법으로 시작하기', 'Other ways to start')}</h2>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+              {([
+                [sample ? `/prd?opportunity=${encodeURIComponent(sample)}` : '#verified', t('예시 PRD 둘러보기', 'See an example PRD'), t('저장된 PRD로 문서·기능 명세·와이어프레임을 바로 봅니다', 'Open a saved PRD: document, feature graph, wireframes'), BookOpen],
+                ['#verified', t('검증된 문제로 시작', 'Start from a verified problem'), t('원문 3건·플랫폼 2곳을 넘은 문제에서 근거 있는 PRD를 만듭니다', 'Build an evidence-backed PRD from a problem that passed the bar'), FileSearch],
+                ['/seeds', t('내 저장소로 역기획', 'Reverse-spec my repo'), t('GitHub 레포를 읽고 빠진 기능을 원문 근거로 제안합니다', 'Read a GitHub repo and suggest missing features from quotes'), GitBranch],
+              ] as const).map(([href, title, body, Icon]) => (
+                <li key={title}>
+                  <Link href={href} className="card flex h-full flex-col p-5 transition-colors hover:border-outline-strong">
+                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-surface-mid text-tertiary"><Icon aria-hidden="true" className="h-5 w-5" /></span>
+                    <span className="mt-5 text-[16px] font-semibold text-ink">{title}</span>
+                    <span className="mt-1.5 text-sm leading-6 text-muted">{body}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <h2 id="verified" className="mx-auto mt-20 max-w-[860px] scroll-mt-24 text-xl font-bold tracking-tight">{t('기준을 통과한 문제로 시작하기', 'Start from a problem that passed the bar')}</h2>
           {qualified.length ? (
-            <ul className="rows mt-5">
+            <ul className="rows mx-auto mt-5 max-w-[860px]">
               {qualified.map((item) => {
                 const text = localizedOpportunity(item, lang);
                 return (
@@ -63,9 +84,9 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
               })}
             </ul>
           ) : (
-            <p className="empty-state mt-10">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
+            <p className="empty-state mx-auto mt-10 max-w-[860px]">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
           )}
-          <Link href="/opportunities" className="link-seed mt-6">{t('기회 전체 보기', 'See all opportunities')} ›</Link>
+          <div className="mx-auto max-w-[860px]"><Link href="/opportunities" className="link-seed mt-6">{t('기회 전체 보기', 'See all opportunities')} ›</Link></div>
         </main>
         <Footer />
       </>

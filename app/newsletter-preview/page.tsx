@@ -5,36 +5,37 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import NewsletterIssue from '@/components/NewsletterIssue';
 import OpportunityBrowser from '@/components/OpportunityBrowser';
+import OpportunityMap from '@/components/OpportunityMap';
 import SubmitButton from '@/components/SubmitButton';
-import { getAIProducts, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
+import { getAIProducts, getArticleFeedItems, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
 import { listIssues } from '@/lib/newsletter/issues';
 import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { mapPoints } from '@/lib/opportunities/map';
 import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
-  title: '주간 신호',
+  title: '오늘의 신호',
 };
 
 const WEEK_MS = 7 * 24 * 3_600_000;
 const day = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' });
 
 /**
- * The newsletter's home on the web: this week's issue first, exactly what the Monday mail carries,
- * then how to subscribe and every past issue. Below it is every problem the issue was picked from,
- * which used to be a separate page.
+ * Today's signals, one page: the opportunity map and today's numbers on top, then this week's issue (exactly what
+ * the Monday mail carries) with subscribing and past issues, then every problem. The reading feed has its own tab.
  */
 export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<{ profile?: string; stage?: string; q?: string; all?: string }> }) {
   const params = await searchParams;
   const profile = DEMO_NEWSLETTER_PROFILES.find((item) => item.user_id === params.profile) ?? DEMO_NEWSLETTER_PROFILES[0];
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  const [news, products, repos, projects, papers, { opportunities, generatedAt }, onboarding, dossiers, archive, lang] = await Promise.all([
+  const [news, products, repos, projects, papers, { opportunities, generatedAt }, onboarding, dossiers, archive, lang, articles] = await Promise.all([
     getNewsItems(),
     getAIProducts(),
     getGitHubTrends(),
@@ -45,6 +46,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
     user && supabase ? supabase.from('evidence_dossiers').select('opportunity_slug').not('opportunity_slug', 'is', null).limit(50) : null,
     listIssues(createAdminClient()),
     getLang(),
+    getArticleFeedItems(),
   ]);
 
   const lookbackDays = getLookbackDays(news.length + products.length + repos.length + projects.length + papers.length);
@@ -64,15 +66,29 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   const subscribed = onboarding?.data?.newsletter_subscribed ?? false;
   const watchedSlugs = new Set((dossiers?.data ?? []).map((row) => row.opportunity_slug as string));
   const watched = opportunities.filter((item) => watchedSlugs.has(item.slug));
+  const points = mapPoints(opportunities, new Date(generatedAt).getTime());
+  const quoteCount = opportunities.reduce((sum, item) => sum + item.evidence.length, 0);
+  const sourceCount = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.platform))).size;
+  const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
+  const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date(now));
 
   return (
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
-        <h1 className="page-intro-title">주간 신호</h1>
-        <p className="page-intro-description">매주 월요일 아침, 개발자들이 실제로 말한 문제가 어떻게 움직였는지와 읽을 만한 글만 골라 보냅니다. 아래가 이번 주 호입니다.</p>
+        <p className="text-sm text-muted">{today} · 기회 분석 {updated} 갱신</p>
+        <h1 className="page-intro-title mt-2">오늘의 신호</h1>
+        <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[15px] text-tertiary">
+          <span>원문과 일치한 인용 <b className="num font-semibold text-ink">{quoteCount}</b>건</span>
+          <span>출처 <b className="num font-semibold text-ink">{sourceCount}</b>곳</span>
+          <span>기준 통과 <b className="num font-semibold text-seed">{opportunities.filter((item) => item.qualified).length}</b>개</span>
+          <Link href="/news" className="text-tertiary underline-offset-4 hover:text-ink hover:underline">오늘 읽을 글 <b className="num font-semibold text-ink">{articles.length}</b>편 ›</Link>
+        </p>
+        {points.length > 0 && <div className="mt-8"><OpportunityMap points={points} /></div>}
 
-        <div className="mt-10 grid items-start gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <h2 id="issue-heading" className="mt-20 text-[clamp(26px,3vw,34px)] font-bold tracking-[-0.03em]">이번 주 주간 신호</h2>
+        <p className="mt-2 max-w-[44em] text-[15px] leading-7 text-tertiary">매주 월요일 아침, 문제가 어떻게 움직였는지와 읽을 만한 글만 골라 메일로 보냅니다. 아래가 이번 주 호입니다.</p>
+        <div className="mt-8 grid items-start gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
               <span className="text-sm text-muted">누구 기준으로 볼까요</span>

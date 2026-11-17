@@ -52,3 +52,19 @@ test('the map places problems by counted values only', () => {
   assert.ok(open.strength > 0 && open.strength < 1);
   assert.equal(open.recent, 0);
 });
+
+test('live web quotes count only with a valid server signature, and only for idea PRDs', async () => {
+  const { signEvidence, readLiveEvidence } = await import('../lib/opportunities/live-evidence');
+  const quote = { id: 'lv_abc', platform: 'hn' as const, quote: 'I keep rewriting the same glue code', quoteKo: '', url: 'https://news.ycombinator.com/item?id=1', score: 3, postedAt: null };
+  const signed = signEvidence(quote, 'k')!;
+  assert.deepEqual(readLiveEvidence([signed], 5, 'k'), [quote]);
+  assert.deepEqual(readLiveEvidence([{ ...signed, quote: 'invented words' }], 5, 'k'), []);
+  assert.deepEqual(readLiveEvidence([signed], 5, 'other-key'), []);
+  assert.deepEqual(readLiveEvidence([signed], 5, ''), []);
+  process.env.LIVE_EVIDENCE_SECRET = 'k';
+  const withIdea = inputFromBody([opportunity], { brief: { idea: 'Glue code generator' }, liveEvidence: [signed] }, 'ko')!;
+  assert.deepEqual(withIdea.picked.map((row) => row.evidence.id), ['lv_abc']);
+  const classic = inputFromBody([opportunity], { evidenceIds: ['e1'], liveEvidence: [signed] }, 'ko')!;
+  assert.deepEqual(classic.picked.map((row) => row.evidence.id), ['e1']);
+  delete process.env.LIVE_EVIDENCE_SECRET;
+});

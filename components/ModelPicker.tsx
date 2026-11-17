@@ -6,6 +6,8 @@ import { translator } from '@/lib/i18n';
 import type { PrdModel } from '@/lib/opportunities/models';
 
 const KEY = 'seedup:prd-model';
+// Same id as EXAONE_ID in lib/opportunities/models.ts, kept here so this client file does not pull in server code.
+const EXAONE_ID = 'exaone';
 const CHANGED = 'seedup-prd-model';
 // Kept in memory too, so the menu still works where browser storage is blocked.
 let memory = '';
@@ -27,11 +29,14 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** The model the reader picked, if it is still usable; otherwise the first row, the free model, so nothing costs money by default. */
+/**
+ * The model the reader picked, if it is still usable. Otherwise K-EXAONE when the admin allows it (free on LG's API,
+ * and faster and steadier than the free OpenRouter model), else the first row, the free model. Never a paid one by default.
+ */
 export function usePrdModel(models: PrdModel[]) {
   const picked = useSyncExternalStore(subscribe, read, () => '');
   const usable = models.filter((row) => row.available);
-  return (usable.find((row) => row.id === picked) ?? usable[0])?.id;
+  return (usable.find((row) => row.id === picked) ?? usable.find((row) => row.id === EXAONE_ID) ?? usable[0])?.id;
 }
 
 export default function ModelPicker({ models }: { models: PrdModel[] }) {
@@ -55,7 +60,7 @@ export default function ModelPicker({ models }: { models: PrdModel[] }) {
       <select value={current} onChange={(event) => choose(event.target.value)} className="h-10 min-w-0 max-w-[22rem] border bg-white px-2.5 text-sm text-ink">
         {models.map((row) => (
           <option key={row.id} value={row.id} disabled={!row.available}>
-            {row.label} · {row.available ? row.note : row.reason ?? t('지금은 쓸 수 없음', 'not available now')}
+            {row.label}, {row.available ? row.note : row.reason ?? t('지금은 쓸 수 없음', 'not available now')}
           </option>
         ))}
       </select>

@@ -23,7 +23,10 @@ export type PoolItem = {
 };
 
 type Question = { key: string; ko: string; en: string; hintKo?: string; hintEn?: string; chips: Array<[string, string]> };
-type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean };
+/** A quote found on the web for this idea; the server signed it, so the PRD route will accept it as evidence. */
+type LiveQuote = PoolItem['quotes'][number] & { score: number; postedAt: string | null; sig: string };
+type Search = { state: 'idle' | 'busy' | 'done' | 'error'; message?: string };
+type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[] };
 type Note = { id: number; role: 'user' | 'assistant'; text: string };
 
 const STORAGE_KEY = 'seedup:idea-workspace';
@@ -77,6 +80,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [pending, setPending] = useState<'generate' | 'revise' | null>(null);
   const [generated, setGenerated] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [live, setLive] = useState<LiveQuote[]>([]);
+  const [search, setSearch] = useState<Search>({ state: 'idle' });
   const scroller = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
 
@@ -90,6 +95,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       setAnswers(saved.answers ?? {});
       setKept(saved.kept ?? []);
       setTouched(Boolean(saved.touched));
+      setLive(Array.isArray(saved.live) ? saved.live : []);
     }
     setRestored(true);
   }, [initialIdea]);
@@ -121,13 +127,14 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   useEffect(() => {
     if (!restored) return;
     try {
-      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched } satisfies Saved));
+      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live } satisfies Saved));
     } catch {
       // Private mode or full storage: the chat still works, it just will not survive a reload.
     }
-  }, [restored, idea, answers, keptIds, touched]);
+  }, [restored, idea, answers, keptIds, touched, live]);
 
-  const quoteById = useMemo(() => new Map(pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const))), [pool]);
+  const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...live.map((row) => [row.id, row] as const)]), [pool, live]);
+  const keptLive = live.filter((row) => keptIds.includes(row.id));
   const keptQuotes = keptIds.flatMap((id) => quoteById.get(id) ?? []);
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
@@ -182,6 +189,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setAnswers({});
     setKept([]);
     setTouched(false);
+    setLive([]);
+    setSearch({ state: 'idle' });
     setNotes([]);
     setGenerated(false);
     setPending(null);
@@ -194,6 +203,26 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   };
 
   const loginNext = `/prd/new?idea=${encodeURIComponent(idea)}`;
+
+  // Web search for quotes the stored ones do not cover. What it finds is kept right away; the person can still drop it.
+  const searchWeb = async () => {
+    setSearch({ state: 'busy' });
+    try {
+      const response = await fetch('/api/opportunities/evidence-search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSearch({ state: 'error', message: json.error ?? t('찾지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not search. Try again shortly.') });
+        return;
+      }
+      const found = (Array.isArray(json.quotes) ? json.quotes : []) as LiveQuote[];
+      setLive((before) => [...before, ...found.filter((row) => !before.some((old) => old.id === row.id))]);
+      setTouched(true);
+      setKept([...keptIds, ...found.map((row) => row.id).filter((id) => !keptIds.includes(id))].slice(0, MAX_KEPT));
+      setSearch({ state: 'done', message: found.length ? t(`원문 ${found.length}건을 찾아 근거로 담았습니다.`, `Found and kept ${found.length} quotes.`) : t('웹에서도 맞는 원문을 찾지 못했습니다. 답변만으로 만들면 요구사항은 가설로 표시됩니다.', 'No matching quote on the web either. A PRD from your answers marks requirements as hypotheses.') });
+    } catch {
+      setSearch({ state: 'error', message: t('연결이 끊겼습니다. 다시 시도해 주세요.', 'Connection lost. Try again.') });
+    }
+  };
 
   if (restored && !idea) {
     return <IdeaStart onSubmit={send} en={en} />;
@@ -215,7 +244,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
     { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
   ];
-  const picker = <EvidencePicker matched={matched} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} />;
+  const picker = <EvidencePicker matched={matched} live={live} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} signedIn={signedIn} loginNext={loginNext} />;
   const threeColumns = !generated;
 
   return (
@@ -342,7 +371,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             evidenceIds={keptIds}
             ready={passes}
             loginNext={loginNext}
-            requestBody={{ brief, evidenceIds: keptIds, title: idea }}
+            requestBody={{ brief, evidenceIds: keptIds.filter((id) => !id.startsWith('lv_')), liveEvidence: keptLive, title: idea }}
             models={models}
             hideRevise
             signedIn={signedIn}
@@ -383,14 +412,44 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 }
 
 /** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
-function EvidencePicker({ matched, keptIds, toggle, keptCount, keptPlatforms, passes, en }: { matched: PoolItem[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean }) {
+function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; signedIn: boolean; loginNext: string }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
-  if (!matched.length) {
+  const quoteRow = (row: PoolItem['quotes'][number]) => {
+    const on = keptIds.includes(row.id);
+    return (
+      <li key={row.id}>
+        <label className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-[13.5px] leading-6 transition-colors ${on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white hover:border-outline-strong'}`}>
+          <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-seed" />
+          <span className="min-w-0">
+            <q lang="en" className="line-clamp-3 text-ink">{row.quote}</q>
+            {!en && row.quoteKo && <span className="mt-0.5 line-clamp-2 block text-muted">{row.quoteKo}</span>}
+            <span className="mt-1 flex gap-3 text-xs text-muted">
+              <span>{PLATFORM_LABELS[row.platform]}</span>
+              <a href={row.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline" onClick={(event) => event.stopPropagation()}>{t('원문 열기', 'Open source')}</a>
+            </span>
+          </span>
+        </label>
+      </li>
+    );
+  };
+  const web = (
+    <div className={matched.length || live.length ? 'mt-6 border-t border-outline-soft pt-5' : 'mt-4'}>
+      <p className="text-[14px] font-semibold text-ink">{t('웹에서 원문 더 찾기', 'Find more quotes on the web')}</p>
+      <p className="mt-1 text-[13px] leading-5 text-muted">{t('GitHub 이슈, Hacker News, Stack Overflow에서 같은 불편을 말한 글을 찾아, 원문과 글자 단위로 맞는 문장만 가져옵니다. 30초에서 1분 걸립니다.', 'Searches GitHub issues, Hacker News and Stack Overflow for posts about the same problem, keeping only sentences that match the source word for word. Takes 30 to 60 seconds.')}</p>
+      <div className="mt-3">
+        {signedIn
+          ? <button type="button" onClick={onSearch} disabled={search.state === 'busy'} className={`${matched.length || live.length ? 'btn-quiet' : 'btn'} h-10 whitespace-nowrap`}>{search.state === 'busy' ? t('웹에서 찾는 중', 'Searching the web') : live.length ? t('한 번 더 찾기', 'Search again') : t('웹에서 찾기', 'Search the web')}</button>
+          : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 whitespace-nowrap">{t('로그인하고 웹에서 찾기', 'Sign in to search the web')}</Link>}
+      </div>
+      {search.message && <p className={`mt-2 text-[13px] leading-5 ${search.state === 'error' ? 'text-red-700' : 'text-tertiary'}`} role="status">{search.message}</p>}
+    </div>
+  );
+  if (!matched.length && !live.length) {
     return (
       <div>
-        <p className="text-[15px] font-semibold text-ink">{t('맞는 원문을 아직 찾지 못했습니다', 'No matching quotes yet')}</p>
-        <p className="mt-1 text-[14px] leading-6 text-muted">{t('저장된 개발자 원문 중 이 아이디어와 겹치는 것이 없습니다. 답변만으로 만들면 요구사항은 모두 가설로 표시됩니다.', 'No stored developer quote overlaps this idea. A PRD from your answers alone marks every requirement as a hypothesis.')}</p>
-        <Link href="/prd#verified" className="link-seed mt-2">{t('검증된 문제에서 시작하기', 'Start from a verified problem')}</Link>
+        <p className="text-[15px] font-semibold text-ink">{t('저장된 원문 중 맞는 것이 없습니다', 'No stored quote matches yet')}</p>
+        <p className="mt-1 text-[14px] leading-6 text-muted">{t('웹에서 찾아보거나, 답변만으로 만들 수 있습니다. 답변만으로 만들면 요구사항은 모두 가설로 표시됩니다.', 'Search the web, or make it from your answers alone; then every requirement is marked as a hypothesis.')}</p>
+        {web}
       </div>
     );
   }
@@ -414,29 +473,17 @@ function EvidencePicker({ matched, keptIds, toggle, keptCount, keptPlatforms, pa
               <Link href={`/opportunities/${item.slug}`} target="_blank" className="text-[14px] font-semibold text-ink underline-offset-4 hover:underline">{item.name}</Link>
               {item.qualified && <span className="text-[12.5px] font-semibold text-seed">{t(`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 이상`, `${MIN_EVIDENCE}+ quotes, ${MIN_PLATFORMS}+ sites`)}</span>}
             </p>
-            <ul className="mt-2 space-y-1.5">
-              {item.quotes.map((row) => {
-                const on = keptIds.includes(row.id);
-                return (
-                  <li key={row.id}>
-                    <label className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-[13.5px] leading-6 transition-colors ${on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white hover:border-outline-strong'}`}>
-                      <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-seed" />
-                      <span className="min-w-0">
-                        <q lang="en" className="line-clamp-3 text-ink">{row.quote}</q>
-                        {!en && row.quoteKo && <span className="mt-0.5 line-clamp-2 block text-muted">{row.quoteKo}</span>}
-                        <span className="mt-1 flex gap-3 text-xs text-muted">
-                          <span>{PLATFORM_LABELS[row.platform]}</span>
-                          <a href={row.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline" onClick={(event) => event.stopPropagation()}>{t('원문 열기', 'Open source')}</a>
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
+            <ul className="mt-2 space-y-1.5">{item.quotes.map(quoteRow)}            </ul>
           </div>
         ))}
+        {live.length > 0 && (
+          <div>
+            <p className="text-[14px] font-semibold text-ink">{t('웹에서 찾은 원문', 'Found on the web')}</p>
+            <ul className="mt-2 space-y-1.5">{live.map(quoteRow)}</ul>
+          </div>
+        )}
       </div>
+      {web}
     </div>
   );
 }

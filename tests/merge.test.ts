@@ -102,3 +102,10 @@ test('an earlier single-source result is not carried into the next run', () => {
   assert.deepEqual(opportunities.map((item) => item.slug), ['pair']);
   assert.deepEqual(summary.expired, ['lonely']);
 });
+
+test('a merged problem keeps the build estimate it already had', () => {
+  const build = { size: 'weekend' as const, days: 2, stack: ['Next.js'], hard: [] };
+  const previous = { generatedAt: DAY1, opportunities: [opp('a', [ev(1)], { build })], embeddings: { a: vec(1, 0) } };
+  const { opportunities } = mergeRuns(previous, { opportunities: [opp('a', [ev(1), ev(2)])], embeddings: { a: vec(1, 0) } }, DAY2);
+  assert.deepEqual(opportunities[0].build, build);
+});

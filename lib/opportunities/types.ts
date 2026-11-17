@@ -74,6 +74,18 @@ export type Opportunity = {
   lastSeenAt?: string;
   /** One point per run in which something changed, oldest first. */
   history?: OpportunityPoint[];
+  /** A model's estimate of a solo first version. Missing until the engine script fills it. */
+  build?: BuildEstimate;
+};
+
+export type BuildSize = 'weekend' | 'weeks' | 'team';
+/** stack: tools for the first version. hard: parts likely to block a beginner (Korean phrases). */
+export type BuildEstimate = { size: BuildSize; days: number; stack: string[]; hard: string[] };
+
+export const BUILD_LABELS: Record<BuildSize, [string, string]> = {
+  weekend: ['주말 프로젝트', 'Weekend build'],
+  weeks: ['몇 주 프로젝트', 'A few weeks'],
+  team: ['팀 프로젝트', 'Team project'],
 };
 
 export type OpportunityPoint = { at: string; evidence: number; platforms: number; direct: number; status: OpportunityStatus; qualified: boolean };

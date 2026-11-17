@@ -61,7 +61,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="에이전트 연결" description="Seedup은 MCP 서버로 동작합니다. Claude Code, Cursor 같은 코딩 에이전트가 검증된 PRD를 직접 가져갑니다." />
+        <PageIntro title="에이전트 연결" description="MCP는 AI 코딩 도구가 바깥 서비스의 데이터를 직접 꺼내 쓰게 하는 연결 방식입니다. 연결하면 Claude Code, Cursor 같은 도구가 Seedup의 기회와 검증된 PRD를 직접 가져갑니다." />
 
         {statusNotice && <p role="status" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{statusNotice}</p>}
 

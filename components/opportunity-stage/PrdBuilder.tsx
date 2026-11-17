@@ -509,6 +509,18 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             </div>
           </div>
 
+          <details className="mt-4 text-sm text-muted">
+            <summary className="cursor-pointer">{t('용어 풀이', 'What the labels mean')}</summary>
+            <dl className="mt-2 grid gap-1 [&_dt]:font-semibold [&_dt]:text-ink sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-4">
+              <dt>PRD</dt><dd>{t('무엇을 누구를 위해 왜 만드는지 정리한 기획 문서', 'A plan of what to build, for whom and why')}</dd>
+              <dt>E</dt><dd>{t('원문: 실제 사람이 공개 글에 쓴 문장', 'Evidence: a sentence a real person wrote in a public post')}</dd>
+              <dt>R</dt><dd>{t('요구사항: 원문이 말하는, 해결돼야 하는 것', 'Requirement: what the quotes say must be solved')}</dd>
+              <dt>F</dt><dd>{t('기능: 요구사항을 해결하려고 만드는 것', 'Feature: what you build to meet a requirement')}</dd>
+              <dt>S</dt><dd>{t('화면: 사용자가 기능을 만나는 곳', 'Screen: where users meet a feature')}</dd>
+              <dt>H</dt><dd>{t('가설: 원문이 뒷받침하지 않아 사용자에게 먼저 확인할 것', 'Hypothesis: no quote backs it yet, so check with users first')}</dd>
+            </dl>
+          </details>
+
           <div className="tabs mt-6" role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
             {VIEWS.map(([key, label, labelEn]) => (
               <button key={key} type="button" role="tab" aria-selected={view === key} className="tab" onClick={() => setView(key)}>{t(label, labelEn)}</button>

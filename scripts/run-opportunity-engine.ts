@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { runOpportunityEngine } from '../lib/opportunities/engine';
 import { applyMerge, mergeRuns } from '../lib/opportunities/merge';
+import { fillBuildEstimates } from '../lib/opportunities/build';
 import type { Opportunity, OpportunitySnapshot } from '../lib/opportunities/types';
 import type { EngineCheckpointStore } from '../lib/opportunities/engine';
 
@@ -86,6 +87,16 @@ async function publish(snapshot: OpportunitySnapshot, embeddings: Record<string,
   });
 }
 
+/** Writes only the row data, so a backfill adds no history rows and changes no published flags. */
+async function publishBuild(opportunities: Opportunity[]) {
+  const supabase = database();
+  if (!supabase) throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are required to persist');
+  for (const opportunity of opportunities.filter((item) => item.build)) {
+    const { error } = await supabase.from('opportunities').update({ data: opportunity }).eq('slug', opportunity.slug);
+    if (error) throw new Error(`build estimate update failed for ${opportunity.slug}: ${error.message}`);
+  }
+}
+
 // ENGINE_CHECKPOINT=/path/file.json lets a failed run restart after the slow collection step.
 function checkpointStore(): EngineCheckpointStore | undefined {
   const file = process.env.ENGINE_CHECKPOINT;
@@ -99,6 +110,18 @@ function checkpointStore(): EngineCheckpointStore | undefined {
 async function main() {
   const persist = process.argv.includes('--persist');
   const previous = await loadPrevious(persist);
+  // --build-only fills missing build estimates in the current result without a new collection run.
+  if (process.argv.includes('--build-only')) {
+    if (!previous) throw new Error('no previous result to fill');
+    const snapshotFile = resolve(SNAPSHOT_DIR, 'snapshot.json');
+    const snapshot = JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot;
+    const current = persist ? { ...snapshot, generatedAt: previous.generatedAt, opportunities: previous.opportunities } : snapshot;
+    const filled = await fillBuildEstimates(current.opportunities, (message) => console.log(timestamp(), message));
+    if (!persist) writeFileSync(snapshotFile, `${JSON.stringify(current, null, 1)}\n`);
+    else await publishBuild(current.opportunities);
+    console.log(`build estimates filled: ${filled}/${current.opportunities.length}`);
+    return;
+  }
   const knownUrls = new Set((previous?.opportunities ?? []).flatMap((item) => item.evidence.map((evidence) => evidence.url)));
   const run = await runOpportunityEngine((message) => console.log(timestamp(), message), checkpointStore(), knownUrls);
 
@@ -108,6 +131,7 @@ async function main() {
 
   const merged = mergeRuns(previous, { opportunities: run.snapshot.opportunities, embeddings: run.embeddings }, run.snapshot.generatedAt);
   const snapshot = applyMerge(run.snapshot, merged.opportunities);
+  await fillBuildEstimates(snapshot.opportunities, (message) => console.log(timestamp(), message));
   writeFileSync(resolve(SNAPSHOT_DIR, 'snapshot.json'), `${JSON.stringify(snapshot, null, 1)}\n`);
   writeFileSync(resolve(SNAPSHOT_DIR, 'embeddings.json'), JSON.stringify(merged.embeddings));
   if (persist) await publish(snapshot, merged.embeddings);

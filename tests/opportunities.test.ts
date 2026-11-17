@@ -380,3 +380,12 @@ test('only 입문자 and 초보자 count as beginners', () => {
   assert.equal(isBeginner({ level: '중급자: 서비스 구조와 배포까지 어느 정도 알아요' }), false);
   assert.equal(isBeginner(null), false);
 });
+
+import { normalizeBuild } from '../lib/opportunities/build';
+
+test('a build estimate keeps only a known size, days inside that size, and short lists', () => {
+  assert.equal(normalizeBuild({ size: 'month' }), null);
+  assert.equal(normalizeBuild(null), null);
+  assert.deepEqual(normalizeBuild({ size: 'weekend', days: 20, stack: ['Next.js', '', 'Supabase', 'a', 'b'], hard: ['결제'] }), { size: 'weekend', days: 3, stack: ['Next.js', 'Supabase', 'a', 'b'], hard: ['결제'] });
+  assert.equal(normalizeBuild({ size: 'team', days: 'x' })?.days, 31);
+});

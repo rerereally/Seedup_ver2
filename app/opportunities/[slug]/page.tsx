@@ -12,7 +12,7 @@ import { getOpportunity } from '@/lib/opportunities/data';
 import { koreaLens, scoreOpportunity, stackFit, whyNow } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import { createClient } from '@/lib/supabase/server';
-import { PLATFORM_LABELS } from '@/lib/opportunities/types';
+import { BUILD_LABELS, PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Evidence, SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
 const SUPPLY_LABELS: Record<SupplyKind, string> = { github: 'GitHub', npm: 'npm', show_hn: 'Show HN', vscode: 'VS Code', appstore: 'App Store', web: 'Web' };
@@ -24,6 +24,13 @@ const FIRST_USER_QUESTIONS = [
   '해결하려고 써 본 도구가 있나요? 계속 쓰지 않게 된 이유는 무엇인가요?',
   '이 문제 때문에 지금까지 들인 시간이나 돈은 어느 정도인가요?',
 ];
+
+/** A first reply to a source post: it names the problem and asks, never pitches. */
+const replyDraft = (problem: string) => `Thanks for writing this up. I'm looking into this problem: ${problem.replace(/\.$/, '')}.
+Could I ask two quick questions?
+1. When did this last happen to you, and how did you get around it?
+2. Have you tried a tool for it? What made you stop using it?
+No product to sell yet. I just want to understand it before building anything.`;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -173,7 +180,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             </p>
 
             <section className="mt-12" aria-labelledby="quotes-heading">
-              <h2 id="quotes-heading" className="text-2xl font-bold tracking-tight">{t('개발자 원문', 'Developer quotes')}</h2>
+              <h2 id="quotes-heading" className="text-2xl font-bold tracking-tight">{t('실제 원문', 'Real quotes')}</h2>
               <p className="mt-1 text-sm text-muted">{t('모두 공개 글 원문과 글자 단위로 일치합니다. 번역은 이해를 돕기 위한 것입니다.', 'Every quote matches its public source character by character.')}</p>
               <ol className="rows mt-5">{opportunity.evidence.slice(0, 3).map(quote)}</ol>
               {opportunity.evidence.length > 3 && (
@@ -268,13 +275,25 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <ol className="mt-3 grid list-decimal gap-2 pl-5 text-sm leading-6 text-tertiary marker:text-seed">
                   {FIRST_USER_QUESTIONS.map((question) => <li key={question}>{question}</li>)}
                 </ol>
-                <p className="mt-3 pb-5 text-[13px] leading-6 text-muted">내 해결책을 설명하기 전에 묻습니다. 미래에 쓸지 묻지 않고, 지난번에 실제로 어떻게 했는지를 묻습니다.</p>
+                <p className="mt-3 text-[13px] leading-6 text-muted">내 해결책을 설명하기 전에 묻습니다. 미래에 쓸지 묻지 않고, 지난번에 실제로 어떻게 했는지를 묻습니다.</p>
+                <h3 className="mt-6 text-[15px] font-semibold">{t('답글 초안', 'Reply draft')}</h3>
+                <p className="mt-1 text-[13px] leading-6 text-muted">{t('원문이 영어라 영어로 둡니다. 홍보를 막는 커뮤니티가 많으니 링크 없이 질문만 남기세요.', 'Many communities ban promotion, so leave questions only, no links.')}</p>
+                <pre className="terminal mb-5 mt-2 whitespace-pre-wrap">{replyDraft(opportunity.problemEn ?? opportunity.problem)}</pre>
               </details>
             </div>
           </article>
 
           <aside className="flex min-w-0 flex-col gap-10 lg:sticky lg:top-24 lg:self-start">
             <OpportunityPrd lang={lang} ready={opportunity.qualified} slug={opportunity.slug} evidenceCount={opportunity.evidence.length} />
+            {opportunity.build && (
+              <section aria-labelledby="build-heading">
+                <h2 id="build-heading" className="text-lg font-semibold tracking-tight">{t('혼자 만들면', 'Building it solo')}</h2>
+                <p className="mt-1 text-[13px] text-muted">{t('AI 코딩 도구로 첫 버전을 혼자 만들 때의 AI 추정입니다.', 'An AI estimate for one person shipping a first version with AI coding tools.')}</p>
+                <p className="mt-3 text-sm"><span className="font-semibold text-ink">{BUILD_LABELS[opportunity.build.size][lang === 'en' ? 1 : 0]}</span><span className="text-muted"> · {t(`약 ${opportunity.build.days}일`, `about ${opportunity.build.days} days`)}</span></p>
+                {opportunity.build.stack.length > 0 && <ul className="mt-3 flex flex-wrap gap-2">{opportunity.build.stack.map((name) => <li key={name} className="chip">{name}</li>)}</ul>}
+                {opportunity.build.hard.length > 0 && <p className="mt-3 text-sm leading-6 text-muted">{t('막히기 쉬운 곳', 'Likely blockers')}: <span className="text-ink">{opportunity.build.hard.join(' · ')}</span></p>}
+              </section>
+            )}
             <section aria-labelledby="supply-heading">
               <h2 id="supply-heading" className="text-lg font-semibold tracking-tight">{t('이미 있는 도구', 'Existing tools')}</h2>
               <p className="mb-4 mt-1 text-[13px] text-muted">{opportunity.supply.length === 0 ? t('조사한 범위에서 관련 도구를 찾지 못했습니다.', 'No related tools were found in the sources searched.') : t('웹 검색, GitHub, npm, Show HN, VS Code 마켓, App Store에서 찾았습니다. 직접 경쟁인지 일부 겹치는지는 AI가 판정했습니다.', 'Found through web search, GitHub, npm, Show HN, the VS Code marketplace and the App Store. Whether each is a direct rival or a partial overlap was judged by AI.')}</p>

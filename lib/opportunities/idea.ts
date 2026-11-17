@@ -49,12 +49,26 @@ export function ideaSpecInput(opportunities: Opportunity[], brief: IdeaBrief, pi
   };
 }
 
+const MAX_NOTES = 1_000;
+
+/** What the person making the PRD wants (direction, must-haves, what to leave out), typed before generating. */
+export const readNotes = (body: Record<string, unknown> | null) => clip(body?.notes, MAX_NOTES);
+
+/**
+ * Adds the maker's own view to the PRD context. The model treats it like any other input: lines it supports but no
+ * quote backs become hypotheses, so an opinion shapes the PRD without passing for evidence.
+ */
+export function withNotes(input: SpecInput, notes: string, lang: 'ko' | 'en' = 'ko'): SpecInput {
+  return notes ? { ...input, problem: `${input.problem}\n\n${lang === 'en' ? "The maker's own view (not evidence)" : '만드는 사람의 의견 (근거 아님)'}:\n${notes}` } : input;
+}
+
 /** One reader for the PRD, revise and slots routes: an idea brief when one is sent, otherwise the classic quote list. */
 export function inputFromBody(opportunities: Opportunity[], body: Record<string, unknown> | null, lang: 'ko' | 'en') {
   const evidenceIds = (Array.isArray(body?.evidenceIds) ? body.evidenceIds : []).filter((id): id is string => typeof id === 'string').slice(0, MAX_EVIDENCE);
   const picked = findEvidence(opportunities, evidenceIds);
   const brief = readBrief(body?.brief);
-  if (brief) return { input: ideaSpecInput(opportunities, brief, picked, lang), picked, brief };
+  const notes = readNotes(body);
+  if (brief) return { input: withNotes(ideaSpecInput(opportunities, brief, picked, lang), notes, lang), picked, brief, notes };
   const input = specInputFor(opportunities, picked, clip(body?.title, 120), lang);
-  return input ? { input, picked, brief: null } : null;
+  return input ? { input: withNotes(input, notes, lang), picked, brief: null, notes } : null;
 }

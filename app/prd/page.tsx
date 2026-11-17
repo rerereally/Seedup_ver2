@@ -8,6 +8,7 @@ import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
 import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { localizedOpportunity } from '@/lib/opportunities/types';
@@ -110,7 +111,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
           </p>
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
-          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} />
+          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} models={prdModels(await loadPrdPolicy(createAdminClient()))} />
         </section>
       </main>
       <Footer />

@@ -5,6 +5,7 @@ import { matchLinks, nearOpportunities, repoSimilarity, searchPapers, suggestIde
 import type { Linkable, SeedIdea, SeedPaper } from '@/lib/seeds/advise';
 import { fetchPublicRepos, GitHubLookupError, isGitHubLogin, readRepoStructure } from '@/lib/seeds/github';
 import { specInputFor } from '@/lib/opportunities/context';
+import { readNotes, withNotes } from '@/lib/opportunities/idea';
 import { generateReverseSpec } from '@/lib/opportunities/prd';
 import type { GitHubLookupFailure, SeedRepo } from '@/lib/seeds/github';
 import { createClient } from '@/lib/supabase/server';
@@ -183,8 +184,8 @@ export async function POST(request: Request) {
   // The nearest two opportunities lend their verified quotes; new features must cite them.
   const near = nearOpportunities(repo, opportunities, await repoSimilarity(repo, embeddings)).slice(0, 2);
   const picked = near.flatMap((ref) => (opportunities.find((item) => item.slug === ref.slug)?.evidence ?? []).slice(0, QUOTES_PER_OPPORTUNITY).map((evidence) => ({ evidence, slug: ref.slug })));
-  const input = specInputFor(opportunities, picked, `${repo.name} 역기획`)
-    ?? { title: `${repo.name} 역기획`, problem: repo.description || '레포 설명이 없습니다.', gap: '', evidence: [], competitors: [] };
+  const input = withNotes(specInputFor(opportunities, picked, `${repo.name} 역기획`)
+    ?? { title: `${repo.name} 역기획`, problem: repo.description || '레포 설명이 없습니다.', gap: '', evidence: [], competitors: [] }, readNotes(body));
 
   if (!(await consumeDailyUsage(supabase, 'reverse_spec', DAILY_REVERSE_LIMIT))) {
     return NextResponse.json({ error: `역기획 스펙은 하루 ${DAILY_REVERSE_LIMIT}번까지 만들 수 있습니다.` }, { status: 429 });

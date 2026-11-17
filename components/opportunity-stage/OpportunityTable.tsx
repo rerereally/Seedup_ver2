@@ -63,7 +63,7 @@ export function FunnelStrip({ funnel, lang = 'ko' }: { funnel: OpportunityFunnel
   );
 }
 
-const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters', stackexchange: 'Stack Exchange', web: 'Web' };
+const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters', stackexchange: 'Stack Exchange', forum: '포럼', web: 'Web' };
 
 /** What a problem still needs before it counts as verified, in the reader's words. */
 function stageLabel(item: Opportunity, en: boolean) {

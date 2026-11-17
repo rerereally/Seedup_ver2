@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { DISCOVERY_ACTORS, runDiscoveryActors, searchDemand, searchSupply, signalRank, stackSiteOf, SUPPLY_COVERAGE } from './actors';
+import { DISCOVERY_ACTORS, forumHostOf, runDiscoveryActors, searchDemand, searchSupply, signalRank, stackSiteOf, SUPPLY_COVERAGE } from './actors';
 import { callJsonModel, createEmbedding, llmUsage } from './llm';
 import { classifySupply, clusterByEmbedding, countFollowers, isListable, isVerbatimQuote, meetsEvidenceBar, toSlug } from './rules';
 import { searchWebDemand, searchWebSupply, webSearchEnabled } from './web';
@@ -185,13 +185,14 @@ export async function runOpportunityEngine(log: EngineLog = () => undefined, sto
     const posts = new Map<string, Awaited<ReturnType<typeof searchDemand>>[number]>();
     const supply = new Map<string, Omit<SupplyItem, 'relation'>>();
     const sites = [...new Set(candidate.pains.flatMap((pain) => stackSiteOf(pain.item.url) ?? []))].slice(0, MAX_SITES_PER_CANDIDATE);
+    const forums = [...new Set(candidate.pains.flatMap((pain) => forumHostOf(pain.item.url) ?? []))].slice(0, MAX_SITES_PER_CANDIDATE);
     try {
       // Competitors first: a run that fails partway still knows what already exists.
       for (const query of (candidate.supply ?? []).slice(0, 2)) {
         for (const item of [...await searchWebSupply(query), ...await searchSupply(query)]) if (item.name && !supply.has(item.url)) supply.set(item.url, item);
       }
       for (const phrase of (candidate.demand ?? []).slice(0, 3)) {
-        for (const post of [...await searchDemand(phrase, sites), ...await searchWebDemand(phrase)]) if (post.text.length > 40 && !posts.has(post.url)) posts.set(post.url, post);
+        for (const post of [...await searchDemand(phrase, sites, forums), ...await searchWebDemand(phrase)]) if (post.text.length > 40 && !posts.has(post.url)) posts.set(post.url, post);
       }
     } catch (error) {
       // The candidate continues with whatever was found before the failure.

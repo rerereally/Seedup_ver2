@@ -166,3 +166,13 @@ export function trackRecordSummary(rows: TrackRecordRow[], total: number): Track
     maxLeadDays: Math.max(0, ...rows.flatMap((row) => row.followers.map((tool) => tool.leadDays))),
   };
 }
+
+/**
+ * A tool's name fit for a chart label, or null. Show HN titles carry a pitch after a dash or colon ("Hyperlane – An IDE
+ * and…"), and some "tools" are post titles or names in a script the page cannot assume its reader knows.
+ */
+export function chartToolName(name: string): string | null {
+  const head = name.split(/\s[–—-]\s|:\s/)[0].trim();
+  if (!head || head.length > 40 || head.split(/\s+/).length > 5 || /\p{Script=Han}/u.test(head)) return null;
+  return head;
+}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
+import RepoPicks, { rankRepos } from '@/components/RepoPicks';
 import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -110,11 +111,6 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
 
 const KEEP = { savedLabel: '킵함', unsavedLabel: '킵하기' };
 const compact = new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFractionDigits: 1 });
-
-/** Picked repositories: this week's star gain first, then Seedup's own relevance score, then size. */
-function rankRepos(repos: GitHubTrend[]) {
-  return [...repos].sort((a, b) => Number(b.stars_delta_7d ?? 0) - Number(a.stars_delta_7d ?? 0) || Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0) || Number(b.stars ?? 0) - Number(a.stars ?? 0));
-}
 
 /** One repository in the feed: what it is, why it is here this week, and a keep button that MCP can read later. */
 function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; lead: boolean }) {
@@ -278,17 +274,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             <section aria-labelledby="repos-heading">
               <h2 id="repos-heading" className="text-lg font-semibold tracking-tight">이번 주 오픈소스</h2>
               <p className="mt-1 text-sm text-muted">킵해 두면 코딩 에이전트가 MCP로 가져갑니다</p>
-              <ul className="rows mt-5">
-                {repos.slice(0, 4).map((repo) => (
-                  <li key={repo.id} className="flex items-start gap-3 py-4">
-                    <Link href={`/github-trends/${repo.id}`} className="min-w-0 flex-1 hover:underline underline-offset-4">
-                      <span className="block truncate font-semibold text-ink">{repo.repo_full_name}</span>
-                      <span className="mt-1 line-clamp-2 block text-sm leading-6 text-muted">{repo.short_summary ?? repo.description}</span>
-                    </Link>
-                    <ScrapButton itemType="github" itemId={repo.id} title={repo.repo_full_name} description={repo.short_summary ?? repo.description} tag={repo.language ?? 'github'} initialSaved={scrapKeys.has(`github:${repo.id}`)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink" iconOnly {...KEEP} />
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-5"><RepoPicks repos={repos} kept={scrapKeys} /></div>
               <Link href="/news?tab=github" className="link-seed mt-4">오픈소스 전체 보기</Link>
             </section>
           )}

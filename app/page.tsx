@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import HomeDesk from '@/components/home/HomeDesk';
 import IdeaComposer from '@/components/IdeaComposer';
 import OpportunityMap from '@/components/OpportunityMap';
 import CopyCommand from '@/components/landing/CopyCommand';
@@ -55,9 +55,17 @@ const TOOLS = [
 export default async function Home() {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  // Signed-in readers start from today's feed; this page is the front door.
-  if (user) redirect('/newsletter-preview');
   const lang = await getLang();
+  // Signed-in people start from their own desk; everyone else gets the front door.
+  if (user) {
+    return (
+      <>
+        <Header />
+        <HomeDesk user={user} lang={lang} />
+        <Footer />
+      </>
+    );
+  }
   const t = translator(lang);
 
   const { opportunities, generatedAt } = await getOpportunities();

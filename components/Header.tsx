@@ -89,9 +89,9 @@ export default function Header() {
               {lang === 'en' ? '한국어' : 'EN'}
             </button>
             {email ? (
-              <Link href="/scrap" aria-current={on(WORK) ? 'page' : undefined} aria-label={t('내 작업', 'My work')} className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-soft bg-white p-1 text-sm font-medium text-ink transition-colors hover:border-outline-strong lg:pr-3">
+              <Link href="/scrap" aria-current={on(WORK) ? 'page' : undefined} aria-label={t('보관함', 'Library')} className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-soft bg-white p-1 text-sm font-medium text-ink transition-colors hover:border-outline-strong lg:pr-3">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-seed-soft text-sm font-semibold text-seed">{email[0].toUpperCase()}</span>
-                <span className="hidden lg:inline">{t('내 작업', 'My work')}</span>
+                <span className="hidden lg:inline">{t('보관함', 'Library')}</span>
               </Link>
             ) : (
               <>

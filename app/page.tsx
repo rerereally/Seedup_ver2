@@ -96,7 +96,7 @@ export default async function Home() {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   // Signed-in readers start from today's feed; this page is the front door.
-  if (user) redirect('/news');
+  if (user) redirect('/newsletter-preview');
   const lang = await getLang();
   const t = translator(lang);
 
@@ -164,7 +164,7 @@ export default async function Home() {
             <p className={kicker}>{t('발견', 'Find')}</p>
             <h2 className={h2}>{t('월요일 아침,', 'Monday morning,')}<br />{t('읽을 것만 남겨 둡니다.', 'only what is worth reading.')}</h2>
             <p className={lead}>{t('관심 분야에 맞춰 고른 글과, 지켜보는 문제가 이번 주에 어떻게 움직였는지를 한 통의 메일로 받습니다.', 'Reads picked for your interests, and how the problems you watch moved this week, in one mail.')}</p>
-            <Link href="/news" className="link-seed mt-5">{t('오늘의 신호 보기', 'See today’s signals')} ›</Link>
+            <Link href="/newsletter-preview" className="link-seed mt-5">{t('오늘의 신호 보기', 'See today’s signals')} ›</Link>
           </div>
           <div className="card p-7 shadow-[0_20px_60px_rgba(0,0,0,.06)] sm:p-9">
             <p className="text-[13px] text-muted">{t('Seedup 주간 신호', 'Seedup weekly signal')}</p>

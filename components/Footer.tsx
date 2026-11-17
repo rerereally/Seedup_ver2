@@ -3,7 +3,8 @@ import Link from 'next/link';
 const LINKS = [
   { name: '검증 방법', href: '/opportunities' },
   { name: '탐색', href: '/trends' },
-  { name: '주간 신호', href: '/newsletter-preview' },
+  { name: '오늘의 신호', href: '/newsletter-preview' },
+  { name: '읽을 글', href: '/news' },
 ];
 
 export default function Footer() {

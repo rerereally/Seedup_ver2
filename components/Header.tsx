@@ -12,8 +12,9 @@ import { translator } from '@/lib/i18n';
 
 // `match` lists every route that keeps the tab lit, since explore and my-work each span several pages.
 const NAV = [
-  { name: '주간 신호', en: 'Weekly', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail },
-  { name: '오늘의 신호', en: 'Today', href: '/news', match: ['/news', '/papers'], icon: List },
+  // Signals (the map, this week's issue, every problem) and the reading feed are separate places.
+  { name: '오늘의 신호', en: 'Signals', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail },
+  { name: '읽을 글', en: 'Reads', href: '/news', match: ['/news', '/papers'], icon: List },
   { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText },
   { name: 'Git 평가', en: 'Repo review', href: '/seeds', match: ['/seeds'], icon: GitBranch },
 ];

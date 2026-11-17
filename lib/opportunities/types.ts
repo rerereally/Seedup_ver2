@@ -1,12 +1,14 @@
-export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters' | 'stackexchange' | 'web';
+export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters' | 'stackexchange' | 'forum' | 'web';
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
-  github: 'GitHub 이슈',
+  // Issues and discussions both: what matters is that the author is a user of that project.
+  github: 'GitHub',
   hn: 'Hacker News',
   stackoverflow: 'Stack Overflow',
   devto: 'DEV Community',
   lobsters: 'Lobsters',
   stackexchange: 'Stack Exchange',
+  forum: '사용자 포럼',
   web: '웹 검색',
 };
 

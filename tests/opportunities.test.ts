@@ -341,3 +341,13 @@ test('a page window keeps the passage the search snippet came from', () => {
   assert.ok(window.includes('We still copy invoices into the spreadsheet by hand every week.'));
   assert.ok(pageWindow('short page', 'not there').startsWith('short page'));
 });
+
+import { forumHostOf, forumPostText } from '../lib/opportunities/actors';
+
+test('forum posts drop the replies they quote and are recognised by host', () => {
+  const raw = '[quote="alice, post:3, topic:9"]\nI love it\n[/quote]\nIs there a tool that exports this?';
+  assert.equal(forumPostText(raw), 'Is there a tool that exports this?');
+  assert.equal(forumPostText('<aside class="quote" data-post="2"><blockquote>theirs</blockquote></aside><p>mine</p>'), 'mine');
+  assert.equal(forumHostOf('https://forum.cursor.com/t/x/1/2'), 'forum.cursor.com');
+  assert.equal(forumHostOf('https://example.com/t/x/1/2'), null);
+});

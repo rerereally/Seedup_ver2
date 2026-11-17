@@ -7,7 +7,15 @@ import type { ActorRun, Platform, RawSignal, SupplyItem, SupplyKind } from './ty
  */
 
 const USER_AGENT = 'SeedupOpportunityEngine/1.0';
+// Public Discourse forums where people who use a tool say what it cannot do. Each answered a keyless search when added.
+// Vendor support forums (Cursor, OpenAI) are kept because the phrases searched below ask for tools, not for vendor fixes.
+const FORUM_HOSTS = [
+  'forum.cursor.com', 'community.openai.com', 'discuss.huggingface.co', 'community.fly.io', 'community.n8n.io', 'community.grafana.com',
+  'discourse.nixos.org', 'forums.docker.com', 'discuss.python.org', 'forum.obsidian.md', 'community.home-assistant.io',
+];
 const HOST_INTERVAL_MS: Record<string, number> = {
+  // Discourse limits anonymous readers; one request a second per forum stays well under it.
+  ...Object.fromEntries(FORUM_HOSTS.map((host) => [host, 1_100])),
   'api.github.com': 2_300,
   'hn.algolia.com': 350,
   'api.stackexchange.com': 1_300,
@@ -93,6 +101,10 @@ type GithubIssue = { html_url: string; title?: string; body?: string; repository
 type HnHit = { objectID: string; title?: string; story_title?: string; story_text?: string; comment_text?: string; points?: number; num_comments?: number; created_at?: string };
 type StackQuestion = { link: string; title?: string; body?: string; score?: number; creation_date?: number };
 type DevArticle = { url: string; title?: string; description?: string; public_reactions_count?: number; comments_count?: number; published_at?: string };
+type DiscoursePost = { id: number; topic_id: number; post_number: number; blurb?: string; created_at?: string; like_count?: number };
+type DiscourseTopic = { id: number; title?: string; slug?: string; posts_count?: number };
+type DiscourseSearch = { posts?: DiscoursePost[]; topics?: DiscourseTopic[] };
+type GithubDiscussion = { url?: string; title?: string; bodyText?: string; createdAt?: string; upvoteCount?: number; comments?: { totalCount?: number }; repository?: { nameWithOwner?: string } };
 type LobstersStory = { short_id_url?: string; comments_url?: string; title?: string; description_plain?: string; score?: number; comment_count?: number; created_at?: string };
 
 // Vendor trackers are full of requests only that vendor can ship, so they are poor build signals.
@@ -128,6 +140,25 @@ const PAIN_SIGNALS = [
   /\bmanually\b.*\b(every|each) (time|day|week|release|deploy)\b/i,
 ];
 const MIN_POST_CHARS = 60;
+// The tool-lack phrases that work as exact searches on forums and GitHub Discussions (measured when added).
+const FORUM_PHRASES = ['"is there a tool"', '"I wish there was"', '"no good way to"', '"ended up writing"', '"would pay for"'];
+// Only the most promising posts per forum are read in full, so a large forum costs a few requests, not hundreds.
+const FORUM_POSTS_PER_HOST = 8;
+const DISCUSSION_PHRASES = ['"is there a tool"', '"I wish there was"', '"no good way to"', '"would be great if"', '"ended up writing"'];
+
+const forumPostUrl = (host: string, post: DiscoursePost, topic?: DiscourseTopic) => `https://${host}/t/${topic?.slug ?? 'topic'}/${post.topic_id}/${post.post_number}`;
+const forumSearchUrl = (host: string, query: string, since: string) => `https://${host}/search.json?q=${encodeURIComponent(`${query} after:${since}`)}`;
+
+/** A forum post without the replies it quotes, so a quoted person's words are never filed under this author. */
+export function forumPostText(raw: string | undefined) {
+  return cleanText(String(raw ?? '').replace(/\[quote[^\]]*\][\s\S]*?\[\/quote\]/gi, ' ').replace(/<aside class="quote[\s\S]*?<\/aside>/gi, ' '));
+}
+
+/** The forum a post lives on, if it is one of the Discourse forums above. */
+export function forumHostOf(url: string) {
+  const host = /^https:\/\/([^/]+)\//.exec(url)?.[1];
+  return host && FORUM_HOSTS.includes(host) ? host : null;
+}
 
 /** How many distinct ways a post says "I lack a tool for this". Used to read the most promising posts first. */
 export function painSignalCount(text: string) {
@@ -241,6 +272,52 @@ export const DISCOVERY_ACTORS: Actor[] = [
       }
     },
   },
+  {
+    id: 'forum-pain-posts',
+    async run(session, push) {
+      const { iso } = windowStart();
+      // Forums run side by side; each one is still paced on its own host.
+      await Promise.all(FORUM_HOSTS.map(async (host) => {
+        const found = new Map<number, { post: DiscoursePost; topic?: DiscourseTopic }>();
+        for (const phrase of FORUM_PHRASES) {
+          const json = await session.json<DiscourseSearch>(forumSearchUrl(host, phrase, iso));
+          const topics = new Map((json?.topics ?? []).map((topic) => [topic.id, topic]));
+          for (const post of json?.posts ?? []) if (!found.has(post.id)) found.set(post.id, { post, topic: topics.get(post.topic_id) });
+        }
+        const best = [...found.values()]
+          .sort((a, b) => painSignalCount(b.post.blurb ?? '') - painSignalCount(a.post.blurb ?? '') || (b.post.like_count ?? 0) - (a.post.like_count ?? 0))
+          .slice(0, FORUM_POSTS_PER_HOST);
+        for (const { post, topic } of best) {
+          // The whole post, not the search excerpt, so the model reads the context and quotes are checked against it.
+          const full = await session.json<{ raw?: string; cooked?: string }>(`https://${host}/posts/${post.id}.json`);
+          const text = forumPostText(full?.raw ?? full?.cooked ?? post.blurb).slice(0, 900);
+          push({ platform: 'forum', title: cleanText(topic?.title), text, url: forumPostUrl(host, post, topic), score: (post.like_count ?? 0) + (topic?.posts_count ?? 0), postedAt: post.created_at ?? null });
+        }
+      }));
+    },
+  },
+  {
+    id: 'github-discussions',
+    async run(session, push) {
+      // GitHub's discussion search exists only in GraphQL, which needs a token; without one this source reports no items.
+      if (!process.env.GITHUB_TOKEN?.trim()) return;
+      const { iso } = windowStart();
+      const excluded = new Set(EXCLUDED_REPOS.map((repo) => repo.toLowerCase()));
+      const query = 'query($q: String!) { search(query: $q, type: DISCUSSION, first: 25) { nodes { ... on Discussion { url title bodyText createdAt upvoteCount comments { totalCount } repository { nameWithOwner } } } } }';
+      for (const phrase of DISCUSSION_PHRASES) {
+        const json = await session.json<{ data?: { search?: { nodes?: GithubDiscussion[] } } }>('https://api.github.com/graphql', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query, variables: { q: `${phrase} created:>=${iso}` } }),
+        });
+        for (const discussion of json?.data?.search?.nodes ?? []) {
+          const repo = discussion.repository?.nameWithOwner ?? '';
+          if (!discussion.url || excluded.has(repo.toLowerCase())) continue;
+          push({ platform: 'github', title: cleanText(discussion.title), text: cleanText(discussion.bodyText).slice(0, 900), url: discussion.url, score: (discussion.upvoteCount ?? 0) + (discussion.comments?.totalCount ?? 0), postedAt: discussion.createdAt ?? null, repo });
+        }
+      }
+    },
+  },
 ];
 
 export async function runDiscoveryActors() {
@@ -276,12 +353,14 @@ export function stackSiteOf(url: string) {
  * Finds posts about one problem, across platforms, to widen a candidate's evidence.
  * `sites` are the Stack Exchange sites the problem was first seen on, so a non-developer problem is searched where its people are.
  */
-export async function searchDemand(phrase: string, sites: string[] = []): Promise<Array<Omit<RawSignal, 'id' | 'actor'>>> {
+export async function searchDemand(phrase: string, sites: string[] = [], forums: string[] = []): Promise<Array<Omit<RawSignal, 'id' | 'actor'>>> {
   const session = new ActorSession();
   const { iso, epoch } = windowStart();
   const found: Array<Omit<RawSignal, 'id' | 'actor'>> = [];
   const q = encodeURIComponent(phrase);
 
+  // Forums are searched only where the problem was first seen; the excerpt is the post's own text, so quotes still check.
+  const forumResults = Promise.all(forums.map(async (host) => ({ host, json: await session.json<DiscourseSearch>(forumSearchUrl(host, phrase, iso)) })));
   const [issues, hn, stack, ...network] = await Promise.all([
     session.json<{ items?: GithubIssue[] }>(`https://api.github.com/search/issues?q=${encodeURIComponent(`${phrase} is:issue created:>=${iso}`)}&sort=reactions&order=desc&per_page=8`),
     session.json<{ hits?: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${q}&tags=(comment,ask_hn)&numericFilters=created_at_i>${epoch}&hitsPerPage=10`),
@@ -292,6 +371,13 @@ export async function searchDemand(phrase: string, sites: string[] = []): Promis
   for (const hit of hn?.hits ?? []) found.push({ platform: 'hn', url: hnUrl(hit.objectID), title: cleanText(hit.title ?? hit.story_title), text: cleanText(hit.comment_text ?? hit.story_text).slice(0, 700), score: (hit.points ?? 0) + (hit.num_comments ?? 0), postedAt: hit.created_at ?? null });
   for (const question of stack?.items ?? []) found.push({ platform: 'stackoverflow', url: question.link, title: cleanText(question.title), text: cleanText(question.body).slice(0, 700), score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
   for (const question of network.flatMap((result) => result?.items ?? [])) found.push({ platform: 'stackexchange', url: question.link, title: cleanText(question.title), text: cleanText(question.body).slice(0, 700), score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
+  for (const { host, json } of await forumResults) {
+    const topics = new Map((json?.topics ?? []).map((topic) => [topic.id, topic]));
+    for (const post of (json?.posts ?? []).slice(0, 8)) {
+      const topic = topics.get(post.topic_id);
+      found.push({ platform: 'forum', url: forumPostUrl(host, post, topic), title: cleanText(topic?.title), text: cleanText(post.blurb).slice(0, 700), score: post.like_count ?? 0, postedAt: post.created_at ?? null });
+    }
+  }
   return found;
 }
 

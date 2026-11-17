@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { isAdminEmail } from '@/lib/auth/admin';
+import { isAdminUser } from '@/lib/auth/admin';
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -17,7 +17,7 @@ export async function runManualIngest(formData: FormData) {
 
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect('/login');
-  if (!isAdminEmail(data.user.email)) redirect('/');
+  if (!isAdminUser(data.user)) redirect('/');
 
   const target = String(formData.get('target') ?? '') as IngestKey;
   if (!INGEST_PATHS[target]) redirect('/admin/ingest?status=invalid');
@@ -38,7 +38,7 @@ export async function runFullIngest() {
 
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect('/login');
-  if (!isAdminEmail(data.user.email)) redirect('/');
+  if (!isAdminUser(data.user)) redirect('/');
 
   const secret = process.env.INGEST_SECRET;
   if (!secret) redirect('/admin/ingest?status=missing-secret');

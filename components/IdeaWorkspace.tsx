@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Check, RotateCcw } from 'lucide-react';
+import ModelPicker from '@/components/ModelPicker';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import type { PrdModel } from '@/lib/opportunities/models';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import { matchOpportunities } from '@/lib/opportunities/match';
@@ -34,6 +36,7 @@ const QUESTIONS: Question[] = [
   { key: 'must', ko: '첫 버전에 꼭 있어야 할 기능은 무엇인가요?', en: 'What must the first version do?', hintKo: '세 가지 이내로 적어 주세요.', hintEn: 'Three things at most.', chips: [] },
   { key: 'platform', ko: '어디에서 쓰게 할까요?', en: 'Where will people use it?', chips: [['웹', 'Web'], ['모바일 앱', 'Mobile app'], ['CLI', 'CLI'], ['에디터 확장', 'Editor extension'], ['Slack·Discord 봇', 'Slack or Discord bot']] },
   { key: 'out', ko: '이번 버전에서 하지 않을 것은 무엇인가요?', en: 'What will this version not do?', chips: [['결제', 'Payments'], ['팀 협업', 'Team collaboration'], ['모바일 앱', 'Mobile app'], ['다국어', 'Other languages']] },
+  { key: 'extra', ko: '그 밖에 PRD에 꼭 반영할 생각이 있나요?', en: 'Anything else the PRD must reflect?', hintKo: '방향, 기술 선택, 피하고 싶은 것 등 무엇이든 좋습니다.', hintEn: 'Direction, tech choices, things to avoid: anything goes.', chips: [] },
 ];
 
 const EXAMPLES: Array<[string, string]> = [
@@ -55,7 +58,7 @@ const readSaved = (): Saved | null => {
  * A short planning chat that fills a PRD as you answer. The difference from a plain AI writer: every idea is matched
  * against verbatim developer quotes, and only lines those quotes back are allowed to count as evidence.
  */
-export default function IdeaWorkspace({ pool, signedIn, initialIdea }: { pool: PoolItem[]; signedIn: boolean; initialIdea: string }) {
+export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: { pool: PoolItem[]; signedIn: boolean; initialIdea: string; models: PrdModel[] }) {
   const lang = useLang();
   const t = translator(lang);
   const en = lang === 'en';
@@ -281,6 +284,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea }: { pool: P
             <Bubble role="assistant">
               <p>{t('질문이 끝났습니다. 지금 내용으로 PRD를 만들까요? 요구사항, 기능 명세, 유저플로우, 와이어프레임이 함께 만들어집니다.', 'That is everything. Make the PRD now? Requirements, feature spec, user flow and wireframes come together.')}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
+                {signedIn && <ModelPicker models={models} />}
                 {signedIn
                   ? <button type="button" className="btn h-11 px-5" onClick={generate} disabled={pending === 'generate'}>{pending === 'generate' ? t('PRD 작성 중, 최대 1분 30초', 'Writing, up to 90 s') : t('PRD 만들기', 'Make the PRD')}</button>
                   : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
@@ -347,6 +351,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea }: { pool: P
           ready={passes}
           loginNext={loginNext}
           requestBody={{ brief, evidenceIds: keptIds, title: idea }}
+          models={models}
           signedIn={signedIn}
           generateSignal={signal}
           externalInstruction={change}
@@ -388,6 +393,7 @@ function LiveDraft({ idea, answers, quotes, passes, en }: { idea: string; answer
     [t('첫 버전에 꼭 있어야 할 것', 'Must-haves for v1'), answers.must, 'must'],
     [t('플랫폼', 'Platform'), answers.platform, 'platform'],
     [t('범위 밖', 'Out of scope'), answers.out, 'out'],
+    [t('추가 의견', 'Other direction'), answers.extra, 'extra'],
   ];
   return (
     <article className="mt-2 rounded-2xl bg-white p-6 shadow-[0_0_0_1px_var(--color-outline-soft)] sm:p-9">
@@ -435,7 +441,7 @@ function IdeaStart({ onSubmit, en }: { onSubmit: (text: string) => void; en: boo
   return (
     <div className="page-shell flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center pb-28 text-center">
       <h1 className="text-[clamp(30px,4.6vw,52px)] font-bold leading-[1.15] tracking-[-0.04em] [text-wrap:balance]">{t('무엇을 만들고 싶나요?', 'What do you want to build?')}</h1>
-      <p className="mt-4 max-w-[34em] text-[17px] leading-8 text-tertiary">{t('질문 여섯 개에 답하면, 실제 개발자 원문을 근거로 PRD·기능 명세·유저플로우·와이어프레임을 만듭니다.', 'Answer six questions and get a PRD, feature spec, user flow and wireframes grounded in real developer quotes.')}</p>
+      <p className="mt-4 max-w-[34em] text-[17px] leading-8 text-tertiary">{t('짧은 질문에 답하고 내 의견을 더하면, 실제 개발자 원문을 근거로 PRD·기능 명세·유저플로우·와이어프레임을 만듭니다.', 'Answer a few questions, add your own view, and get a PRD, feature spec, user flow and wireframes grounded in real developer quotes.')}</p>
       <form className="mt-9 w-full max-w-[680px] rounded-2xl border border-outline-strong bg-white p-3 text-left shadow-[0_20px_60px_rgba(0,0,0,.06)] focus-within:border-ink" onSubmit={(event) => { event.preventDefault(); onSubmit(text); }}>
         <label htmlFor="idea-start" className="sr-only">{t('만들고 싶은 것', 'What you want to build')}</label>
         <textarea

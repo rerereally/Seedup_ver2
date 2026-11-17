@@ -5,7 +5,9 @@ import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
+import OpportunityMap from '@/components/OpportunityMap';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { mapPoints } from '@/lib/opportunities/map';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -110,7 +112,7 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
 
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; tab?: string; page?: string }> }) {
   const params = await searchParams;
-  const [articles, scrapKeys, { opportunities }] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities()]);
+  const [articles, scrapKeys, { opportunities, generatedAt }] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities()]);
   const tab = ['popular', 'news', 'paper'].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' : 'new';
   const query = params.q?.trim().toLowerCase() ?? '';
   const selectedCategory = params.category?.trim() ?? '';
@@ -142,16 +144,31 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date());
   // Verified problems first, then the ones closest to the bar.
   const grown = [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length).slice(0, 3);
+  const points = mapPoints(opportunities, new Date(generatedAt).getTime());
+  const quoteCount = opportunities.reduce((sum, item) => sum + item.evidence.length, 0);
+  const sourceCount = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.platform))).size;
+  const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
 
   return (
     <>
       <Header />
       <main id="main-content" className="page-shell grid grow content-start gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="min-w-0">
-          <p className="text-sm text-muted">{today} · 고른 글 {articles.length}편</p>
-          <h1 className="page-intro-title mt-2">오늘의 신호</h1>
+        <section className="min-w-0 lg:col-span-2" aria-labelledby="today-heading">
+          <p className="text-sm text-muted">{today} 발행 · 기회 분석 {updated} 갱신</p>
+          <h1 id="today-heading" className="page-intro-title mt-2">오늘의 신호</h1>
+          <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[15px] text-tertiary">
+            <span>고른 글 <b className="num font-semibold text-ink">{articles.length}</b>편</span>
+            <span>원문과 일치한 인용 <b className="num font-semibold text-ink">{quoteCount}</b>건</span>
+            <span>출처 <b className="num font-semibold text-ink">{sourceCount}</b>곳</span>
+            <span>기준 통과 <b className="num font-semibold text-seed">{opportunities.filter((item) => item.qualified).length}</b>개</span>
+          </p>
+          {points.length > 0 && <div className="mt-8"><OpportunityMap points={points} /></div>}
+        </section>
 
-          <nav aria-label="글 분류" className="tabs mt-8">
+        <section className="min-w-0" aria-label="오늘 읽을 글">
+          <h2 className="text-xl font-bold tracking-tight">오늘 읽을 글</h2>
+
+          <nav aria-label="글 분류" className="tabs mt-4">
             {tabs.map((item) => (
               <Link key={item.key} href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })} scroll={false} aria-current={tab === item.key ? 'page' : undefined} className="tab">{item.label}</Link>
             ))}

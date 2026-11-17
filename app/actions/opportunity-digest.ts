@@ -1,6 +1,6 @@
 'use server';
 
-import { isAdminEmail } from '@/lib/auth/admin';
+import { isAdminUser } from '@/lib/auth/admin';
 import type { DigestKind } from '@/lib/newsletter/opportunity-digest';
 import { digestSiteUrl, sendOpportunityDigest } from '@/lib/newsletter/opportunity-digest-send';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -17,7 +17,7 @@ async function requireAdmin() {
 
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect('/login');
-  if (!isAdminEmail(data.user.email)) redirect('/');
+  if (!isAdminUser(data.user)) redirect('/');
 }
 
 // Preview only builds the mail and never sends. The page renders the text itself, so it stays out of the URL.

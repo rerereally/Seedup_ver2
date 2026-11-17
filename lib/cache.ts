@@ -33,3 +33,8 @@ export function cached<T>(key: string, load: () => Promise<T>, ttlMs = DEFAULT_T
   entries.set(key, { at: Date.now(), value, refreshing: false });
   return value;
 }
+
+/** Drops one cached value, so the next read loads it fresh (used after an admin changes a setting). */
+export function forget(key: string) {
+  entries.delete(key);
+}

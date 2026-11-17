@@ -33,3 +33,22 @@ test('idea specs keep features that serve hypotheses; classic specs drop them', 
   assert.equal(idea.screens.length, 1);
   assert.equal(idea.origin, 'idea');
 });
+
+import { inputFromBody, withNotes } from '../lib/opportunities/idea';
+import { mapPoints } from '../lib/opportunities/map';
+
+test('the maker\'s notes reach the PRD context, labeled as not evidence', () => {
+  const resolved = inputFromBody([opportunity], { evidenceIds: ['e1'], notes: '  CLI only, no payments  ' }, 'ko')!;
+  assert.equal(resolved.notes, 'CLI only, no payments');
+  assert.match(resolved.input.problem, /만드는 사람의 의견 \(근거 아님\):\nCLI only, no payments/);
+  assert.equal(withNotes(resolved.input, '').problem, resolved.input.problem);
+  assert.equal(inputFromBody([opportunity], { evidenceIds: ['e1'] }, 'ko')!.notes, '');
+});
+
+test('the map places problems by counted values only', () => {
+  const crowded = { ...opportunity, slug: 'crowded', directCount: 4 };
+  const [open, busy] = mapPoints([opportunity, crowded], Date.parse('2026-11-17T00:00:00Z'));
+  assert.ok(open.openness > busy.openness);
+  assert.ok(open.strength > 0 && open.strength < 1);
+  assert.equal(open.recent, 0);
+});

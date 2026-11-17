@@ -1,6 +1,9 @@
 import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
+import { loadPrdPolicy, pickPrdModel } from '@/lib/opportunities/models';
+import { prdRunLog } from '@/lib/opportunities/prd-runs';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { generateSlots } from '@/lib/opportunities/prd';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -34,10 +37,14 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'prd_slots', DAILY_SLOT_LIMIT))) {
     return NextResponse.json({ error: `개발 준비 칸은 하루 ${DAILY_SLOT_LIMIT}번까지 채울 수 있습니다.` }, { status: 429 });
   }
-  const slots = await generateSlots(input, feature, requirements, toLang(body?.lang)).catch((error) => {
+  const service = createAdminClient();
+  const model = pickPrdModel(body?.model, await loadPrdPolicy(service));
+  const run = prdRunLog(service, data.user, 'slots', model ?? 'default');
+  const slots = await generateSlots(input, feature, requirements, toLang(body?.lang), model, run.onUsage).catch((error) => {
     console.error('Readiness slots failed', error);
     return null;
   });
+  await run.finish(Boolean(slots), `${input.title} · ${feature.title}`);
   if (!slots) {
     await releaseDailyUsage(supabase, 'prd_slots');
     return NextResponse.json({ error: '슬롯을 채우지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });

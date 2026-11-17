@@ -1,6 +1,9 @@
 import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
+import { loadPrdPolicy, pickPrdModel } from '@/lib/opportunities/models';
+import { prdRunLog } from '@/lib/opportunities/prd-runs';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeSlots } from '@/lib/opportunities/spec';
@@ -72,10 +75,14 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'prd_revise', DAILY_REVISE_LIMIT))) {
     return NextResponse.json({ error: `대화형 수정은 하루 ${DAILY_REVISE_LIMIT}번까지 할 수 있습니다.` }, { status: 429 });
   }
-  const spec = await reviseSpec(input, current, instruction).catch((error) => {
+  const service = createAdminClient();
+  const model = pickPrdModel(body?.model, await loadPrdPolicy(service));
+  const run = prdRunLog(service, data.user, 'revise', model ?? 'default');
+  const spec = await reviseSpec(input, current, instruction, model, undefined, run.onUsage).catch((error) => {
     console.error('PRD revise failed', error);
     return null;
   });
+  await run.finish(Boolean(spec), input.title);
   if (!spec) {
     await releaseDailyUsage(supabase, 'prd_revise');
     return NextResponse.json({ error: '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });

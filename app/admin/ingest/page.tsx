@@ -8,12 +8,15 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
 import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
-import { isAdminEmail } from '@/lib/auth/admin';
+import { isAdminUser } from '@/lib/auth/admin';
+import { savePrdModelPolicy } from '@/app/actions/prd-models';
+import { loadPrdPolicy, modelLabel, prdModels } from '@/lib/opportunities/models';
+import { recentPrdRuns } from '@/lib/opportunities/prd-runs';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { digestSiteUrl, sendOpportunityDigest } from '@/lib/newsletter/opportunity-digest-send';
 import { Activity, CheckCircle2, Clock3, DatabaseZap, Eye, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: '수집 관리',
@@ -76,14 +79,28 @@ const DIGEST_SKIP_MESSAGES: Record<string, string> = {
   error: '다이제스트 발송 중 오류가 발생했습니다. 서버 로그를 확인하세요.',
 };
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string }> }) {
+// For showing costs in won; an estimate, not an exchange-rate feed.
+const KRW_PER_USD = 1_400;
+
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-  if (!data.user) redirect('/login');
-  if (!isAdminEmail(data.user.email)) redirect('/');
+  // Anyone who is not an admin, signed in or not, gets the same 404 as a page that does not exist.
+  if (!isAdminUser(data.user)) notFound();
 
   const params = await searchParams;
-  const [allRuns, rejections, qualitySummary, recommendationQuality] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality()]);
+  const service = createAdminClient();
+  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service)]);
+  const prdMenu = prdModels(prdPolicy);
+  const enabledIds = new Set(prdPolicy.enabled);
+  // Per account over the rows shown, so a heavy user stands out at a glance.
+  const prdByAccount = [...prdRuns.reduce((map, row) => {
+    const key = row.email ?? '(이메일 없음)';
+    const total = map.get(key) ?? { runs: 0, cost: 0 };
+    map.set(key, { runs: total.runs + 1, cost: total.cost + Number(row.cost_usd) });
+    return map;
+  }, new Map<string, { runs: number; cost: number }>())].sort((a, b) => b[1].cost - a[1].cost || b[1].runs - a[1].runs);
+  const won = (usd: number) => `${Math.round(usd * KRW_PER_USD).toLocaleString('ko-KR')}원`;
   const runs = allRuns.slice(0, 30);
   const health = summarizeSourceHealth(allRuns);
   const actors = latestEngineActors(allRuns);
@@ -195,6 +212,70 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 </div>
               </div>
             ))}
+          </section>
+
+          <section id="prd-models" className="scroll-mt-24 border border-outline-soft bg-white p-5 md:p-6">
+            <h2 className="text-2xl font-bold text-ink">PRD 모델</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">모든 계정이 PRD를 만들 때 고를 수 있는 모델입니다. 체크를 끄면 그 모델을 고른 요청도 무료 모델로 만들어집니다. 수집·처리 엔진은 이 설정과 관계없이 항상 무료 모델만 씁니다. 저장 후 30초 안에 반영됩니다.</p>
+            {params.prdModels && (
+              <p className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.prdModels === 'saved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                {params.prdModels === 'saved' ? '저장했습니다.' : params.prdModels === 'missing-service-key' ? '서버 키가 없어 저장하지 못했습니다.' : '저장하지 못했습니다. supabase/prd_models_2026_11.sql을 실행했는지 확인하세요.'}
+              </p>
+            )}
+            <form action={savePrdModelPolicy} className="mt-5">
+              <ul className="divide-y divide-outline-soft border-y border-outline-soft">
+                {prdMenu.map((row, index) => (
+                  <li key={row.id}>
+                    <label className="flex min-h-12 cursor-pointer items-center gap-3 py-2.5 text-sm">
+                      <input type="checkbox" name="enabled" value={row.id} defaultChecked={index === 0 || enabledIds.has(row.id)} disabled={index === 0} className="h-4 w-4 accent-seed" />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-semibold text-ink">{row.label}</span>
+                        <span className="ml-2 text-muted">{row.note}</span>
+                        {index === 0 && <span className="ml-2 text-muted">· 항상 켜짐</span>}
+                        {row.reason === 'EXAONE 키가 아직 없음' && <span className="ml-2 text-red-700">· EXAONE_API_KEY가 없어 켜도 쓸 수 없음</span>}
+                      </span>
+                      <code className="hidden text-xs text-muted md:inline">{row.id}</code>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <SubmitButton pendingText="저장 중" className="mt-4 inline-flex items-center justify-center bg-ink px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90">저장</SubmitButton>
+            </form>
+
+            <h3 className="mt-10 text-lg font-bold text-ink">PRD 사용 기록</h3>
+            <p className="mt-1 text-sm text-muted">최근 {prdRuns.length}건. 비용은 모델이 알려 준 토큰 수에 OpenRouter 가격을 곱한 추정치입니다(1달러 = {KRW_PER_USD.toLocaleString('ko-KR')}원으로 계산).</p>
+            {prdRuns.length ? (
+              <>
+                <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                  {prdByAccount.slice(0, 8).map(([email, total]) => (
+                    <li key={email}><span className="font-semibold text-ink">{email}</span> <span className="text-muted">{total.runs}건 · {won(total.cost)}</span></li>
+                  ))}
+                </ul>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="border-b border-outline-soft text-xs text-muted">
+                      <tr><th className="py-2 pr-4 font-medium">시간</th><th className="py-2 pr-4 font-medium">계정</th><th className="py-2 pr-4 font-medium">종류</th><th className="py-2 pr-4 font-medium">모델</th><th className="py-2 pr-4 font-medium">제목</th><th className="py-2 pr-4 font-medium">결과</th><th className="py-2 pr-4 text-right font-medium">토큰</th><th className="py-2 text-right font-medium">비용</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-soft">
+                      {prdRuns.map((row) => (
+                        <tr key={`${row.created_at}-${row.email}-${row.kind}`}>
+                          <td className="whitespace-nowrap py-2 pr-4 text-muted">{new Date(row.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-2 pr-4">{row.email ?? '-'}</td>
+                          <td className="py-2 pr-4">{{ prd: '생성', revise: '수정', slots: '개발 준비' }[row.kind] ?? row.kind}</td>
+                          <td className="py-2 pr-4">{modelLabel(row.model)}{row.requested_model !== row.model && row.requested_model !== 'default' && <span className="block text-xs text-muted">요청: {modelLabel(row.requested_model)}</span>}</td>
+                          <td className="max-w-[16rem] truncate py-2 pr-4" title={row.title}>{row.title}</td>
+                          <td className={`py-2 pr-4 ${row.ok ? 'text-emerald-700' : 'text-red-700'}`}>{row.ok ? '성공' : '실패'}<span className="ml-1 text-xs text-muted">{Math.round(row.duration_ms / 1000)}초</span></td>
+                          <td className="py-2 pr-4 text-right tabular-nums text-muted">{(row.prompt_tokens + row.completion_tokens).toLocaleString('ko-KR')}</td>
+                          <td className="py-2 text-right tabular-nums">{won(Number(row.cost_usd))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-muted">아직 기록이 없습니다. supabase/prd_models_2026_11.sql을 실행한 뒤부터 쌓입니다.</p>
+            )}
           </section>
 
           <section className="border border-outline-soft bg-white p-5 md:p-6">

@@ -8,6 +8,8 @@ import type { BuildProgress } from '@/lib/opportunities/build-progress';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
+import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
+import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
 import { downloadText } from './download';
 import styles from './stage.module.css';
@@ -30,7 +32,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [] }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -57,9 +59,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   onError?: (message: string) => void;
   /** Features a coding agent marked done through MCP (mark_feature_done), by feature id. */
   progress?: BuildProgress;
+  /** The server's model menu; the pick is shared with every PRD screen through browser storage. */
+  models?: PrdModel[];
 }) {
   const lang = useLang();
   const t = translator(lang);
+  const model = usePrdModel(models);
   const [input, setInput] = useState<SpecInput | null>(initial?.input ?? null);
   const [pickedIds, setPickedIds] = useState<string[] | null>(null);
   const ids = pickedIds ?? evidenceIds;
@@ -71,6 +76,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
   const [slotPending, setSlotPending] = useState<string[]>([]);
   const [instruction, setInstruction] = useState('');
+  // The maker's own direction, written before the PRD is made so it shapes the first draft, not a later edit.
+  const [notes, setNotes] = useState('');
   const [format, setFormat] = useState<ExportFormat>('agents');
   const [message, setMessage] = useState(initial ? t(`같은 원문으로 ${new Date(initial.createdAt).toLocaleDateString('ko-KR')}에 만든 PRD입니다.`, `Made from the same quotes on ${new Date(initial.createdAt).toLocaleDateString('en-US')}.`) : '');
   const [error, setError] = useState('');
@@ -92,7 +99,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setMessage('');
     setNeedsLogin(false);
     try {
-      const { status: code, ok, json } = await postJson(endpoint, { ...(requestBody ?? { title, evidenceIds }), lang });
+      const { status: code, ok, json } = await postJson(endpoint, { ...(requestBody ?? { title, evidenceIds }), lang, model, notes });
       if (!ok) fail(code, json, t('PRD를 만들지 못했습니다.', 'Could not create the PRD.'));
       else {
         setInput(json.input as SpecInput);
@@ -128,14 +135,15 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   }, [error, needsLogin]);
 
   // Idea PRDs carry the user's brief, so follow-up calls rebuild the same context on the server.
-  const ideaBrief = requestBody?.brief ? { brief: requestBody.brief } : {};
+  // Follow-up calls rebuild the same context on the server: the idea brief and the maker's notes go along.
+  const ideaBrief = { ...(requestBody?.brief ? { brief: requestBody.brief } : {}), notes };
 
   const fillSlots = async (feature: SpecFeature) => {
     if (!spec) return;
     setSlotPending((before) => [...before, feature.id]);
     try {
       const requirements = feature.requirementIds.flatMap((rid) => [...spec.requirements, ...spec.hypotheses].find((row) => row.id === rid) ?? []);
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, ...ideaBrief });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, model, ...ideaBrief });
       if (!ok) fail(code, json, t('슬롯을 채우지 못했습니다.', 'Could not fill the slots.'));
       else setSpec((current) => current && { ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
     } catch {
@@ -154,7 +162,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setMessage('');
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction: text, ...ideaBrief });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction: text, model, ...ideaBrief });
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
@@ -339,6 +347,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   return (
     <>
+      {!hideControls && signedIn !== false && (
+        <div className="mb-4 max-w-[52em]">
+          <label htmlFor="prd-notes" className="text-[15px] font-semibold">{t('내 의견', 'Your direction')} <span className="font-normal text-muted">{t('(선택)', '(optional)')}</span></label>
+          <p className="mt-1 text-[13px] leading-6 text-muted">{t('누구를 위해, 꼭 넣을 기능, 뺄 것, 원하는 방향을 적으면 처음부터 반영해 만듭니다. 원문이 받쳐 주지 않는 내용은 가설로 표시됩니다.', 'Who it is for, must-haves, what to leave out, the direction you want. It shapes the first draft; anything no quote backs is marked as a hypothesis.')}</p>
+          <textarea id="prd-notes" rows={3} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} placeholder={t('예: 1인 개발자용 CLI로 만들고, 첫 버전은 OpenAI와 Anthropic만 지원. 결제와 팀 기능은 빼기.', 'e.g. A CLI for solo developers; v1 supports only OpenAI and Anthropic. No payments or team features.')} className="mt-2 block w-full border bg-white px-3 py-2.5 text-[15px] leading-6" />
+          {spec && notes.trim() && <p className="mt-1.5 text-[13px] text-muted">{t('의견을 바꿨다면 "PRD 다시 만들기"로 새로 반영합니다.', 'Changed your direction? "Make the PRD again" applies it.')}</p>}
+        </div>
+      )}
       {!hideControls && <div className="flex flex-wrap items-center gap-2">
         {signedIn === false ? (
           <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className={spec ? 'btn-quiet' : 'btn h-11 px-5'}>
@@ -349,6 +365,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             {status === 'loading' ? t('PRD 작성 중, 최대 1분 30초', 'Writing the PRD, up to 90 s') : spec ? t('PRD 다시 만들기', 'Make the PRD again') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
           </button>
         )}
+        {signedIn !== false && <ModelPicker models={models} />}
         <button type="button" className={`btn-quiet ${spec ? '' : 'h-11'}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
           {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
         </button>

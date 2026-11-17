@@ -61,3 +61,14 @@ test('costs come from reported tokens, and admins come from the setting or Supab
   assert.equal(isAdminUser({ email: 'x@example.com', app_metadata: {} }), false);
   assert.equal(isAdminUser(null), false);
 });
+
+import { normalizeRivals } from '../lib/opportunities/spec';
+
+test('the rival comparison keeps only competitors the input listed, under their listed names', () => {
+  const rivals = normalizeRivals([
+    { name: 'portkey-ai', misses: 'no schema mapping', answer: 'maps every provider' },
+    { name: 'Invented Tool', misses: 'made up' },
+    { name: 'litellm', misses: '' },
+  ], ['Portkey-AI', 'LiteLLM']);
+  assert.deepEqual(rivals, [{ name: 'Portkey-AI', misses: 'no schema mapping', answer: 'maps every provider' }]);
+});

@@ -352,6 +352,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
           loginNext={loginNext}
           requestBody={{ brief, evidenceIds: keptIds, title: idea }}
           models={models}
+          hideRevise
           signedIn={signedIn}
           generateSignal={signal}
           externalInstruction={change}

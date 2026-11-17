@@ -65,7 +65,22 @@ export type Spec = {
   lang?: Lang;
   /** Started from the user's own idea: features may serve hypotheses, which stay marked as unverified. */
   origin?: 'idea';
+  /** Each listed competitor: what it misses for these users and how this product answers it. Names only from the input. */
+  rivals?: SpecRival[];
 };
+
+export type SpecRival = { name: string; misses: string; answer: string };
+
+/** Keeps only rivals the input actually listed, so the model cannot invent a competitor. */
+export function normalizeRivals(raw: unknown, competitors: string[]): SpecRival[] {
+  const known = new Map(competitors.map((name) => [name.toLowerCase(), name]));
+  return (Array.isArray(raw) ? raw : []).slice(0, 8).flatMap((row) => {
+    const record = (row ?? {}) as Record<string, unknown>;
+    const name = known.get(text(record.name, 120).toLowerCase());
+    const misses = text(record.misses, 240);
+    return name && misses ? [{ name, misses, answer: text(record.answer, 240) }] : [];
+  });
+}
 
 export type SpecInput = {
   title: string;
@@ -91,6 +106,7 @@ export type RawSpec = {
   risks?: unknown;
   metrics?: unknown;
   existing?: unknown;
+  rivals?: unknown;
 };
 
 const text = (value: unknown, limit = 400) => String(value ?? '').trim().slice(0, limit);
@@ -276,7 +292,7 @@ ${bullets(spec.risks, undefinedText)}
 ## ${t('성공 지표', 'Success metrics')}
 ${bullets(spec.metrics, undefinedText)}
 
-${input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
+${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${row.misses}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
 ${evidenceSection(input.evidence, lang)}
 `;
 }

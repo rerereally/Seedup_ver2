@@ -9,7 +9,9 @@ import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
 import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
 import { isAdminUser } from '@/lib/auth/admin';
-import { savePrdModelPolicy } from '@/app/actions/prd-models';
+import { prebuildDemoPrd, savePrdModelPolicy } from '@/app/actions/prd-models';
+import { getOpportunities } from '@/lib/opportunities/data';
+import { PRD_MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { loadPrdPolicy, modelLabel, prdModels } from '@/lib/opportunities/models';
 import { recentPrdRuns } from '@/lib/opportunities/prd-runs';
 import { createClient } from '@/lib/supabase/server';
@@ -82,7 +84,7 @@ const DIGEST_SKIP_MESSAGES: Record<string, string> = {
 // For showing costs in won; an estimate, not an exchange-rate feed.
 const KRW_PER_USD = 1_400;
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string }> }) {
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string; demo?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   // Anyone who is not an admin, signed in or not, gets the same 404 as a page that does not exist.
@@ -92,6 +94,12 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
   const service = createAdminClient();
   const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service)]);
   const prdMenu = prdModels(prdPolicy);
+  // The verified problems a demo is likely to open, and whether each already has a saved PRD.
+  const { opportunities: allOpportunities } = await getOpportunities();
+  const demoRows = await Promise.all(allOpportunities.filter((item) => item.qualified).slice(0, 12).map(async (item) => ({
+    item,
+    saved: await readPrdCache(service, item.evidence.slice(0, PRD_MAX_EVIDENCE).map((row) => row.id)),
+  })));
   const enabledIds = new Set(prdPolicy.enabled);
   // Per account over the rows shown, so a heavy user stands out at a glance.
   const prdByAccount = [...prdRuns.reduce((map, row) => {
@@ -241,6 +249,27 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               </ul>
               <SubmitButton pendingText="저장 중" className="mt-4 inline-flex items-center justify-center bg-ink px-5 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90">저장</SubmitButton>
             </form>
+
+            <h3 id="demo-prds" className="mt-10 scroll-mt-24 text-lg font-bold text-ink">시연용 PRD 미리 만들기</h3>
+            <p className="mt-1 text-sm text-muted">기준을 통과한 문제의 PRD를 미리 만들어 저장합니다. 저장된 PRD는 로그인 없이도 바로 열리므로 시연 중에 모델을 기다리지 않습니다. 한 번에 한 문제씩, 최대 1분 30초 걸립니다.</p>
+            {params.demo && <p className={`mt-3 text-sm font-semibold ${params.demo === 'saved' ? 'text-emerald-700' : 'text-red-700'}`}>{params.demo === 'saved' ? 'PRD를 만들어 저장했습니다.' : params.demo === 'failed' ? '모델이 답하지 않았습니다. 다른 모델로 다시 시도해 보세요.' : '만들지 못했습니다.'}</p>}
+            <ul className="mt-4 divide-y divide-outline-soft border-y border-outline-soft">
+              {demoRows.map(({ item, saved }) => (
+                <li key={item.slug} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <a href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="font-semibold text-ink underline-offset-4 hover:underline">{item.name}</a>
+                    <span className={`ml-2 ${saved ? 'text-emerald-700' : 'text-muted'}`}>{saved ? `저장됨 · ${new Date(saved.createdAt).toLocaleDateString('ko-KR')}` : '아직 없음'}</span>
+                  </span>
+                  <form action={prebuildDemoPrd} className="flex items-center gap-2">
+                    <input type="hidden" name="slug" value={item.slug} />
+                    <select name="model" defaultValue={prdMenu.find((row) => row.available && !row.free)?.id ?? prdMenu[0]?.id} className="border border-outline-soft bg-white px-2 py-1.5 text-sm text-ink" aria-label={`${item.name} PRD 모델`}>
+                      {prdMenu.filter((row) => row.available).map((row) => <option key={row.id} value={row.id}>{row.label}</option>)}
+                    </select>
+                    <SubmitButton pendingText="만드는 중" className="border border-outline-strong bg-white px-3 py-1.5 text-sm font-semibold text-ink hover:bg-surface-low">{saved ? '다시 만들기' : '만들기'}</SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
 
             <h3 className="mt-10 text-lg font-bold text-ink">PRD 사용 기록</h3>
             <p className="mt-1 text-sm text-muted">최근 {prdRuns.length}건. 비용은 모델이 알려 준 토큰 수에 OpenRouter 가격을 곱한 추정치입니다(1달러 = {KRW_PER_USD.toLocaleString('ko-KR')}원으로 계산).</p>

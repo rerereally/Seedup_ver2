@@ -1,6 +1,6 @@
 import { callJsonModel } from './llm';
 import type { ModelUsage } from './llm';
-import { normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';
+import { normalizeRivals, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';
 import type { RawSpec, Spec, SpecFeature, SpecInput, SpecRequirement } from './spec';
 import type { Lang } from '../i18n';
 
@@ -58,9 +58,10 @@ export async function generatePrd(input: SpecInput, options: { draft?: boolean; 
 1) requirements: 4~7개. 각 evidence에는 그 요구사항을 직접 뒷받침하는 발언 번호만 넣고, 없으면 빈 배열로 둡니다.
 2) features: 요구사항을 구현하는 기능 3~6개. requirements에는 이 기능이 충족하는 요구사항 번호(1부터)를 넣습니다.
 3) screens: 첫 버전의 화면이나 명령을 사용자가 만나는 순서대로 3~5개. features에는 그 화면이 보여주는 기능 번호(1부터)를 넣습니다.
+${input.competitors.length ? '4) rivals: "이미 있는 도구"에 적힌 도구마다 이 사용자 발언의 불만을 왜 못 푸는지(misses)와 이 제품의 답(answer)을 한 문장씩. name은 목록의 이름 그대로 쓰고, 목록에 없는 도구는 넣지 않습니다. 모르면 빼세요.' : ''}
 ${WRITING_RULES}
 ${languageRule(options.lang)}
-JSON만 반환합니다: {"summary":"한 문장","target_users":["..."],"requirements":[{"title":"짧은 제목","detail":"구현 가능한 수준의 한두 문장","evidence":[1,2]}],"features":[{"title":"기능 이름","detail":"무엇을 하는지 한두 문장","requirements":[1]}],"screens":[{"name":"화면 이름","does":"여기서 사용자가 하는 일 한 문장","features":[1,2]}],"non_goals":["..."],"risks":["..."],"metrics":["측정 가능한 지표"]}
+JSON만 반환합니다: {"summary":"한 문장","target_users":["..."],"rivals":[{"name":"도구 이름","misses":"못 하는 것","answer":"이 제품의 답"}],"requirements":[{"title":"짧은 제목","detail":"구현 가능한 수준의 한두 문장","evidence":[1,2]}],"features":[{"title":"기능 이름","detail":"무엇을 하는지 한두 문장","requirements":[1]}],"screens":[{"name":"화면 이름","does":"여기서 사용자가 하는 일 한 문장","features":[1,2]}],"non_goals":["..."],"risks":["..."],"metrics":["측정 가능한 지표"]}
 
 아이디어: ${input.title}
 문제: ${input.problem}
@@ -71,7 +72,7 @@ JSON만 반환합니다: {"summary":"한 문장","target_users":["..."],"require
 ${quotes(input)}`, { maxTokens: 8_000, timeoutMs: 95_000, title: 'Seedup PRD', model: options.model, onUsage: options.onUsage });
 
   if (!raw) return null;
-  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang: options.lang ?? 'ko' };
+  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang: options.lang ?? 'ko', rivals: normalizeRivals(raw.rivals, input.competitors) };
   if (!spec.summary || !(spec.requirements.length + (options.idea ? spec.hypotheses.length : 0))) return null;
 
   // One repair pass on what the code check found; kept only when it really has fewer problems.
@@ -139,7 +140,9 @@ ${JSON.stringify(specAsRaw(spec))}
 ${quotes(input)}`, { maxTokens: 8_000, timeoutMs, title: 'Seedup PRD revise', model, onUsage });
   if (!raw) return null;
   const idea = spec.origin === 'idea';
-  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}) };
+  // A revision keeps the rival comparison unless it returns a new one.
+  const rivals = normalizeRivals(raw.rivals, input.competitors);
+  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), rivals: rivals.length ? rivals : spec.rivals ?? [] };
   if (!revised.summary || !(revised.requirements.length + (idea ? revised.hypotheses.length : 0))) return null;
   // A feature that kept its title keeps the readiness slots already filled for it.
   const slotsByTitle = new Map(spec.features.map((row) => [row.title, row.slots]));

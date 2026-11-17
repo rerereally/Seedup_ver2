@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AgentStart from '@/components/AgentStart';
 import Logo from '@/components/Logo';
 import type { DigestIssue } from '@/lib/newsletter/opportunity-digest';
 
@@ -26,7 +27,10 @@ export default function NewsletterIssue({ issue, dateLabel }: { issue: DigestIss
               <footer className="mt-1.5 text-[13px] text-muted">{lead.quote.source} · 원문과 일치 · <a href={lead.quote.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline">원문 보기</a></footer>
             </blockquote>
           )}
-          <Link href={`/prd?opportunity=${encodeURIComponent(lead.slug)}`} className="btn mt-6 h-11 px-5">이 문제로 PRD 만들기</Link>
+          <div className="mt-6 flex flex-wrap items-start gap-x-3 gap-y-2">
+            <Link href={`/prd?opportunity=${encodeURIComponent(lead.slug)}`} className="btn h-11 px-5">이 문제로 PRD 만들기</Link>
+            <AgentStart slug={lead.slug} name={lead.name} className="max-w-[24rem]" />
+          </div>
           {rest.length > 0 && (
             <ul className="rows mt-8">
               {rest.map((item) => (

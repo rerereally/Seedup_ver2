@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FileText, GitBranch, List, Mail, Search } from 'lucide-react';
+import { Compass, FileText, GitBranch, List, Mail, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
@@ -16,9 +16,9 @@ const NAV = [
   { name: '오늘의 신호', en: 'Signals', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail },
   { name: '읽을 글', en: 'Reads', href: '/news', match: ['/news', '/papers'], icon: List },
   { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText },
-  { name: 'Git 평가', en: 'Repo review', href: '/seeds', match: ['/seeds'], icon: GitBranch },
+  { name: '내 저장소', en: 'My repo', href: '/seeds', match: ['/seeds'], icon: GitBranch },
 ];
-const EXPLORE = { name: '탐색', en: 'Explore', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'] };
+const EXPLORE = { name: '탐색', en: 'Explore', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
 const WORK = ['/ideas', '/scrap', '/profile'];
 
 export default function Header() {
@@ -77,13 +77,13 @@ export default function Header() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <Link href="/search" aria-label={t('검색', 'Search')} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-tertiary transition-colors hover:bg-surface-low hover:text-ink">
+            <Link href="/search" aria-label={t('검색', 'Search')} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-tertiary transition-colors hover:bg-surface-low hover:text-ink">
               <Search className="h-[18px] w-[18px]" aria-hidden="true" />
             </Link>
-            <Link href={EXPLORE.href} className="inline-flex h-10 items-center px-2 text-sm text-tertiary hover:text-ink lg:hidden">{t(EXPLORE.name, EXPLORE.en)}</Link>
             {isAdmin && <Link href="/admin/ingest" className="hidden h-10 items-center px-2 text-sm text-tertiary hover:text-ink sm:inline-flex">{t('관리', 'Admin')}</Link>}
-            <ThemeToggle />
-            <button type="button" onClick={switchLang} lang={lang === 'en' ? 'ko' : 'en'} className="inline-flex h-10 items-center px-2 text-sm text-tertiary hover:text-ink" aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}>
+            {/* On phones the theme and language switches live in the footer, so the bar keeps the brand, search and the action. */}
+            <span className="hidden sm:contents"><ThemeToggle /></span>
+            <button type="button" onClick={switchLang} lang={lang === 'en' ? 'ko' : 'en'} className="hidden h-11 items-center px-2 text-sm text-tertiary hover:text-ink sm:inline-flex" aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}>
               {lang === 'en' ? '한국어' : 'EN'}
             </button>
             {email ? (
@@ -93,18 +93,18 @@ export default function Header() {
               </Link>
             ) : (
               <>
-                <Link href="/login" className="hidden h-10 items-center px-2 text-sm text-ink sm:inline-flex">{t('로그인', 'Sign in')}</Link>
-                <Link href="/login" className="inline-flex h-10 items-center rounded-[10px] bg-ink px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90">{t('시작하기', 'Get started')}</Link>
+                <Link href="/login" className="inline-flex h-11 items-center whitespace-nowrap px-2 text-sm text-ink">{t('로그인', 'Sign in')}</Link>
+                <Link href="/prd/new" className="btn h-11 whitespace-nowrap px-3.5 sm:px-4">{t('PRD 만들기', 'Make a PRD')}</Link>
               </>
             )}
           </div>
         </div>
       </header>
 
-      {/* Phones get the four main places as a bottom bar, so the top row stays just the brand and the account. */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-outline-soft bg-white pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
-        {NAV.map((item) => (
-          <Link key={item.href} href={item.href} aria-current={on(item.match) ? 'page' : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] ${on(item.match) ? 'font-semibold text-seed' : 'text-muted'}`}>
+      {/* Phones get the five places as a bottom bar, so the top row stays just the brand and the account. */}
+      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-outline-soft bg-white pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
+        {[...NAV, EXPLORE].map((item) => (
+          <Link key={item.href} href={item.href} aria-current={on(item.match) ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] ${on(item.match) ? 'font-semibold text-seed' : 'text-muted'}`}>
             <item.icon className="h-5 w-5" aria-hidden="true" />
             {t(item.name, item.en)}
           </Link>

@@ -1,3 +1,5 @@
+/* Hallmark · redesign: full (landing) · genre: modern-minimal · job: sign up (make a PRD) · theme: brand (seed green, Pretendard) · nav: dense bar, one action · footer: one row · rules: DESIGN.md */
+/* Hallmark · rebuilt the landing PRD-first (approved 2026-11-17): the four-step list, the quote section and the stats row became the hero walkthrough, the track-record chart and dated figures; the email close became the idea box · sloplint before 4 FAIL 3 REFLEX, after 0 FAIL 0 REFLEX · waive 39b: the PRD graph boxes in the hero demo are 60px diagram nodes that take focus to trace a chain, not form controls */
 @import "tailwindcss";
 
 @font-face {
@@ -31,6 +33,8 @@
   --color-muted: #6b6b72;
   --color-outline-soft: #e4e4e7;
   --color-outline-strong: #c4c4ca;
+  /* A form field's edge: 3:1 against the page and the card, which a hairline is not. */
+  --color-field: #8a8a92;
   --color-tertiary: #52525b;
   /* The one accent: the seed green. "hot" keeps its name so older markup follows along. */
   --color-seed: #1f6b4a;
@@ -43,6 +47,11 @@
   --color-emerald-200: #b9dcc8;
   --color-emerald-500: #2f8f63;
   --color-emerald-700: #1f6b4a;
+  /* The terminal stays dark in both themes. */
+  --color-term-bg: #111214;
+  --color-term-ink: #e7e7ea;
+  --color-term-muted: #8b8b94;
+  --color-term-seed: #7fd1a6;
 }
 
 /*
@@ -68,6 +77,7 @@
     --color-muted: #9a9aa2;
     --color-outline-soft: #2c2c31;
     --color-outline-strong: #46464d;
+    --color-field: #77777f;
     --color-tertiary: #c2c2c8;
     --color-seed: #4caf80;
     --color-seed-soft: #15251d;
@@ -100,6 +110,7 @@
       --color-muted: #9a9aa2;
       --color-outline-soft: #2c2c31;
       --color-outline-strong: #46464d;
+    --color-field: #77777f;
       --color-tertiary: #c2c2c8;
       --color-seed: #4caf80;
       --color-seed-soft: #15251d;
@@ -246,7 +257,7 @@
 }
 
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
   scroll-padding-top: 5rem;
 }
 
@@ -257,7 +268,7 @@ html {
 }
 
 :where(input:not([type="checkbox"], [type="radio"], [type="hidden"]), textarea, select) {
-  border-color: var(--color-outline-strong);
+  border-color: var(--color-field);
 }
 
 .skip-link {
@@ -295,6 +306,32 @@ body {
 
   .page-stack {
     @apply flex flex-col gap-7 md:gap-9;
+  }
+
+  /* Type and rhythm from DESIGN.md. Two section gaps, so the page never repeats one interval. */
+  .t-display {
+    @apply min-w-0 text-[clamp(40px,4.6vw,64px)] font-bold leading-[1.08] tracking-[-0.04em] text-ink;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+
+  .t-section {
+    @apply min-w-0 text-[clamp(30px,3.2vw,46px)] font-bold leading-[1.15] tracking-[-0.035em] text-ink;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+
+  .t-lead {
+    @apply text-[17px] leading-[1.7] text-tertiary;
+    text-wrap: pretty;
+  }
+
+  .section {
+    @apply mx-auto w-full max-w-[1200px] px-5 pt-[88px] sm:px-6 md:px-8 md:pt-32;
+  }
+
+  .section-wide {
+    @apply mx-auto w-full max-w-[1200px] px-5 pt-28 sm:px-6 md:px-8 md:pt-[168px];
   }
 
   .page-intro-title {
@@ -355,7 +392,7 @@ body {
 
   /* Green text link with a chevron, the quiet way forward under a section. */
   .link-seed {
-    @apply inline-flex min-h-9 items-center gap-1 text-sm font-medium text-seed underline-offset-4 hover:underline;
+    @apply inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-seed underline-offset-4 hover:underline;
   }
 
   /* Hairline list: rows divided by lines, no boxes. */
@@ -369,7 +406,7 @@ body {
 
   /* Terminal block on the light page. */
   .terminal {
-    @apply overflow-x-auto rounded-2xl bg-[#111214] p-6 font-mono text-[13px] leading-7 text-[#e7e7ea];
+    @apply overflow-x-auto rounded-2xl bg-term-bg p-6 font-mono text-[13px] leading-7 text-term-ink;
     /* Stays dark in both themes; the hairline keeps it apart from a dark page. */
     box-shadow: 0 0 0 1px var(--color-outline-soft);
   }
@@ -393,7 +430,7 @@ body {
   }
 
   .btn-quiet {
-    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-outline-strong bg-white px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-low disabled:opacity-50;
+    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-outline-strong bg-white px-4 text-sm font-semibold text-ink transition-colors hover:bg-surface-low disabled:opacity-50;
   }
 
   /* A tag that describes an item. Not clickable, so it has no border to look like a button. */
@@ -490,5 +527,63 @@ body {
   textarea,
   select {
     font-size: 16px;
+  }
+}
+
+/* Landing demo (components/landing/SignalToSpec.tsx). The progress bar's animation drives the steps, so pausing it
+   (hover, focus, the pause button, an off-screen stage) pauses the walkthrough. */
+.stage-progress {
+  transform: scaleX(0);
+  animation: stage-progress 5.6s linear forwards;
+}
+
+.stage-progress.is-held,
+.stage:hover .stage-progress,
+.stage:focus-within .stage-progress {
+  animation-play-state: paused;
+}
+
+.stage-in {
+  animation: stage-in 380ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.stage-draw {
+  animation: stage-in-fade 500ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.stage-fill {
+  animation: stage-fill 900ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes stage-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes stage-in-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes stage-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-in,
+  .stage-draw,
+  .stage-fill {
+    animation: none;
   }
 }

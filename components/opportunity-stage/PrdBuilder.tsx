@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
+import type { BuildProgress } from '@/lib/opportunities/build-progress';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
@@ -29,7 +30,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -54,6 +55,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   externalInstruction?: { id: number; text: string } | null;
   /** Told when a call fails, so the chat can say so instead of waiting forever. */
   onError?: (message: string) => void;
+  /** Features a coding agent marked done through MCP (mark_feature_done), by feature id. */
+  progress?: BuildProgress;
 }) {
   const lang = useLang();
   const t = translator(lang);
@@ -368,6 +371,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 <span className="font-medium text-seed">{t('근거 있는 요구사항', 'Backed requirements')} {spec.requirements.length}</span>
                 {' · '}{t('가설', 'Hypotheses')} {spec.hypotheses.length}
                 {' · '}{t('개발 준비', 'Ready')} {ready6}/{spec.features.length}
+                {progress && <>{' · '}<span className="font-medium text-seed">{t('구현 완료', 'Built')} {spec.features.filter((row) => progress[row.id]).length}/{spec.features.length}</span></>}
                 {' · '}{t('원문', 'Quotes')} {input.evidence.length} → {t('기능', 'Features')} {spec.features.length} → {t('화면', 'Screens')} {spec.screens.length}
               </p>
             </div>
@@ -434,7 +438,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     {spec.features.length > 0 && (
                       <section>
                         <h4 id="prd-features" className={h2}>{t('기능', 'Features')}</h4>
-                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}{!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>, !backed(row)))}</ul>
+                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}{!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}{progress?.[row.id] && <span className="ml-2 text-[13px] font-semibold text-seed" title={progress[row.id].note || undefined}>✓ {t('구현 완료', 'Built')}</span>}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>, !backed(row)))}</ul>
                       </section>
                     )}
                     {spec.screens.length > 0 && (

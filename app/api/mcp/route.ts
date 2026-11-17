@@ -2,6 +2,7 @@ import { consumeUsageFor, userForToken } from '@/lib/mcp/auth';
 import { handleRpc } from '@/lib/mcp/server';
 import type { McpDeps } from '@/lib/mcp/server';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
 import { generatePrd } from '@/lib/opportunities/prd';
 import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
       source: String(row.metadata.source ?? row.source_table),
       similarity: row.similarity,
     })),
+    progress: (slug) => readBuildProgress(service, userId, slug),
+    setProgress: (slug, feature, done, note) => writeBuildProgress(service, userId, slug, feature, done, note),
   };
   const answer = await handleRpc(body, deps, siteUrl);
   return answer === null ? new Response(null, { status: 202 }) : NextResponse.json(answer);

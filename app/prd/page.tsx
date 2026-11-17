@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
+import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -82,6 +83,8 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     supabase ? supabase.auth.getUser().then(({ data }) => data.user) : null,
     readPrdCache(createAdminClient(), pickedIds),
   ]);
+  // What a coding agent marked done through MCP. Only an opportunity's own PRD has it, since that is what MCP builds from.
+  const progress = opportunity && user ? await readBuildProgress(supabase, user.id, opportunity.slug) : undefined;
   const ready = meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const slugs = [...new Set(picked.map((item) => item.slug))];
   const lead = opportunity ?? opportunities.find((item) => item.slug === slugs[0]) ?? null;
@@ -107,7 +110,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
           </p>
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
-          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} />
+          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} />
         </section>
       </main>
       <Footer />

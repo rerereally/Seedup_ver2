@@ -25,6 +25,8 @@ export function StatusLabel({ status, lang = 'ko' }: { status: OpportunityStatus
     <span className={`inline-flex items-center gap-2 whitespace-nowrap ${quiet ? 'text-muted' : 'font-bold text-ink'}`}>
       <span aria-hidden="true" className={`h-2 w-2 rounded-full ${STATUS_DOTS[status]}`} />
       {(lang === 'en' ? STATUS_LABELS_EN : STATUS_LABELS)[status]}
+      {/* Rival counts come from a model reading product descriptions, so the label says it is a judgement, not a measurement. */}
+      {status !== 'unknown' && <span className="rounded border border-outline-strong px-1 text-[11px] font-normal leading-4 text-muted" title={lang === 'en' ? 'A free AI model judged which existing tools are direct rivals.' : '기존 도구가 직접 경쟁인지는 무료 AI 모델이 판정했습니다.'}>{lang === 'en' ? 'AI judged' : 'AI 판정'}</span>}
     </span>
   );
 }
@@ -61,7 +63,7 @@ export function FunnelStrip({ funnel, lang = 'ko' }: { funnel: OpportunityFunnel
   );
 }
 
-const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters' };
+const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters', stackexchange: 'Stack Exchange', web: 'Web' };
 
 /** What a problem still needs before it counts as verified, in the reader's words. */
 function stageLabel(item: Opportunity, en: boolean) {
@@ -100,6 +102,7 @@ export default function OpportunityTable({ opportunities, lang = 'ko' }: { oppor
             <td className="py-5 pr-4">
               {/* The stretched link makes the whole row a target while the table stays a real table. */}
               <Link href={`/opportunities/${item.slug}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
+              {item.audience && <span className="chip ml-2 align-middle">{en ? item.audienceEn || item.audience : item.audience}</span>}
               <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{localizedOpportunity(item, lang).problem}</p>
             </td>
             <td className="num hidden py-5 pr-4 sm:table-cell">{item.evidence.length}</td>

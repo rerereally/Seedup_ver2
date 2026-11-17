@@ -4,6 +4,7 @@ import { matchOpportunities, quoteMentions, rankBySimilarity } from '../lib/oppo
 import { mermaidFlow, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown, traceOf } from '../lib/opportunities/spec';
 import { specInputFor } from '../lib/opportunities/context';
 import { classifySupply, cosineSimilarity, countFollowers, isVerbatimQuote, meetsEvidenceBar, toSlug } from '../lib/opportunities/rules';
+import { stackSiteOf } from '../lib/opportunities/actors';
 import type { Evidence, SupplyItem } from '../lib/opportunities/types';
 
 const supply = (relation: SupplyItem['relation'], popularity = 0, createdAt: string | null = null): SupplyItem => ({ kind: 'github', name: 'x', description: '', popularity, url: 'u', createdAt, relation });
@@ -28,6 +29,16 @@ test('classifies how crowded a market is', () => {
   assert.equal(classifySupply([supply('direct', 2_500)], true), 'narrowing');
   assert.equal(classifySupply([supply('direct', 48_000)], true), 'closed');
   assert.equal(classifySupply(Array.from({ length: 8 }, () => supply('direct')), true), 'closed');
+  // An app with many store ratings crowds a market the way a starred repo does; ratings are not read as stars.
+  assert.equal(classifySupply([{ ...supply('direct', 6_000), kind: 'appstore' }], true), 'narrowing');
+  assert.equal(classifySupply([{ ...supply('direct', 280_000), kind: 'appstore' }], true), 'closed');
+  assert.equal(classifySupply([{ ...supply('direct', 1_500), kind: 'appstore' }], true), 'open');
+});
+
+test('reads the Stack Exchange site from a question link', () => {
+  assert.equal(stackSiteOf('https://workplace.stackexchange.com/questions/1/x'), 'workplace');
+  assert.equal(stackSiteOf('https://stackoverflow.com/questions/1/x'), null);
+  assert.equal(stackSiteOf('https://news.ycombinator.com/item?id=1'), null);
 });
 
 test('counts only related tools that appeared after the first complaint', () => {
@@ -308,4 +319,25 @@ test('English mode uses the English copies and falls back to Korean when they ar
   const input = specInputFor([sample({ slug: 'x', nameEn: 'Schema', problemEn: 'Schemas differ' })], [{ evidence: sample().evidence[0], slug: 'x' }], '', 'en');
   assert.equal(input?.title, 'Schema');
   assert.equal(input?.problem, 'Schemas differ');
+});
+
+import { clusterByEmbedding, isListable } from '../lib/opportunities/rules';
+import { pageWindow } from '../lib/opportunities/web';
+
+test('pains close in meaning share a group and distant ones do not', () => {
+  const groups = clusterByEmbedding([[1, 0, 0], [0.95, 0.1, 0], [0, 1, 0], [0.9, 0, 0.1], [0, 0.97, 0.2]], 0.8);
+  assert.deepEqual(groups, [[0, 1, 3], [2, 4]]);
+  assert.deepEqual(clusterByEmbedding([], 0.8), []);
+});
+
+test('one quote is never listed', () => {
+  assert.equal(isListable({ evidence: [1] }), false);
+  assert.equal(isListable({ evidence: [1, 2] }), true);
+});
+
+test('a page window keeps the passage the search snippet came from', () => {
+  const page = `${'menu '.repeat(500)}We still copy invoices into the spreadsheet by hand every week. ${'footer '.repeat(500)}`;
+  const window = pageWindow(page, 'We still copy invoices into the spreadsheet by hand');
+  assert.ok(window.includes('We still copy invoices into the spreadsheet by hand every week.'));
+  assert.ok(pageWindow('short page', 'not there').startsWith('short page'));
 });

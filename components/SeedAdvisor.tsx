@@ -281,7 +281,7 @@ export default function SeedAdvisor() {
           />
           <button type="submit" disabled={loading || !login.trim()} className="btn h-11 disabled:cursor-not-allowed disabled:opacity-50">
             {loading && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
-            {loading ? '읽는 중' : '역기획 시작'}
+            {loading ? '읽는 중' : '평가 시작'}
           </button>
         </div>
         <p className="mt-3 text-[13px] leading-6 text-muted">공개 레포 가운데 최근에 작업한 5개만 읽습니다. 로그인은 필요 없고, 비공개 레포는 읽지 않습니다.</p>
@@ -298,7 +298,7 @@ export default function SeedAdvisor() {
 
       {result && result.repos.length > 0 && (
         <p aria-live="polite" className="text-sm text-muted">
-          {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
+          {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 고칠 점과 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
           {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-medium text-seed underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 원문과 소식을 표시합니다.</span></>}
           {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-medium text-seed underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
           {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
@@ -313,7 +313,7 @@ export default function SeedAdvisor() {
         const isFresh = (key: string) => Boolean(baseline) && !baseline!.has(`${repo.name}|${key}`);
         const cited = new Set(idea?.features.flatMap((feature) => feature.opportunity?.slug ?? []));
         const near = repo.near.filter((item) => !cited.has(item.slug));
-        const empty = !idea?.features.length && !near.length && !repo.news.length && !repo.similar.length && !repoPapers?.length && !waiting;
+        const empty = !idea?.features.length && !idea?.improvements?.length && !near.length && !repo.news.length && !repo.similar.length && !repoPapers?.length && !waiting;
         return (
           <article key={repo.name} className="border-t border-outline-strong">
             <header className="py-5">
@@ -328,17 +328,18 @@ export default function SeedAdvisor() {
               <p className="mt-2 leading-7 text-muted">{idea?.summary || repo.description || '설명이 없는 레포입니다.'}</p>
             </header>
 
-            <Section title="역기획 스펙" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
-              <PrdBuilder
-                title={`${repo.name} 역기획`}
-                evidenceIds={[]}
-                ready
-                loginNext="/seeds"
-                endpoint="/api/seeds"
-                requestBody={{ user: result.login, repo: repo.name }}
-                generateLabel="이 레포 역기획 스펙 만들기"
-              />
-            </Section>
+            {(idea?.improvements?.length ?? 0) > 0 && (
+              <Section title="고치면 좋을 점" note="설명과 README에서 읽히는 것만 짚었습니다">
+                <ol className="grid gap-4">
+                  {idea!.improvements!.map((note) => (
+                    <li key={note.title}>
+                      <p className="font-semibold text-ink">{note.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-muted">{note.why}</p>
+                    </li>
+                  ))}
+                </ol>
+              </Section>
+            )}
 
             {(idea?.features.length ?? 0) > 0 && (
               <Section title="더하면 좋을 기능">
@@ -355,6 +356,18 @@ export default function SeedAdvisor() {
                 </ol>
               </Section>
             )}
+
+            <Section title="PRD·기능 명세 만들기" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
+              <PrdBuilder
+                title={`${repo.name} 역기획`}
+                evidenceIds={[]}
+                ready
+                loginNext="/seeds"
+                endpoint="/api/seeds"
+                requestBody={{ user: result.login, repo: repo.name }}
+                generateLabel="이 저장소로 PRD·기능 명세 만들기"
+              />
+            </Section>
 
             {near.length > 0 && (
               <Section title="가까운 개발자 불만" note="이 레포가 다루는 주제에서 사람들이 실제로 한 말입니다">

@@ -15,8 +15,12 @@ const HOST_INTERVAL_MS: Record<string, number> = {
   'dev.to': 400,
   'lobste.rs': 1_300,
   'marketplace.visualstudio.com': 400,
+  // Apple allows roughly 20 searches a minute.
+  'itunes.apple.com': 3_200,
 };
 const WINDOW_DAYS = 365;
+// The occupation sites get a few posts a week, so a year of them is too thin to confirm a problem twice.
+const NETWORK_WINDOW_DAYS = 365 * 3;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const hostSlots = new Map<string, number>();
@@ -45,8 +49,11 @@ export function cleanText(value: unknown) {
 class ActorSession {
   errors = 0;
 
-  async json<T>(url: string, init?: RequestInit): Promise<T | null> {
-    const host = new URL(url).host;
+  async json<T>(target: string, init?: RequestInit): Promise<T | null> {
+    const host = new URL(target).host;
+    // Stack Exchange allows about 300 calls a day without a key and 10,000 with one.
+    const stackKey = host === 'api.stackexchange.com' ? process.env.STACKEXCHANGE_KEY?.trim() : '';
+    const url = stackKey ? `${target}&key=${encodeURIComponent(stackKey)}` : target;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await waitForHost(host);
       try {
@@ -74,8 +81,8 @@ function githubAuth(host: string): Record<string, string> {
   return { accept: 'application/vnd.github+json', authorization: `Bearer ${token}` };
 }
 
-function windowStart() {
-  const date = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
+function windowStart(days = WINDOW_DAYS) {
+  const date = new Date(Date.now() - days * 86_400_000);
   return { iso: date.toISOString().slice(0, 10), epoch: Math.floor(date.getTime() / 1_000) };
 }
 
@@ -93,7 +100,14 @@ const EXCLUDED_REPOS = ['anthropics/claude-code', 'openai/codex', 'microsoft/vsc
 const GITHUB_TOPICS = ['mcp', 'llm', 'agent', 'rag', 'prompt', 'observability', 'kubernetes', 'postgres', 'terraform', 'github actions', 'openapi', 'testing', 'logging', 'migration', 'documentation', 'ci', 'feature flags', 'monorepo'];
 const HN_ASK_QUERIES = ['tool for', 'how do you', 'what do you use', 'alternative to', 'is there a', 'looking for'];
 const HN_PAIN_PHRASES = ['"is there a tool"', '"I wish there was"', '"ended up building our own"', '"had to write our own"', '"no good way to"', '"why is there no"', '"we built an internal"', '"does anyone know a tool"', '"biggest pain point"', '"still no good"', '"I would pay for"', '"tired of manually"'];
+// How people outside software introduce themselves on HN. Kept to the phrases that returned tool complaints when measured.
+const HN_WORK_PHRASES = ['"as an accountant"', '"as a designer"', '"as a doctor"', '"our support team"', '"our sales team"', '"small business owner"'];
 const STACK_TAGS = ['model-context-protocol', 'langchain', 'large-language-model', 'github-copilot', 'vector-database', 'ollama', 'github-actions', 'opentelemetry', 'openai-api', 'langgraph', 'llama-index', 'pgvector', 'playwright'];
+// Where people outside software ask for tools. Software Recommendations and Web Applications are all tool requests;
+// the occupation sites are searched for the words people use when work is done by hand.
+const TOOL_REQUEST_SITES = ['softwarerecs', 'webapps'];
+const WORK_SITES = ['workplace', 'pm', 'ux', 'academia', 'law', 'money', 'graphicdesign', 'writing', 'gis', 'photo', 'video', 'engineering'];
+const WORK_QUERIES = ['tool', 'spreadsheet', 'manually'];
 const DEV_TERMS = /\b(api|cli|sdk|deploy|ci|repo|codebase|database|kubernetes|docker|developer|devops|terraform|llm|agent|mcp|prompt|observability|logging|monitoring|testing|migration|schema|backend|frontend)\b/i;
 
 // Phrases people use when they lack a tool, as opposed to reporting a bug or sharing an opinion.
@@ -153,7 +167,7 @@ export const DISCOVERY_ACTORS: Actor[] = [
         for (const hit of json?.hits ?? []) {
           const title = cleanText(hit.title);
           const text = cleanText(hit.story_text).slice(0, 900);
-          if (DEV_TERMS.test(`${title} ${text}`)) push({ platform: 'hn', title, text, url: hnUrl(hit.objectID), score: (hit.points ?? 0) + (hit.num_comments ?? 0), postedAt: hit.created_at ?? null });
+          push({ platform: 'hn', title, text, url: hnUrl(hit.objectID), score: (hit.points ?? 0) + (hit.num_comments ?? 0), postedAt: hit.created_at ?? null });
         }
       }
     },
@@ -162,11 +176,11 @@ export const DISCOVERY_ACTORS: Actor[] = [
     id: 'hn-pain-comments',
     async run(session, push) {
       const { epoch } = windowStart();
-      for (const phrase of HN_PAIN_PHRASES) {
+      for (const phrase of [...HN_PAIN_PHRASES, ...HN_WORK_PHRASES]) {
         const json = await session.json<{ hits?: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(phrase)}&tags=comment&numericFilters=created_at_i>${epoch}&hitsPerPage=50`);
         for (const hit of json?.hits ?? []) {
           const text = cleanText(hit.comment_text).slice(0, 900);
-          if (DEV_TERMS.test(text)) push({ platform: 'hn', title: cleanText(hit.story_title), text, url: hnUrl(hit.objectID), score: 0, postedAt: hit.created_at ?? null });
+          push({ platform: 'hn', title: cleanText(hit.story_title), text, url: hnUrl(hit.objectID), score: 0, postedAt: hit.created_at ?? null });
         }
       }
     },
@@ -179,6 +193,23 @@ export const DISCOVERY_ACTORS: Actor[] = [
         const json = await session.json<{ items?: StackQuestion[] }>(`https://api.stackexchange.com/2.3/questions/no-answers?order=desc&sort=votes&tagged=${encodeURIComponent(tag)}&site=stackoverflow&pagesize=15&fromdate=${epoch}&filter=withbody`);
         for (const question of json?.items ?? []) {
           push({ platform: 'stackoverflow', title: cleanText(question.title), text: cleanText(question.body).slice(0, 900), url: question.link, score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
+        }
+      }
+    },
+  },
+  {
+    id: 'stackexchange-work',
+    async run(session, push) {
+      const { epoch } = windowStart();
+      const base = 'https://api.stackexchange.com/2.3';
+      const urls = [
+        ...TOOL_REQUEST_SITES.map((site) => `${base}/questions?order=desc&sort=votes&site=${site}&pagesize=30&fromdate=${epoch}&filter=withbody`),
+        ...WORK_SITES.flatMap((site) => WORK_QUERIES.map((query) => `${base}/search/advanced?order=desc&sort=votes&q=${query}&site=${site}&pagesize=10&fromdate=${epoch}&filter=withbody`)),
+      ];
+      for (const url of urls) {
+        const json = await session.json<{ items?: StackQuestion[] }>(url);
+        for (const question of json?.items ?? []) {
+          push({ platform: 'stackexchange', title: cleanText(question.title), text: cleanText(question.body).slice(0, 900), url: question.link, score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
         }
       }
     },
@@ -235,28 +266,40 @@ export async function runDiscoveryActors() {
   return { items: [...dataset.values()], runs };
 }
 
-/** Finds posts about one problem, across platforms, to widen a candidate's evidence. */
-export async function searchDemand(phrase: string): Promise<Array<Omit<RawSignal, 'id' | 'actor'>>> {
+/** The Stack Exchange site a question lives on, as the API names it, or null for Stack Overflow and other hosts. */
+export function stackSiteOf(url: string) {
+  const site = /^https:\/\/([a-z]+)\.stackexchange\.com\//.exec(url)?.[1];
+  return site ?? null;
+}
+
+/**
+ * Finds posts about one problem, across platforms, to widen a candidate's evidence.
+ * `sites` are the Stack Exchange sites the problem was first seen on, so a non-developer problem is searched where its people are.
+ */
+export async function searchDemand(phrase: string, sites: string[] = []): Promise<Array<Omit<RawSignal, 'id' | 'actor'>>> {
   const session = new ActorSession();
   const { iso, epoch } = windowStart();
   const found: Array<Omit<RawSignal, 'id' | 'actor'>> = [];
   const q = encodeURIComponent(phrase);
 
-  const [issues, hn, stack] = await Promise.all([
+  const [issues, hn, stack, ...network] = await Promise.all([
     session.json<{ items?: GithubIssue[] }>(`https://api.github.com/search/issues?q=${encodeURIComponent(`${phrase} is:issue created:>=${iso}`)}&sort=reactions&order=desc&per_page=8`),
     session.json<{ hits?: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${q}&tags=(comment,ask_hn)&numericFilters=created_at_i>${epoch}&hitsPerPage=10`),
     session.json<{ items?: StackQuestion[] }>(`https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=votes&q=${q}&site=stackoverflow&pagesize=5&fromdate=${epoch}&filter=withbody`),
+    ...sites.map((site) => session.json<{ items?: StackQuestion[] }>(`https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=votes&q=${q}&site=${site}&pagesize=5&fromdate=${windowStart(NETWORK_WINDOW_DAYS).epoch}&filter=withbody`)),
   ]);
   for (const issue of issues?.items ?? []) found.push({ platform: 'github', url: issue.html_url, title: cleanText(issue.title), text: cleanText(issue.body).slice(0, 700), score: issue.reactions?.total_count ?? 0, postedAt: issue.created_at ?? null });
   for (const hit of hn?.hits ?? []) found.push({ platform: 'hn', url: hnUrl(hit.objectID), title: cleanText(hit.title ?? hit.story_title), text: cleanText(hit.comment_text ?? hit.story_text).slice(0, 700), score: (hit.points ?? 0) + (hit.num_comments ?? 0), postedAt: hit.created_at ?? null });
   for (const question of stack?.items ?? []) found.push({ platform: 'stackoverflow', url: question.link, title: cleanText(question.title), text: cleanText(question.body).slice(0, 700), score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
+  for (const question of network.flatMap((result) => result?.items ?? [])) found.push({ platform: 'stackexchange', url: question.link, title: cleanText(question.title), text: cleanText(question.body).slice(0, 700), score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
   return found;
 }
 
-export const SUPPLY_COVERAGE: SupplyKind[] = ['github', 'npm', 'show_hn', 'vscode'];
+export const SUPPLY_COVERAGE: SupplyKind[] = ['github', 'npm', 'show_hn', 'vscode', 'appstore'];
 
 type Repo = { full_name: string; description?: string; stargazers_count?: number; html_url: string; created_at?: string };
 type NpmObject = { package?: { name?: string; description?: string; date?: string; links?: { npm?: string } } };
+type StoreApp = { trackName?: string; description?: string; userRatingCount?: number; trackViewUrl?: string; releaseDate?: string };
 type VsExtension = { extensionName: string; displayName?: string; shortDescription?: string; publishedDate?: string; publisher?: { publisherName?: string }; statistics?: Array<{ statisticName: string; value: number }> };
 
 export async function searchSupply(query: string): Promise<Array<Omit<SupplyItem, 'relation'>>> {
@@ -264,7 +307,7 @@ export async function searchSupply(query: string): Promise<Array<Omit<SupplyItem
   const items: Array<Omit<SupplyItem, 'relation'>> = [];
   const q = encodeURIComponent(query);
 
-  const [repos, npm, show, vscode] = await Promise.all([
+  const [repos, npm, show, vscode, apps] = await Promise.all([
     session.json<{ items?: Repo[] }>(`https://api.github.com/search/repositories?q=${encodeURIComponent(`${query} stars:>=10 archived:false`)}&sort=stars&order=desc&per_page=5`),
     session.json<{ objects?: NpmObject[] }>(`https://registry.npmjs.org/-/v1/search?text=${q}&size=4`),
     session.json<{ hits?: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${q}&tags=show_hn&hitsPerPage=5`),
@@ -273,6 +316,8 @@ export async function searchSupply(query: string): Promise<Array<Omit<SupplyItem
       headers: { 'content-type': 'application/json', accept: 'application/json;api-version=7.1-preview.1' },
       body: JSON.stringify({ filters: [{ criteria: [{ filterType: 8, value: 'Microsoft.VisualStudio.Code' }, { filterType: 10, value: query }], pageNumber: 1, pageSize: 4, sortBy: 4, sortOrder: 0 }], flags: 914 }),
     }),
+    // Products for people who do not write code live in app stores, not on GitHub or npm.
+    session.json<{ results?: StoreApp[] }>(`https://itunes.apple.com/search?term=${q}&entity=software&country=us&limit=5`),
   ]);
 
   for (const repo of repos?.items ?? []) items.push({ kind: 'github', name: repo.full_name, description: cleanText(repo.description).slice(0, 160), popularity: repo.stargazers_count ?? 0, url: repo.html_url, createdAt: repo.created_at ?? null });
@@ -284,6 +329,9 @@ export async function searchSupply(query: string): Promise<Array<Omit<SupplyItem
   for (const extension of vscode?.results?.[0]?.extensions ?? []) {
     const publisher = extension.publisher?.publisherName ?? '';
     items.push({ kind: 'vscode', name: extension.displayName ?? extension.extensionName, description: cleanText(extension.shortDescription).slice(0, 160), popularity: Math.round(extension.statistics?.find((stat) => stat.statisticName === 'install')?.value ?? 0), url: `https://marketplace.visualstudio.com/items?itemName=${publisher}.${extension.extensionName}`, createdAt: extension.publishedDate ?? null });
+  }
+  for (const app of apps?.results ?? []) {
+    if (app.trackName && app.trackViewUrl) items.push({ kind: 'appstore', name: app.trackName.slice(0, 90), description: cleanText(app.description).slice(0, 160), popularity: app.userRatingCount ?? 0, url: app.trackViewUrl.split('?')[0], createdAt: app.releaseDate ?? null });
   }
   return items;
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FileText, List, Mail, Search } from 'lucide-react';
+import { FileText, GitBranch, List, Mail, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
@@ -12,13 +12,13 @@ import { translator } from '@/lib/i18n';
 
 // `match` lists every route that keeps the tab lit, since explore and my-work each span several pages.
 const NAV = [
+  { name: '주간 신호', en: 'Weekly', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail },
   { name: '오늘의 신호', en: 'Today', href: '/news', match: ['/news', '/papers'], icon: List },
-  { name: '기회', en: 'Opportunities', href: '/opportunities', match: ['/opportunities'], icon: Search },
   { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText },
-  { name: '주간 신호', en: 'Weekly', href: '/newsletter-preview', match: ['/newsletter-preview'], icon: Mail },
+  { name: 'Git 평가', en: 'Repo review', href: '/seeds', match: ['/seeds'], icon: GitBranch },
 ];
 const EXPLORE = { name: '탐색', en: 'Explore', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'] };
-const WORK = ['/seeds', '/ideas', '/scrap', '/profile'];
+const WORK = ['/ideas', '/scrap', '/profile'];
 
 export default function Header() {
   const pathname = usePathname();
@@ -86,7 +86,7 @@ export default function Header() {
               {lang === 'en' ? '한국어' : 'EN'}
             </button>
             {email ? (
-              <Link href="/seeds" aria-current={on(WORK) ? 'page' : undefined} aria-label={t('내 작업', 'My work')} className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-soft bg-white p-1 text-sm font-medium text-ink transition-colors hover:border-outline-strong lg:pr-3">
+              <Link href="/scrap" aria-current={on(WORK) ? 'page' : undefined} aria-label={t('내 작업', 'My work')} className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-soft bg-white p-1 text-sm font-medium text-ink transition-colors hover:border-outline-strong lg:pr-3">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-seed-soft text-sm font-semibold text-seed">{email[0].toUpperCase()}</span>
                 <span className="hidden lg:inline">{t('내 작업', 'My work')}</span>
               </Link>

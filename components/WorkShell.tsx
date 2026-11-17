@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 const LINKS = [
-  { name: '내 저장소', href: '/seeds' },
   { name: '아이디어 평가', href: '/ideas' },
   { name: '보관함', href: '/scrap' },
   { name: '에이전트 연결', href: '/profile' },

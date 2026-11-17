@@ -1,4 +1,4 @@
-export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters';
+export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters' | 'stackexchange' | 'web';
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
   github: 'GitHub 이슈',
@@ -6,6 +6,8 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   stackoverflow: 'Stack Overflow',
   devto: 'DEV Community',
   lobsters: 'Lobsters',
+  stackexchange: 'Stack Exchange',
+  web: '웹 검색',
 };
 
 export type RawSignal = {
@@ -30,7 +32,7 @@ export type Evidence = {
   postedAt: string | null;
 };
 
-export type SupplyKind = 'github' | 'npm' | 'show_hn' | 'vscode';
+export type SupplyKind = 'github' | 'npm' | 'show_hn' | 'vscode' | 'appstore' | 'web';
 export type SupplyRelation = 'direct' | 'partial' | 'unrelated';
 
 export type SupplyItem = {
@@ -51,6 +53,9 @@ export type Opportunity = {
   problem: string;
   gap: string;
   keywords: string[];
+  /** The occupation that has the problem, e.g. "회계 담당자". Missing on runs from when every problem was a developer's. */
+  audience?: string;
+  audienceEn?: string;
   status: OpportunityStatus;
   qualified: boolean;
   platforms: Platform[];

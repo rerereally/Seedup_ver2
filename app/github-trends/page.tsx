@@ -74,11 +74,11 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
                         <td className="py-5 pr-4">
                           {/* The stretched link makes the whole row a target while the table stays a real table. */}
                           <Link href={`/github-trends/${repo.id}`} className="break-words font-semibold text-ink after:absolute after:inset-0 after:content-['']">{repo.repo_full_name}</Link>
-                          <p className="mt-1 text-[13px] text-muted lg:hidden">{[repo.language, `${formatDate(repo.last_seen_at)} 확인`].filter(Boolean).join(' · ')}</p>
+                          <p className="mt-1 text-[13px] text-muted lg:hidden">{[repo.language, `${formatDate(repo.last_seen_at)} 확인`].filter(Boolean).join(', ')}</p>
                         </td>
                         <td className="hidden py-5 pr-6 sm:table-cell">
                           {review && <p className="line-clamp-2 leading-6 text-tertiary">{review}</p>}
-                          {miniProject && <p className="mt-1 line-clamp-1 text-[13px] text-muted">따라 만들어 볼 것 · {miniProject}</p>}
+                          {miniProject && <p className="mt-1 line-clamp-1 text-[13px] text-muted">따라 만들어 볼 것: {miniProject}</p>}
                         </td>
                         <td className="hidden py-5 text-muted lg:table-cell">{repo.language ?? '-'}</td>
                         <td className="py-5 text-right">
@@ -100,7 +100,7 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
               </table>
               <p className="mt-5 text-[13px] leading-6 text-muted">
                 각 저장소에는 &quot;따라 만들어 볼 것&quot;이 함께 붙습니다. 관심 분야에 맞는 항목은 주간 신호에도 들어갑니다.
-                {topRepo && <> 저장소 <span className="num">{repos.length}</span>개 · 별이 가장 많은 곳 {topRepo.repo_full_name} <span className="num">{count(topRepo.stars)}</span>.</>}
+                {topRepo && <> 저장소 <span className="num">{repos.length}</span>개, 별이 가장 많은 곳 {topRepo.repo_full_name} <span className="num">{count(topRepo.stars)}</span>.</>}
               </p>
             </div>
           )}

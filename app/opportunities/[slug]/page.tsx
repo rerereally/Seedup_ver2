@@ -64,7 +64,7 @@ function SupplyGroup({ title, items }: { title: string; items: SupplyItem[] }) {
           <a href={item.url} target="_blank" rel="noopener noreferrer" className="group flex min-h-14 items-center justify-between gap-3 py-2">
             <span className="min-w-0">
               <span className="block truncate text-[15px] text-ink group-hover:underline group-hover:underline-offset-4">{item.name.replace(/^Show HN:\s*/i, '')}</span>
-              <span className="block text-xs text-muted">{SUPPLY_LABELS[item.kind]}{supplyMetric(item) ? <> · <span className="num">{supplyMetric(item)}</span></> : null}</span>
+              <span className="block text-xs text-muted">{SUPPLY_LABELS[item.kind]}{supplyMetric(item) ? <span className="num ml-2">{supplyMetric(item)}</span> : null}</span>
             </span>
             <span className="shrink-0 text-sm text-muted">{title}</span>
           </a>
@@ -105,8 +105,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const partial = opportunity.supply.filter((item) => item.relation !== 'direct');
   // How far this problem has grown. Design and build happen after this page, so they are never the current step here.
   const steps = [
-    `${t('발견', 'Found')}${firstSeen ? ` · ${firstSeen}` : ''}`,
-    opportunity.qualified ? t('기준 통과', 'Verified') : t('검증', 'Verification'),
+    `${t('발견', 'Found')}${firstSeen ? ` ${firstSeen}` : ''}`,
+    opportunity.qualified ? t('검증됨', 'Verified') : t('검증', 'Verification'),
     t('설계', 'Design'),
     t('구현', 'Build'),
   ];
@@ -117,11 +117,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       <div className="min-w-0">
         <q lang="en" className="block text-[17px] leading-7 text-ink [text-wrap:pretty]">{item.quote}</q>
         {lang === 'ko' && item.quoteKo && <p className="mt-1.5 text-[15px] leading-7 text-muted [text-wrap:pretty]">{item.quoteKo}</p>}
-        <p className="mt-2 text-[13px] text-muted">
-          {PLATFORM_LABELS[item.platform]}
-          {item.postedAt && <> · <time dateTime={item.postedAt}>{day.format(new Date(item.postedAt))}</time></>}
-          {' · '}
-          <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')} ›</a>
+        <p className="mt-2 flex flex-wrap gap-x-3 text-[13px] text-muted">
+          <span>{PLATFORM_LABELS[item.platform]}</span>
+          {item.postedAt && <time dateTime={item.postedAt}>{day.format(new Date(item.postedAt))}</time>}
+          <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-seed underline-offset-4 hover:underline">{t('원문 보기', 'Open source')}</a>
         </p>
       </div>
     </li>
@@ -148,7 +147,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             <p className="mt-4 max-w-[36em] text-lg leading-8 text-tertiary [text-wrap:pretty]">{text.problem}</p>
             <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               {/* Verdict first (enough quotes?), then the market (how many rivals), so the two never read as one mixed signal. */}
-              <span className={opportunity.qualified ? 'font-semibold text-seed' : ''}>{opportunity.qualified ? t('기준 통과', 'Verified') : t('원문이 아직 부족합니다', 'Not enough quotes yet')}</span>
+              <span className={opportunity.qualified ? 'font-semibold text-seed' : ''}>{opportunity.qualified ? t('원문 3건, 2곳 이상 확인', 'Backed by 3+ quotes from 2+ sites') : t('원문이 아직 부족합니다', 'Not enough quotes yet')}</span>
               <span aria-hidden="true">·</span>
               <StatusLabel status={opportunity.status} lang={lang} />
             </p>
@@ -179,7 +178,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               <ol className="rows mt-5">{opportunity.evidence.slice(0, 3).map(quote)}</ol>
               {opportunity.evidence.length > 3 && (
                 <details className="group">
-                  <summary className="link-seed cursor-pointer list-none py-4 pl-10 group-open:hidden [&::-webkit-details-marker]:hidden">{t(`원문 ${opportunity.evidence.length - 3}건 더 보기`, `${opportunity.evidence.length - 3} more quotes`)} ›</summary>
+                  <summary className="link-seed cursor-pointer list-none py-4 pl-10 group-open:hidden [&::-webkit-details-marker]:hidden">{t(`원문 ${opportunity.evidence.length - 3}건 더 보기`, `${opportunity.evidence.length - 3} more quotes`)}</summary>
                   <ol className="rows [&>:first-child]:border-t-0">{opportunity.evidence.slice(3).map((item, index) => quote(item, index + 3))}</ol>
                 </details>
               )}
@@ -238,7 +237,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                       <li key={entry.at} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3.5">
                         <time dateTime={entry.at} className="num w-28 shrink-0 text-[13px] text-muted">{day.format(new Date(entry.at))}</time>
                         <span className="min-w-0 flex-1 text-sm leading-6">
-                          {entry.changes.length ? entry.changes.join(' · ') : t(`원문 ${entry.evidence}건, 플랫폼 ${entry.platforms}곳으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
+                          {entry.changes.length ? entry.changes.join(', ') : t(`원문 ${entry.evidence}건, 플랫폼 ${entry.platforms}곳으로 처음 기록`, `First recorded with ${entry.evidence} quotes on ${entry.platforms} platforms`)}
                         </span>
                         <StatusLabel status={entry.status} lang={lang} />
                       </li>
@@ -259,7 +258,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                         <span className="font-semibold text-ink">{PLATFORM_LABELS[platform]}</span>
                         <span className="text-muted">글 <span className="num">{threads.length}</span>개</span>
                         {threads.map((item, index) => (
-                          <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline">{index + 1}번 글 ›</a>
+                          <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline">{index + 1}번 글</a>
                         ))}
                       </li>
                     );
@@ -280,8 +279,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               <h2 id="supply-heading" className="text-lg font-semibold tracking-tight">{t('이미 있는 도구', 'Existing tools')}</h2>
               <p className="mb-4 mt-1 text-[13px] text-muted">{opportunity.supply.length === 0 ? t('조사한 범위에서 관련 도구를 찾지 못했습니다.', 'No related tools were found in the sources searched.') : t('웹 검색, GitHub, npm, Show HN, VS Code 마켓, App Store에서 찾았습니다. 직접 경쟁인지 일부 겹치는지는 AI가 판정했습니다.', 'Found through web search, GitHub, npm, Show HN, the VS Code marketplace and the App Store. Whether each is a direct rival or a partial overlap was judged by AI.')}</p>
               <div className="[&>ul+ul>:first-child]:border-t-0">
-                <SupplyGroup title={t('직접 경쟁 · AI 판정', 'Direct rival · AI judged')} items={direct} />
-                <SupplyGroup title={t('일부 겹침 · AI 판정', 'Partial overlap · AI judged')} items={partial} />
+                <SupplyGroup title={t('직접 경쟁 (AI 판정)', 'Direct rivals (AI judged)')} items={direct} />
+                <SupplyGroup title={t('일부 겹침 (AI 판정)', 'Partial overlap (AI judged)')} items={partial} />
               </div>
             </section>
             <section aria-labelledby="fit-heading">

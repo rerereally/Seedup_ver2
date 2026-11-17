@@ -81,8 +81,8 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
         <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[15px] text-tertiary">
           <span>원문과 일치한 인용 <b className="num font-semibold text-ink">{quoteCount}</b>건</span>
           <span>출처 <b className="num font-semibold text-ink">{sourceCount}</b>곳</span>
-          <span>기준 통과 <b className="num font-semibold text-seed">{opportunities.filter((item) => item.qualified).length}</b>개</span>
-          <Link href="/news" className="text-tertiary underline-offset-4 hover:text-ink hover:underline">오늘 읽을 글 <b className="num font-semibold text-ink">{articles.length}</b>편 ›</Link>
+          <span>원문 3건, 2곳 이상 확인된 문제 <b className="num font-semibold text-seed">{opportunities.filter((item) => item.qualified).length}</b>개</span>
+          <Link href="/news" className="text-tertiary underline-offset-4 hover:text-ink hover:underline">오늘 읽을 글 <b className="num font-semibold text-ink">{articles.length}</b>편</Link>
         </p>
         {points.length > 0 && <div className="mt-8"><OpportunityMap points={points} /></div>}
 
@@ -120,7 +120,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
                   <p className="mt-2 text-[13px] text-muted">로그인하면 관심 분야를 고른 뒤 바로 받습니다.</p>
                 </>
               )}
-              <Link href="/onboarding" className="link-seed mt-2">관심 분야 바꾸기 ›</Link>
+              <Link href="/onboarding" className="link-seed mt-2">관심 분야 바꾸기</Link>
             </section>
 
             <section aria-labelledby="archive-heading">
@@ -150,7 +150,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
                       <li key={item.slug}>
                         <Link href={`/opportunities/${item.slug}`} className="flex items-baseline justify-between gap-4 py-3.5 text-[15px] hover:bg-surface-low">
                           <span className="min-w-0 truncate">{item.name}</span>
-                          <span className={`shrink-0 text-sm ${item.qualified ? 'font-medium text-seed' : 'text-muted'}`}>{item.qualified ? '기준 통과' : `원문 ${item.evidence.length}건`}</span>
+                          <span className={`shrink-0 text-sm ${item.qualified ? 'font-medium text-seed' : 'text-muted'}`}>{item.qualified ? '검증됨' : `원문 ${item.evidence.length}건`}</span>
                         </Link>
                       </li>
                     ))}

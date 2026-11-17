@@ -40,7 +40,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
         <Link href="/github-trends" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> 오픈소스 목록</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0">
-            <p className="text-sm text-muted">{['오픈소스', repo.language].filter(Boolean).join(' · ')}</p>
+            <p className="text-sm text-muted">{['오픈소스', repo.language].filter(Boolean).join(', ')}</p>
             <h1 className="page-intro-title mt-3 break-words md:text-[48px] md:leading-[1.1]">{owner && <span className="font-normal text-muted">{owner}/</span>}{name}</h1>
             {repo.description && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{repo.description}</p>}
 

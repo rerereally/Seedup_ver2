@@ -60,7 +60,7 @@ export default async function SharedSpecPage({ params }: { params: Promise<{ id:
           <aside className="card h-fit p-6 lg:sticky lg:top-24">
             <h2 className="text-[15px] font-semibold">이 PRD의 근거</h2>
             <p className="mt-2 text-sm leading-7 text-tertiary">개발자 원문 {quotes}건을 원문과 글자 단위로 대조해 만들었습니다. 모든 요구사항은 근거 원문 번호(E-n)로 이어지고, 원문이 없는 줄은 가설로 표시했습니다.</p>
-            {spec.opportunity_slug && <Link href={`/opportunities/${spec.opportunity_slug}`} className="link-seed mt-3">이 기회의 원문 보기 ›</Link>}
+            {spec.opportunity_slug && <Link href={`/opportunities/${spec.opportunity_slug}`} className="link-seed mt-3">이 기회의 원문 보기</Link>}
           </aside>
         </div>
         <p className="mt-12 text-[13px] text-muted">Seedup으로 만들었습니다 · <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">다른 기회 살펴보기</Link></p>

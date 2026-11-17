@@ -55,13 +55,13 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
           </form>
           <nav className="seg" aria-label={t('단계로 걸러 보기', 'Filter by stage')}>
             <Link href={href({})} scroll={false} aria-current={stage === 'verified' || stage === 'gathering' ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
-            <Link href={href({ stage: 'verified' })} scroll={false} aria-current={stage === 'verified' ? 'page' : undefined}>{t('기준 통과', 'Verified')} {verified}</Link>
+            <Link href={href({ stage: 'verified' })} scroll={false} aria-current={stage === 'verified' ? 'page' : undefined}>{t('검증된 문제', 'Verified')} {verified}</Link>
             <Link href={href({ stage: 'gathering' })} scroll={false} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('원문 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
           </nav>
         </div>
 
         <OpportunityTable opportunities={visible} lang={lang} />
-        {sorted.length > visible.length && <Link href={href({ stage, all: true })} scroll={false} className="link-seed self-start">{t(`${sorted.length - visible.length}개 더 보기`, `Show ${sorted.length - visible.length} more`)} ›</Link>}
+        {sorted.length > visible.length && <Link href={href({ stage, all: true })} scroll={false} className="link-seed self-start">{t(`${sorted.length - visible.length}개 더 보기`, `Show ${sorted.length - visible.length} more`)}</Link>}
         <p className="max-w-[62em] text-[13px] leading-6 text-muted">
           {t(`${day.format(new Date(generatedAt))}에 분석했습니다. 원문은 공개 글에서 찾아 글자 단위로 대조한 문장만 남겼습니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓, App Store만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.`, `Analyzed ${new Date(generatedAt).toLocaleDateString('en-US', { dateStyle: 'medium' })}. Every quote was found in a public post and matched to the source character by character. Existing tools come from GitHub, npm, Show HN, the VS Code marketplace and the App Store; a free AI model judged which are direct rivals.`)}
         </p>

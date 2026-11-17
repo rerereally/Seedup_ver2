@@ -109,3 +109,15 @@ test('a merged problem keeps the build estimate it already had', () => {
   const { opportunities } = mergeRuns(previous, { opportunities: [opp('a', [ev(1), ev(2)])], embeddings: { a: vec(1, 0) } }, DAY2);
   assert.deepEqual(opportunities[0].build, build);
 });
+
+import { addEvidence } from '../lib/opportunities/topup';
+
+test('a top-up adds only new sources and re-judges the evidence bar', () => {
+  const base = opp('a', [ev(1, 'hn'), ev(2, 'hn')]);
+  assert.equal(addEvidence(base, [ev(1, 'hn')], DAY2), base);
+  const grown = addEvidence(base, [ev(3, 'github'), ev(3, 'github')], DAY2);
+  assert.deepEqual(grown.evidence.map((row) => row.id), ['ev1', 'ev2', 'ev3']);
+  assert.deepEqual(grown.platforms, ['hn', 'github']);
+  assert.equal(grown.qualified, true);
+  assert.equal(grown.lastSeenAt, DAY2);
+});

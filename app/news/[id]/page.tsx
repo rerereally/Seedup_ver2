@@ -87,7 +87,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
         <Link href="/news" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> 글 목록</Link>
         <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="min-w-0">
-            <p className="text-sm text-muted"><span className="font-medium text-tertiary">{meta[0]}</span>{meta.slice(1).map((part) => ` · ${part}`).join('')}</p>
+            <p className="flex flex-wrap gap-x-3 text-sm text-muted"><span className="font-semibold text-tertiary">{meta[0]}</span>{meta.slice(1).map((part) => <span key={part}>{part}</span>)}</p>
             <h1 className="page-intro-title mt-3 md:text-[44px] md:leading-[1.14]">{item.title}</h1>
             {summary && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{summary}</p>}
             {tags.length > 0 && <div className="mt-5 flex flex-wrap gap-1.5">{tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}</div>}
@@ -135,7 +135,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
               <section className="mt-10">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <h2 className="text-xl font-bold tracking-tight text-ink">근거와 범위</h2>
-                  {item.article_evidence && <p className="text-[13px] text-muted">{evidenceLabel} · 출처 <span className="num text-ink">{item.article_evidence.source_count ?? 0}</span>개</p>}
+                  {item.article_evidence && <p className="text-[13px] text-muted">{evidenceLabel}, 출처 <span className="num text-ink">{item.article_evidence.source_count ?? 0}</span>개</p>}
                 </div>
                 <div className="mt-4 grid gap-x-10 gap-y-6 md:grid-cols-2">
                   {scopeGroups.map(([title, values]) => values?.length ? (

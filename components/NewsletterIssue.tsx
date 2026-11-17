@@ -24,7 +24,7 @@ export default function NewsletterIssue({ issue, dateLabel }: { issue: DigestIss
           {lead.quote && (
             <blockquote className="mt-5 border-l-2 border-seed pl-4">
               <p lang="en" className="text-[16px] leading-7">“{lead.quote.text}”</p>
-              <footer className="mt-1.5 text-[13px] text-muted">{lead.quote.source} · 원문과 일치 · <a href={lead.quote.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline">원문 보기</a></footer>
+              <footer className="mt-1.5 flex flex-wrap gap-x-3 text-[13px] text-muted"><span>{lead.quote.source}</span><span>원문과 일치</span><a href={lead.quote.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline">원문 보기</a></footer>
             </blockquote>
           )}
           <div className="mt-6 flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -73,7 +73,7 @@ export default function NewsletterIssue({ issue, dateLabel }: { issue: DigestIss
               <li key={read.href}>
                 <Link href={read.href} className="block py-4 hover:bg-surface-low">
                   <span className="block text-[15px] font-medium leading-6">{read.title}</span>
-                  <span className="mt-1 block text-[13px] text-muted">{[read.source, read.reason].filter(Boolean).join(' · ')}</span>
+                  <span className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">{[read.source, read.reason].filter(Boolean).map((part) => <span key={part}>{part}</span>)}</span>
                 </Link>
               </li>
             ))}

@@ -288,7 +288,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       kind = t('개발자 원문', 'Developer quote');
       title = PLATFORM_LABELS[quote.platform];
       body = quote.quote;
-      rows.push([t('출처', 'Source'), <a key="source" href={quote.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')} ›</a>]);
+      rows.push([t('출처', 'Source'), <a key="source" href={quote.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')}</a>]);
     } else if (requirement) {
       kind = hypothesis ? t('가설', 'Hypothesis') : t('요구사항', 'Requirement');
       title = requirement.title;
@@ -616,7 +616,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <h4>{t('개발자 원문', 'Developer quotes')}</h4>
                       {input.evidence.map((row, index) => (
                         <button key={row.id} type="button" data-node={`E-${index + 1}`} className={`${styles.specItem} ${styles.specQuote} ${evidenceTone(index + 1)}`} aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)}>
-                          <span className={styles.specId}>E-{index + 1} · {PLATFORM_LABELS[row.platform]}</span>
+                          <span className={styles.specId}>E{index + 1} {PLATFORM_LABELS[row.platform]}</span>
                           <q lang="en">{row.quote.length > 140 ? `${row.quote.slice(0, 140)}…` : row.quote}</q>
                         </button>
                       ))}
@@ -624,14 +624,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     <div className={styles.specCol}>
                       <h4>{t('요구사항', 'Requirements')}</h4>
                       {spec.requirements.map((row) => item(row.id, <><span>{row.title}</span><small>{t('원문', 'Quotes')} {row.evidence.map((n) => `E-${n}`).join(', ')}</small></>))}
-                      {spec.hypotheses.map((row) => item(row.id, <><span>{row.title}</span><small>{t('가설 · 원문 없음', 'Hypothesis · no quote')}</small></>, styles.specHypo))}
+                      {spec.hypotheses.map((row) => item(row.id, <><span>{row.title}</span><small>{t('가설, 원문 없음', 'Hypothesis, no quote')}</small></>, styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>
                         {t('기능', 'Features')}
                         {spec.features.some((row) => !row.slots) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
                       </h4>
-                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)} · {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>, backed(row) ? '' : styles.specHypo))}
+                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}, {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>, backed(row) ? '' : styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>{t('화면', 'Screens')}</h4>

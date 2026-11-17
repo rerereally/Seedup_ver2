@@ -87,7 +87,7 @@ function compactMix(trend: Trend) {
     numberValue(sourceMix.stackoverflow) ? `Stack Overflow ${sourceMix.stackoverflow}` : null,
     numberValue(sourceMix.rss) ? `RSS ${sourceMix.rss}` : null,
     numberValue(sourceMix.paper) ? `논문 ${sourceMix.paper}` : null,
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(', ');
   if (richMix) return richMix;
 
   return [
@@ -95,7 +95,7 @@ function compactMix(trend: Trend) {
     numberValue(trend.news_count) ? `뉴스 ${trend.news_count}` : null,
     numberValue(trend.product_count) ? `제품 ${trend.product_count}` : null,
     numberValue(trend.paper_count) ? `논문 ${trend.paper_count}` : null,
-  ].filter(Boolean).join(' · ') || '신호 집계 중';
+  ].filter(Boolean).join(', ') || '신호 집계 중';
 }
 
 function isMeaningfulTrend(trend: Trend) {
@@ -117,7 +117,7 @@ function InterestBars({ snapshots }: { snapshots: TrendSnapshot[] }) {
     <>
       <div className="mt-3 flex h-24 items-end gap-1.5">
         {snapshots.map((item, index) => (
-          <div key={item.date} title={`${formatDate(item.date)} · ${item.score}점`} className="flex h-full min-w-0 max-w-10 flex-1 flex-col justify-end">
+          <div key={item.date} title={`${formatDate(item.date)}, ${item.score}점`} className="flex h-full min-w-0 max-w-10 flex-1 flex-col justify-end">
             <div className={`w-full rounded-t-[5px] ${index === snapshots.length - 1 ? 'bg-seed' : 'bg-surface-high'}`} style={{ height: `${Math.max(6, Math.round((item.score / max) * 100))}%` }} />
           </div>
         ))}
@@ -128,7 +128,7 @@ function InterestBars({ snapshots }: { snapshots: TrendSnapshot[] }) {
       </div>
       <p className="mt-2 text-[13px] leading-5 text-muted">
         {snapshots.length > 1
-          ? <>점수 <span className="num text-ink">{first.score} → {last.score}</span> · 신호 <span className="num text-ink">{first.signal_count} → {last.signal_count}</span></>
+          ? <>점수 <span className="num text-ink">{first.score} → {last.score}</span>, 신호 <span className="num text-ink">{first.signal_count} → {last.signal_count}</span></>
           : '아직 하루치뿐입니다. 며칠 더 모이면 흐름이 보입니다.'}
       </p>
     </>
@@ -221,19 +221,19 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
         )}
 
         <Block title="이런 분께 맞습니다">
-          <p className="mt-2 text-sm leading-6 text-ink">{roles.join(' · ')}</p>
+          <p className="mt-2 text-sm leading-6 text-ink">{roles.join(', ')}</p>
         </Block>
       </div>
 
       {!!sources.length && (
-        <Block title={`근거가 된 글${extraSources ? ` · 외 ${extraSources}건` : ''}`} className="lg:col-span-2">
+        <Block title={`근거가 된 글${extraSources ? ` (외 ${extraSources}건)` : ''}`} className="lg:col-span-2">
           <ul className="mt-2 divide-y divide-outline-soft">
             {sources.slice(0, 5).map((ref) => (
               <li key={`${ref.type}-${ref.id}`}>
                 <Link href={signalHref(ref)} className="group flex items-center gap-3 py-3">
                   <span className="shrink-0 text-muted"><SourceIcon type={ref.type} /></span>
                   <span className="min-w-0 flex-1 truncate text-sm text-ink group-hover:underline group-hover:underline-offset-4">{ref.title}</span>
-                  <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{sourceLabel(ref.type)}{ref.source_name && ref.source_name !== sourceLabel(ref.type) ? ` · ${ref.source_name}` : ''}</span>
+                  <span className="hidden shrink-0 text-[13px] text-muted sm:inline">{sourceLabel(ref.type)}{ref.source_name && ref.source_name !== sourceLabel(ref.type) ? ` (${ref.source_name})` : ''}</span>
                   <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
                 </Link>
               </li>

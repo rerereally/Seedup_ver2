@@ -107,7 +107,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <section className="border-t border-outline-soft pt-8">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-[17px] font-semibold text-ink">맞춤 추천 설정 <span className="text-sm font-normal text-muted">· {onboarding ? '설정 완료' : '설정 필요'}</span></h2>
-              <Link href="/onboarding" className="link-seed">다시 설정하기 ›</Link>
+              <Link href="/onboarding" className="link-seed">다시 설정하기</Link>
             </div>
             <p className="mt-1 text-sm text-muted">관심 분야와 목표를 기준으로 오늘의 신호와 주간 신호를 맞춥니다.</p>
             <dl className="rows mt-4">

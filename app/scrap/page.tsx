@@ -87,9 +87,9 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
           title="보관함"
           description="저장한 PRD와 킵한 저장소, 글, 논문. 킵한 것은 코딩 에이전트가 MCP get_kept_items로 가져갑니다."
           aside={savedItems.length > 0 ? (
-            <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-[10px] border border-outline-strong bg-white px-4 transition-colors focus-within:border-seed sm:w-72">
+            <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-[10px] border border-field bg-white px-4 transition-colors focus-within:border-ink sm:w-72">
               <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-              <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="보관함 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
+              <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="보관함 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" />
               {activeType !== 'all' && <input type="hidden" name="type" value={activeType} />}
             </form>
           ) : undefined}

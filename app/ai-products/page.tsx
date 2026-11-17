@@ -77,9 +77,9 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
 
           {products.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
-              <form action="/ai-products" role="search" className="flex h-11 min-w-0 flex-1 basis-64 items-center gap-2.5 rounded-[10px] border border-outline-strong bg-white px-4 transition-colors focus-within:border-ink">
+              <form action="/ai-products" role="search" className="flex h-11 min-w-0 flex-1 basis-64 items-center gap-2.5 rounded-[10px] border border-field bg-white px-4 transition-colors focus-within:border-ink">
                 <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-                <input name="q" defaultValue={query} aria-label="AI 제품 검색" placeholder="제품 이름이나 쓰임새로 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" style={{ outline: 'none' }} />
+                <input name="q" defaultValue={query} aria-label="AI 제품 검색" placeholder="제품 이름이나 쓰임새로 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" />
                 {category !== 'all' && <input type="hidden" name="category" value={category} />}
                 {pricing !== 'all' && <input type="hidden" name="pricing" value={pricing} />}
               </form>

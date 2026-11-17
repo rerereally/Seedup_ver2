@@ -36,6 +36,9 @@ const NEWSLETTER_SECTION_LABELS: Record<string, string> = {
   paper_to_project: '논문→프로젝트',
 };
 
+// Cut in code rather than with line-clamp: clamped lines stay in the layout and sit under the row below.
+const clipText = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
 function formatDate(value: string | null) {
   if (!value) return '';
   return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value));
@@ -97,8 +100,8 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
       <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
         <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
-      {summary && <p className={lead ? 'mt-3 line-clamp-3 text-[17px] leading-8 text-tertiary' : 'mt-3 line-clamp-2 text-[15px] leading-7 text-muted'}>{summary}</p>}
-      {lead && item.why_it_matters && <p className="mt-4 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{item.why_it_matters}</p>}
+      {summary && <p className={lead ? 'mt-3 text-[17px] leading-8 text-tertiary' : 'mt-3 text-[15px] leading-7 text-muted'}>{clipText(summary, lead ? 150 : 95)}</p>}
+      {lead && item.why_it_matters && <p className="mt-4 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{clipText(item.why_it_matters, 110)}</p>}
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${lead ? 'mt-6' : 'mt-3'}`}>
         {lead && <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />}
         {lead && <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>}
@@ -129,8 +132,8 @@ function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; l
           {owner && <span className="font-normal text-muted">{owner}/</span>}{name}
         </h2>
       </Link>
-      {summary && <p className={`mt-3 text-tertiary ${lead ? 'line-clamp-3 text-[17px] leading-8' : 'line-clamp-2 text-[15px] leading-7'}`}>{summary}</p>}
-      {lead && repo.project_idea && <p className="mt-3 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">이렇게 써 볼 수 있어요</span>{repo.project_idea}</p>}
+      {summary && <p className={`mt-3 text-tertiary ${lead ? 'text-[17px] leading-8' : 'text-[15px] leading-7'}`}>{clipText(summary, lead ? 150 : 95)}</p>}
+      {lead && repo.project_idea && <p className="mt-3 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">이렇게 써 볼 수 있어요</span>{clipText(repo.project_idea, 110)}</p>}
       {(repo.topics ?? []).length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="주제">
           {(repo.topics ?? []).slice(0, 4).map((topic) => <li key={topic} className="chip">{topic}</li>)}

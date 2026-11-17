@@ -36,3 +36,13 @@ test('chart labels keep the tool name and drop pitches, sentences and Han script
   assert.equal(chartToolName('Tried some experiments with architecture for agents'), null);
   assert.equal(chartToolName('图层预览'), null);
 });
+
+test('a one-line idea is not matched to a problem through its glue words', async () => {
+  const { matchOpportunities } = await import('../lib/opportunities/match');
+  const items = [
+    { slug: 'cloud-run', name: 'Cloud Run 냉시작 관리', keywords: ['cloud run', 'cold start', '냉시작'] },
+    { slug: 'gif', name: 'GIF 검색 API 대안', keywords: ['gif', 'tenor', 'giphy'] },
+  ];
+  assert.deepEqual(matchOpportunities('소상공인이 예약과 노쇼를 한곳에서 관리하는 웹', items).slugs, []);
+  assert.deepEqual(matchOpportunities('Tenor 대신 쓸 GIF 검색 API', items).slugs, ['gif']);
+});

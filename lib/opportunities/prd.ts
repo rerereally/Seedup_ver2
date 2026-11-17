@@ -16,7 +16,7 @@ const WRITING_RULES = `작성 규칙:
 - "쉽게", "빠르게", "효율적으로", "직관적인" 같은 말 대신 숫자나 조건을 씁니다. 예: "3초 안에", "설정 파일 한 줄로".
 - 기능 detail에는 무엇을 받아 무엇을 돌려주는지 씁니다. 화면 does는 사용자가 하는 행동으로 시작합니다.
 - 모든 요구사항은 적어도 한 기능이 충족하고, 모든 기능은 적어도 한 화면에 나옵니다.
-- metrics는 측정 가능한 숫자를 포함합니다. 예: "같은 요청이 3개 제공사에서 같은 형식으로 응답한다".
+- metrics는 코딩 에이전트가 테스트로 확인할 수 있는 완료 기준입니다. 하나하나에 숫자나 조건과 기대 결과를 씁니다. "오류율" 같은 지표 이름만 쓰지 않습니다. 예: "Tenor가 410을 돌려주면 2초 안에 대체 API 결과를 보여준다".
 좋은 예(형식만 참고): {"title":"사용자는 설정 한 줄로 모델을 바꿀 수 있어야 한다","detail":"설정 파일의 model 값만 바꾸면 코드 수정 없이 다음 요청부터 새 모델로 호출된다","evidence":[2]}`;
 
 const VAGUE = /쉽게|쉬운|빠르게|빠른|효율적|편리|직관적|사용자 친화|원활|다양한|최적화|\b(easy|easily|fast|quick|efficient|intuitive|user-friendly|seamless|various|optimi[sz]e)\b/i;
@@ -39,7 +39,9 @@ export function specIssues(spec: Spec, input: SpecInput) {
   for (const feature of spec.features) {
     if (!spec.screens.some((screen) => screen.featureIds.includes(feature.id))) issues.push(`${feature.id} "${feature.title}"이 어느 화면에도 없습니다.`);
   }
-  if (!spec.metrics.some((metric) => /\d/.test(metric))) issues.push('metrics에 측정 가능한 숫자가 없습니다.');
+  // Every done criterion must be checkable by a test, so each needs a number or a condition, not just a metric's name.
+  const loose = spec.metrics.filter((metric) => !/\d/.test(metric));
+  if (!spec.metrics.length || loose.length) issues.push(loose.length ? `metrics ${loose.length}개에 숫자나 조건이 없습니다: "${loose[0]}". 테스트로 확인할 수 있게 바꾸세요.` : 'metrics가 비어 있습니다.');
   return issues.slice(0, 10);
 }
 

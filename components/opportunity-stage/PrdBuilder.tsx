@@ -32,7 +32,7 @@ function changedCount(before: Spec, after: Spec) {
   return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [], hideRevise = false }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [], hideRevise = false, showTitle = true, agentSlug }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -63,6 +63,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   models?: PrdModel[];
   /** The idea chat takes change requests itself, so the side form would only repeat it. */
   hideRevise?: boolean;
+  /** false when the page above already names the PRD in its heading. */
+  showTitle?: boolean;
+  /** An opportunity's slug: the agent menu then also offers the MCP start prompt, which builds from that opportunity. */
+  agentSlug?: string;
 }) {
   const lang = useLang();
   const t = translator(lang);
@@ -245,7 +249,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       {body}
     </button>
   );
-  const cites = (numbers: number[]) => numbers.length > 0 && <sup className="ml-0.5 font-medium text-seed">{numbers.join(', ')}</sup>;
+  // Quote numbers as small chips next to a line; pressing the line lights those quotes in the evidence panel.
+  const cites = (numbers: number[]) => numbers.length > 0 && (
+    <span className="ml-2 inline-flex flex-wrap gap-1 align-[2px]">
+      {numbers.map((n) => <span key={n} className="rounded-md bg-seed-soft px-1.5 py-px text-[12px] font-semibold leading-5 text-seed">E{n}</span>)}
+    </span>
+  );
   // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
   const docRow = (id: string, body: React.ReactNode, quiet = false) => (
     <li key={id}>
@@ -258,7 +267,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   const busy = status !== 'idle';
   const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
-  const quietButton = 'btn-quiet w-full justify-start border-0 font-normal';
+  const quietButton = 'btn-quiet w-full justify-start whitespace-nowrap border-0 font-normal';
   const ready6 = spec ? spec.features.filter((row) => row.slots).length : 0;
 
   // What the right-hand panel shows for the picked node: what it is, and what it connects to.
@@ -284,7 +293,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       kind = hypothesis ? t('가설', 'Hypothesis') : t('요구사항', 'Requirement');
       title = requirement.title;
       body = requirement.detail;
-      rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E-${n}`).join(' · ')} ({t('원문과 일치', 'verbatim')})</span>]);
+      rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E${n}`).join(', ')} ({t('원문과 일치', 'verbatim')})</span>]);
       rows.push([t('기능', 'Features'), names(spec.features.filter((row) => row.requirementIds.includes(requirement.id)).map((row) => row.id), spec.features) || '-']);
     } else if (feature) {
       kind = t('기능', 'Feature');
@@ -292,7 +301,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       body = feature.detail;
       const evidence = [...new Set(spec.requirements.filter((row) => feature.requirementIds.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b);
       rows.push([t('요구사항', 'Requirements'), names(feature.requirementIds, [...spec.requirements, ...spec.hypotheses]) || '-']);
-      rows.push([t('근거', 'Evidence'), evidence.length ? <span key="evidence" className="font-medium text-seed">{evidence.map((n) => `E-${n}`).join(' · ')} ({t('원문과 일치', 'verbatim')})</span> : t('원문 없음', 'No quote')]);
+      rows.push([t('근거', 'Evidence'), evidence.length ? <span key="evidence" className="font-medium text-seed">{evidence.map((n) => `E${n}`).join(', ')} ({t('원문과 일치', 'verbatim')})</span> : t('원문 없음', 'No quote')]);
       rows.push([t('화면', 'Screens'), names(spec.screens.filter((row) => row.featureIds.includes(feature.id)).map((row) => row.id), spec.screens) || '-']);
     } else if (screen) {
       kind = t('화면', 'Screen');
@@ -303,7 +312,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
     return (
       <section aria-live="polite" aria-label={t('고른 항목', 'Selected item')}>
-        <p className="text-[13px] text-muted">{focus} · {kind}</p>
+        <p className="text-[13px] text-muted"><span className="font-semibold">{focus}</span> <span className="ml-1.5">{kind}</span></p>
         <h3 className="mt-1 text-xl font-bold tracking-tight">{title}</h3>
         {body && <p className="mt-3 text-sm leading-7 text-tertiary">{body}</p>}
         <dl className="mt-4 grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-sm">
@@ -325,7 +334,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <dt>{slotLabels(lang)[key]}</dt>
                       <dd className={feature.slots![key].length ? 'font-medium text-seed' : 'text-muted'}>{feature.slots![key].length ? t('채움', 'Filled') : t('비어 있음', 'Empty')}</dd>
                     </div>
-                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join(' · ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
+                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join('; ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
                   </div>
                 ))}
               </dl>
@@ -355,34 +364,87 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{row}</li>)}</ul>
     : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
 
+  const agentPrompt = agentSlug ? t(
+    `Seedup MCP의 generate_verified_prd로 "${agentSlug}"(${title}) PRD를 받아 AGENTS.md로 저장해 줘. 그다음 get_build_checklist를 보고 F-01부터 하나씩 만들고, 완료 기준을 통과하면 mark_feature_done으로 표시해 줘.`,
+    `Use the Seedup MCP tool generate_verified_prd for "${agentSlug}" (${title}) and save it as AGENTS.md. Then follow get_build_checklist, build F-01 first, one feature at a time, and call mark_feature_done when its done criteria pass.`,
+  ) : '';
+  const notesField = (
+    <div>
+      <label htmlFor="prd-notes" className="text-[15px] font-semibold">{t('내 의견', 'Your direction')} <span className="font-normal text-muted">{t('(선택)', '(optional)')}</span></label>
+      <p className="mt-1 text-[13px] leading-6 text-muted">{t('누구를 위해, 꼭 넣을 기능, 뺄 것, 원하는 방향을 적으면 처음부터 반영합니다. 원문이 받쳐 주지 않는 내용은 가설로 표시됩니다.', 'Who it is for, must-haves, what to leave out, the direction you want. It shapes the draft; anything no quote backs is marked as a hypothesis.')}</p>
+      <textarea id="prd-notes" rows={3} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} placeholder={t('예: 1인 개발자용 CLI로 만들고, 첫 버전은 OpenAI와 Anthropic만 지원. 결제와 팀 기능은 빼기.', 'e.g. A CLI for solo developers; v1 supports only OpenAI and Anthropic. No payments or team features.')} className="mt-2 block w-full border bg-white px-3 py-2.5 text-[15px] leading-6" />
+    </div>
+  );
+  const generateButton = signedIn === false ? (
+    <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 whitespace-nowrap px-5">{spec ? t('로그인하고 다시 만들기', 'Sign in to make it again') : t('로그인하고 PRD 만들기', 'Sign in to make a PRD')}</Link>
+  ) : (
+    <button type="button" className="btn h-11 whitespace-nowrap px-5" disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
+      {status === 'loading' ? t('PRD 작성 중', 'Writing the PRD') : spec ? t('이 의견으로 다시 만들기', 'Make it again with this') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
+    </button>
+  );
+  const stats: Array<[string, string, boolean, string]> = spec && input ? [
+    [t('원문이 받쳐 주는 요구사항', 'Quote-backed requirements'), String(spec.requirements.length), true, ''],
+    [t('원문 없는 가설', 'Unbacked hypotheses'), String(spec.hypotheses.length), false, t('원문이 받쳐 주지 않아 만들기 전에 사용자에게 확인할 줄', 'Lines no quote backs; confirm them with users first')],
+    [t('기능', 'Features'), String(spec.features.length), false, ''],
+    [t('화면', 'Screens'), String(spec.screens.length), false, ''],
+    // Shown once something is filled: at 0 it read as a failing score rather than an optional next step.
+    ...(ready6 ? [[t('완료 기준을 채운 기능', 'Features with done criteria'), `${ready6}/${spec.features.length}`, false, t('기능 명세 보기에서 기능마다 입력, 규칙, 오류, 권한, 데이터, 테스트 기준을 채울 수 있습니다', 'Fill inputs, rules, errors, permissions, data and tests per feature in the feature spec view')] as [string, string, boolean, string]] : []),
+    ...(progress ? [[t('구현 완료', 'Built'), `${spec.features.filter((row) => progress[row.id]).length}/${spec.features.length}`, true, t('코딩 에이전트가 MCP로 표시한 기능', 'Marked done by a coding agent over MCP')] as [string, string, boolean, string]] : []),
+  ] : [];
+  // A picked line scrolls its first quote into view inside the evidence panel, so the panel follows the reader.
+  const panelRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    if (!trace) return;
+    const first = Math.min(...trace.evidence);
+    panelRef.current?.querySelector<HTMLElement>(`[data-quote="${first}"]`)?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [trace]);
+  // On a phone a menu opens as a sheet above the tab bar, so it never runs off the screen's edge.
+  const menu = 'z-50 mt-2 flex flex-col gap-0.5 rounded-xl border border-outline-soft bg-white p-1.5 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:bottom-20 sm:absolute sm:right-0 sm:z-20 sm:w-72';
+
+  // The quotes behind the PRD, always beside the document; a picked line dims the quotes it does not stand on.
+  const evidencePanel = input && (
+    <section aria-label={t('근거 원문', 'Evidence')}>
+      <h3 className="flex items-baseline justify-between gap-3 text-[15px] font-semibold">
+        {t(`근거 원문 ${input.evidence.length}건`, `${input.evidence.length} source quotes`)}
+        {trace && <button type="button" onClick={() => setFocus(null)} className="text-[13px] font-medium text-seed underline-offset-4 hover:underline">{t('전체 보기', 'Show all')}</button>}
+      </h3>
+      <p className="mt-1 text-[13px] leading-5 text-muted">{t('모두 원문과 글자 단위로 일치합니다. 문서의 줄을 누르면 그 줄이 기대는 원문만 남습니다.', 'Each matches its source word for word. Press a line in the document to keep only the quotes it stands on.')}</p>
+      <ol ref={panelRef} className="mt-3 grid gap-2">
+        {input.evidence.map((row, index) => {
+          const on = !trace || trace.evidence.has(index + 1);
+          return (
+            <li key={row.id} data-quote={index + 1} className={`scroll-mt-4 rounded-xl border px-3.5 py-3 transition-[opacity,border-color,background-color] duration-200 ${on ? 'opacity-100' : 'opacity-35'} ${trace && on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white'}`}>
+              <p className="flex items-baseline justify-between gap-3 text-[12.5px] text-muted">
+                <span><b className="mr-1.5 font-semibold text-seed">E{index + 1}</b>{PLATFORM_LABELS[row.platform]}{row.postedAt && <time dateTime={row.postedAt} className="ml-2">{new Date(row.postedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'short' })}</time>}</span>
+                <a href={row.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center text-muted underline-offset-4 hover:text-ink hover:underline" aria-label={t(`E${index + 1} 원문 열기`, `Open E${index + 1} source`)}>{t('원문', 'Source')}</a>
+              </p>
+              <button type="button" aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)} className="mt-0.5 block w-full rounded-md text-left">
+                <q lang="en" className="block text-[14px] leading-6 text-ink [overflow-wrap:anywhere]">{row.quote}</q>
+                {lang === 'ko' && row.quoteKo && <span className="mt-1 block text-[13px] leading-5 text-muted">{row.quoteKo}</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+
   return (
     <>
-      {!hideControls && signedIn !== false && (
-        <div className="mb-4 max-w-[52em]">
-          <label htmlFor="prd-notes" className="text-[15px] font-semibold">{t('내 의견', 'Your direction')} <span className="font-normal text-muted">{t('(선택)', '(optional)')}</span></label>
-          <p className="mt-1 text-[13px] leading-6 text-muted">{t('누구를 위해, 꼭 넣을 기능, 뺄 것, 원하는 방향을 적으면 처음부터 반영해 만듭니다. 원문이 받쳐 주지 않는 내용은 가설로 표시됩니다.', 'Who it is for, must-haves, what to leave out, the direction you want. It shapes the first draft; anything no quote backs is marked as a hypothesis.')}</p>
-          <textarea id="prd-notes" rows={3} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={busy} placeholder={t('예: 1인 개발자용 CLI로 만들고, 첫 버전은 OpenAI와 Anthropic만 지원. 결제와 팀 기능은 빼기.', 'e.g. A CLI for solo developers; v1 supports only OpenAI and Anthropic. No payments or team features.')} className="mt-2 block w-full border bg-white px-3 py-2.5 text-[15px] leading-6" />
-          {spec && notes.trim() && <p className="mt-1.5 text-[13px] text-muted">{t('의견을 바꿨다면 "PRD 다시 만들기"로 새로 반영합니다.', 'Changed your direction? "Make the PRD again" applies it.')}</p>}
+      {!hideControls && !spec && (
+        <div className="card max-w-[52rem] p-5 sm:p-6">
+          {signedIn !== false && notesField}
+          <div className={`flex flex-wrap items-center gap-2 ${signedIn !== false ? 'mt-4' : ''}`}>
+            {generateButton}
+            {signedIn !== false && <ModelPicker models={models} />}
+          </div>
+          {signedIn === false && <p className="mt-3 text-[13px] text-muted">{t('로그인하면 하루 10개까지 무료로 만들 수 있습니다. 기본은 무료 모델입니다.', 'Free for up to 10 a day once you sign in. The free model is the default.')}</p>}
+          {!ready && !customSource && evidenceIds.length > 0 && <p className="mt-3 text-[13px] text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
         </div>
       )}
-      {!hideControls && <div className="flex flex-wrap items-center gap-2">
-        {signedIn === false ? (
-          <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className={spec ? 'btn-quiet' : 'btn h-11 px-5'}>
-            {spec ? t('로그인하고 다시 만들기', 'Sign in to make it again') : t('로그인하고 PRD 만들기', 'Sign in to make a PRD')}
-          </Link>
-        ) : (
-          <button type="button" className={spec ? 'btn-quiet' : 'btn h-11 px-5'} disabled={(!customSource && !evidenceIds.length) || busy} onClick={generate}>
-            {status === 'loading' ? t('PRD 작성 중, 최대 1분 30초', 'Writing the PRD, up to 90 s') : spec ? t('PRD 다시 만들기', 'Make the PRD again') : generateLabel ?? (ready ? t('이 근거로 PRD 만들기', 'Make a PRD from this evidence') : t('가설 초안 PRD 만들기', 'Make a hypothesis-draft PRD'))}
-          </button>
-        )}
-        {signedIn !== false && <ModelPicker models={models} />}
-        <button type="button" className={`btn-quiet ${spec ? '' : 'h-11'}`} disabled={!ids.length || saveState === 'saving'} onClick={save}>
-          {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
-        </button>
-      </div>}
-      {!ready && !customSource && !spec && evidenceIds.length > 0 && <p className="mt-3 text-sm text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
       {status === 'loading' && <PrdProgress elapsed={elapsed} lang={lang} />}
-      {children}
+      {/* What the parent shows before a PRD exists (the live draft, the quotes it will use); the PRD replaces it. */}
+      {!spec && children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
         {needsLogin && <p><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
         {error && <p className="text-red-700">{error}</p>}
@@ -390,52 +452,74 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       </div>
 
       {input && spec && (
-        <section className="mt-8" aria-label={t('생성된 PRD', 'Generated PRD')}>
-          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h3 className="text-2xl font-bold tracking-tight">{input.title} PRD</h3>
-              <p className="text-sm text-muted">
-                {spec.draft && <b className={styles.draftBadge}>{t('가설 초안', 'Hypothesis draft')}</b>}
-                <span className="font-medium text-seed">{t('근거 있는 요구사항', 'Backed requirements')} {spec.requirements.length}</span>
-                {' · '}{t('가설', 'Hypotheses')} {spec.hypotheses.length}
-                {' · '}{t('개발 준비', 'Ready')} {ready6}/{spec.features.length}
-                {progress && <>{' · '}<span className="font-medium text-seed">{t('구현 완료', 'Built')} {spec.features.filter((row) => progress[row.id]).length}/{spec.features.length}</span></>}
-                {' · '}{t('원문', 'Quotes')} {input.evidence.length} → {t('기능', 'Features')} {spec.features.length} → {t('화면', 'Screens')} {spec.screens.length}
-              </p>
+        <section className="mt-6" aria-label={t('생성된 PRD', 'Generated PRD')}>
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+            <div className="min-w-0">
+              {showTitle && <h2 className="text-2xl font-bold tracking-tight">{input.title}</h2>}
+              <dl className={`flex flex-wrap gap-2 ${showTitle ? 'mt-3' : ''}`}>
+                {spec.draft && <div className="rounded-lg bg-surface-mid px-3 py-1.5 text-[13px] font-semibold text-tertiary"><dt className="sr-only">{t('상태', 'Status')}</dt><dd>{t('가설 초안', 'Hypothesis draft')}</dd></div>}
+                {stats.map(([label, value, green, why]) => (
+                  <div key={label} title={why || undefined} className="flex items-baseline gap-1.5 rounded-lg bg-surface-mid px-3 py-1.5 text-[13px]">
+                    <dt className="text-muted">{label}</dt>
+                    <dd className={`num font-semibold ${green ? 'text-seed' : 'text-ink'}`}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {!hideControls && (
+                <details className="relative">
+                  <summary className="btn-quiet h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('다시 만들기', 'Make again')}</summary>
+                  <div className="z-50 mt-2 rounded-xl border border-outline-soft bg-white p-4 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:bottom-20 sm:absolute sm:right-0 sm:z-20 sm:w-[26rem]">
+                    {signedIn !== false && notesField}
+                    <div className={`flex flex-wrap items-center gap-2 ${signedIn !== false ? 'mt-3' : ''}`}>
+                      {generateButton}
+                      {signedIn !== false && <ModelPicker models={models} />}
+                    </div>
+                  </div>
+                </details>
+              )}
+              <button type="button" className="btn-quiet h-11" disabled={!ids.length || saveState === 'saving'} onClick={save}>
+                {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
+              </button>
               <details className="relative">
-                <summary className="btn-quiet cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('내보내기', 'Export')}</summary>
-                <div className="absolute right-0 z-20 mt-2 flex w-60 flex-col gap-0.5 rounded-xl border border-outline-soft bg-white p-1.5 shadow-lg">
-                  {/* The agent file format lives here, next to the downloads it changes, instead of as its own control. */}
-                  <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
-                    {t('에이전트 파일', 'Agent file')}
-                    <select className="h-8 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
-                    </select>
-                  </label>
-                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                <summary className="btn-quiet h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('내보내기', 'Export')}</summary>
+                <div className={menu}>
                   <button type="button" className={quietButton} onClick={() => void copy('PRD', markdown)}>{t('PRD 복사', 'Copy PRD')}</button>
                   <button type="button" className={quietButton} onClick={() => downloadText('PRD.md', markdown)}>{t('PRD.md 받기', 'Download PRD.md')}</button>
                   {spec.screens.length > 0 && <button type="button" className={quietButton} onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
                 </div>
               </details>
-              {/* "Send to the agent" is a copy: the brief goes on the clipboard, ready to paste into the coding tool. */}
-              <button type="button" className="btn" onClick={() => void copy(EXPORT_FILES[format], brief)}>{t('에이전트로 보내기', 'Send to agent')}</button>
+              {/* Everything that hands the PRD to a coding agent sits behind the one primary action. */}
+              <details className="relative order-first sm:order-none">
+                <summary className="btn h-11 cursor-pointer list-none px-4 [&::-webkit-details-marker]:hidden">{t('에이전트로 보내기', 'Send to agent')}</summary>
+                <div className={menu}>
+                  {agentPrompt && <button type="button" className={quietButton} onClick={() => void copy(t('MCP 시작 문장', 'MCP start prompt'), agentPrompt)}>{t('MCP로 시작하는 문장 복사', 'Copy the MCP start prompt')}</button>}
+                  <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
+                    {t('에이전트 파일', 'Agent file')}
+                    <select className="h-9 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
+                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
+                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                  <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 에이전트 연결부터', 'First time? Connect your agent')}</Link>
+                </div>
+              </details>
             </div>
           </div>
 
-          <div className="tabs mt-5" role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
+          <div className="tabs mt-6" role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
             {VIEWS.map(([key, label, labelEn]) => (
               <button key={key} type="button" role="tab" aria-selected={view === key} className="tab" onClick={() => setView(key)}>{t(label, labelEn)}</button>
             ))}
           </div>
 
-          <div className="mt-8 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="mt-8 grid gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
               {spec.existing && spec.existing.length > 0 && (
                 <details className={`${styles.existing} mb-6`} open>
-                  <summary>{t(`기존 구조 ${spec.existing.length}개 · 새 기능이 깨면 안 되는 것`, `Existing structure (${spec.existing.length}) · new work must not break it`)}</summary>
+                  <summary>{t(`기존 구조 ${spec.existing.length}개: 새 기능이 깨면 안 되는 것`, `Existing structure (${spec.existing.length}): new work must not break it`)}</summary>
                   <ul>{spec.existing.map((row) => <li key={row.name}><b>{row.name}</b>{row.does ? `: ${row.does}` : ''}</li>)}</ul>
                 </details>
               )}
@@ -454,7 +538,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <p className="label mt-4">{t('한 줄 정의', 'One line')}</p>
                       <p className="mt-1 text-[15px] leading-7">{spec.summary}</p>
                       <p className="label mt-5">{t('대상 사용자', 'Target users')}</p>
-                      <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.join(' · ') || t('정의되지 않음', 'Not defined')}</p>
+                      <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.join(', ') || t('정의되지 않음', 'Not defined')}</p>
                     </section>
                     <section>
                       <h4 id="prd-problem" className={h2}>{t('문제', 'Problem')}</h4>
@@ -520,18 +604,6 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         {bullets(input.competitors)}
                       </section>
                     )}
-                    <ol className="grid gap-3 border-t border-outline-strong pt-6 text-sm leading-6">
-                      {input.evidence.map((row, index) => (
-                        <li key={row.id} className={`grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 transition-opacity ${trace && !trace.evidence.has(index + 1) ? 'opacity-40' : ''}`}>
-                          <span className="font-semibold text-seed">{index + 1}</span>
-                          <span className="min-w-0 [overflow-wrap:anywhere]">
-                            <q lang="en">{row.quote}</q>{' '}
-                            <span className="text-muted">{PLATFORM_LABELS[row.platform]}{row.postedAt ? `, ${new Date(row.postedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' })}` : ''}</span>{' '}
-                            <a href={row.url} target="_blank" rel="noopener noreferrer" className="font-medium text-seed underline-offset-4 hover:underline">{t('원문', 'Source')} ›</a>
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
                   </article>
                 </div>
               )}
@@ -610,12 +682,18 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               )}
             </div>
 
-            <aside className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-24 lg:self-start">
-              {detail}
-              {!hideRevise && <form onSubmit={(event) => { event.preventDefault(); void revise(); }}>
+            <aside className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+              {detail && (
+                <div>
+                  {detail}
+                  <button type="button" onClick={() => setFocus(null)} className="mt-4 text-[13px] font-medium text-seed underline-offset-4 hover:underline">{t('선택 해제', 'Clear selection')}</button>
+                </div>
+              )}
+              {evidencePanel}
+              {!hideRevise && signedIn !== false && <form onSubmit={(event) => { event.preventDefault(); void revise(); }}>
                 <label htmlFor="prd-revise" className="text-[15px] font-semibold">{t('수정 요청', 'Request a change')}</label>
                 <p className="mt-1 text-[13px] text-muted">{t('고친 내용도 원문 검사를 다시 거칩니다.', 'Changes go through the source check again.')}</p>
-                <textarea id="prd-revise" rows={4} value={instruction} maxLength={300} onChange={(event) => setInstruction(event.target.value)} placeholder={t('예: 타겟을 초보 개발자로 좁혀줘', 'e.g. Narrow the target to beginner developers')} disabled={busy} className="mt-3 block w-full border bg-white px-3 py-2.5 text-sm leading-6" />
+                <textarea id="prd-revise" rows={3} value={instruction} maxLength={300} onChange={(event) => setInstruction(event.target.value)} placeholder={t('예: 타겟을 초보 개발자로 좁혀줘', 'e.g. Narrow the target to beginner developers')} disabled={busy} className="mt-3 block w-full border bg-white px-3 py-2.5 text-sm leading-6" />
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <button type="submit" className="btn-quiet" disabled={busy || instruction.trim().length < 2}>{status === 'revising' ? t('고치는 중', 'Revising') : t('요청 보내기', 'Send request')}</button>
                   {previous && <button type="button" className="text-sm font-medium text-seed underline-offset-4 hover:underline" onClick={undo} disabled={busy}>{t('되돌리기', 'Undo')}</button>}
@@ -704,7 +782,7 @@ function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: string | n
       {screen.does && <p className="mt-4 text-[15px] leading-7 text-tertiary">{screen.does}</p>}
 
       <div className={styles.wireFrame}>
-        <div className={styles.wireBar} aria-hidden="true"><i /><i /><i /><span>{screen.name}</span></div>
+        <div className={styles.wireBar} aria-hidden="true"><span>{screen.id}</span><span>{screen.name}</span></div>
         <div className={styles.wireBody}>
           <div className={styles.wireNav} aria-hidden="true"><i className={styles.wireLogo} /><i style={{ width: '16%' }} /><i style={{ width: '10%' }} /><i style={{ width: '10%' }} /></div>
           <div className={styles.wireGrid}>
@@ -729,10 +807,10 @@ function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: string | n
                 <span className={`${styles.wirePinStatic} ${quotes.length ? '' : styles.wirePinGuess}`}>{index + 1}</span>
                 <span className="min-w-0">
                   <b className="font-semibold">{feature.title}</b>
-                  <span className="block text-[13px] text-muted">
-                    {feature.id} · {feature.requirementIds.join(', ')}
-                    {' · '}
-                    {quotes.length ? <span className="font-medium text-seed">{t('원문', 'Quotes')} {quotes.map((n) => `E-${n}`).join(', ')}</span> : t('가설 · 원문 없음', 'Hypothesis · no quote')}
+                  <span className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-muted">
+                    <span>{feature.id}</span>
+                    <span>{t(`${feature.requirementIds.join(', ')} 충족`, `serves ${feature.requirementIds.join(', ')}`)}</span>
+                    {quotes.length ? <span className="font-medium text-seed">{t('원문', 'Quotes')} {quotes.map((n) => `E${n}`).join(', ')}</span> : <span>{t('가설, 원문 없음', 'Hypothesis, no quote')}</span>}
                   </span>
                 </span>
               </button>
@@ -765,11 +843,11 @@ function PrdProgress({ elapsed, lang }: { elapsed: number; lang: 'ko' | 'en' }) 
         <p className="num text-sm text-muted">{elapsed}{t('초', 's')}</p>
       </div>
       <span aria-hidden="true" className="mt-3 block h-1.5 overflow-hidden rounded-full bg-surface-high">
-        <span className="block h-full rounded-full bg-seed transition-[width] duration-1000" style={{ width: `${Math.min(95, (elapsed / EXPECTED_SECONDS) * 100)}%` }} />
+        <span className="block h-full origin-left rounded-full bg-seed transition-transform duration-1000 motion-reduce:transition-none" style={{ transform: `scaleX(${Math.min(0.95, elapsed / EXPECTED_SECONDS)})` }} />
       </span>
       <ol className="mt-4 grid gap-1.5 text-sm sm:grid-cols-4">
         {PROGRESS_STEPS.map(([from, ko, en], index) => (
-          <li key={from} className={index < current ? 'text-seed' : index === current ? 'font-medium text-ink' : 'text-muted'}>{index < current ? '✓ ' : ''}{t(ko, en)}</li>
+          <li key={from} className={index < current ? 'text-seed' : index === current ? 'font-semibold text-ink' : 'text-muted'}>{t(ko, en)}</li>
         ))}
       </ol>
       <p className="mt-3 text-[13px] text-muted">{t('보통 30초~1분 30초 걸립니다. 무료 모델은 더 오래 걸리거나 실패할 수 있습니다.', 'Usually 30 to 90 seconds. Free models can take longer or fail.')}</p>

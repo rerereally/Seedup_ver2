@@ -135,7 +135,6 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const step = QUESTIONS.findIndex((question) => !(question.key in answers));
   const current = step === -1 ? null : QUESTIONS[step];
   const answered = QUESTIONS.filter((question) => answers[question.key]).length;
-  const completeness = !idea ? 0 : Math.round(10 + (answered / QUESTIONS.length) * 70 + (keptQuotes.length ? 10 : 0) + (passes ? 10 : 0));
 
   const brief = useMemo(() => ({
     idea,
@@ -203,174 +202,241 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const chips: Array<[string, string]> = current?.key === 'pain'
     ? matched.map((item) => [item.problem, item.problem] as [string, string])
     : current?.chips ?? [];
-  const placeholder = current ? t('직접 적거나 위에서 고르세요', 'Type, or pick one above')
+  const placeholder = current ? t('직접 적거나 질문 아래에서 고르세요', 'Type, or pick one under the question')
     : generated ? t('고칠 점을 적어 주세요. 예: 타겟을 초보 개발자로 좁혀줘', 'Ask for a change, e.g. narrow it to beginners')
       : t('질문이 끝났습니다. PRD를 만들어 보세요.', 'Questions are done. Make the PRD.');
 
+  // Where the work stands, left to right, so the person always knows the next step.
+  const stages: Array<{ label: string; state: 'done' | 'now' | 'todo' }> = [
+    { label: t('아이디어', 'Idea'), state: 'done' },
+    // No quotes is a fact about the idea, not a step to do now: it never competes with the current question.
+    { label: keptQuotes.length ? t(`근거 ${keptQuotes.length}건`, `${keptQuotes.length} quotes`) : t('근거 없음', 'No quotes'), state: keptQuotes.length ? 'done' : 'todo' },
+    { label: t(`질문 ${answered}/${QUESTIONS.length}`, `Questions ${answered}/${QUESTIONS.length}`), state: current ? 'now' : 'done' },
+    { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
+    { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
+  ];
+  const picker = <EvidencePicker matched={matched} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} />;
+  const threeColumns = !generated;
+
   return (
-    <div className="lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
+    <div className="flex flex-col lg:h-[calc(100dvh-4rem)]">
+      <div className="flex min-h-14 items-center gap-4 border-b border-outline-soft bg-white px-4 sm:px-5">
+        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold" title={idea}>{idea}</p>
+        <ol className="hidden items-center gap-1 md:flex" aria-label={t('진행 단계', 'Progress')}>
+          {stages.map((stage, index) => (
+            <li key={stage.label} className="flex items-center gap-1">
+              {index > 0 && <span aria-hidden="true" className="h-px w-4 bg-outline-strong" />}
+              <span aria-current={stage.state === 'now' ? 'step' : undefined} className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] ${stage.state === 'now' ? 'bg-seed-soft font-semibold text-seed' : stage.state === 'done' ? 'text-ink' : 'text-muted'}`}>
+                {stage.state === 'done' && <Check aria-hidden="true" className="h-3.5 w-3.5 text-seed" strokeWidth={2.5} />}
+                {stage.label}
+              </span>
+            </li>
+          ))}
+        </ol>
+        {/* Phones see one pane at a time, so the make action also sits here, reachable from the chat. */}
+        {!generated && (signedIn
+          ? <button type="button" className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden" onClick={generate} disabled={pending !== null}>{t('PRD 만들기', 'Make PRD')}</button>
+          : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden">{t('PRD 만들기', 'Make PRD')}</Link>)}
+        <button type="button" onClick={reset} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted hover:bg-surface-low hover:text-ink">
+          <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />{t('새로 시작', 'Start over')}
+        </button>
+      </div>
+
       <div className="sticky top-16 z-30 flex border-b border-outline-soft bg-white lg:hidden" role="tablist" aria-label={t('보기', 'View')}>
         {([['chat', '대화', 'Chat'], ['doc', '문서', 'Document']] as const).map(([key, ko, enLabel]) => (
           <button key={key} type="button" role="tab" aria-selected={pane === key} onClick={() => setPane(key)} className="tab flex-1 justify-center">{t(ko, enLabel)}</button>
         ))}
       </div>
 
-      <section aria-label={t('기획 대화', 'Planning chat')} className={`${pane === 'chat' ? 'flex' : 'hidden'} h-[calc(100dvh-11rem)] flex-col border-outline-soft bg-white lg:flex lg:h-auto lg:min-h-0 lg:border-r`}>
-        <div className="flex items-center gap-3 border-b border-outline-soft px-5 py-3">
-          <p className="min-w-0 flex-1 truncate text-[15px] font-semibold" title={idea}>{idea}</p>
-          <button type="button" onClick={reset} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted hover:bg-surface-low hover:text-ink">
-            <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />{t('새로 시작', 'Start over')}
-          </button>
-        </div>
+      <div className={`min-h-0 flex-1 lg:grid ${threeColumns ? 'lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)_360px]' : 'lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)]'}`}>
+        <section aria-label={t('기획 대화', 'Planning chat')} className={`${pane === 'chat' ? 'flex' : 'hidden'} h-[calc(100dvh-10.5rem-env(safe-area-inset-bottom))] flex-col border-outline-soft bg-white lg:flex lg:h-auto lg:min-h-0 lg:border-r`}>
+          <div ref={scroller} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6" aria-live="polite">
+            <Bubble role="user">{idea}</Bubble>
 
-        <div ref={scroller} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-6" aria-live="polite">
-          <Bubble role="user">{idea}</Bubble>
-
-          <Bubble role="assistant">
-            {matched.length ? (
-              <>
-                <p>{t(`개발자 원문에서 이 아이디어와 맞는 문제 ${matched.length}개를 찾았습니다. 근거로 쓸 원문을 고르세요.`, `Found ${matched.length} developer problems close to this idea. Pick the quotes to use as evidence.`)}</p>
-                <div className="mt-3 space-y-4">
-                  {matched.map((item) => (
-                    <div key={item.slug}>
-                      <Link href={`/opportunities/${item.slug}`} target="_blank" className="text-sm font-semibold text-ink underline-offset-4 hover:underline">{item.name}</Link>
-                      {item.qualified && <span className="ml-2 text-xs font-medium text-seed">{t('기준 통과', 'Verified')}</span>}
-                      <ul className="mt-2 space-y-1.5">
-                        {item.quotes.map((row) => {
-                          const on = keptIds.includes(row.id);
-                          return (
-                            <li key={row.id}>
-                              <label className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-[13.5px] leading-6 transition-colors ${on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white hover:border-outline-strong'}`}>
-                                <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-seed" />
-                                <span className="min-w-0">
-                                  <q lang="en" className="line-clamp-3 text-ink">{row.quote}</q>
-                                  {!en && row.quoteKo && <span className="mt-0.5 line-clamp-2 block text-muted">{row.quoteKo}</span>}
-                                  <span className="mt-0.5 block text-xs text-muted">{PLATFORM_LABELS[row.platform]} · <a href={row.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline" onClick={(event) => event.stopPropagation()}>{t('원문', 'Source')} ›</a></span>
-                                </span>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-3 text-[13px] leading-6 text-muted">
-                  {t(`원문 ${keptQuotes.length}건 · 플랫폼 ${keptPlatforms}곳을 담았습니다. `, `${keptQuotes.length} quotes from ${keptPlatforms} platforms kept. `)}
-                  {passes
-                    ? <span className="font-medium text-seed">{t('기준을 넘어 근거 있는 PRD로 만듭니다.', 'Above the bar: the PRD can cite evidence.')}</span>
-                    : t(`기준(원문 ${MIN_EVIDENCE}건·플랫폼 ${MIN_PLATFORMS}곳)에 못 미치면 가설 초안으로 표시됩니다.`, `Below the bar (${MIN_EVIDENCE} quotes, ${MIN_PLATFORMS} platforms) the PRD is marked as a hypothesis draft.`)}
+            <Bubble role="assistant">
+              {/* Picking quotes needs room: below 1280px it happens here, wider screens get it as its own column. */}
+              <div className={threeColumns ? 'xl:hidden' : ''}>{picker}</div>
+              {threeColumns && (
+                <p className="hidden xl:block">
+                  {matched.length
+                    ? t(`개발자 원문에서 이 아이디어와 맞는 문제 ${matched.length}개를 찾아 원문 ${keptQuotes.length}건을 근거로 담았습니다. 오른쪽에서 빼거나 더할 수 있습니다.`, `Found ${matched.length} developer problems close to this idea and kept ${keptQuotes.length} quotes as evidence. Add or drop them on the right.`)
+                    : t('저장된 원문 중 이 아이디어와 맞는 것은 아직 없습니다. 답변만으로도 만들 수 있고, 그때 요구사항은 모두 가설로 표시됩니다.', 'No stored quote matches this idea yet. Your answers alone can still make the PRD, with every requirement marked as a hypothesis.')}
                 </p>
-              </>
-            ) : (
-              <p>{t('아직 이 아이디어와 맞는 개발자 원문을 찾지 못했습니다. 답변만으로도 PRD를 만들 수 있지만, 모든 줄이 원문 없는 가설로 표시됩니다.', 'No developer quote matches this idea yet. You can still make a PRD from your answers, but every line will be marked as a hypothesis.')}</p>
-            )}
-          </Bubble>
-
-          {QUESTIONS.slice(0, step === -1 ? QUESTIONS.length : step + 1).map((question) => (
-            <div key={question.key} className="space-y-6">
-              <Bubble role="assistant">
-                <p className="font-medium text-ink">{en ? question.en : question.ko}</p>
-                {(en ? question.hintEn : question.hintKo) && question.key === current?.key && <p className="mt-1 text-[13px] text-muted">{en ? question.hintEn : question.hintKo}</p>}
-              </Bubble>
-              {question.key in answers && (
-                <Bubble role="user" onEdit={() => setAnswers((before) => Object.fromEntries(Object.entries(before).filter(([key]) => QUESTIONS.findIndex((row) => row.key === key) < QUESTIONS.indexOf(question))))} editLabel={t('이 답부터 다시', 'Redo from here')}>
-                  {answers[question.key] || <span className="text-muted">{t('건너뜀', 'Skipped')}</span>}
-                </Bubble>
               )}
-            </div>
-          ))}
+            </Bubble>
 
-          {!current && !generated && (
-            <Bubble role="assistant">
-              <p>{t('질문이 끝났습니다. 지금 내용으로 PRD를 만들까요? 요구사항, 기능 명세, 유저플로우, 와이어프레임이 함께 만들어집니다.', 'That is everything. Make the PRD now? Requirements, feature spec, user flow and wireframes come together.')}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {signedIn && <ModelPicker models={models} />}
-                {signedIn
-                  ? <button type="button" className="btn h-11 px-5" onClick={generate} disabled={pending === 'generate'}>{pending === 'generate' ? t('PRD 작성 중, 최대 1분 30초', 'Writing, up to 90 s') : t('PRD 만들기', 'Make the PRD')}</button>
-                  : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
+            {QUESTIONS.slice(0, step === -1 ? QUESTIONS.length : step + 1).map((question) => (
+              <div key={question.key} className="space-y-6">
+                <Bubble role="assistant">
+                  <p className="font-semibold text-ink">{en ? question.en : question.ko}</p>
+                  {(en ? question.hintEn : question.hintKo) && question.key === current?.key && <p className="mt-1 text-[13px] text-muted">{en ? question.hintEn : question.hintKo}</p>}
+                  {question.key === current?.key && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {chips.map(([ko, enLabel]) => (
+                        <button key={ko} type="button" onClick={() => send(en ? enLabel : ko)} className="min-h-10 max-w-full truncate rounded-full border border-outline-soft bg-white px-3.5 text-left text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{en ? enLabel : ko}</button>
+                      ))}
+                      <button type="button" onClick={() => setAnswers((before) => ({ ...before, [question.key]: '' }))} className="min-h-10 rounded-full px-3.5 text-[13px] text-muted hover:text-ink">{t('건너뛰기', 'Skip')}</button>
+                    </div>
+                  )}
+                </Bubble>
+                {question.key in answers && (
+                  <Bubble role="user" onEdit={() => setAnswers((before) => Object.fromEntries(Object.entries(before).filter(([key]) => QUESTIONS.findIndex((row) => row.key === key) < QUESTIONS.indexOf(question))))} editLabel={t('이 답부터 다시', 'Redo from here')}>
+                    {answers[question.key] || <span className="text-muted">{t('건너뜀', 'Skipped')}</span>}
+                  </Bubble>
+                )}
               </div>
-              {!signedIn && <p className="mt-2 text-[13px] text-muted">{t('답변은 이 브라우저에 남아 로그인한 뒤에도 그대로 이어집니다.', 'Your answers stay in this browser and carry over after sign-in.')}</p>}
-            </Bubble>
-          )}
+            ))}
 
-          {generated && (
-            <Bubble role="assistant">
-              <p>{t('PRD를 만들었습니다. 오른쪽에서 기능 명세 그래프, 유저플로우, 와이어프레임을 확인하세요. 고칠 점은 여기에 적으면 바로 반영합니다.', 'The PRD is ready. See the feature graph, user flow and wireframes on the right. Type a change here and it is applied.')}</p>
-            </Bubble>
-          )}
-          {notes.map((note) => <Bubble key={note.id} role={note.role}>{note.text}</Bubble>)}
-          {pending && <p className="text-sm text-muted">{pending === 'generate' ? t('오른쪽에서 PRD를 쓰는 중입니다. 무료 모델이라 최대 1분 30초 걸립니다.', 'Writing the PRD on the right. The free model can take up to 90 s.') : t('수정 요청을 반영하는 중입니다.', 'Applying your change.')}</p>}
-        </div>
+            {!current && !generated && (
+              <Bubble role="assistant">
+                <p>{t('질문이 끝났습니다. 지금 내용으로 PRD를 만들까요? 요구사항, 기능 명세, 유저플로우, 와이어프레임이 함께 만들어집니다.', 'That is everything. Make the PRD now? Requirements, feature spec, user flow and wireframes come together.')}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {signedIn && <ModelPicker models={models} />}
+                  {signedIn
+                    ? <button type="button" className="btn h-11 px-5" onClick={generate} disabled={pending === 'generate'}>{pending === 'generate' ? t('PRD 작성 중', 'Writing the PRD') : t('PRD 만들기', 'Make the PRD')}</button>
+                    : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
+                </div>
+                {!signedIn && <p className="mt-2 text-[13px] text-muted">{t('답변은 이 브라우저에 남아 로그인한 뒤에도 그대로 이어집니다.', 'Your answers stay in this browser and carry over after sign-in.')}</p>}
+              </Bubble>
+            )}
 
-        <div className="border-t border-outline-soft px-4 pb-4 pt-3">
-          {current && (
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
-              {chips.map(([ko, enLabel]) => (
-                <button key={ko} type="button" onClick={() => send(en ? enLabel : ko)} className="max-w-full truncate rounded-lg border border-outline-soft bg-white px-3 py-1.5 text-left text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{en ? enLabel : ko}</button>
-              ))}
-              <button type="button" onClick={() => setAnswers((before) => ({ ...before, [current.key]: '' }))} className="rounded-lg px-3 py-1.5 text-[13px] text-muted hover:text-ink">{t('건너뛰기', 'Skip')}</button>
+            {generated && (
+              <Bubble role="assistant">
+                <p>{t('PRD를 만들었습니다. 오른쪽에서 문서, 기능 명세, 유저플로우, 와이어프레임을 확인하세요. 고칠 점은 여기에 적으면 바로 반영합니다.', 'The PRD is ready. See the document, feature spec, user flow and wireframes on the right. Type a change here and it is applied.')}</p>
+              </Bubble>
+            )}
+            {notes.map((note) => <Bubble key={note.id} role={note.role}>{note.text}</Bubble>)}
+            {pending && <p className="text-sm text-muted">{pending === 'generate' ? t('오른쪽에서 PRD를 쓰는 중입니다. 무료 모델은 최대 1분 30초 걸립니다.', 'Writing the PRD on the right. The free model can take up to 90 s.') : t('수정 요청을 반영하는 중입니다.', 'Applying your change.')}</p>}
+          </div>
+
+          <div className="border-t border-outline-soft px-4 pb-4 pt-3">
+            <form className="flex items-end gap-2 rounded-2xl border border-field bg-white p-2 focus-within:border-ink" onSubmit={(event) => { event.preventDefault(); send(draft); }}>
+              <label htmlFor="idea-composer" className="sr-only">{t('답변 입력', 'Your answer')}</label>
+              <textarea
+                id="idea-composer"
+                rows={1}
+                value={draft}
+                maxLength={400}
+                disabled={!current && (!generated || pending !== null)}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  // Korean input commits on Enter too; sending mid-composition would cut the last syllable.
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    send(draft);
+                  }
+                }}
+                placeholder={placeholder}
+                className="max-h-36 min-h-11 flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-[15px] leading-6 outline-none [field-sizing:content] placeholder:text-muted disabled:cursor-not-allowed"
+              />
+              <button type="submit" aria-label={t('보내기', 'Send')} disabled={!draft.trim()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ink text-white disabled:cursor-not-allowed disabled:bg-surface-high disabled:text-muted">
+                <ArrowUp aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-surface-low px-5 pb-28 pt-6 lg:block lg:overflow-y-auto lg:px-8 lg:pb-8`}>
+          <PrdBuilder
+            title={idea}
+            evidenceIds={keptIds}
+            ready={passes}
+            loginNext={loginNext}
+            requestBody={{ brief, evidenceIds: keptIds, title: idea }}
+            models={models}
+            hideRevise
+            signedIn={signedIn}
+            generateSignal={signal}
+            externalInstruction={change}
+            hideControls={!generated}
+            onSpec={() => {
+              if (pending === 'revise') say('assistant', t('반영했습니다. 바뀐 곳은 오른쪽 문서와 그래프에서 확인할 수 있습니다.', 'Done. The document and graph on the right show what changed.'));
+              setGenerated(true);
+              setPending(null);
+            }}
+            onError={(message) => {
+              setPending(null);
+              say('assistant', message === 'login' ? t('로그인이 필요합니다. 답변은 그대로 남아 있습니다.', 'Please sign in. Your answers are kept.') : message);
+            }}
+          >
+            {!generated && <LiveDraft idea={idea} answers={answers} current={current?.key ?? null} quotes={keptQuotes} passes={passes} en={en} found={matched[0]?.problem ?? ''} />}
+          </PrdBuilder>
+          {/* The way out of the questions is always in view: the PRD can be made early, from what is answered so far. */}
+          {!generated && (
+            <div className="sticky bottom-4 z-10 mx-auto mt-6 mb-2 flex max-w-[46rem] flex-wrap items-center justify-between gap-3 rounded-2xl border border-outline-soft bg-white px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,.08)] lg:bottom-6">
+              <p className="text-[14px] text-tertiary">{current ? t(`질문 ${QUESTIONS.length - answered}개가 남았습니다. 지금 만들어도 됩니다.`, `${QUESTIONS.length - answered} questions left. You can make it now.`) : t('질문이 끝났습니다.', 'All questions answered.')}</p>
+              {signedIn
+                ? <button type="button" className="btn h-11 whitespace-nowrap px-5" onClick={generate} disabled={pending !== null}>{pending === 'generate' ? t('PRD 작성 중', 'Writing the PRD') : t('PRD 만들기', 'Make the PRD')}</button>
+                : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 whitespace-nowrap px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
             </div>
           )}
-          <form className="flex items-end gap-2 rounded-2xl border border-outline-strong bg-white p-2 focus-within:border-ink" onSubmit={(event) => { event.preventDefault(); send(draft); }}>
-            <label htmlFor="idea-composer" className="sr-only">{t('답변 입력', 'Your answer')}</label>
-            <textarea
-              id="idea-composer"
-              rows={2}
-              value={draft}
-              maxLength={400}
-              disabled={!current && (!generated || pending !== null)}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                // Korean input commits on Enter too; sending mid-composition would cut the last syllable.
-                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  send(draft);
-                }
-              }}
-              placeholder={placeholder}
-              className="min-h-11 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-[15px] leading-6 outline-none placeholder:text-muted disabled:cursor-not-allowed"
-            />
-            <button type="submit" aria-label={t('보내기', 'Send')} disabled={!draft.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink text-white disabled:bg-surface-high disabled:text-muted">
-              <ArrowUp aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </form>
-        </div>
-      </section>
+        </section>
 
-      <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-surface-low px-5 pb-28 pt-6 lg:block lg:overflow-y-auto lg:px-8 lg:pb-16`}>
-        {!generated && (
-          <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="text-sm text-muted">{t('완성도', 'Completeness')}</span>
-            <span aria-hidden="true" className="h-1.5 w-40 overflow-hidden rounded-full bg-surface-high"><span className="block h-full rounded-full bg-seed transition-[width] duration-500" style={{ width: `${completeness}%` }} /></span>
-            <span className="num text-sm font-semibold" aria-label={t(`완성도 ${completeness}%`, `${completeness}% complete`)}>{completeness}%</span>
-          </div>
+        {threeColumns && (
+          <aside aria-label={t('근거 원문 고르기', 'Pick evidence')} className="hidden min-h-0 overflow-y-auto border-l border-outline-soft bg-white px-5 py-6 xl:block">
+            {picker}
+          </aside>
         )}
-        <PrdBuilder
-          title={idea}
-          evidenceIds={keptIds}
-          ready={passes}
-          loginNext={loginNext}
-          requestBody={{ brief, evidenceIds: keptIds, title: idea }}
-          models={models}
-          hideRevise
-          signedIn={signedIn}
-          generateSignal={signal}
-          externalInstruction={change}
-          hideControls={!generated}
-          onSpec={() => {
-            if (pending === 'revise') say('assistant', t('반영했습니다. 바뀐 곳은 오른쪽 문서와 그래프에서 확인할 수 있습니다.', 'Done. The document and graph on the right show what changed.'));
-            setGenerated(true);
-            setPending(null);
-          }}
-          onError={(message) => {
-            setPending(null);
-            say('assistant', message === 'login' ? t('로그인이 필요합니다. 답변은 그대로 남아 있습니다.', 'Please sign in. Your answers are kept.') : message);
-          }}
-        >
-          {!generated && <LiveDraft idea={idea} answers={answers} quotes={keptQuotes} passes={passes} en={en} />}
-        </PrdBuilder>
-      </section>
+      </div>
+    </div>
+  );
+}
+
+/** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
+function EvidencePicker({ matched, keptIds, toggle, keptCount, keptPlatforms, passes, en }: { matched: PoolItem[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean }) {
+  const t = (ko: string, enText: string) => (en ? enText : ko);
+  if (!matched.length) {
+    return (
+      <div>
+        <p className="text-[15px] font-semibold text-ink">{t('맞는 원문을 아직 찾지 못했습니다', 'No matching quotes yet')}</p>
+        <p className="mt-1 text-[14px] leading-6 text-muted">{t('저장된 개발자 원문 중 이 아이디어와 겹치는 것이 없습니다. 답변만으로 만들면 요구사항은 모두 가설로 표시됩니다.', 'No stored developer quote overlaps this idea. A PRD from your answers alone marks every requirement as a hypothesis.')}</p>
+        <Link href="/prd#verified" className="link-seed mt-2">{t('검증된 문제에서 시작하기', 'Start from a verified problem')}</Link>
+      </div>
+    );
+  }
+  const meters: Array<[string, number, number]> = [[t('원문', 'Quotes'), keptCount, MIN_EVIDENCE], [t('플랫폼', 'Platforms'), keptPlatforms, MIN_PLATFORMS]];
+  return (
+    <div>
+      <p className="text-[15px] font-semibold text-ink">{t('근거로 쓸 원문', 'Quotes to use as evidence')}</p>
+      <div className="mt-3 grid grid-cols-2 gap-4">
+        {meters.map(([label, value, bar]) => (
+          <div key={label}>
+            <p className="flex items-baseline justify-between text-[13px] text-muted"><span>{label}</span><span><b className={`num text-[15px] font-semibold ${value >= bar ? 'text-seed' : 'text-ink'}`}>{value}</b>{t(` / 기준 ${bar}`, ` / bar ${bar}`)}</span></p>
+            <span aria-hidden="true" className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-high"><span className="block h-full origin-left rounded-full bg-seed transition-transform duration-300 motion-reduce:transition-none" style={{ transform: `scaleX(${Math.min(1, value / bar)})` }} /></span>
+          </div>
+        ))}
+      </div>
+      <p className={`mt-2 text-[13px] leading-5 ${passes ? 'font-semibold text-seed' : 'text-muted'}`}>{passes ? t('기준을 넘었습니다. 원문이 받쳐 주는 요구사항은 근거로 표시됩니다.', 'Above the bar: requirements the quotes back count as evidence.') : t('기준에 못 미치면 PRD는 가설 초안으로 만들어집니다.', 'Below the bar the PRD is made as a hypothesis draft.')}</p>
+      <div className="mt-5 space-y-5">
+        {matched.map((item) => (
+          <div key={item.slug}>
+            <p className="flex flex-wrap items-baseline gap-x-2">
+              <Link href={`/opportunities/${item.slug}`} target="_blank" className="text-[14px] font-semibold text-ink underline-offset-4 hover:underline">{item.name}</Link>
+              {item.qualified && <span className="text-[12.5px] font-semibold text-seed">{t(`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 이상`, `${MIN_EVIDENCE}+ quotes, ${MIN_PLATFORMS}+ sites`)}</span>}
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {item.quotes.map((row) => {
+                const on = keptIds.includes(row.id);
+                return (
+                  <li key={row.id}>
+                    <label className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-[13.5px] leading-6 transition-colors ${on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white hover:border-outline-strong'}`}>
+                      <input type="checkbox" checked={on} onChange={() => toggle(row.id)} className="mt-1 h-4 w-4 shrink-0 accent-seed" />
+                      <span className="min-w-0">
+                        <q lang="en" className="line-clamp-3 text-ink">{row.quote}</q>
+                        {!en && row.quoteKo && <span className="mt-0.5 line-clamp-2 block text-muted">{row.quoteKo}</span>}
+                        <span className="mt-1 flex gap-3 text-xs text-muted">
+                          <span>{PLATFORM_LABELS[row.platform]}</span>
+                          <a href={row.url} target="_blank" rel="noopener noreferrer" className="text-seed underline-offset-4 hover:underline" onClick={(event) => event.stopPropagation()}>{t('원문 열기', 'Open source')}</a>
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -386,52 +452,57 @@ function Bubble({ role, children, onEdit, editLabel }: { role: 'user' | 'assista
 }
 
 /** The document as the chat fills it, before the model writes the full PRD: nothing here is invented. */
-function LiveDraft({ idea, answers, quotes, passes, en }: { idea: string; answers: Record<string, string>; quotes: PoolItem['quotes']; passes: boolean; en: boolean }) {
+function LiveDraft({ idea, answers, current, quotes, passes, en, found }: { idea: string; answers: Record<string, string>; current: string | null; quotes: PoolItem['quotes']; passes: boolean; en: boolean; found: string }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
-  const rows: Array<[string, string | undefined, string]> = [
-    [t('대상 사용자', 'Target users'), answers.users, 'users'],
-    [t('문제', 'Problem'), answers.pain, 'pain'],
-    [t('지금의 해결 방법', 'How they cope today'), answers.now, 'now'],
-    [t('첫 버전에 꼭 있어야 할 것', 'Must-haves for v1'), answers.must, 'must'],
-    [t('플랫폼', 'Platform'), answers.platform, 'platform'],
-    [t('범위 밖', 'Out of scope'), answers.out, 'out'],
-    [t('추가 의견', 'Other direction'), answers.extra, 'extra'],
+  const rows: Array<[string, string, string]> = [
+    [t('대상 사용자', 'Target users'), 'users', t('누가 가장 먼저 쓰는지', 'Who uses it first')],
+    [t('문제', 'Problem'), 'pain', found ? t(`원문이 말하는 문제: ${found}`, `What the quotes describe: ${found}`) : t('그 사람이 가장 불편한 점', 'What hurts them most')],
+    [t('지금의 해결 방법', 'How they cope today'), 'now', t('지금은 어떻게 버티는지', 'How they get by today')],
+    [t('첫 버전에 꼭 있어야 할 것', 'Must-haves for v1'), 'must', t('첫 버전의 기능 세 가지 이내', 'Up to three things v1 must do')],
+    [t('플랫폼', 'Platform'), 'platform', t('웹, 앱, CLI 같은 쓰는 곳', 'Web, app, CLI or wherever it runs')],
+    [t('범위 밖', 'Out of scope'), 'out', t('이번 버전에서 하지 않을 것', 'What this version leaves out')],
+    [t('추가 의견', 'Other direction'), 'extra', t('방향, 기술 선택, 피하고 싶은 것', 'Direction, tech choices, things to avoid')],
   ];
   return (
-    <article className="mt-2 rounded-2xl bg-white p-6 shadow-[0_0_0_1px_var(--color-outline-soft)] sm:p-9">
-      <p className="text-[13px] text-muted">{t('PRD 초안 · 대화에서 채워지는 중', 'PRD draft · filling from the chat')}</p>
-      <h2 className="mt-2 text-[clamp(22px,2.4vw,28px)] font-bold leading-tight tracking-tight">{idea}</h2>
-      <dl className="mt-8 grid gap-7">
-        {rows.map(([label, value, key]) => (
-          <div key={key} className="grid gap-1.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-6">
-            <dt className="text-sm font-semibold">{label}</dt>
-            <dd className={`text-[15px] leading-7 ${value ? 'text-ink' : 'text-muted'}`}>
-              {value === undefined ? t('대화에서 채워집니다', 'Filled in from the chat') : value || t('건너뜀', 'Skipped')}
-              {value && key === 'must' && <span className="ml-2 text-[13px] text-muted">{t('가설 · 원문으로 확인 전', 'hypothesis · not yet backed by quotes')}</span>}
-            </dd>
-          </div>
-        ))}
-        <div className="grid gap-1.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-6">
-          <dt className="text-sm font-semibold">{t('근거 원문', 'Evidence')}</dt>
-          <dd className="min-w-0">
-            {quotes.length ? (
-              <ol className="grid gap-3">
-                {quotes.map((row, index) => (
-                  <li key={row.id} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-2 border-l-2 border-seed pl-3 text-sm leading-6">
-                    <span className="font-semibold text-seed">{index + 1}</span>
-                    <span className="min-w-0"><q lang="en" className="line-clamp-2">{row.quote}</q><span className="block text-xs text-muted">{PLATFORM_LABELS[row.platform]} · {t('원문과 일치', 'verbatim')}</span></span>
-                  </li>
-                ))}
-              </ol>
-            ) : <p className="text-[15px] leading-7 text-muted">{t('담은 원문이 없습니다. 모든 요구사항이 가설로 표시됩니다.', 'No quotes kept. Every requirement will be a hypothesis.')}</p>}
-            <p className="mt-3 flex items-center gap-1.5 text-[13px] text-muted">
-              {passes && <Check aria-hidden="true" className="h-3.5 w-3.5 text-seed" />}
-              {passes ? t('기준 통과: 원문이 받쳐 주는 요구사항은 근거로 표시됩니다.', 'Above the bar: requirements the quotes back are marked as evidence.') : t(`기준(원문 ${MIN_EVIDENCE}건·플랫폼 ${MIN_PLATFORMS}곳) 미만: 가설 초안으로 만들어집니다.`, `Below the bar (${MIN_EVIDENCE} quotes, ${MIN_PLATFORMS} platforms): made as a hypothesis draft.`)}
-            </p>
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-10 border-t border-outline-soft pt-5 text-[13px] leading-6 text-muted">{t('PRD를 만들면 요구사항 → 기능 → 화면이 이어진 기능 명세 그래프, 유저플로우, 와이어프레임이 함께 생깁니다. 원문이 받쳐 주지 않는 줄은 모두 가설로 남습니다.', 'Making the PRD adds the feature graph (requirement → feature → screen), user flow and wireframes. Lines no quote backs stay hypotheses.')}</p>
+    <article className="mx-auto max-w-[46rem] rounded-2xl bg-white px-6 py-8 shadow-[0_0_0_1px_var(--color-outline-soft)] sm:px-10 sm:py-10">
+      <p className="text-[13px] text-muted">{t('PRD 초안, 답할 때마다 채워집니다', 'PRD draft, filled in as you answer')}</p>
+      <h2 className="mt-2 text-[clamp(22px,2.4vw,30px)] font-bold leading-tight tracking-tight [overflow-wrap:anywhere]">{idea}</h2>
+      <div className="mt-8 grid gap-6">
+        {rows.map(([label, key, hint]) => {
+          const value = answers[key];
+          const now = key === current;
+          return (
+            <section key={key} className={now ? '-mx-4 rounded-xl border-l-2 border-seed bg-seed-soft px-4 py-3' : ''}>
+              <h3 className="flex items-baseline gap-2 text-[14px] font-semibold">
+                {label}
+                {now && <span className="text-[12.5px] font-semibold text-seed">{t('지금 질문에서 채웁니다', 'The current question fills this')}</span>}
+                {value && key === 'must' && <span className="text-[12.5px] font-normal text-muted">{t('가설, 원문으로 확인 전', 'Hypothesis until quotes back it')}</span>}
+              </h3>
+              {value === undefined
+                ? <p className="mt-1.5 text-[14px] italic leading-7 text-muted/80">{hint}</p>
+                : <p className={`mt-1.5 text-[15px] leading-7 ${value ? 'text-ink' : 'text-muted'}`}>{value || t('건너뜀', 'Skipped')}</p>}
+            </section>
+          );
+        })}
+        <section>
+          <h3 className="text-[14px] font-semibold">{t('근거 원문', 'Evidence')}</h3>
+          {quotes.length ? (
+            <ol className="mt-3 grid gap-3">
+              {quotes.map((row, index) => (
+                <li key={row.id} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-2 border-l-2 border-seed pl-3 text-sm leading-6">
+                  <span className="font-semibold text-seed">E{index + 1}</span>
+                  <span className="min-w-0"><q lang="en" className="line-clamp-2">{row.quote}</q><span className="block text-xs text-muted">{PLATFORM_LABELS[row.platform]}</span></span>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="mt-1.5 text-[15px] leading-7 text-muted">{t('담은 원문이 없습니다. 모든 요구사항이 가설로 표시됩니다.', 'No quotes kept. Every requirement will be a hypothesis.')}</p>}
+          <p className="mt-3 flex items-center gap-1.5 text-[13px] text-muted">
+            {passes && <Check aria-hidden="true" className="h-3.5 w-3.5 text-seed" />}
+            {passes ? t('기준을 넘었습니다. 원문이 받쳐 주는 요구사항은 근거로 표시됩니다.', 'Above the bar: requirements the quotes back are marked as evidence.') : t(`기준(원문 ${MIN_EVIDENCE}건, 플랫폼 ${MIN_PLATFORMS}곳) 미만이면 가설 초안으로 만들어집니다.`, `Below the bar (${MIN_EVIDENCE} quotes, ${MIN_PLATFORMS} platforms) it is made as a hypothesis draft.`)}
+          </p>
+        </section>
+      </div>
+      <p className="mt-10 border-t border-outline-soft pt-5 text-[13px] leading-6 text-muted">{t('PRD를 만들면 요구사항, 기능, 화면이 이어진 기능 명세 그래프와 유저플로우, 와이어프레임이 함께 생깁니다. 원문이 받쳐 주지 않는 줄은 모두 가설로 남습니다.', 'Making the PRD adds the feature graph (requirement, feature, screen), user flow and wireframes. Lines no quote backs stay hypotheses.')}</p>
     </article>
   );
 }
@@ -441,14 +512,9 @@ function IdeaStart({ onSubmit, en }: { onSubmit: (text: string) => void; en: boo
   const t = (ko: string, enText: string) => (en ? enText : ko);
   return (
     <div className="page-shell flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center pb-28 text-center">
-      <h1 className="text-[clamp(30px,4.6vw,48px)] font-bold leading-[1.2] tracking-[-0.035em] [text-wrap:balance]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
-      <p className="mt-4 max-w-[36em] text-[17px] leading-8 text-tertiary">{t('짧은 질문에 답하고 내 의견을 더하면, 실제 개발자 원문을 근거로 PRD·기능 명세·유저플로우·와이어프레임을 만듭니다.', 'Answer a few questions, add your own view, and get a PRD, feature spec, user flow and wireframes grounded in real developer quotes.')}</p>
-      <div className="mt-9 w-full max-w-[860px]"><IdeaComposer onSubmit={onSubmit} autoFocus /></div>
-      <div className="mt-6 flex max-w-[860px] flex-wrap justify-center gap-2">
-        {EXAMPLES.map(([ko, enText]) => (
-          <button key={ko} type="button" onClick={() => onSubmit(en ? enText : ko)} className="rounded-lg border border-outline-soft bg-white px-3.5 py-2 text-sm text-tertiary hover:border-outline-strong hover:text-ink">{en ? enText : ko}</button>
-        ))}
-      </div>
+      <h1 className="t-display text-[clamp(32px,4vw,48px)]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
+      <p className="t-lead mt-4 max-w-[36em]">{t('짧은 질문에 답하고 내 의견을 더하면, 실제 개발자 원문을 근거로 PRD·기능 명세·유저플로우·와이어프레임을 만듭니다.', 'Answer a few questions, add your own view, and get a PRD, feature spec, user flow and wireframes grounded in real developer quotes.')}</p>
+      <div className="mt-9 w-full max-w-[860px]"><IdeaComposer onSubmit={onSubmit} autoFocus examples={EXAMPLES.map(([ko, enText]) => ({ label: en ? enText : ko, idea: en ? enText : ko }))} /></div>
     </div>
   );
 }

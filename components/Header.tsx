@@ -45,6 +45,8 @@ export default function Header() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // The idea workspace is a full-screen tool: it has its own make action and needs the bottom of a phone screen.
+  const workspace = pathname?.startsWith('/prd/new') ?? false;
   const on = (match: string[]) => match.some((href) => pathname === href || pathname?.startsWith(`${href}/`));
   const link = (item: { name: string; en: string; href: string; match: string[] }) => (
     <Link
@@ -94,7 +96,7 @@ export default function Header() {
             ) : (
               <>
                 <Link href="/login" className="inline-flex h-11 items-center whitespace-nowrap px-2 text-sm text-ink">{t('로그인', 'Sign in')}</Link>
-                <Link href="/prd/new" className="btn h-11 whitespace-nowrap px-3.5 sm:px-4">{t('PRD 만들기', 'Make a PRD')}</Link>
+                {!workspace && <Link href="/prd/new" className="btn h-11 whitespace-nowrap px-3.5 sm:px-4">{t('PRD 만들기', 'Make a PRD')}</Link>}
               </>
             )}
           </div>
@@ -102,7 +104,7 @@ export default function Header() {
       </header>
 
       {/* Phones get the five places as a bottom bar, so the top row stays just the brand and the account. */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-outline-soft bg-white pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
+      <nav className={`fixed inset-x-0 bottom-0 z-50 grid-cols-5 border-t ${workspace ? 'hidden' : 'grid'} border-outline-soft bg-white pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
         {[...NAV, EXPLORE].map((item) => (
           <Link key={item.href} href={item.href} aria-current={on(item.match) ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] ${on(item.match) ? 'font-semibold text-seed' : 'text-muted'}`}>
             <item.icon className="h-5 w-5" aria-hidden="true" />

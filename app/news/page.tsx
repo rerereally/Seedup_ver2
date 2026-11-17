@@ -4,9 +4,9 @@ import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import { getArticleFeedItems, getScrapKeySet, type ArticleFeedItem } from '@/lib/data';
+import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, type ArticleFeedItem, type GitHubTrend } from '@/lib/data';
 import { getOpportunities } from '@/lib/opportunities/data';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Star } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -88,21 +88,61 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
   const itemType = item.type === 'paper' ? 'paper' : 'news';
   const section = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
-  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean).join(' · ');
+  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean) as string[];
 
   return (
     <article className={lead ? 'pb-10 pt-2' : 'py-7'}>
-      <p className="text-[13px] text-muted">{meta}</p>
+      <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{meta.map((part) => <span key={part}>{part}</span>)}</p>
       <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
         <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
       {summary && <p className={lead ? 'mt-3 line-clamp-3 text-[17px] leading-8 text-tertiary' : 'mt-3 line-clamp-2 text-[15px] leading-7 text-muted'}>{summary}</p>}
-      {lead && item.why_it_matters && <p className="mt-4 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="font-semibold text-ink">왜 중요한가</span> · {item.why_it_matters}</p>}
+      {lead && item.why_it_matters && <p className="mt-4 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{item.why_it_matters}</p>}
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${lead ? 'mt-6' : 'mt-3'}`}>
         {lead && <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />}
         {lead && <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>}
-        {lead && <Link href="/opportunities" className="link-seed">관련 기회 보기 ›</Link>}
+        {lead && <Link href="/opportunities" className="link-seed">관련 기회 보기</Link>}
         <span className={lead ? 'ml-auto' : ''}><ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} /></span>
+      </div>
+    </article>
+  );
+}
+
+const KEEP = { savedLabel: '킵함', unsavedLabel: '킵하기' };
+const compact = new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Picked repositories: this week's star gain first, then Seedup's own relevance score, then size. */
+function rankRepos(repos: GitHubTrend[]) {
+  return [...repos].sort((a, b) => Number(b.stars_delta_7d ?? 0) - Number(a.stars_delta_7d ?? 0) || Number(b.relevance_score ?? 0) - Number(a.relevance_score ?? 0) || Number(b.stars ?? 0) - Number(a.stars ?? 0));
+}
+
+/** One repository in the feed: what it is, why it is here this week, and a keep button that MCP can read later. */
+function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; lead: boolean }) {
+  const [owner, name] = repo.repo_full_name.includes('/') ? repo.repo_full_name.split('/') : ['', repo.repo_full_name];
+  const summary = repo.short_summary ?? repo.beginner_summary ?? repo.description;
+  const gain = Number(repo.stars_delta_7d ?? 0);
+  return (
+    <article className={lead ? 'pb-9 pt-2' : 'py-7'}>
+      <p className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted">
+        {repo.language && <span>{repo.language}</span>}
+        {repo.stars !== null && <span className="inline-flex items-center gap-1"><Star aria-hidden="true" className="h-3.5 w-3.5" /><span className="num">{compact.format(Number(repo.stars))}</span><span className="sr-only">스타</span></span>}
+        {gain > 0 && <span className="font-semibold text-seed">이번 주 +{compact.format(gain)}</span>}
+      </p>
+      <Link href={`/github-trends/${repo.id}`} className="mt-2 block underline-offset-4 hover:underline">
+        <h2 className={`${lead ? 'text-[clamp(24px,3vw,32px)] font-bold tracking-[-0.03em]' : 'text-xl font-semibold tracking-tight'} leading-tight text-ink [overflow-wrap:anywhere]`}>
+          {owner && <span className="font-normal text-muted">{owner}/</span>}{name}
+        </h2>
+      </Link>
+      {summary && <p className={`mt-3 text-tertiary ${lead ? 'line-clamp-3 text-[17px] leading-8' : 'line-clamp-2 text-[15px] leading-7'}`}>{summary}</p>}
+      {lead && repo.project_idea && <p className="mt-3 line-clamp-2 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">이렇게 써 볼 수 있어요</span>{repo.project_idea}</p>}
+      {(repo.topics ?? []).length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="주제">
+          {(repo.topics ?? []).slice(0, 4).map((topic) => <li key={topic} className="chip">{topic}</li>)}
+        </ul>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ScrapButton itemType="github" itemId={repo.id} title={repo.repo_full_name} description={summary} tag={repo.language ?? 'github'} initialSaved={isKept} className="btn-quiet h-10" {...KEEP} />
+        <a href={repo.repo_url} target="_blank" rel="noopener noreferrer" className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">GitHub에서 보기</a>
       </div>
     </article>
   );
@@ -110,8 +150,11 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
 
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; tab?: string; page?: string }> }) {
   const params = await searchParams;
-  const [articles, scrapKeys, { opportunities }] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities()]);
-  const tab = ['popular', 'news', 'paper'].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' : 'new';
+  const [articles, scrapKeys, { opportunities }, trends] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities(), getGitHubTrends()]);
+  const tab = ['popular', 'news', 'paper', 'github'].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' | 'github' : 'new';
+  const repos = rankRepos(trends);
+  const repoQuery = (repo: GitHubTrend) => !params.q || [repo.repo_full_name, repo.description, repo.short_summary, repo.language, ...(repo.topics ?? [])].some((value) => value?.toLowerCase().includes(params.q!.trim().toLowerCase()));
+  const shownRepos = repos.filter(repoQuery);
   const query = params.q?.trim().toLowerCase() ?? '';
   const selectedCategory = params.category?.trim() ?? '';
   const page = Math.max(1, Number(params.page ?? 1) || 1);
@@ -126,9 +169,11 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     if (tab === 'popular') return popularityCompare(a, b) || new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
     return new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
   });
-  const totalPages = Math.max(1, Math.ceil(sortedArticles.length / PAGE_SIZE));
+  const listLength = tab === 'github' ? shownRepos.length : sortedArticles.length;
+  const totalPages = Math.max(1, Math.ceil(listLength / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paginatedArticles = sortedArticles.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedRepos = shownRepos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const currentHref = buildHref({ tab, page: currentPage, category: selectedCategory, q: params.q?.trim() });
 
   const tabs = [
@@ -136,6 +181,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     { key: 'popular', label: '인기' },
     { key: 'news', label: '뉴스·글' },
     { key: 'paper', label: '논문' },
+    { key: 'github', label: '오픈소스' },
   ];
   const linkTo = (target: number) => buildHref({ tab, page: target, category: selectedCategory, q: params.q?.trim() });
 
@@ -158,7 +204,20 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             ))}
           </nav>
 
-          {paginatedArticles.length ? (
+          {tab === 'github' ? (
+            paginatedRepos.length ? (
+              <>
+                <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">이번 주 스타가 많이 늘어난 저장소를 골랐습니다. <b className="font-semibold text-ink">킵하기</b>로 모아 두면 보관함에 남고, 코딩 에이전트가 MCP <code className="font-mono text-[13px]">get_kept_items</code>로 가져갑니다. <Link href="/profile" className="text-seed underline-offset-4 hover:underline">에이전트 연결</Link></p>
+                <div className="mt-6 divide-y divide-outline-soft border-b border-outline-soft">
+                  {paginatedRepos.map((repo, index) => <RepoRow key={repo.id} repo={repo} isKept={scrapKeys.has(`github:${repo.id}`)} lead={index === 0 && currentPage === 1} />)}
+                </div>
+              </>
+            ) : (
+              <div className="mt-8">
+                <EmptyState title={repos.length ? '조건에 맞는 저장소가 없습니다' : '아직 모인 저장소가 없습니다'} description={repos.length ? '검색어를 바꿔 보세요.' : '수집이 한 번 돌고 나면 이번 주 주목받는 저장소가 올라옵니다.'} actionHref="/news?tab=github" actionLabel="전체 보기" />
+              </div>
+            )
+          ) : paginatedArticles.length ? (
             <div className="mt-8 divide-y divide-outline-soft border-b border-outline-soft">
               {paginatedArticles.map((item, index) => {
                 const itemType = item.type === 'paper' ? 'paper' : 'news';
@@ -176,7 +235,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             </div>
           )}
 
-          {sortedArticles.length > PAGE_SIZE && (
+          {listLength > PAGE_SIZE && (
             <nav aria-label="쪽 이동" className="pager pt-8">
               <Link href={linkTo(Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>
                 <ArrowLeft aria-hidden="true" className="h-4 w-4" />
@@ -203,15 +262,34 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                   <li key={item.slug}>
                     <Link href={`/opportunities/${item.slug}`} className="block py-5 hover:bg-surface-low">
                       <span className="block font-semibold text-ink">{item.name}</span>
-                      <span className="mt-1.5 block text-sm text-muted">
-                        {item.qualified && <><span className="font-medium text-seed">기준 통과</span> · </>}
-                        원문 {item.evidence.length}건 · {item.directCount ? `직접 경쟁 ${item.directCount}개` : '직접 경쟁 없음'}
+                      <span className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted">
+                        {item.qualified && <span className="font-semibold text-seed">원문 3건, 2곳 이상</span>}
+                        <span>원문 {item.evidence.length}건</span>
+                        <span>{item.directCount ? `직접 경쟁 ${item.directCount}개` : '직접 경쟁 없음'}</span>
                       </span>
                     </Link>
                   </li>
                 ))}
               </ul>
-              <Link href="/opportunities" className="link-seed mt-4">기회 전체 보기 ›</Link>
+              <Link href="/opportunities" className="link-seed mt-4">기회 전체 보기</Link>
+            </section>
+          )}
+          {tab !== 'github' && repos.length > 0 && (
+            <section aria-labelledby="repos-heading">
+              <h2 id="repos-heading" className="text-lg font-semibold tracking-tight">이번 주 오픈소스</h2>
+              <p className="mt-1 text-sm text-muted">킵해 두면 코딩 에이전트가 MCP로 가져갑니다</p>
+              <ul className="rows mt-5">
+                {repos.slice(0, 4).map((repo) => (
+                  <li key={repo.id} className="flex items-start gap-3 py-4">
+                    <Link href={`/github-trends/${repo.id}`} className="min-w-0 flex-1 hover:underline underline-offset-4">
+                      <span className="block truncate font-semibold text-ink">{repo.repo_full_name}</span>
+                      <span className="mt-1 line-clamp-2 block text-sm leading-6 text-muted">{repo.short_summary ?? repo.description}</span>
+                    </Link>
+                    <ScrapButton itemType="github" itemId={repo.id} title={repo.repo_full_name} description={repo.short_summary ?? repo.description} tag={repo.language ?? 'github'} initialSaved={scrapKeys.has(`github:${repo.id}`)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink" iconOnly {...KEEP} />
+                  </li>
+                ))}
+              </ul>
+              <Link href="/news?tab=github" className="link-seed mt-4">오픈소스 전체 보기</Link>
             </section>
           )}
           <section className="card p-6">

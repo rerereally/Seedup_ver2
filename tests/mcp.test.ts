@@ -28,6 +28,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     related: async () => [],
     progress: async () => ({}),
     setProgress: async () => undefined,
+    kept: async () => [],
     ...over,
   };
 }
@@ -50,7 +51,7 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
 
 test('tools/list exposes the six tools', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'find_related_content']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'get_kept_items', 'find_related_content']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -124,4 +125,15 @@ test('the checklist needs a PRD, lists done criteria, and marking a feature show
 
   await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F-01', done: false }), withSpec, '');
   assert.equal(progress['F-01'], undefined);
+});
+
+test('get_kept_items lists what the user kept, filtered by type, with links an agent can open', async () => {
+  const asked: Array<[string | null, number]> = [];
+  const d = deps({ kept: async (type, limit) => { asked.push([type, limit]); return [{ type: 'github', title: 'owner/repo', note: 'A fast index', url: 'https://github.com/owner/repo', page: 'https://x.test/github-trends/1', savedAt: '2026-11-17T00:00:00Z', extra: 'TypeScript, 1200 stars' }]; } });
+  const answer = await handleRpc(call('get_kept_items', { type: 'github', limit: 999 }), d, 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.deepEqual(asked, [['github', 50]]);
+  assert.match(answer.result.content[0].text, /\[github\] owner\/repo \(TypeScript, 1200 stars\)/);
+  assert.match(answer.result.content[0].text, /https:\/\/github.com\/owner\/repo/);
+  const empty = await handleRpc(call('get_kept_items', { type: 'nonsense' }), deps(), 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(empty.result.content[0].text, /Nothing kept yet/);
 });

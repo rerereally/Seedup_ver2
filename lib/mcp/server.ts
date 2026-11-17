@@ -22,7 +22,13 @@ export type McpDeps = {
   /** This user's done features for one opportunity. */
   progress: (slug: string) => Promise<BuildProgress>;
   setProgress: (slug: string, feature: { id: string; title: string }, done: boolean, note: string) => Promise<void>;
+  /** What this user kept on the site (repos, articles, papers, products), newest first. */
+  kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
 };
+
+export const KEPT_TYPES = ['github', 'news', 'paper', 'ai_product', 'project'] as const;
+export type KeptType = (typeof KEPT_TYPES)[number];
+export type KeptItem = { type: string; title: string; note: string | null; url: string; page: string; savedAt: string; extra?: string };
 
 type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
@@ -73,6 +79,17 @@ export const TOOLS = [
     },
   },
   {
+    name: 'get_kept_items',
+    description: 'What the user kept on Seedup to use later: GitHub repositories, articles, papers and products, with their links, newest first. Read them as references before planning or building, e.g. a repo to reuse or an article the user wants applied.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['all', ...KEPT_TYPES], description: 'Default all; github returns only kept repositories' },
+        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
+      },
+    },
+  },
+  {
     name: 'find_related_content',
     description: 'News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
@@ -115,6 +132,11 @@ Work on one unchecked feature at a time. When its criteria pass, call mark_featu
 PRD page: ${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}
 
 ${lines.join('\n\n') || 'This PRD has no features.'}`;
+}
+
+/** One kept item as an agent reads it: what it is, why it was kept, and where to open it. Pure, for tests. */
+export function renderKept(item: KeptItem) {
+  return [`- [${item.type}] ${item.title}${item.extra ? ` (${item.extra})` : ''}`, item.note ? `  ${item.note}` : '', `  ${item.url}`, item.page !== item.url ? `  On Seedup: ${item.page}` : '', `  Kept ${item.savedAt.slice(0, 10)}`].filter(Boolean).join('\n');
 }
 
 /** The evidence the site and generate_verified_prd both build from, so all three read the same cached PRD. */
@@ -163,6 +185,13 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       await deps.setProgress(slug, feature, args.done !== false, String(args.note ?? '').trim());
     }
     return text(renderChecklist(opportunity, cached.spec, await deps.progress(slug), siteUrl));
+  }
+  if (name === 'get_kept_items') {
+    const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;
+    const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
+    const items = await deps.kept(type, limit);
+    if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/news?tab=github.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
+    return text(`${items.length} kept item${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map(renderKept).join('\n\n')}`);
   }
   if (name === 'find_related_content') {
     const idea = String(args.idea ?? '').trim().slice(0, 500);

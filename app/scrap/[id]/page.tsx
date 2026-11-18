@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 export const metadata: Metadata = {
-  title: '보관함 상세',
+  title: '북마크 상세',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,17 +36,17 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
       <Header />
       <WorkShell>
         <article className="max-w-[760px]">
-          <Link href="/scrap" className="inline-flex min-h-9 items-center text-sm text-muted hover:text-ink">‹ 보관함</Link>
-          <p className="mt-4 text-sm text-muted">{[TYPE_LABELS[item.item_type] ?? item.item_type, item.tag, `${savedAt} 저장`].filter(Boolean).join(' · ')}</p>
+          <Link href="/scrap" className="inline-flex min-h-9 items-center text-sm text-muted hover:text-ink">‹ 북마크</Link>
+          <p className="mt-4 text-sm text-muted">{[TYPE_LABELS[item.item_type] ?? item.item_type, item.tag, `${savedAt} 저장`].filter(Boolean).join(', ')}</p>
           <h1 className="page-intro-title mt-2">{item.title}</h1>
           {item.description && <p className="mt-5 text-[17px] leading-8 text-tertiary">{item.description}</p>}
 
           <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-outline-soft pt-6">
             <Link href={contentHref} className="btn">원본 열기</Link>
-            <Link href={`/ideas?idea=${encodeURIComponent(ideaPrompt)}`} className="btn-quiet">아이디어 평가</Link>
+            <Link href={`/ideas?idea=${encodeURIComponent(ideaPrompt)}`} className="btn-quiet">아이디어 검증</Link>
             <form action={deleteScrap} className="ml-auto">
               <input type="hidden" name="id" value={item.id} />
-              <button type="submit" className="inline-flex h-10 items-center px-2 text-sm text-muted hover:text-red-700">보관함에서 제거</button>
+              <button type="submit" className="inline-flex h-10 items-center px-2 text-sm text-muted hover:text-red-700">북마크에서 제거</button>
             </form>
           </div>
         </article>

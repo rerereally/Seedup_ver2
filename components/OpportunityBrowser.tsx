@@ -2,6 +2,7 @@ import Link from 'next/link';
 import OpportunityTable from '@/components/opportunity-stage/OpportunityTable';
 import { translator } from '@/lib/i18n';
 import { trackRecord, trackRecordSummary } from '@/lib/opportunities/insight';
+import { BUILD_LABELS } from '@/lib/opportunities/types';
 import type { Opportunity } from '@/lib/opportunities/types';
 
 const PAGE_SIZE = 12;
@@ -10,11 +11,12 @@ const PAGE_SIZE = 12;
  * Every problem the engine holds: search, stage filter, the table and the track record.
  * It lives under the weekly issue, so `basePath` and `keep` carry that page's own query along.
  */
-export default function OpportunityBrowser({ opportunities, generatedAt, lang, stage, q, all, basePath, keep = {} }: {
+export default function OpportunityBrowser({ opportunities, generatedAt, lang, stage: stageParam, size: sizeParam, q, all, basePath, keep = {} }: {
   opportunities: Opportunity[];
   generatedAt: string;
   lang: 'ko' | 'en';
   stage?: string;
+  size?: string;
   q?: string;
   all?: string;
   basePath: string;
@@ -27,18 +29,21 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
   const matched = query
     ? opportunities.filter((item) => [item.name, item.problem, item.nameEn, item.problemEn, ...item.keywords].some((value) => value?.toLowerCase().includes(query)))
     : opportunities;
-  const weekend = opportunities.filter((item) => item.build?.size === 'weekend').length;
-  const filtered = stage === 'verified' ? matched.filter((item) => item.qualified)
-    : stage === 'gathering' ? matched.filter((item) => !item.qualified)
-      : stage === 'weekend' ? matched.filter((item) => item.build?.size === 'weekend')
-        : matched;
+  // Status (verified, gathering) and build size are two separate questions. Old ?stage=weekend links still land on the size filter.
+  const stage = stageParam === 'verified' || stageParam === 'gathering' ? stageParam : undefined;
+  const size = sizeParam === 'weekend' || sizeParam === 'weeks' || sizeParam === 'team' ? sizeParam : stageParam === 'weekend' ? 'weekend' : undefined;
+  const sizes = (['weekend', 'weeks', 'team'] as const).map((key) => [key, opportunities.filter((item) => item.build?.size === key).length] as const).filter(([, count]) => count > 0);
+  const filtered = matched
+    .filter((item) => (stage === 'verified' ? item.qualified : stage === 'gathering' ? !item.qualified : true))
+    .filter((item) => (size ? item.build?.size === size : true));
   // Verified problems first, then the ones closest to the bar.
   const sorted = [...filtered].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length);
   const visible = all ? sorted : sorted.slice(0, PAGE_SIZE);
   const kept = Object.entries(keep).filter((entry): entry is [string, string] => Boolean(entry[1]));
-  const href = (next: { stage?: string; all?: boolean }) => {
+  const href = (next: { stage?: string; size?: string; all?: boolean }) => {
     const params = new URLSearchParams(kept);
     if (next.stage) params.set('stage', next.stage);
+    if (next.size) params.set('size', next.size);
     if (q?.trim()) params.set('q', q.trim());
     if (next.all) params.set('all', '1');
     const search = params.toString();
@@ -55,15 +60,24 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
           <form action={`${basePath}#problems`} role="search" className="min-w-[240px] flex-1">
             {kept.map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
             {stage && <input type="hidden" name="stage" value={stage} />}
-            <input type="search" name="q" defaultValue={q ?? ''} aria-label={t('기회 찾기', 'Find opportunities')} placeholder={t('만들고 싶은 것을 입력하면 맞는 원문과 기회를 찾습니다', 'Type what you want to build to find matching quotes and opportunities')} className="h-12 w-full border bg-white px-4 text-[15px] text-ink placeholder:text-muted" />
+            {size && <input type="hidden" name="size" value={size} />}
+            <input type="search" name="q" defaultValue={q ?? ''} aria-label={t('문제 찾기', 'Find problems')} placeholder={t('문제나 키워드로 찾기', 'Search problems or keywords')} className="h-12 w-full border bg-white px-4 text-[15px] text-ink placeholder:text-muted" />
           </form>
-          <nav className="seg" aria-label={t('단계로 걸러 보기', 'Filter by stage')}>
-            <Link href={href({})} scroll={false} aria-current={stage === 'verified' || stage === 'gathering' || stage === 'weekend' ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
-            <Link href={href({ stage: 'verified' })} scroll={false} aria-current={stage === 'verified' ? 'page' : undefined}>{t('검증된 문제', 'Verified')} {verified}</Link>
-            <Link href={href({ stage: 'gathering' })} scroll={false} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('원문 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
-            {(weekend > 0 || stage === 'weekend') && <Link href={href({ stage: 'weekend' })} scroll={false} aria-current={stage === 'weekend' ? 'page' : undefined}>{t('주말 프로젝트', 'Weekend builds')} {weekend}</Link>}
+          <nav className="seg" aria-label={t('상태로 걸러 보기', 'Filter by status')}>
+            <Link href={href({ size })} scroll={false} aria-current={stage ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
+            <Link href={href({ stage: 'verified', size })} scroll={false} aria-current={stage === 'verified' ? 'page' : undefined}>{t('검증된 문제', 'Verified')} {verified}</Link>
+            <Link href={href({ stage: 'gathering', size })} scroll={false} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('원문 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
           </nav>
         </div>
+        {sizes.length > 0 && (
+          <nav className="examples -mt-2" aria-label={t('규모로 걸러 보기', 'Filter by size')}>
+            <span>{t('규모', 'Size')}</span>
+            <Link href={href({ stage })} scroll={false} aria-current={size ? undefined : 'page'} className="example aria-[current=page]:font-semibold aria-[current=page]:text-ink">{t('모두', 'Any')}</Link>
+            {sizes.map(([key, count]) => (
+              <Link key={key} href={href({ stage, size: key })} scroll={false} aria-current={size === key ? 'page' : undefined} className="example aria-[current=page]:font-semibold aria-[current=page]:text-ink">{BUILD_LABELS[key][lang === 'en' ? 1 : 0]} {count}</Link>
+            ))}
+          </nav>
+        )}
 
         <OpportunityTable opportunities={visible} lang={lang} />
         {sorted.length > visible.length && <Link href={href({ stage, all: true })} scroll={false} className="link-seed self-start">{t(`${sorted.length - visible.length}개 더 보기`, `Show ${sorted.length - visible.length} more`)}</Link>}
@@ -72,7 +86,7 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
         </p>
       </div>
 
-      {!stage && !query && record.length > 0 && (
+      {!stage && !size && !query && record.length > 0 && (
         <section aria-labelledby="record-heading">
           <h3 id="record-heading" className="text-xl font-bold tracking-tight">{t('적중 기록', 'Track record')}</h3>
           <p className="mt-1 max-w-[46em] text-sm leading-6 text-muted">{t('불만이 먼저 나오고, 그 뒤에 관련 도구가 나온 문제입니다. 가지고 있는 가장 이른 원문 날짜와 도구가 만들어진 날짜를 비교했습니다. 더 이른 원문이 있었을 수 있습니다.', 'Problems where the complaint came first and a related tool appeared later. We compare the earliest quote we hold with the date each tool was created; earlier complaints may exist.')}</p>

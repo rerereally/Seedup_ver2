@@ -16,7 +16,7 @@ export default function LoginPage() {
           Seedup
         </Link>
         <h1 className="mt-8 text-[clamp(30px,4vw,38px)] font-bold leading-[1.25] tracking-[-0.03em]">작은 신호부터<br />함께 키워 볼까요.</h1>
-        <p className="mt-4 text-[17px] leading-8 text-muted">로그인하면 관심 분야에 맞춘 오늘의 신호와 주간 메일, PRD 만들기를 쓸 수 있습니다.</p>
+        <p className="mt-4 text-[17px] leading-8 text-muted">로그인하면 관심 분야에 맞춘 인사이트와 주간 메일, PRD 만들기를 쓸 수 있습니다.</p>
 
         <div className="mt-8">
           <LoginButton />

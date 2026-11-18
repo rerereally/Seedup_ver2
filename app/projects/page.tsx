@@ -83,7 +83,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                     const durationLabel = project.duration_estimate?.minimum_days && project.duration_estimate.maximum_days
                       ? `${project.duration_estimate.minimum_days}~${project.duration_estimate.maximum_days}일`
                       : project.duration_days ? `${project.duration_days}일` : null;
-                    const sub = [project.related_trend, ...(project.stack ?? []).slice(0, 4)].filter(Boolean).join(' · ');
+                    const sub = [project.related_trend, ...(project.stack ?? []).slice(0, 4)].filter(Boolean).join(', ');
 
                     return (
                       <tr key={project.id} className="group relative border-t border-outline-soft align-top transition-colors last:border-b hover:bg-surface-low">
@@ -106,7 +106,7 @@ export default async function Projects({ searchParams }: { searchParams: Promise
                   })}
                 </tbody>
               </table>
-              <p className="mt-5 text-[13px] leading-6 text-muted">뉴스, 논문, 오픈소스에서 본 것을 작게 배포할 수 있는 크기로 줄였습니다. 단계별 계획은 각 프로젝트 안에 있습니다. 프로젝트 <span className="num">{projects.length}</span>개 · 초급 <span className="num">{beginnerProjects}</span>개.</p>
+              <p className="mt-5 text-[13px] leading-6 text-muted">뉴스, 논문, 오픈소스에서 본 것을 작게 배포할 수 있는 크기로 줄였습니다. 단계별 계획은 각 프로젝트 안에 있습니다. 프로젝트 <span className="num">{projects.length}</span>개, 초급 <span className="num">{beginnerProjects}</span>개.</p>
             </div>
           )}
 

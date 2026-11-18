@@ -62,18 +62,20 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
   const isLoggedIn = Boolean(userData.user);
   const homepage = product.website_url ?? product.product_hunt_url;
   const useCases = (product.use_cases ?? []).slice(0, 5);
-  const meta = ['AI 제품', known(product.category, CATEGORY_LABELS), known(product.pricing_type, PRICING_LABELS)].filter(Boolean).join(' · ');
+  const meta = ['AI 제품', known(product.category, CATEGORY_LABELS), known(product.pricing_type, PRICING_LABELS)].filter(Boolean).join(', ');
 
   return (
     <>
       <Header />
       <main id="main-content" className="page-shell grow">
         <Link href="/ai-products" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> AI 제품 목록</Link>
-        <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article className="min-w-0">
-            <p className="text-sm text-muted">{meta}</p>
+        <header className="mt-4">
+          <p className="text-sm text-muted">{meta}</p>
             <h1 className="page-intro-title mt-3 break-words md:text-[52px] md:leading-[1.08]">{product.name}</h1>
             {product.description && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{product.description}</p>}
+        </header>
+        <div className="mt-8 page-split">
+          <article className="min-w-0">
 
             <div className="mt-6 flex flex-wrap items-center gap-2">
               {homepage && (
@@ -113,7 +115,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
                   {reviews.map((review) => (
                     <li key={review.id} className="py-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-[13px] text-muted"><span className="font-medium text-ink">{review.author_name ?? 'Seedup 사용자'}</span> · {new Date(review.created_at).toLocaleDateString('ko-KR')}</p>
+                        <p className="text-[13px] text-muted"><span className="font-medium text-ink">{review.author_name ?? 'Seedup 사용자'}</span>, {new Date(review.created_at).toLocaleDateString('ko-KR')}</p>
                         <RatingStars rating={review.rating} />
                       </div>
                       {review.title && <h3 className="mt-3 text-[17px] font-bold leading-snug text-ink">{review.title}</h3>}
@@ -158,7 +160,7 @@ export default async function AIProductDetailPage({ params }: { params: Promise<
             </section>
           </article>
 
-          <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+          <aside className="page-side">
             <section className="card p-5 md:p-6">
               <h2 className="label">별점만 남기기</h2>
               <div className="mt-3"><AIProductRatingControl productId={product.id} isLoggedIn={isLoggedIn} /></div>

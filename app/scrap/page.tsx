@@ -15,7 +15,7 @@ import { Search } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '보관함',
+  title: '북마크',
 };
 
 const FILTERS = [
@@ -84,12 +84,12 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
       <Header />
       <WorkShell>
         <PageIntro
-          title="보관함"
+          title="북마크"
           description="저장한 PRD와 킵한 저장소, 글, 논문. 킵한 것은 코딩 에이전트가 MCP get_kept_items로 가져갑니다."
           aside={savedItems.length > 0 ? (
             <form action="/scrap" role="search" className="flex h-11 w-full items-center gap-2.5 rounded-[10px] border border-field bg-white px-4 transition-colors focus-within:border-ink sm:w-72">
               <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
-              <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="보관함 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" />
+              <input type="search" name="q" defaultValue={params.q ?? ''} aria-label="북마크 검색" placeholder="저장한 것 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" />
               {activeType !== 'all' && <input type="hidden" name="type" value={activeType} />}
             </form>
           ) : undefined}

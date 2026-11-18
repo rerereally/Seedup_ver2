@@ -8,7 +8,7 @@ const MAX_POINTS = 24;
 /** The first quote that reads as a sentence: no shouting, no fragment cut off at a colon. */
 function readableQuote(item: Opportunity) {
   const quote = item.evidence.find((row) => row.quote.length >= 30 && row.quote.length <= 240 && row.quote !== row.quote.toUpperCase() && !/[:,]$/.test(row.quote.trim()));
-  return quote ? { text: quote.quote, source: PLATFORM_LABELS[quote.platform], url: quote.url } : null;
+  return quote ? { text: quote.quote, ko: quote.quoteKo || '', source: PLATFORM_LABELS[quote.platform], url: quote.url } : null;
 }
 
 /**

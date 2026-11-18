@@ -503,7 +503,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 </details>
               )}
               <button type="button" className="btn-quiet h-11" disabled={!ids.length || saveState === 'saving'} onClick={save}>
-                {saveState === 'saved' ? t('보관함에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('보관함에 저장', 'Save')}
+                {saveState === 'saved' ? t('북마크에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('북마크에 저장', 'Save')}
               </button>
               <details className="relative">
                 <summary className="btn-quiet h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('내보내기', 'Export')}</summary>
@@ -526,7 +526,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   </label>
                   <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
                   <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format].split('/').pop()!, brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
-                  <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 에이전트 연결부터', 'First time? Connect your agent')}</Link>
+                  <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 MCP 연동부터', 'First time? Connect your agent')}</Link>
                 </div>
               </details>
             </div>
@@ -550,7 +550,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             ))}
           </div>
 
-          <div className="mt-8 grid gap-x-10 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="mt-8 page-split">
             <div className="min-w-0">
               {spec.existing && spec.existing.length > 0 && (
                 <details className={`${styles.existing} mb-6`} open>
@@ -561,7 +561,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
               {view === 'doc' && (
                 <div className="grid gap-x-10 xl:grid-cols-[140px_minmax(0,1fr)]">
-                  <nav className="hidden self-start text-sm xl:sticky xl:top-24 xl:block" aria-label={t('목차', 'Contents')}>
+                  <nav className="hidden self-start text-sm xl:sticky xl:top-6 xl:block" aria-label={t('목차', 'Contents')}>
                     <p className="font-semibold">{t('목차', 'Contents')}</p>
                     <ul className="mt-2 grid">
                       {sections.filter(([, , shown]) => shown).map(([id, label]) => <li key={id}><a href={`#prd-${id}`} className="inline-flex min-h-9 items-center text-muted hover:text-ink">{label}</a></li>)}
@@ -681,7 +681,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 <ul className={styles.specTree}>
                   {[...spec.requirements, ...spec.hypotheses].map((requirement) => (
                     <li key={requirement.id}>
-                      <span className={styles.specId}>{requirement.id}</span> <b className="font-semibold">{requirement.title}</b> <small>({requirement.evidence.length ? requirement.evidence.map((n) => `E-${n}`).join(', ') : t('가설 · 원문 없음', 'hypothesis · no quote')})</small>
+                      <span className={styles.specId}>{requirement.id}</span> <b className="font-semibold">{requirement.title}</b> <small>({requirement.evidence.length ? requirement.evidence.map((n) => `E-${n}`).join(', ') : t('가설, 원문 없음', 'hypothesis, no quote')})</small>
                       <ul>
                         {spec.features.filter((feature) => feature.requirementIds.includes(requirement.id)).map((feature) => (
                           <li key={feature.id}>
@@ -725,7 +725,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               )}
             </div>
 
-            <aside className="flex min-w-0 flex-col gap-8 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+            <aside className="page-side lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:pr-1">
               {detail && (
                 <div>
                   {detail}

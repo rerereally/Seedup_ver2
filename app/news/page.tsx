@@ -13,7 +13,7 @@ import { ArrowLeft, ArrowRight, Star } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: '읽을 글',
+  title: '아티클',
 };
 
 const PAGE_SIZE = 10;
@@ -100,7 +100,7 @@ function ArticleRow({ item, isScrapped, returnTo, lead, reason }: { item: Articl
     <article className={lead ? 'pb-10 pt-2' : 'py-7'}>
       <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}{meta.map((part) => <span key={part}>{part}</span>)}</p>
       <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
-        <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
+        <h2 className={lead ? 'text-[22px] font-bold leading-snug tracking-[-0.025em] text-ink' : 'text-[18px] font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
       {summary && <p className={lead ? 'mt-3 text-[17px] leading-8 text-tertiary' : 'mt-3 text-[15px] leading-7 text-muted'}>{clipText(summary, lead ? 150 : 95)}</p>}
       {lead && item.why_it_matters && <p className="mt-4 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{clipText(item.why_it_matters, 110)}</p>}
@@ -130,7 +130,7 @@ function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; l
         {gain > 0 && <span className="font-semibold text-seed">이번 주 +{compact.format(gain)}</span>}
       </p>
       <Link href={`/github-trends/${repo.id}`} className="mt-2 block underline-offset-4 hover:underline">
-        <h2 className={`${lead ? 'text-[clamp(24px,3vw,32px)] font-bold tracking-[-0.03em]' : 'text-xl font-semibold tracking-tight'} leading-tight text-ink [overflow-wrap:anywhere]`}>
+        <h2 className={`${lead ? 'text-[22px] font-bold tracking-[-0.025em]' : 'text-[18px] font-semibold tracking-tight'} leading-tight text-ink [overflow-wrap:anywhere]`}>
           {owner && <span className="font-normal text-muted">{owner}/</span>}{name}
         </h2>
       </Link>
@@ -204,22 +204,26 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <Header />
-      <main id="main-content" className="page-shell grid grow content-start gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="min-w-0" aria-labelledby="reads-heading">
-          <p className="flex flex-wrap gap-x-3 text-sm text-muted"><span>{today}</span><span>고른 글 {articles.length}편</span></p>
-          <h1 id="reads-heading" className="page-intro-title mt-2">읽을 글</h1>
-          <p className="mt-3 max-w-[40em] text-[15px] leading-7 text-tertiary">뉴스, 논문, 오픈소스에서 오늘 읽을 만한 글을 골라 한국어로 정리했습니다. 문제와 기회는 <Link href="/newsletter-preview" className="text-seed underline-offset-4 hover:underline">오늘의 신호</Link>에 있습니다.</p>
+      <main id="main-content" className="page-shell grow">
+        <header>
+          <h1 id="reads-heading" className="page-intro-title">아티클</h1>
+          <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-muted"><span>{today}</span><span>고른 글 {articles.length}편</span></p>
+          <p className="mt-3 max-w-[40em] text-[15px] leading-7 text-tertiary">뉴스, 논문, 오픈소스에서 오늘 읽을 만한 글을 골라 한국어로 정리했습니다. 문제와 기회는 <Link href="/newsletter-preview" className="text-seed underline-offset-4 hover:underline">인사이트</Link>에 있습니다.</p>
 
           <nav aria-label="글 분류" className="tabs mt-4">
             {tabs.map((item) => (
               <Link key={item.key} href={buildHref({ tab: item.key, category: selectedCategory, q: params.q?.trim() })} scroll={false} aria-current={tab === item.key ? 'page' : undefined} className="tab">{item.label}</Link>
             ))}
           </nav>
+        </header>
+
+        <div className="page-split mt-6">
+        <section className="min-w-0" aria-labelledby="reads-heading">
 
           {tab === 'github' ? (
             paginatedRepos.length ? (
               <>
-                <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">이번 주 스타가 많이 늘어난 저장소를 골랐습니다. <b className="font-semibold text-ink">킵하기</b>로 모아 두면 보관함에 남고, 코딩 에이전트가 MCP <code className="font-mono text-[13px]">get_kept_items</code>로 가져갑니다. <Link href="/profile" className="text-seed underline-offset-4 hover:underline">에이전트 연결</Link></p>
+                <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">이번 주 스타가 많이 늘어난 저장소를 골랐습니다. <b className="font-semibold text-ink">킵하기</b>로 모아 두면 북마크에 남고, 코딩 에이전트가 MCP <code className="font-mono text-[13px]">get_kept_items</code>로 가져갑니다. <Link href="/profile" className="text-seed underline-offset-4 hover:underline">MCP 연동</Link></p>
                 <div className="mt-6 divide-y divide-outline-soft border-b border-outline-soft">
                   {paginatedRepos.map((repo, index) => <RepoRow key={repo.id} repo={repo} isKept={scrapKeys.has(`github:${repo.id}`)} lead={index === 0 && currentPage === 1} />)}
                 </div>
@@ -267,10 +271,10 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           )}
         </section>
 
-        <aside className="flex flex-col gap-10">
+        <aside className="page-side">
           {grown.length > 0 && (
             <section aria-labelledby="grown-heading">
-              <h2 id="grown-heading" className="text-lg font-semibold tracking-tight">이번 주 자란 기회</h2>
+              <h2 id="grown-heading" className="text-[16px] font-bold">이번 주 자란 기회</h2>
               <p className="mt-1 text-sm text-muted">개발자 원문이 모여 검증을 통과한 문제</p>
               <ul className="rows mt-5">
                 {grown.map((item) => (
@@ -286,23 +290,24 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                   </li>
                 ))}
               </ul>
-              <Link href="/opportunities" className="link-seed mt-4">기회 전체 보기</Link>
+              <Link href="/opportunities" className="link-seed mt-4">인사이트 전체 보기</Link>
             </section>
           )}
           {tab !== 'github' && repos.length > 0 && (
             <section aria-labelledby="repos-heading">
-              <h2 id="repos-heading" className="text-lg font-semibold tracking-tight">이번 주 오픈소스</h2>
+              <h2 id="repos-heading" className="text-[16px] font-bold">이번 주 오픈소스</h2>
               <p className="mt-1 text-sm text-muted">킵해 두면 코딩 에이전트가 MCP로 가져갑니다</p>
               <div className="mt-5"><RepoPicks repos={repos} kept={scrapKeys} /></div>
               <Link href="/news?tab=github" className="link-seed mt-4">오픈소스 전체 보기</Link>
             </section>
           )}
           <section className="card p-6">
-            <h2 className="text-lg font-semibold tracking-tight">주간 신호 받기</h2>
+            <h2 className="text-[16px] font-bold">주간 신호 받기</h2>
             <p className="mt-2 text-sm leading-6 text-muted">이 피드에서 내 관심 분야만 골라 매주 월요일 메일로 보냅니다.</p>
             <Link href="/newsletter-preview#subscription" className="btn mt-5 h-12 w-full text-[15px]">구독 설정하기</Link>
           </section>
         </aside>
+        </div>
       </main>
       <Footer />
     </>

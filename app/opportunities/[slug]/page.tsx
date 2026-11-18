@@ -81,9 +81,12 @@ function SupplyGroup({ title, items }: { title: string; items: SupplyItem[] }) {
   );
 }
 
+// The side panel lists this many existing tools; the rest open on request.
+const TOP_TOOLS = 3;
+
 // The sections below the quotes fold shut, so the page reads as: the problem, the proof, then the detail on demand.
 const fold = 'group border-b border-outline-soft';
-const foldSummary = 'flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 text-lg font-semibold tracking-tight [&::-webkit-details-marker]:hidden';
+const foldSummary = 'flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 text-[16px] font-semibold tracking-tight [&::-webkit-details-marker]:hidden';
 const chevron = <span aria-hidden="true" className="text-muted transition-transform group-open:rotate-90">›</span>;
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -119,10 +122,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   ];
   const current = opportunity.qualified ? 1 : 0;
   const quote = (item: Evidence, index: number) => (
-    <li key={item.id} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 py-6">
+    <li key={item.id} className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 py-4">
       <span className="num pt-0.5 text-[15px] font-semibold text-seed">{index + 1}</span>
       <div className="min-w-0">
-        <q lang="en" className="block text-[17px] leading-7 text-ink [text-wrap:pretty]">{item.quote}</q>
+        <q lang="en" className="block text-[16px] leading-7 text-ink [text-wrap:pretty]">{item.quote}</q>
         {lang === 'ko' && item.quoteKo && <p className="mt-1.5 text-[15px] leading-7 text-muted [text-wrap:pretty]">{item.quoteKo}</p>}
         <p className="mt-2 flex flex-wrap gap-x-3 text-[13px] text-muted">
           <span>{PLATFORM_LABELS[item.platform]}</span>
@@ -138,7 +141,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       <Header />
       {/* The extra bottom padding on phones clears the fixed PRD bar. */}
       <main id="main-content" className="page-shell grow pb-24 lg:pb-12">
-        <Link href="/opportunities" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> {t('기회 목록', 'All opportunities')}</Link>
+        <Link href="/opportunities" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> {t('인사이트', 'Insights')}</Link>
         <ol className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted" aria-label={t('진행 단계', 'Stage')}>
           {steps.map((step, index) => (
             <li key={step} className="flex items-center gap-4" aria-current={index === current ? 'step' : undefined}>
@@ -148,41 +151,16 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           ))}
         </ol>
 
-        <div className="mt-6 grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <header className="mt-4">
+          <h1 className="page-intro-title">{text.name}</h1>
+            <p className="mt-3 max-w-[40em] text-[16px] leading-7 text-tertiary [text-wrap:pretty]">{text.problem}</p>
+        </header>
+        <div className="mt-8 page-split">
           <article className="min-w-0">
-            <h1 className="page-intro-title">{text.name}</h1>
-            <p className="mt-4 max-w-[36em] text-lg leading-8 text-tertiary [text-wrap:pretty]">{text.problem}</p>
-            <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-              {/* Verdict first (enough quotes?), then the market (how many rivals), so the two never read as one mixed signal. */}
-              <span className={opportunity.qualified ? 'font-semibold text-seed' : ''}>{opportunity.qualified ? t('원문 3건, 2곳 이상 확인', 'Backed by 3+ quotes from 2+ sites') : t('원문이 아직 부족합니다', 'Not enough quotes yet')}</span>
-              <span aria-hidden="true">·</span>
-              <StatusLabel status={opportunity.status} lang={lang} />
-            </p>
-
-            {text.gap && (
-              <div className="mt-7 max-w-[40em] border-l-2 border-seed pl-5">
-                <p className="label">{t('남은 빈틈', 'The gap')}</p>
-                <p className="mt-1 text-[17px] leading-8 [text-wrap:pretty]">{text.gap}</p>
-              </div>
-            )}
-
-            <dl className="mt-8 grid grid-cols-2 gap-y-6 border-y border-outline-soft py-6 sm:grid-cols-4">
-              {stats.map(([label, value]) => (
-                <div key={label}>
-                  <dt className="label">{label}</dt>
-                  <dd className="mt-2 text-[28px] font-bold leading-none tracking-tight text-ink">{value}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-3 text-[13px] text-muted">
-              {firstSeen && <>{t(`가장 이른 원문은 ${firstSeen}에 나왔습니다.`, `First quote: ${firstSeen}.`)} </>}
-              {t(`첫 원문 뒤 나온 도구 ${opportunity.followersAfterSignal}개.`, `Tools since first quote: ${opportunity.followersAfterSignal}.`)}
-            </p>
-
-            <section className="mt-12" aria-labelledby="quotes-heading">
-              <h2 id="quotes-heading" className="text-2xl font-bold tracking-tight">{t('실제 원문', 'Real quotes')}</h2>
+            <section className="mt-8" aria-labelledby="quotes-heading">
+              <h2 id="quotes-heading" className="text-[17px] font-bold tracking-[-0.015em]">{t('실제 원문', 'Real quotes')}</h2>
               <p className="mt-1 text-sm text-muted">{t('모두 공개 글 원문과 글자 단위로 일치합니다. 번역은 이해를 돕기 위한 것입니다.', 'Every quote matches its public source character by character.')}</p>
-              <ol className="rows mt-5">{opportunity.evidence.slice(0, 3).map(quote)}</ol>
+              <ol className="rows mt-3">{opportunity.evidence.slice(0, 3).map(quote)}</ol>
               {opportunity.evidence.length > 3 && (
                 <details className="group">
                   <summary className="link-seed cursor-pointer list-none py-4 pl-10 group-open:hidden [&::-webkit-details-marker]:hidden">{t(`원문 ${opportunity.evidence.length - 3}건 더 보기`, `${opportunity.evidence.length - 3} more quotes`)}</summary>
@@ -190,6 +168,15 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 </details>
               )}
             </section>
+            {text.gap && (
+              <div className="mt-8 max-w-[40em] border-l-2 border-seed pl-5">
+                <p className="label">{t('남은 빈틈', 'The gap')}</p>
+                <p className="mt-1 text-[17px] leading-8 [text-wrap:pretty]">{text.gap}</p>
+              </div>
+            )}
+
+
+
 
             <div className="mt-10 border-t border-outline-soft">
               <details className={fold}>
@@ -283,27 +270,55 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             </div>
           </article>
 
-          <aside className="flex min-w-0 flex-col gap-10 lg:sticky lg:top-24 lg:self-start">
+          <aside className="page-side">
             <OpportunityPrd lang={lang} ready={opportunity.qualified} slug={opportunity.slug} evidenceCount={opportunity.evidence.length} />
+            <section aria-label={t('속성', 'Properties')} className="card p-5">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+              {/* Verdict first (enough quotes?), then the market (how many rivals), so the two never read as one mixed signal. */}
+              <span className={opportunity.qualified ? 'font-semibold text-seed' : ''}>{opportunity.qualified ? t('원문 3건, 2곳 이상 확인', 'Backed by 3+ quotes from 2+ sites') : t('원문이 아직 부족합니다', 'Not enough quotes yet')}</span>
+              <StatusLabel status={opportunity.status} lang={lang} />
+            </p>
+            <dl className="mt-4 grid grid-cols-2 gap-y-4 border-y border-outline-soft py-4">
+              {stats.map(([label, value]) => (
+                <div key={label}>
+                  <dt className="label">{label}</dt>
+                  <dd className="num mt-1 text-[22px] font-bold leading-none tracking-tight text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-[13px] text-muted">
+              {firstSeen && <>{t(`가장 이른 원문은 ${firstSeen}에 나왔습니다.`, `First quote: ${firstSeen}.`)} </>}
+              {t(`첫 원문 뒤 나온 도구 ${opportunity.followersAfterSignal}개.`, `Tools since first quote: ${opportunity.followersAfterSignal}.`)}
+            </p>
+            </section>
             {opportunity.build && (
               <section aria-labelledby="build-heading">
-                <h2 id="build-heading" className="text-lg font-semibold tracking-tight">{t('혼자 만들면', 'Building it solo')}</h2>
+                <h2 id="build-heading" className="text-[16px] font-bold">{t('혼자 만들면', 'Building it solo')}</h2>
                 <p className="mt-1 text-[13px] text-muted">{t('AI 코딩 도구로 첫 버전을 혼자 만들 때의 AI 추정입니다.', 'An AI estimate for one person shipping a first version with AI coding tools.')}</p>
-                <p className="mt-3 text-sm"><span className="font-semibold text-ink">{BUILD_LABELS[opportunity.build.size][lang === 'en' ? 1 : 0]}</span><span className="text-muted"> · {t(`약 ${opportunity.build.days}일`, `about ${opportunity.build.days} days`)}</span></p>
+                <p className="mt-3 text-sm"><span className="font-semibold text-ink">{BUILD_LABELS[opportunity.build.size][lang === 'en' ? 1 : 0]}</span><span className="ml-2 text-muted">{t(`약 ${opportunity.build.days}일`, `about ${opportunity.build.days} days`)}</span></p>
                 {opportunity.build.stack.length > 0 && <ul className="mt-3 flex flex-wrap gap-2">{opportunity.build.stack.map((name) => <li key={name} className="chip">{name}</li>)}</ul>}
-                {opportunity.build.hard.length > 0 && <p className="mt-3 text-sm leading-6 text-muted">{t('막히기 쉬운 곳', 'Likely blockers')}: <span className="text-ink">{opportunity.build.hard.join(' · ')}</span></p>}
+                {opportunity.build.hard.length > 0 && <p className="mt-3 text-sm leading-6 text-muted">{t('막히기 쉬운 곳', 'Likely blockers')}: <span className="text-ink">{opportunity.build.hard.join(', ')}</span></p>}
               </section>
             )}
             <section aria-labelledby="supply-heading">
-              <h2 id="supply-heading" className="text-lg font-semibold tracking-tight">{t('이미 있는 도구', 'Existing tools')}</h2>
+              <h2 id="supply-heading" className="text-[16px] font-bold">{t('이미 있는 도구', 'Existing tools')}</h2>
               <p className="mb-4 mt-1 text-[13px] text-muted">{opportunity.supply.length === 0 ? t('조사한 범위에서 관련 도구를 찾지 못했습니다.', 'No related tools were found in the sources searched.') : t('웹 검색, GitHub, npm, Show HN, VS Code 마켓, App Store에서 찾았습니다. 직접 경쟁인지 일부 겹치는지는 AI가 판정했습니다.', 'Found through web search, GitHub, npm, Show HN, the VS Code marketplace and the App Store. Whether each is a direct rival or a partial overlap was judged by AI.')}</p>
               <div className="[&>ul+ul>:first-child]:border-t-0">
-                <SupplyGroup title={t('직접 경쟁 (AI 판정)', 'Direct rivals (AI judged)')} items={direct} />
-                <SupplyGroup title={t('일부 겹침 (AI 판정)', 'Partial overlap (AI judged)')} items={partial} />
+                <SupplyGroup title={t('직접 경쟁 (AI 판정)', 'Direct rivals (AI judged)')} items={direct.slice(0, TOP_TOOLS)} />
+                <SupplyGroup title={t('일부 겹침 (AI 판정)', 'Partial overlap (AI judged)')} items={partial.slice(0, Math.max(0, TOP_TOOLS - direct.length))} />
               </div>
+              {opportunity.supply.length > TOP_TOOLS && (
+                <details className="group">
+                  <summary className="link-seed cursor-pointer list-none py-3 group-open:hidden [&::-webkit-details-marker]:hidden">{t(`도구 ${opportunity.supply.length - TOP_TOOLS}개 더 보기`, `${opportunity.supply.length - TOP_TOOLS} more tools`)}</summary>
+                  <div className="[&>ul+ul>:first-child]:border-t-0 [&>ul:first-child>:first-child]:border-t-0">
+                    <SupplyGroup title={t('직접 경쟁 (AI 판정)', 'Direct rivals (AI judged)')} items={direct.slice(TOP_TOOLS)} />
+                    <SupplyGroup title={t('일부 겹침 (AI 판정)', 'Partial overlap (AI judged)')} items={partial.slice(Math.max(0, TOP_TOOLS - direct.length))} />
+                  </div>
+                </details>
+              )}
             </section>
             <section aria-labelledby="fit-heading">
-              <h2 id="fit-heading" className="text-lg font-semibold tracking-tight">{t('내 스택과 맞는가', 'Fit with your stack')}</h2>
+              <h2 id="fit-heading" className="text-[16px] font-bold">{t('내 스택과 맞는가', 'Fit with your stack')}</h2>
               {!fit || !fit.chosen ? (
                 <p className="mt-2 text-sm leading-6 text-muted">
                   <Link href={fit ? '/onboarding' : `/login?next=/opportunities/${opportunity.slug}`} className="font-medium text-seed underline underline-offset-4">{fit ? '프로필에서 기술 스택을 고르면' : '로그인하고 프로필에 기술 스택을 고르면'}</Link> 이 기회와 겹치는 스택을 보여 드립니다.
@@ -321,7 +336,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             </section>
             {lang === 'ko' && (
               <section aria-labelledby="korea-heading">
-                <h2 id="korea-heading" className="text-lg font-semibold tracking-tight">한국에서도 그런가</h2>
+                <h2 id="korea-heading" className="text-[16px] font-bold">한국에서도 그런가</h2>
                 <p className="mb-4 mt-1 text-sm leading-6 text-muted">위 원문은 모두 영어권 커뮤니티에서 나왔습니다. 한국 커뮤니티 글은 아직 수집하지 않으니 직접 찾아보세요. 검색어는 <span className="font-semibold text-ink">{korea.query}</span>입니다.</p>
                 <ul className="rows">
                   {korea.places.map((place) => (

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { BUILD_LABELS, MIN_EVIDENCE, MIN_PLATFORMS, localizedOpportunity } from '@/lib/opportunities/types';
-import type { Opportunity, OpportunityStatus, Platform } from '@/lib/opportunities/types';
+import { BUILD_LABELS, MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
+import type { Opportunity, OpportunityStatus } from '@/lib/opportunities/types';
 import type { OpportunityFunnel } from '@/lib/opportunities/data';
 
 export const STATUS_LABELS: Record<OpportunityStatus, string> = {
@@ -63,11 +63,9 @@ export function FunnelStrip({ funnel, lang = 'ko' }: { funnel: OpportunityFunnel
   );
 }
 
-const SHORT_PLATFORM: Record<Platform, string> = { github: 'GitHub', hn: 'HN', stackoverflow: 'Stack Overflow', devto: 'DEV', lobsters: 'Lobsters', stackexchange: 'Stack Exchange', forum: '포럼', web: 'Web' };
-
-/** What a problem still needs before it counts as verified, in the reader's words. */
+/** What a problem still needs before it counts as verified, in the reader's words. Verified is the default, so it says nothing. */
 function stageLabel(item: Opportunity, en: boolean) {
-  if (item.qualified) return en ? 'Verified' : '기준 통과';
+  if (item.qualified) return '';
   const quotes = MIN_EVIDENCE - item.evidence.length;
   if (quotes > 0) return en ? `${quotes} more needed` : `${quotes}건 더 필요`;
   const platforms = Math.max(1, MIN_PLATFORMS - item.platforms.length);
@@ -83,33 +81,33 @@ export default function OpportunityTable({ opportunities, lang = 'ko' }: { oppor
       <colgroup>
         <col />
         <col className="hidden w-[80px] sm:table-column" />
-        <col className="hidden w-[190px] md:table-column" />
-        <col className="hidden w-[100px] md:table-column" />
-        <col className="w-[104px] sm:w-[120px]" />
+        <col className="hidden w-[150px] min-[1400px]:table-column" />
+        <col className="hidden w-[100px] min-[1400px]:table-column" />
       </colgroup>
       <thead>
         <tr className="border-b border-outline-strong text-left text-[13px] text-muted">
           <th scope="col" className="py-3 pr-4 font-normal">{en ? 'Problem' : '문제'}</th>
           <th scope="col" className="hidden py-3 pr-4 font-normal sm:table-cell">{en ? 'Quotes' : '원문'}</th>
-          <th scope="col" className="hidden py-3 pr-4 font-normal md:table-cell">{en ? 'Platforms' : '플랫폼'}</th>
-          <th scope="col" className="hidden py-3 pr-4 font-normal md:table-cell">{en ? 'Direct rivals' : '직접 경쟁'}</th>
-          <th scope="col" className="py-3 font-normal">{en ? 'Stage' : '단계'}</th>
+          <th scope="col" className="hidden py-3 pr-4 font-normal min-[1400px]:table-cell">{en ? 'Platforms' : '플랫폼'}</th>
+          <th scope="col" className="hidden py-3 font-normal min-[1400px]:table-cell">{en ? 'Rival tools' : '경쟁 도구'}</th>
         </tr>
       </thead>
       <tbody>
         {opportunities.map((item) => (
-          <tr key={item.slug} className="relative border-b border-outline-soft transition-colors hover:bg-surface-low">
+          // data-slug lets the side preview follow the row being pointed at (OpportunityMap), and mark it.
+          <tr key={item.slug} data-slug={item.slug} className="relative border-b border-outline-soft transition-colors hover:bg-surface-low data-[previewed]:bg-surface-low data-[previewed]:shadow-[inset_2px_0_0_var(--color-seed)]">
             <td className="py-5 pr-4">
               {/* The stretched link makes the whole row a target while the table stays a real table. */}
               <Link href={`/opportunities/${item.slug}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
-              {item.audience && <span className="chip ml-2 align-middle">{en ? item.audienceEn || item.audience : item.audience}</span>}
               {item.build && <span className="chip ml-2 align-middle" title={en ? 'AI estimate for one person building with AI coding tools' : 'AI 코딩 도구로 혼자 만들 때의 AI 추정'}>{BUILD_LABELS[item.build.size][en ? 1 : 0]}</span>}
-              <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{localizedOpportunity(item, lang).problem}</p>
+              {!item.qualified && <span className="ml-2 align-middle text-[13px] text-muted">{en ? 'Gathering' : '원문 모으는 중'}, {stageLabel(item, en)}</span>}
+              <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{item.audience && <span className="text-tertiary">{en ? item.audienceEn || item.audience : item.audience}: </span>}{localizedOpportunity(item, lang).problem}</p>
             </td>
             <td className="num hidden py-5 pr-4 sm:table-cell">{item.evidence.length}</td>
-            <td className="hidden py-5 pr-4 md:table-cell">{item.platforms.map((platform) => SHORT_PLATFORM[platform]).join(' · ')}</td>
-            <td className="num hidden py-5 pr-4 md:table-cell">{item.directCount}</td>
-            <td className={`py-5 text-sm ${item.qualified ? 'font-medium text-seed' : 'text-muted'}`}>{stageLabel(item, en)}</td>
+            <td className="hidden truncate py-5 pr-4 min-[1400px]:table-cell" title={item.platforms.map((platform) => PLATFORM_LABELS[platform]).join(', ')}>
+              {item.platforms.length ? PLATFORM_LABELS[item.platforms[0]] : ''}{item.platforms.length > 1 && <span className="text-muted">{en ? ` +${item.platforms.length - 1}` : ` 외 ${item.platforms.length - 1}곳`}</span>}
+            </td>
+            <td className="hidden py-5 min-[1400px]:table-cell">{item.directCount ? <span className="num">{item.directCount}{en ? '' : '개'}</span> : <span className="text-muted">{en ? 'None' : '없음'}</span>}</td>
           </tr>
         ))}
       </tbody>

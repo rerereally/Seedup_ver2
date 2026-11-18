@@ -30,13 +30,16 @@ const STEPS = [
  * when its progress bar's CSS animation ends, so hover, focus, the pause button and reduced motion all stop it the
  * same way: by not running that animation.
  */
-export default function SignalToSpec({ demo, siteUrl }: { demo: DemoPrd; siteUrl: string }) {
+export default function SignalToSpec({ demo, siteUrl, step: shown, onStep, progress }: { demo: DemoPrd; siteUrl: string; step?: number; onStep?: (step: number) => void; progress?: number }) {
   const lang = useLang();
   const t = translator(lang);
   const id = useId();
   const root = useRef<HTMLElement>(null);
   // Opens on the PRD graph, the result; the walkthrough then plays on through the agent and back to the source posts.
-  const [step, setStep] = useState(2);
+  const [own, setStep] = useState(2);
+  // The scroll story drives the step from outside; then nothing advances by itself.
+  const auto = shown === undefined;
+  const step = shown ?? own;
   // null until the reader presses play or pause: then it plays by itself, unless they asked for less motion.
   const [choice, setChoice] = useState<boolean | null>(null);
   const [visible, setVisible] = useState(false);
@@ -52,26 +55,28 @@ export default function SignalToSpec({ demo, siteUrl }: { demo: DemoPrd; siteUrl
   }, []);
 
   const pick = (next: number) => {
+    const wrapped = (next + STEPS.length) % STEPS.length;
+    if (onStep) return onStep(wrapped);
     setChoice(false);
-    setStep((next + STEPS.length) % STEPS.length);
+    setStep(wrapped);
   };
   const running = playing && visible;
   const platforms = [...new Set(demo.evidence.map((row) => row.platform))];
   const where = platforms.map((platform) => PLATFORM_LABELS[platform]).join(t('와 ', ' and '));
 
   return (
-    <figure ref={root} className="stage card min-w-0 overflow-hidden" aria-label={t('실제 PRD 한 건이 원문에서 에이전트까지 이어지는 과정', 'One real PRD, from the posts it came from to the agent that builds it')}>
+    <figure ref={root} className="stage frame min-w-0" aria-label={t('실제 PRD 한 건이 원문에서 에이전트까지 이어지는 과정', 'One real PRD, from the posts it came from to the agent that builds it')}>
       <div className="flex min-h-14 items-center gap-3 border-b border-outline-soft px-4 sm:px-5">
         <p className="min-w-0 flex-1 truncate text-[15px] font-semibold">{t(demo.name.ko, demo.name.en)}</p>
         <span className="shrink-0 text-[13px] font-semibold text-seed">{t(`원문 ${demo.evidence.length}건, ${platforms.length}곳에서 확인`, `${demo.evidence.length} quotes from ${platforms.length} sites`)}</span>
-        <button
+        {auto && <button
           type="button"
           onClick={() => setChoice(!playing)}
           aria-label={playing ? t('자동 진행 멈추기', 'Pause the walkthrough') : t('자동 진행 다시 시작', 'Play the walkthrough')}
           className="-mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-tertiary transition-colors hover:bg-surface-low hover:text-ink"
         >
           {playing ? <Pause aria-hidden="true" className="h-4 w-4" /> : <Play aria-hidden="true" className="h-4 w-4" />}
-        </button>
+        </button>}
       </div>
 
       <div
@@ -102,7 +107,8 @@ export default function SignalToSpec({ demo, siteUrl }: { demo: DemoPrd; siteUrl
               className={`relative h-12 text-[14px] transition-colors ${on ? 'font-semibold text-ink' : 'text-muted hover:text-ink'}`}
             >
               {t(item.ko, item.en)}
-              {on && (
+              {on && !auto && <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[2px] origin-left bg-seed transition-transform duration-150" style={{ transform: `scaleX(${progress ?? 1})` }} />}
+              {on && auto && (
                 <span
                   key={step}
                   aria-hidden="true"
@@ -116,10 +122,10 @@ export default function SignalToSpec({ demo, siteUrl }: { demo: DemoPrd; siteUrl
       </div>
 
       <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${step}`} className={`min-h-[468px] overflow-hidden sm:h-[452px] sm:min-h-0 ${step === 3 ? 'bg-term-bg' : 'p-4 sm:p-5'}`}>
-        {step === 0 && <Collect demo={demo} where={where} />}
-        {step === 1 && <Verify demo={demo} platforms={platforms.length} />}
-        {step === 2 && <Trace demo={demo} running={running} />}
-        {step === 3 && <Agent demo={demo} siteUrl={siteUrl} />}
+        {step === 0 && <Collect demo={demo} where={where} p={progress} />}
+        {step === 1 && <Verify demo={demo} platforms={platforms.length} p={progress} />}
+        {step === 2 && <Trace demo={demo} running={running && progress === undefined} p={progress} />}
+        {step === 3 && <Agent demo={demo} siteUrl={siteUrl} p={progress} />}
       </div>
 
       <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-outline-soft px-4 py-3 text-[13px] text-muted sm:px-5">
@@ -130,6 +136,11 @@ export default function SignalToSpec({ demo, siteUrl }: { demo: DemoPrd; siteUrl
   );
 }
 
+// Scroll progress (0 to 1) shows the first `count * p` items; without it everything shows.
+const upTo = (p: number | undefined, count: number) => (p === undefined ? count : Math.max(1, Math.ceil(p * count)));
+// Driven by scroll, items fade in as they are reached; playing by itself, they enter in turn on mount.
+const enter = (p: number | undefined, on: boolean) => (p === undefined ? 'stage-in' : `transition-[opacity,transform] duration-300 ${on ? '' : 'translate-y-1 opacity-0'}`);
+
 const quotes = (n: number) => `${n} quote${n === 1 ? '' : 's'}`;
 const formatDay = (day: string, lang: 'ko' | 'en') => new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(`${day}T00:00:00Z`));
 const formatMonth = (day: string, lang: 'ko' | 'en') => new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'short' }).format(new Date(`${day}T00:00:00Z`));
@@ -138,7 +149,7 @@ const formatMonth = (day: string, lang: 'ko' | 'en') => new Intl.DateTimeFormat(
 // Where the engine reads every morning (lib/opportunities/actors.ts), in the order the labels are shown.
 const SOURCES: Platform[] = ['hn', 'github', 'stackoverflow', 'devto', 'lobsters', 'stackexchange', 'forum'];
 
-function Collect({ demo, where }: { demo: DemoPrd; where: string }) {
+function Collect({ demo, where, p }: { demo: DemoPrd; where: string; p?: number }) {
   const lang = useLang();
   const t = translator(lang);
   const found = new Set(demo.evidence.map((row) => row.platform));
@@ -153,7 +164,7 @@ function Collect({ demo, where }: { demo: DemoPrd; where: string }) {
       </ul>
       <ol className="rows mt-4" aria-label={t(`${where}에서 같은 문제를 말한 글 ${demo.evidence.length}건`, `${demo.evidence.length} posts on ${where}, one problem`)}>
         {demo.evidence.map((row, index) => (
-          <li key={row.id} className="stage-in py-2.5" style={{ animationDelay: `${index * 110}ms` }}>
+          <li key={row.id} className={`py-2.5 ${enter(p, index < upTo(p, demo.evidence.length))}`} style={{ animationDelay: `${index * 110}ms` }}>
             <p className="flex justify-between gap-3 text-[12.5px] text-muted">
               <span>{PLATFORM_LABELS[row.platform]}</span>
               <time dateTime={row.postedAt}>{formatMonth(row.postedAt, lang)}</time>
@@ -167,7 +178,7 @@ function Collect({ demo, where }: { demo: DemoPrd; where: string }) {
 }
 
 /** Step 2: every quote matched against its source, and the bar it has to clear. */
-function Verify({ demo, platforms }: { demo: DemoPrd; platforms: number }) {
+function Verify({ demo, platforms, p }: { demo: DemoPrd; platforms: number; p?: number }) {
   const t = translator(useLang());
   const meters = [
     { label: t('원문', 'Quotes'), value: demo.evidence.length, bar: MIN_EVIDENCE },
@@ -183,14 +194,14 @@ function Verify({ demo, platforms }: { demo: DemoPrd; platforms: number }) {
               <span><b className="num text-[15px] font-semibold text-ink">{meter.value}</b>{t(` / 기준 ${meter.bar}`, ` / bar ${meter.bar}`)}</span>
             </p>
             <span aria-hidden="true" className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-high">
-              <span className="stage-fill block h-full origin-left rounded-full bg-seed" style={{ transform: `scaleX(${Math.min(1, meter.value / (meter.bar * 1.7))})` }} />
+              <span className="stage-fill block h-full origin-left rounded-full bg-seed" style={{ transform: `scaleX(${Math.min(1, meter.value / (meter.bar * 1.7)) * (p ?? 1)})`, transition: 'transform 150ms' }} />
             </span>
           </div>
         ))}
       </div>
       <ol className="mt-4 grid gap-1.5 border-t border-outline-soft pt-1">
         {demo.evidence.map((row, index) => (
-          <li key={row.id} className="stage-in flex items-start gap-2.5 border-b border-outline-soft py-2 last:border-b-0" style={{ animationDelay: `${index * 140}ms` }}>
+          <li key={row.id} className={`flex items-start gap-2.5 border-b border-outline-soft py-2 last:border-b-0 ${enter(p, index < upTo(p, demo.evidence.length))}`} style={{ animationDelay: `${index * 140}ms` }}>
             <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-seed" strokeWidth={2.5} />
             <div className="min-w-0 flex-1">
               <p className="line-clamp-1 text-[14px] text-ink">{t(row.quoteKo, row.quote)}</p>
@@ -221,7 +232,7 @@ const rowY = (index: number, count: number, most: number) => ((most - count) * (
  * this feature, this screen. While the walkthrough plays the lit chain moves from requirement to requirement; pointing
  * at any box lights that box's chain instead.
  */
-function Trace({ demo, running }: { demo: DemoPrd; running: boolean }) {
+function Trace({ demo, running, p }: { demo: DemoPrd; running: boolean; p?: number }) {
   const lang = useLang();
   const t = translator(lang);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -231,7 +242,8 @@ function Trace({ demo, running }: { demo: DemoPrd; running: boolean }) {
     const timer = window.setInterval(() => setAuto((index) => (index + 1) % demo.requirements.length), 1800);
     return () => window.clearInterval(timer);
   }, [running, demo.requirements.length]);
-  const active = hovered ?? demo.requirements[auto].id;
+  const step = p === undefined ? auto : upTo(p, demo.requirements.length) - 1;
+  const active = hovered ?? demo.requirements[step].id;
   const spec = useMemo(() => ({
     requirements: demo.requirements.map((row) => ({ id: row.id, title: row.title.ko, detail: '', evidence: row.evidence })),
     features: demo.features.map((row) => ({ id: row.id, title: row.title.ko, detail: '', requirementIds: row.requirementIds, slots: null })),
@@ -338,7 +350,7 @@ function Trace({ demo, running }: { demo: DemoPrd; running: boolean }) {
 }
 
 /** Step 4: what the coding agent sees over MCP: the PRD, saved as AGENTS.md, then the checklist, one feature at a time. */
-function Agent({ demo, siteUrl }: { demo: DemoPrd; siteUrl: string }) {
+function Agent({ demo, siteUrl, p }: { demo: DemoPrd; siteUrl: string; p?: number }) {
   const t = translator(useLang());
   const [first] = demo.features;
   type Line = { kind: 'cmd' | 'ask' | 'tool' | 'row' | 'note' | 'gap'; text: string; meta?: string; seed?: boolean };
@@ -360,7 +372,7 @@ function Agent({ demo, siteUrl }: { demo: DemoPrd; siteUrl: string }) {
       {lines.map((line, index) => line.kind === 'gap'
         ? <div key={`gap-${index}`} aria-hidden="true" className="h-2.5" />
         : (
-          <p key={`${line.kind}-${index}`} className="stage-in flex min-w-0 gap-3" style={{ animationDelay: `${index * 150}ms` }}>
+          <p key={`${line.kind}-${index}`} className={`flex min-w-0 gap-3 ${enter(p, index < upTo(p, lines.length))}`} style={{ animationDelay: `${index * 150}ms` }}>
             <span className="line-clamp-1 min-w-0 flex-1 break-all">
               {line.kind === 'cmd' && <span className="text-term-muted">$ </span>}
               {line.kind === 'ask' && <span className="text-term-muted">&gt; </span>}

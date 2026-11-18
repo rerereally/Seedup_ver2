@@ -102,7 +102,7 @@ export default function OnboardingForm({
 
   return (
     <div>
-      <p className="text-sm text-muted">처음 설정 · {step + 1} / {totalSteps}</p>
+      <p className="text-sm text-muted">처음 설정, {step + 1} / {totalSteps}</p>
       <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-high" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={step + 1} aria-label="설정 진행">
         <div className="h-full rounded-full bg-seed transition-all" style={{ width: `${((step + 1) / totalSteps) * 100}%` }} />
       </div>
@@ -110,7 +110,7 @@ export default function OnboardingForm({
       {!isNewsletterStep && currentQuestion && (
         <section className="mt-10">
           <h1 className="text-[clamp(24px,3.4vw,32px)] font-bold leading-snug tracking-[-0.03em] text-ink">{currentQuestion.title}</h1>
-          <p className="mt-3 text-[15px] leading-7 text-muted">오늘의 신호와 주간 메일을 고르는 기준이 됩니다. {currentQuestion.type === 'multi' ? '여러 개 고를 수 있습니다.' : '하나만 골라 주세요.'}</p>
+          <p className="mt-3 text-[15px] leading-7 text-muted">인사이트와 주간 메일을 고르는 기준이 됩니다. {currentQuestion.type === 'multi' ? '여러 개 고를 수 있습니다.' : '하나만 골라 주세요.'}</p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {currentQuestion.options.map((option) => {
               const value = answers[currentQuestion.id];

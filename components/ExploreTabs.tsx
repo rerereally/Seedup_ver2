@@ -16,7 +16,7 @@ export default function ExploreTabs({ current }: { current?: string }) {
   const pathname = usePathname();
   return (
     <header>
-      <h1 className="page-intro-title">탐색</h1>
+      <h1 className="page-intro-title">트렌드</h1>
       <p className="page-intro-description">큐레이션에 쓰이는 자료를 종류별로 모아 두었습니다. 매일 새로 확인합니다.</p>
       <nav className="tabs mt-8" aria-label="자료 종류">
         {TABS.map((tab) => (

@@ -62,9 +62,9 @@ type EvaluationRun = {
 };
 
 const EXAMPLE_IDEAS = [
-  { category: '자동화', title: 'GitHub 이슈 데일리 리포트 봇', description: '개발팀이 놓치는 이슈 변경을 줄이기 위해, 저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구를 만들고 싶어요.' },
-  { category: 'RAG 서비스', title: '논문 기반 구현 아이디어 생성기', description: 'AI를 공부하는 개발자가 논문 초록을 넣으면 핵심을 작은 실험과 구현 가능한 프로젝트로 바꿔주는 웹앱을 만들고 싶어요.' },
-  { category: '개발자 도구', title: 'Product Hunt 팀 큐레이션', description: '제품팀이 신제품을 빠르게 검토하도록 Product Hunt 제품을 분석해 매일 팀 Slack에 공유하는 대시보드를 만들고 싶어요.' },
+  { category: '자동화', short: '데일리 이슈 리포트 봇', title: 'GitHub 이슈 데일리 리포트 봇', description: '개발팀이 놓치는 이슈 변경을 줄이기 위해, 저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구를 만들고 싶어요.' },
+  { category: 'RAG 서비스', short: '논문 구현 아이디어', title: '논문 기반 구현 아이디어 생성기', description: 'AI를 공부하는 개발자가 논문 초록을 넣으면 핵심을 작은 실험과 구현 가능한 프로젝트로 바꿔주는 웹앱을 만들고 싶어요.' },
+  { category: '개발자 도구', short: 'Product Hunt 큐레이션', title: 'Product Hunt 팀 큐레이션', description: '제품팀이 신제품을 빠르게 검토하도록 Product Hunt 제품을 분석해 매일 팀 Slack에 공유하는 대시보드를 만들고 싶어요.' },
 ];
 
 export default function Ideas() {
@@ -183,25 +183,19 @@ export default function Ideas() {
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="아이디어 평가" description="모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 내 아이디어를 평가합니다. 원문 대조가 아니라 AI가 매기는 참고 점수입니다." />
+        <PageIntro title="아이디어 검증" description="모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 내 아이디어를 평가합니다. 원문 대조가 아니라 AI가 매기는 참고 점수입니다." />
 
         {composer}
 
         {isIdle && (
-          <div>
-            <h2 className="label">예시로 시작하기</h2>
-            <ul className="rows mt-3 max-w-[760px]">
-              {EXAMPLE_IDEAS.map((example) => (
-                <li key={example.title}>
-                  <button type="button" onClick={() => setIdea(example.description)} className="block w-full py-4 text-left transition-colors hover:bg-surface-low">
-                    <span className="block text-[13px] text-muted">{example.category}</span>
-                    <span className="mt-0.5 block text-[15px] font-semibold leading-6 text-ink">{example.title}</span>
-                    <span className="mt-1 block text-sm leading-6 text-muted">{example.description}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="examples -mt-4 md:-mt-6" aria-label="예시 아이디어">
+            <li aria-hidden="true">예시</li>
+            {EXAMPLE_IDEAS.map((example) => (
+              <li key={example.title}>
+                <button type="button" onClick={() => setIdea(example.description)} title={example.description} className="example">{example.short}</button>
+              </li>
+            ))}
+          </ul>
         )}
 
         {status === 'saving' && <div className="card flex min-h-[220px] max-w-[760px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-seed" /><p className="mt-4 font-semibold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
@@ -294,7 +288,7 @@ function normalizeEvaluation(value: unknown): IdeaEvaluationResult {
 
 function EvaluationPanel({ run }: { run: EvaluationRun }) {
   const evaluation = run.result;
-  // Whether this evaluation is already in 보관함; keyed by id so a different run never shows a stale answer.
+  // Whether this evaluation is already in 북마크; keyed by id so a different run never shows a stale answer.
   const [scrap, setScrap] = useState<{ id: string; saved: boolean } | null>(null);
   useEffect(() => {
     const supabase = run.id ? createClient() : null;
@@ -354,7 +348,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
       {(!!evaluation.user_stated?.length || !!evaluation.inferred_assumptions?.length) && (
         <section className="grid gap-6 md:grid-cols-2">
           <DetailList title="직접 적어 주신 내용" items={evaluation.user_stated ?? []} />
-          <DetailList title="AI가 덧붙인 가정 · 아직 검증 전" items={evaluation.inferred_assumptions ?? []} />
+          <DetailList title="AI가 덧붙인 가정, 아직 검증 전" items={evaluation.inferred_assumptions ?? []} />
         </section>
       )}
 
@@ -371,9 +365,9 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-mid"><div className="h-full rounded-full bg-seed" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>
                   {reason && (
                     <dl className="mt-3 grid gap-1 text-[13px] leading-6 text-muted">
-                      {!!reason.positive.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">더한 이유</dt><dd>{reason.positive.join(' · ')}</dd></div>}
-                      {!!reason.deductions.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">깎은 이유</dt><dd>{reason.deductions.join(' · ')}</dd></div>}
-                      {!!reason.evidence.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">근거</dt><dd>{reason.evidence.join(' · ')}</dd></div>}
+                      {!!reason.positive.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">더한 이유</dt><dd>{reason.positive.join(', ')}</dd></div>}
+                      {!!reason.deductions.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">깎은 이유</dt><dd>{reason.deductions.join(', ')}</dd></div>}
+                      {!!reason.evidence.length && <div className="flex gap-2"><dt className="shrink-0 text-ink">근거</dt><dd>{reason.evidence.join(', ')}</dd></div>}
                     </dl>
                   )}
                 </div>
@@ -411,7 +405,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
               <div key={risk.title} className="py-4">
                 <p className="flex items-baseline justify-between gap-3"><span className="text-[15px] font-bold text-ink">{risk.title}</span><span className="shrink-0 text-[13px] text-muted">위험도 {severityLabel[risk.severity] ?? risk.severity}</span></p>
                 <p className="mt-1.5 text-sm leading-6 text-muted">{risk.impact}</p>
-                <p className="mt-1 text-sm leading-6 text-ink"><span className="text-muted">대응 · </span>{risk.mitigation}</p>
+                <p className="mt-1 text-sm leading-6 text-ink"><span className="text-muted">대응: </span>{risk.mitigation}</p>
               </div>
             ))}
           </div>
@@ -428,7 +422,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
                 <div className="min-w-0">
                   <p className="text-[15px] font-bold text-ink">{step.title}</p>
                   {step.description !== step.title && <p className="mt-1 text-sm leading-6 text-muted">{step.description}</p>}
-                  <p className="mt-1 text-[13px] leading-6 text-muted"><span className="text-ink">산출물</span> {step.deliverable} · <span className="text-ink">끝나는 기준</span> {step.done_when}</p>
+                  <p className="mt-1 text-[13px] leading-6 text-muted"><span className="text-ink">산출물</span> {step.deliverable}, <span className="text-ink">끝나는 기준</span> {step.done_when}</p>
                 </div>
               </li>
             ))}
@@ -440,9 +434,9 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
         <section>
           <h3 className="label">MVP 범위</h3>
           <dl className="mt-3 grid gap-5 text-sm leading-6 text-ink sm:grid-cols-3">
-            <div><dt className="text-[13px] text-muted">팀과 기간</dt><dd className="mt-0.5">{evaluation.mvp_scope.team_size} · {evaluation.mvp_scope.duration_weeks}주</dd></div>
+            <div><dt className="text-[13px] text-muted">팀과 기간</dt><dd className="mt-0.5">{evaluation.mvp_scope.team_size}, {evaluation.mvp_scope.duration_weeks}주</dd></div>
             <div><dt className="text-[13px] text-muted">핵심 흐름</dt><dd className="mt-0.5">{evaluation.mvp_scope.core_user_flow}</dd></div>
-            <div><dt className="text-[13px] text-muted">이번에는 빼는 것</dt><dd className="mt-0.5">{evaluation.mvp_scope.excluded_scope.join(' · ') || '없음'}</dd></div>
+            <div><dt className="text-[13px] text-muted">이번에는 빼는 것</dt><dd className="mt-0.5">{evaluation.mvp_scope.excluded_scope.join(', ') || '없음'}</dd></div>
           </dl>
         </section>
       )}

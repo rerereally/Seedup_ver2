@@ -33,10 +33,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     <>
       <Header />
       <main id="main-content" className="grow">
-        <div className="page-shell page-stack max-w-[880px]">
+        <div className="page-shell page-stack">
           <header>
             <h1 className="page-intro-title">검색</h1>
-            <form action="/search" role="search" className="mt-6 flex h-14 items-center gap-3 rounded-xl border border-field bg-white pl-5 pr-2 transition-colors focus-within:border-ink">
+            <form action="/search" role="search" className="mt-6 flex h-14 max-w-[48rem] items-center gap-3 rounded-xl border border-field bg-white pl-5 pr-2 transition-colors focus-within:border-ink">
               <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
               <label htmlFor="search-page-query" className="sr-only">Seedup 검색</label>
               <input id="search-page-query" name="q" defaultValue={rawQuery} placeholder="기회, 글, 저장소, 제품, 프로젝트" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-base text-ink placeholder:text-muted" />
@@ -45,9 +45,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             {rawQuery
               ? <p className="page-intro-meta">‘{rawQuery}’ 결과 <span className="num text-ink">{totalResults}</span>건</p>
               : (
-                <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
-                  이런 말로 찾아보세요
-                  {EXAMPLES.map((example) => <Link key={example} href={`/search?q=${encodeURIComponent(example)}`} className="chip transition-colors hover:bg-surface-high">{example}</Link>)}
+                <p className="examples mt-2">
+                  <span>예시</span>
+                  {EXAMPLES.map((example) => <Link key={example} href={`/search?q=${encodeURIComponent(example)}`} className="example">{example}</Link>)}
                 </p>
               )}
           </header>

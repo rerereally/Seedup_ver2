@@ -30,7 +30,7 @@ export default function AgentStart({ slug, name, className = '' }: { slug: strin
       <p className="mt-1.5 text-[13px] leading-5 text-muted" aria-live="polite">
         {copied === 'failed'
           ? <>{t('복사하지 못했습니다. 아래 문장을 직접 복사하세요: ', 'Could not copy. Copy this yourself: ')}<span className="text-ink">{prompt}</span></>
-          : <>{t('Claude Code·Cursor에 붙여 넣으면 이 PRD로 바로 만들기 시작합니다. 처음이면 ', 'Paste into Claude Code or Cursor to start building from this PRD. First time? ')}<Link href="/profile" className="text-seed underline-offset-4 hover:underline">{t('에이전트 연결', 'connect your agent')}</Link>{t('부터.', ' first.')}</>}
+          : <>{t('Claude Code·Cursor에 붙여 넣으면 이 PRD로 바로 만들기 시작합니다. 처음이면 ', 'Paste into Claude Code or Cursor to start building from this PRD. First time? ')}<Link href="/profile" className="text-seed underline-offset-4 hover:underline">{t('MCP 연동', 'connect your agent')}</Link>{t('부터.', ' first.')}</>}
       </p>
     </div>
   );

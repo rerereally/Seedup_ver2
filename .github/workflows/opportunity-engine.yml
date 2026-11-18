@@ -34,6 +34,9 @@ jobs:
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       # Optional steadier model for the evidence top-up (for example "exaone", which needs EXAONE_API_KEY).
       ENGINE_EVIDENCE_MODEL: ${{ vars.ENGINE_EVIDENCE_MODEL }}
+      # Optional: posts read per run (default 540) and below-bar problems searched per run (default 20).
+      ENGINE_SAMPLE_LIMIT: ${{ vars.ENGINE_SAMPLE_LIMIT }}
+      ENGINE_TOPUP_LIMIT: ${{ vars.ENGINE_TOPUP_LIMIT }}
       EXAONE_API_KEY: ${{ secrets.EXAONE_API_KEY }}
       # Mail is optional: without these three the digest step prints what it would send and stops.
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}

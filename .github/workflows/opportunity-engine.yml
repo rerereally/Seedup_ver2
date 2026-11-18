@@ -44,6 +44,8 @@ jobs:
       SEEDUP_SITE_URL: ${{ secrets.SEEDUP_SITE_URL }}
       # Lets the retry below skip collection and extraction, the slowest part of a run.
       ENGINE_CHECKPOINT: engine-checkpoint.json
+      # Posts read and pains found in the last 30 days, kept between runs in the Actions cache below.
+      ENGINE_MEMORY: engine-memory.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,6 +91,14 @@ jobs:
           body="지난 하루 성공률이 80% 아래입니다. 숫자는 실행 기록에 있습니다: $RUN_URL"
           if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
           else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
+      # Cache keys never change once written, so each run saves under its own key and restores the newest by prefix.
+      # A lost cache only means the next run reads the top posts again, as before.
+      - name: Restore what earlier runs read
+        uses: actions/cache/restore@v4
+        with:
+          path: engine-memory.json
+          key: engine-memory-${{ github.run_id }}
+          restore-keys: engine-memory-
       - name: Run the engine
         id: first
         continue-on-error: true
@@ -99,6 +109,12 @@ jobs:
         run: |
           sleep 300
           npx tsx scripts/run-opportunity-engine.ts --persist
+      - name: Save what this run read
+        if: always() && hashFiles('engine-memory.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: engine-memory.json
+          key: engine-memory-${{ github.run_id }}
       # Watched ideas are checked after the run, once a week each; a failure here never fails the engine run.
       - name: Check watched ideas
         continue-on-error: true

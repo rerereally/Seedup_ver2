@@ -9,7 +9,8 @@ import { runOpportunityEngine } from '../lib/opportunities/engine';
 import { applyMerge, mergeRuns } from '../lib/opportunities/merge';
 import { fillBuildEstimates } from '../lib/opportunities/build';
 import { topUpEvidence } from '../lib/opportunities/topup';
-import type { Opportunity, OpportunitySnapshot } from '../lib/opportunities/types';
+import { READ_MEMORY_DAYS, rememberRun } from '../lib/opportunities/rules';
+import type { Opportunity, OpportunitySnapshot, ReadMemory } from '../lib/opportunities/types';
 import type { EngineCheckpointStore } from '../lib/opportunities/engine';
 
 const SNAPSHOT_DIR = resolve(process.cwd(), 'lib/opportunities/data');
@@ -108,6 +109,18 @@ function checkpointStore(): EngineCheckpointStore | undefined {
   };
 }
 
+// ENGINE_MEMORY=/path/file.json remembers which posts were read and which pains still wait for a second source.
+// Without it every run reads the same top posts again, so CI keeps the file between runs (see opportunity-engine.yml).
+function loadMemory(): ReadMemory | null {
+  const file = process.env.ENGINE_MEMORY;
+  return file && existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as ReadMemory) : null;
+}
+
+function saveMemory(memory: ReadMemory) {
+  const file = process.env.ENGINE_MEMORY;
+  if (file) writeFileSync(file, JSON.stringify(memory));
+}
+
 async function main() {
   const persist = process.argv.includes('--persist');
   const previous = await loadPrevious(persist);
@@ -129,8 +142,10 @@ async function main() {
     else await publishRows(current.opportunities);
     return;
   }
-  const knownUrls = new Set((previous?.opportunities ?? []).flatMap((item) => item.evidence.map((evidence) => evidence.url)));
-  const run = await runOpportunityEngine((message) => console.log(timestamp(), message), checkpointStore(), knownUrls);
+  const usedUrls = new Set((previous?.opportunities ?? []).flatMap((item) => item.evidence.map((evidence) => evidence.url)));
+  const memory = rememberRun(loadMemory(), [], [], new Date().toISOString(), usedUrls);
+  const knownUrls = new Set([...usedUrls, ...Object.keys(memory.read)]);
+  const run = await runOpportunityEngine((message) => console.log(timestamp(), message), checkpointStore(), knownUrls, memory.pains);
 
   if (!run.snapshot.opportunities.length) {
     throw new Error('The run produced no opportunities; the previous result is unchanged.');
@@ -146,6 +161,10 @@ async function main() {
   writeFileSync(resolve(SNAPSHOT_DIR, 'snapshot.json'), `${JSON.stringify(snapshot, null, 1)}\n`);
   writeFileSync(resolve(SNAPSHOT_DIR, 'embeddings.json'), JSON.stringify(merged.embeddings));
   if (persist) await publish(snapshot, merged.embeddings);
+  // Written only after a run is saved, so a failed run reads the same posts again on its retry.
+  const nextMemory = rememberRun(memory, run.read, run.pains, run.snapshot.generatedAt, new Set(snapshot.opportunities.flatMap((item) => item.evidence.map((evidence) => evidence.url))));
+  saveMemory(nextMemory);
+  log(`memory: ${Object.keys(nextMemory.read).length} posts read in the last ${READ_MEMORY_DAYS} days, ${nextMemory.pains.length} pains waiting for a second source`);
 
   const { stats } = snapshot;
   const { summary } = merged;

@@ -5,7 +5,9 @@ import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, type ArticleFeedItem, type GitHubTrend } from '@/lib/data';
+import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, getScraps, type ArticleFeedItem, type GitHubTrend } from '@/lib/data';
+import { ruleReads } from '@/lib/personal';
+import { createClient } from '@/lib/supabase/server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { ArrowLeft, ArrowRight, Star } from 'lucide-react';
 import Link from 'next/link';
@@ -88,7 +90,7 @@ function buildHref(params: { tab: string; page?: number; category?: string; q?: 
 }
 
 /** One row of the feed. The first one on a page is set larger and carries the save and ask actions. */
-function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; lead: boolean }) {
+function ArticleRow({ item, isScrapped, returnTo, lead, reason }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; lead: boolean; reason?: string }) {
   const itemType = item.type === 'paper' ? 'paper' : 'news';
   const section = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
@@ -96,7 +98,7 @@ function ArticleRow({ item, isScrapped, returnTo, lead }: { item: ArticleFeedIte
 
   return (
     <article className={lead ? 'pb-10 pt-2' : 'py-7'}>
-      <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{meta.map((part) => <span key={part}>{part}</span>)}</p>
+      <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}{meta.map((part) => <span key={part}>{part}</span>)}</p>
       <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
         <h2 className={lead ? 'text-[clamp(24px,3vw,34px)] font-bold leading-tight tracking-[-0.03em] text-ink' : 'text-xl font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
       </Link>
@@ -149,8 +151,16 @@ function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; l
 
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; tab?: string; page?: string }> }) {
   const params = await searchParams;
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const [articles, scrapKeys, { opportunities }, trends] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities(), getGitHubTrends()]);
-  const tab = ['popular', 'news', 'paper', 'github'].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' | 'github' : 'new';
+  const tab = ['popular', 'news', 'paper', 'github', ...(user ? ['for-you'] : [])].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' | 'github' | 'for-you' : 'new';
+  // For a signed-in reader: their onboarding answers plus what they kept, liked or disliked, scored without embeddings.
+  const personal = new Map<string, { score: number; reason?: string }>();
+  if (user && supabase && tab === 'for-you') {
+    const [{ data: onboarding }, kept] = await Promise.all([supabase.from('user_onboarding').select('answers').eq('user_id', user.id).maybeSingle(), getScraps()]);
+    for (const row of await ruleReads(user.id, onboarding?.answers ?? null, kept).catch(() => [])) personal.set(row.content.id, { score: row.score, reason: row.reasons[0] });
+  }
   const repos = rankRepos(trends);
   const repoQuery = (repo: GitHubTrend) => !params.q || [repo.repo_full_name, repo.description, repo.short_summary, repo.language, ...(repo.topics ?? [])].some((value) => value?.toLowerCase().includes(params.q!.trim().toLowerCase()));
   const shownRepos = repos.filter(repoQuery);
@@ -164,7 +174,9 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     const matchesTab = tab === 'news' ? item.type === 'news' : tab === 'paper' ? item.type === 'paper' : true;
     return matchesQuery && matchesCategory && matchesTab;
   });
-  const sortedArticles = [...baseFiltered].sort((a, b) => {
+  const pool = tab === 'for-you' ? baseFiltered.filter((item) => personal.has(`${item.type}:${item.id}`)) : baseFiltered;
+  const sortedArticles = [...pool].sort((a, b) => {
+    if (tab === 'for-you') return (personal.get(`${b.type}:${b.id}`)?.score ?? 0) - (personal.get(`${a.type}:${a.id}`)?.score ?? 0);
     if (tab === 'popular') return popularityCompare(a, b) || new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
     return new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime();
   });
@@ -176,6 +188,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const currentHref = buildHref({ tab, page: currentPage, category: selectedCategory, q: params.q?.trim() });
 
   const tabs = [
+    ...(user ? [{ key: 'for-you', label: '나에게 맞는' }] : []),
     { key: 'new', label: '최신' },
     { key: 'popular', label: '인기' },
     { key: 'news', label: '뉴스·글' },
@@ -193,7 +206,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
       <Header />
       <main id="main-content" className="page-shell grid grow content-start gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0" aria-labelledby="reads-heading">
-          <p className="text-sm text-muted">{today} · 고른 글 {articles.length}편</p>
+          <p className="flex flex-wrap gap-x-3 text-sm text-muted"><span>{today}</span><span>고른 글 {articles.length}편</span></p>
           <h1 id="reads-heading" className="page-intro-title mt-2">읽을 글</h1>
           <p className="mt-3 max-w-[40em] text-[15px] leading-7 text-tertiary">뉴스, 논문, 오픈소스에서 오늘 읽을 만한 글을 골라 한국어로 정리했습니다. 문제와 기회는 <Link href="/newsletter-preview" className="text-seed underline-offset-4 hover:underline">오늘의 신호</Link>에 있습니다.</p>
 
@@ -217,12 +230,15 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
               </div>
             )
           ) : paginatedArticles.length ? (
+            <>
+            {tab === 'for-you' && <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">고른 관심 분야와 킵하거나 좋아요한 글의 주제로 순서를 정했습니다. 킵한 글과 싫어요한 글은 빠집니다. <Link href="/onboarding" className="text-seed underline-offset-4 hover:underline">관심 분야 바꾸기</Link></p>}
             <div className="mt-8 divide-y divide-outline-soft border-b border-outline-soft">
               {paginatedArticles.map((item, index) => {
                 const itemType = item.type === 'paper' ? 'paper' : 'news';
-                return <ArticleRow key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} lead={index === 0 && currentPage === 1} />;
+                return <ArticleRow key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} lead={index === 0 && currentPage === 1} reason={tab === 'for-you' ? personal.get(`${item.type}:${item.id}`)?.reason : undefined} />;
               })}
             </div>
+            </>
           ) : (
             <div className="mt-8">
               <EmptyState

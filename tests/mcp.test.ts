@@ -137,3 +137,17 @@ test('get_kept_items lists what the user kept, filtered by type, with links an a
   const empty = await handleRpc(call('get_kept_items', { type: 'nonsense' }), deps(), 'https://x.test') as { result: { content: Array<{ text: string }> } };
   assert.match(empty.result.content[0].text, /Nothing kept yet/);
 });
+
+import { derivedToken, hashToken } from '../lib/mcp/auth';
+
+test('derived MCP tokens come back the same for one issue time, so a second tool does not cut off the first', () => {
+  const issued = new Date('2026-11-18T10:00:00.123Z').getTime();
+  const token = derivedToken('user-1', issued, 'secret');
+  assert.match(token, /^sdp_[a-f0-9]{48}$/);
+  // The issue time read back from the database rounds to the same millisecond.
+  assert.equal(derivedToken('user-1', new Date('2026-11-18T10:00:00.123+00:00').getTime(), 'secret'), token);
+  assert.equal(hashToken(derivedToken('user-1', issued, 'secret')), hashToken(token));
+  assert.notEqual(derivedToken('user-1', issued + 1, 'secret'), token);
+  assert.notEqual(derivedToken('user-2', issued, 'secret'), token);
+  assert.notEqual(derivedToken('user-1', issued, 'other'), token);
+});

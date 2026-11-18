@@ -65,3 +65,16 @@ test('saved and disliked items are not mailed again, and liked topics lift simil
   const ranked = scoreNewsletterItems(candidates, profile(behavior));
   assert.deepEqual(ranked.map((row) => row.content.id), ['news:3', 'news:4']);
 });
+
+import { ruleItem } from '../lib/personal';
+
+test('rule picks name the matching interest, and never claim one the reader has not given', () => {
+  const next = item('news:next', { topic_tags: ['Next.js'], short_summary: 'Next.js 16 캐시 변경' });
+  const picked = ruleItem({ content: next, score: 30, reasons: ['관심 분야와 일치'] }, ['Next.js'], false);
+  assert.equal(picked.kind, '글');
+  assert.equal(picked.reason, '관심 분야 Next.js');
+  // A new reader with no interests and nothing kept gets the scorer's own reason, not "close to your interests".
+  const cold = ruleItem({ content: item('repo:x'), score: 10, reasons: ['프로젝트로 확장 가능'] }, [], false);
+  assert.equal(cold.kind, '저장소');
+  assert.equal(cold.reason, '프로젝트로 확장 가능');
+});

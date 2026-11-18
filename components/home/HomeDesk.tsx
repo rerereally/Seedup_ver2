@@ -54,7 +54,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
   const onboarded = Boolean(answers && Object.keys(answers as object).length);
   const picks = await forYou(user.id, {
     answers,
-    keptTitles: scraps.map((item) => item.title),
+    kept: scraps,
     keptKeys,
     planTitles: dossiers.map((item) => (item.opportunity ? item.opportunity.name : item.title)),
     opportunities,
@@ -101,7 +101,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
         <div className="min-w-0 space-y-14">
           {setupLeft > 0 && (
             <section aria-labelledby="desk-setup" className="rounded-2xl border border-outline-soft p-6">
-              <h2 id="desk-setup" className={h2}>{t(`시작하기 · ${setup.length - setupLeft}/${setup.length}`, `Get started · ${setup.length - setupLeft}/${setup.length}`)}</h2>
+              <h2 id="desk-setup" className={h2}>{t(`시작하기 ${setup.length - setupLeft}/${setup.length}`, `Get started ${setup.length - setupLeft}/${setup.length}`)}</h2>
               <ol className="mt-4 grid gap-1 sm:grid-cols-3">
                 {setup.map((step) => (
                   <li key={step.href}>
@@ -131,11 +131,11 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
                       <Link href={dossier.opportunity_slug ? `/prd?opportunity=${encodeURIComponent(dossier.opportunity_slug)}` : '/scrap'} className="text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">
                         {dossier.opportunity ? localizedOpportunity(dossier.opportunity, lang).name : dossier.title}
                       </Link>
-                      <span className="text-[13px] text-muted">
-                        {t(`원문 ${dossier.evidence_ids.length}건`, `${dossier.evidence_ids.length} quotes`)} · {dossier.prd_markdown ? t('PRD 있음', 'PRD saved') : t('PRD 아직 없음', 'No PRD yet')} · <time dateTime={dossier.updated_at}>{date.format(new Date(dossier.updated_at))}</time>
+                      <span className="flex flex-wrap gap-x-3 text-[13px] text-muted">
+                        <span>{t(`원문 ${dossier.evidence_ids.length}건`, `${dossier.evidence_ids.length} quotes`)}</span><span>{dossier.prd_markdown ? t('PRD 있음', 'PRD saved') : t('PRD 아직 없음', 'No PRD yet')}</span><time dateTime={dossier.updated_at}>{date.format(new Date(dossier.updated_at))}</time>
                       </span>
                     </div>
-                    {dossier.notes.length > 0 && <p className="mt-1.5 text-[14px] text-seed">{t('저장한 뒤 달라짐', 'Changed since saved')}: {dossier.notes.slice(0, 2).join(' · ')}</p>}
+                    {dossier.notes.length > 0 && <p className="mt-1.5 text-[14px] text-seed">{t('저장한 뒤 달라짐', 'Changed since saved')}: {dossier.notes.slice(0, 2).join(', ')}</p>}
                   </li>
                 ))}
               </ul>
@@ -146,11 +146,15 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
             <h2 id="desk-for-you" className={h2}>{t('나를 위한 추천', 'For you')}</h2>
             {picks.length ? (
               <>
-                <p className="mt-1 text-[13px] text-muted">{t('고른 관심 분야, 킵한 것, 만들고 있는 PRD와 가까운 순서입니다.', 'Ordered by how close each is to your interests, what you kept and the PRDs you are making.')}</p>
+                <p className="mt-1 text-[13px] text-muted">
+                  {onboarded || scraps.length
+                    ? t('고른 관심 분야, 킵한 것, 만들고 있는 PRD와 가까운 순서입니다. 관심 없음을 누른 것은 빠집니다.', 'Ordered by your interests, what you kept and the PRDs you are making; anything you marked not interested drops out.')
+                    : <>{t('아직 관심 분야가 없어 이번 주 많이 볼 만한 것을 골랐습니다. ', 'No interests yet, so these are this week’s strongest picks. ')}<Link href="/onboarding" className="font-semibold text-seed underline-offset-4 hover:underline">{t('관심 분야 고르기', 'Pick interests')}</Link></>}
+                </p>
                 <ul className="rows mt-3">
                   {picks.map((item) => (
                     <li key={item.key} className="py-3.5">
-                      <p className="flex flex-wrap gap-x-2 text-[12.5px] text-muted"><span className="font-semibold text-seed">{item.kind}</span>{item.source && <span>{item.source}</span>}<span>· {item.reason}</span></p>
+                      <p className="flex flex-wrap gap-x-3 text-[12.5px] text-muted"><span className="font-semibold text-seed">{item.kind}</span>{item.source && <span>{item.source}</span>}<span>{item.reason}</span></p>
                       <Link href={item.href} className="mt-0.5 block text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">{item.title}</Link>
                     </li>
                   ))}
@@ -178,8 +182,8 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
                   <li key={item.slug} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 py-4">
                     <div className="min-w-0 flex-1 basis-[22rem]">
                       <Link href={`/opportunities/${item.slug}`} className="text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">{text.name}</Link>
-                      {quote && <p lang="en" className="mt-1 line-clamp-1 text-[14px] text-tertiary">“{quote.quote}” <span className="text-muted">· {PLATFORM_LABELS[quote.platform]}</span></p>}
-                      <p className="mt-1 text-[13px] text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)} · {item.directCount ? t(`직접 경쟁 ${item.directCount}개`, `${item.directCount} direct rivals`) : t('직접 경쟁 없음', 'No direct rival')}</p>
+                      {quote && <p lang="en" className="mt-1 line-clamp-1 text-[14px] text-tertiary">“{quote.quote}” <span className="ml-2 text-muted">{PLATFORM_LABELS[quote.platform]}</span></p>}
+                      <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted"><span>{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}</span><span>{item.directCount ? t(`직접 경쟁 ${item.directCount}개`, `${item.directCount} direct rivals`) : t('직접 경쟁 없음', 'No direct rival')}</span></p>
                     </div>
                     <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="btn-quiet h-10 shrink-0">{t('PRD 만들기', 'Make a PRD')}</Link>
                   </li>

@@ -23,6 +23,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-5 text-[13px] leading-6 text-muted">계속하면 Google 계정의 이름과 이메일을 Seedup 계정에 쓰는 데 동의하게 됩니다.</p>
+        <p className="mt-3 text-[13px] leading-6 text-muted">로그인하면 <Link href="/terms" className="underline underline-offset-4 hover:text-ink">이용약관</Link>과 <Link href="/privacy" className="underline underline-offset-4 hover:text-ink">개인정보처리방침</Link>에 동의하는 것으로 봅니다.</p>
         <p className="mt-1 text-[13px] leading-6 text-muted">로그인하지 않아도 기회와 원문은 모두 볼 수 있습니다. <Link href="/" className="font-medium text-seed underline-offset-4 hover:underline">둘러보기</Link></p>
       </div>
     </main>

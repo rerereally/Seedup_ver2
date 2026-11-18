@@ -25,6 +25,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entry('/prd', null, 0.8),
     entry('/about', null, 0.7),
     entry('/guide', null, 0.7),
+    entry('/terms', null, 0.2),
+    entry('/privacy', null, 0.2),
     entry('/ai-products', null, 0.6),
     entry('/trends', null, 0.6),
     ...opportunities.map((item) => entry(`/opportunities/${item.slug}`, item.lastSeenAt ?? generatedAt, item.qualified ? 0.8 : 0.5)),

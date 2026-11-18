@@ -52,6 +52,22 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, OPENROUTER_API_KEY secrets and the OPENROUTER_MODEL variable are required."
             exit 1
           fi
+      # A hand-run SQL file that was never applied breaks features quietly; this names the file to run.
+      - name: Check the database has every SQL change
+        id: schema
+        continue-on-error: true
+        run: npx tsx scripts/check-schema.ts
+      - name: Report a missing database change
+        if: steps.schema.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="DB에 적용하지 않은 SQL 파일이 있습니다"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          body="어떤 파일인지는 실행 기록의 오류 줄에 있습니다: $RUN_URL"
+          if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
       - name: Run the engine
         id: first
         continue-on-error: true

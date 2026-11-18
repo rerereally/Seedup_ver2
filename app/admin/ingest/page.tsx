@@ -14,6 +14,8 @@ import { getOpportunities } from '@/lib/opportunities/data';
 import { PRD_MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { loadPrdPolicy, modelLabel, prdModels } from '@/lib/opportunities/models';
 import { recentPrdRuns } from '@/lib/opportunities/prd-runs';
+import { loadFunnelRows, recentFunnels } from '@/lib/metrics';
+import { missingSchema, readApiSpec } from '@/lib/schema-check';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { digestSiteUrl, sendOpportunityDigest } from '@/lib/newsletter/opportunity-digest-send';
@@ -92,7 +94,9 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
 
   const params = await searchParams;
   const service = createAdminClient();
-  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service)]);
+  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns, funnelRows, apiSpec] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service), loadFunnelRows(service), readApiSpec()]);
+  const funnels = recentFunnels(funnelRows);
+  const schemaGaps = apiSpec ? missingSchema(apiSpec) : null;
   const prdMenu = prdModels(prdPolicy);
   // The verified problems a demo is likely to open, and whether each already has a saved PRD.
   const { opportunities: allOpportunities } = await getOpportunities();
@@ -187,6 +191,42 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 <p className="mt-1 text-xs font-bold uppercase text-muted">{label}</p>
               </div>
             ))}
+          </section>
+
+          <section className="border border-outline-soft bg-white p-5 md:p-6" aria-labelledby="usage-heading">
+            <h2 id="usage-heading" className="text-2xl font-bold text-ink">사용 지표</h2>
+            <p className="mt-1 text-sm text-muted">사이트가 이미 쓰는 표(가입, 킵, PRD 실행, 저장, 에이전트 토큰, 하루 사용량)에서 센 사람 수입니다. 로그인하지 않은 방문은 세지 않습니다.</p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="text-muted">
+                  <tr><th className="py-2 pr-4 font-medium">기간</th>{['가입', '활동', '다시 옴', '킵', 'PRD 만듦', 'PRD 저장', '에이전트 사용', 'PRD 성공률', 'PRD 중간 시간'].map((name) => <th key={name} className="py-2 pr-4 font-medium">{name}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-outline-soft">
+                  {funnels.map(({ label, funnel }) => (
+                    <tr key={label} className="num">
+                      <td className="py-2 pr-4 font-semibold text-ink">{label}</td>
+                      {[funnel.signedUp, funnel.active, funnel.returning, funnel.kept, funnel.prdMade, funnel.prdSaved, funnel.agentUsed].map((value, index) => <td key={index} className="py-2 pr-4">{value}</td>)}
+                      <td className="py-2 pr-4">{funnel.prdSuccessRate === null ? '-' : `${funnel.prdSuccessRate}% (${funnel.prdRuns}건)`}</td>
+                      <td className="py-2 pr-4">{funnel.prdMedianSeconds === null ? '-' : `${funnel.prdMedianSeconds}초`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-sm text-muted">에이전트를 연결한 계정은 모두 {funnels[1].funnel.agentConnected}개입니다. 목표: PRD 성공률 95% 이상, 절반이 40초 안에 끝남.</p>
+          </section>
+
+          <section className="border border-outline-soft bg-white p-5 md:p-6" aria-labelledby="schema-heading">
+            <h2 id="schema-heading" className="text-2xl font-bold text-ink">DB 변경 확인</h2>
+            {schemaGaps === null ? (
+              <p className="mt-2 text-sm text-muted">DB 구조 설명을 읽지 못해 확인하지 못했습니다.</p>
+            ) : schemaGaps.length ? (
+              <ul className="mt-3 grid gap-2 text-sm">
+                {schemaGaps.map((gap) => <li key={gap.file} className="text-red-700"><code className="font-mono">supabase/{gap.file}</code>를 Supabase SQL 편집기에서 실행하세요. 빠진 것: {gap.missing.join(', ')}</li>)}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-muted">supabase 폴더의 날짜별 SQL 변경이 모두 적용되어 있습니다.</p>
+            )}
           </section>
 
           <section className="space-y-5">

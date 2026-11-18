@@ -27,6 +27,8 @@ export type McpDeps = {
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
   /** A validation report for one idea, as Markdown; null when it could not be made. */
   validate: (idea: string) => Promise<string | null>;
+  /** Starts a weekly watch on one idea; false when the person already watches the most allowed. */
+  watch: (idea: string) => Promise<boolean>;
 };
 
 export const KEPT_TYPES = ['github', 'news', 'paper', 'ai_product', 'project'] as const;
@@ -101,6 +103,11 @@ export const TOOLS = [
     name: 'validate_idea',
     description: 'Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
+  },
+  {
+    name: 'watch_idea',
+    description: 'Watch one idea: once a week Seedup searches again and mails the user any new quotes or new rival tools for it. Up to 10 ideas.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
   },
 ] as const;
 
@@ -207,6 +214,13 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
     const report = await deps.validate(idea);
     return report ? text(report) : text('The report could not be made. Try again in a minute.', true);
+  }
+  if (name === 'watch_idea') {
+    const idea = String(args.idea ?? '').trim().slice(0, 300);
+    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
+    return (await deps.watch(idea))
+      ? text(`Watching "${idea}". Seedup checks it once a week and mails new quotes or rival tools. Stop it at ${siteUrl}/profile.`)
+      : text('Could not start the watch (the limit is 10 ideas, or the database is not set up yet).', true);
   }
   if (name === 'find_related_content') {
     const idea = String(args.idea ?? '').trim().slice(0, 500);

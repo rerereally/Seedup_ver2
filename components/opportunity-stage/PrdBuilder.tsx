@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { changedLines } from '@/lib/opportunities/spec-diff';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import type { BuildProgress } from '@/lib/opportunities/build-progress';
@@ -14,6 +15,8 @@ import { translator } from '@/lib/i18n';
 import { downloadText } from './download';
 import styles from './stage.module.css';
 
+type Version = { spec: Spec; label: string; at: string };
+const MAX_VERSIONS = 20;
 type View = 'trace' | 'tree' | 'flow' | 'wire' | 'doc';
 
 const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['flow', '유저플로우', 'User flow'], ['wire', '와이어프레임', 'Wireframe'], ['tree', '구조 트리', 'IA tree']];
@@ -76,7 +79,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const ids = pickedIds ?? evidenceIds;
   const customSource = Boolean(requestBody);
   const [spec, setSpec] = useState<Spec | null>(initial?.spec ?? null);
-  const [previous, setPrevious] = useState<Spec | null>(null);
+  // Every version of this PRD in this visit, oldest first; the last one is what is on screen.
+  const [versions, setVersions] = useState<Version[]>(initial?.spec ? [{ spec: initial.spec, label: t('불러온 PRD', 'Loaded PRD'), at: initial.createdAt }] : []);
+  const [compare, setCompare] = useState<number | null>(null);
+  const previous = versions.length > 1 ? versions[versions.length - 2].spec : null;
+  const addVersion = (next: Spec, label: string) => setVersions((list) => [...list, { spec: next, label, at: new Date().toISOString() }].slice(-MAX_VERSIONS));
   const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
@@ -121,7 +128,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(json.cachedAt).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(json.cachedAt).toLocaleString('en-US')}.`));
         setSpec(json.spec as Spec);
         onSpec?.(json.spec as Spec);
-        setPrevious(null);
+        setVersions([{ spec: json.spec as Spec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
+        setCompare(null);
         setFocus(null);
         setSaveState('idle');
       }
@@ -180,7 +188,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
-        setPrevious(spec);
+        addVersion(next, text.trim());
         setSpec(next);
         onSpec?.(next);
         setFocus(null);
@@ -206,6 +214,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       if (!ok) fail(code, json, t('화면을 설계하지 못했습니다.', 'Could not design the screens.'));
       else {
         const next = json.spec as Spec;
+        addVersion(next, t('화면 설계', 'Screens designed'));
         setSpec(next);
         onSpec?.(next);
         setSaveState('idle');
@@ -227,12 +236,22 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalInstruction]);
 
-  const undo = () => {
-    if (!previous) return;
-    setSpec(previous);
-    setPrevious(null);
-    setMessage(t('직전 수정을 되돌렸습니다.', 'Reverted the last change.'));
+  // Going back adds the old version again on top, so no version is ever lost.
+  const restore = (index: number) => {
+    const target = versions[index];
+    if (!target) return;
+    setSpec(target.spec);
+    onSpec?.(target.spec);
+    addVersion(target.spec, t(`버전 ${index + 1}로 되돌림`, `Back to version ${index + 1}`));
+    setCompare(null);
+    setSaveState('idle');
+    setMessage(t(`버전 ${index + 1}로 되돌렸습니다.`, `Went back to version ${index + 1}.`));
   };
+  const undo = () => restore(versions.length - 2);
+  const diff = useMemo(() => {
+    if (compare === null || !input || !versions[compare] || compare === 0) return null;
+    return changedLines(renderSpecMarkdown(input, versions[compare - 1].spec), renderSpecMarkdown(input, versions[compare].spec));
+  }, [compare, input, versions]);
 
   const save = async () => {
     setSaveState('saving');
@@ -742,6 +761,27 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   {previous && <button type="button" className="text-sm font-medium text-seed underline-offset-4 hover:underline" onClick={undo} disabled={busy}>{t('되돌리기', 'Undo')}</button>}
                 </div>
               </form>}
+              {versions.length > 1 && (
+                <details>
+                  <summary className="cursor-pointer text-[15px] font-semibold">{t(`버전 기록 ${versions.length}개`, `${versions.length} versions`)}</summary>
+                  <ol className="mt-3 grid gap-2">
+                    {versions.map((version, index) => (
+                      <li key={`${version.at}-${index}`} className="rounded-lg border border-outline-soft px-3 py-2 text-[13px]">
+                        <p className="flex flex-wrap items-baseline gap-x-2"><span className="font-semibold text-ink">{t(`버전 ${index + 1}`, `Version ${index + 1}`)}</span><span className="min-w-0 truncate text-muted">{version.label}</span>{index === versions.length - 1 && <span className="text-seed">{t('지금', 'Current')}</span>}</p>
+                        <p className="mt-1 flex flex-wrap gap-x-3">
+                          {index > 0 && <button type="button" className="text-seed underline-offset-4 hover:underline" onClick={() => setCompare(compare === index ? null : index)}>{compare === index ? t('바뀐 줄 닫기', 'Hide changes') : t('바뀐 줄 보기', 'Show changes')}</button>}
+                          {index < versions.length - 1 && <button type="button" className="text-seed underline-offset-4 hover:underline" disabled={busy} onClick={() => restore(index)}>{t('이 버전으로', 'Use this version')}</button>}
+                        </p>
+                        {compare === index && diff && (
+                          <ul className="mt-2 grid gap-0.5 font-mono text-[12px] leading-5">
+                            {diff.length ? diff.slice(0, 60).map((line, n) => <li key={n} className={line.kind === 'added' ? 'text-seed' : 'text-red-700 line-through'}>{line.kind === 'added' ? '+ ' : '- '}{line.text}</li>) : <li className="text-muted">{t('바뀐 줄이 없습니다.', 'No lines changed.')}</li>}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
             </aside>
           </div>
         </section>

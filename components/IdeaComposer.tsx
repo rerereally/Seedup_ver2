@@ -3,17 +3,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ViewTransition, useState } from 'react';
-import { GitBranch, Lightbulb } from 'lucide-react';
+import { ArrowUp, FileSearch, GitBranch, Lightbulb } from 'lucide-react';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
 const MAX = 300;
 
 /**
- * The place a PRD starts: a writing box, not a sign-up field. Two ways in sit above it (an idea, an existing repo);
- * problems that passed the bar are listed under it by the pages that use it.
+ * The place a PRD starts: a writing box, not a sign-up field. Three ways in sit above it (an idea, a problem that
+ * passed the bar, an existing repo); the idea is typed here, the other two jump to where they start.
  */
-export default function IdeaComposer({ onSubmit, autoFocus = false, compact = false, id = 'idea-composer-input', placeholder, examples = [] }: { onSubmit?: (idea: string) => void; autoFocus?: boolean; compact?: boolean; id?: string; placeholder?: string; examples?: Array<{ label: string; idea: string }> }) {
+export default function IdeaComposer({ onSubmit, autoFocus = false, compact = false, center = false, id = 'idea-composer-input', placeholder, examples = [] }: { onSubmit?: (idea: string) => void; autoFocus?: boolean; compact?: boolean; center?: boolean; id?: string; placeholder?: string; examples?: Array<{ label: string; idea: string }> }) {
   const t = translator(useLang());
   const router = useRouter();
   const [text, setText] = useState('');
@@ -31,10 +31,11 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
   return (
     <div className="w-full">
       {!compact && (
-        // Two ways in. They sit above the box, so the box itself stays one field tall and reads as one field.
-        <nav className="mb-3 flex" aria-label={t('시작 방법', 'How to start')}>
+        // Three ways in. They sit above the box, so the box itself stays one field tall and reads as one field.
+        <nav className={`mb-3 flex ${center ? 'justify-center' : ''}`} aria-label={t('시작 방법', 'How to start')}>
           <div className="inline-flex rounded-lg bg-surface-mid p-1">
             <span className={`${mode} bg-white font-semibold text-ink shadow-sm`} aria-current="page"><Lightbulb aria-hidden="true" className="hidden h-4 w-4 sm:block" />{t('아이디어', 'Idea')}</span>
+            <Link href="/prd#verified" className={`${mode} text-tertiary hover:text-ink`}><FileSearch aria-hidden="true" className="hidden h-4 w-4 sm:block" />{t('검증된 문제', 'Verified problem')}</Link>
             <Link href="/seeds" className={`${mode} text-tertiary hover:text-ink`}><GitBranch aria-hidden="true" className="hidden h-4 w-4 sm:block" />{t('레포 분석', 'Repo analysis')}</Link>
           </div>
         </nav>
@@ -64,8 +65,10 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
           placeholder={placeholder ?? t('예: 서비스 종료된 Tenor 대신 앱에 넣을 GIF 검색 API', 'e.g. A GIF search API to replace the shut-down Tenor')}
           className={`block min-w-0 flex-1 resize-none border-0 bg-transparent px-3 text-ink outline-none placeholder:text-muted ${compact ? 'max-h-40 min-h-11 py-2 text-[17px] leading-7 [field-sizing:content]' : 'min-h-20 py-2 text-[17px] leading-7'}`}
         />
-        {/* Always live and labelled: an empty box sends the cursor back to the box instead of greying out the main action. */}
-        <button type="submit" className="btn h-11 shrink-0 px-5 text-[15px]">{t('PRD 만들기', 'Make the PRD')}</button>
+        {/* Always live and always green: an empty box sends the cursor back to the box instead of greying out the main action. */}
+        {compact
+          ? <button type="submit" className="btn h-11 shrink-0 px-5 text-[15px]">{t('PRD 만들기', 'Make the PRD')}</button>
+          : <button type="submit" aria-label={t('PRD 만들기', 'Make the PRD')} title={t('PRD 만들기', 'Make the PRD')} className="btn h-11 w-11 shrink-0 rounded-full p-0"><ArrowUp aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} /></button>}
       </form>
       </ViewTransition>
       {!compact && (
@@ -75,7 +78,7 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
         </p>
       )}
       {examples.length > 0 && (
-        <ul className="examples mt-2 px-1" aria-label={t('예시 아이디어', 'Example ideas')}>
+        <ul className={`examples mt-2 px-1 ${center ? 'justify-center' : ''}`} aria-label={t('예시 아이디어', 'Example ideas')}>
           <li aria-hidden="true">{t('예시', 'Try')}</li>
           {examples.map((example) => (
             <li key={example.idea}>

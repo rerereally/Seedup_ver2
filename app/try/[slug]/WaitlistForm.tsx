@@ -34,7 +34,7 @@ export default function WaitlistForm({ slug }: { slug: string }) {
       <input name="website" type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
       <label className="flex gap-2 text-[13px] leading-5 text-muted">
         <input name="consent" type="checkbox" required className="mt-0.5 h-4 w-4 shrink-0 accent-seed" />
-        <span>이 이메일은 이 페이지를 만든 사람에게만 전달되고, 출시 알림에만 쓰입니다. 언제든 그 사람에게 삭제를 요청할 수 있습니다.</span>
+        <span>이 이메일은 이 페이지를 만든 사람에게만 전달되고, 출시 알림에만 쓰입니다. 언제든 그 사람에게 삭제를 요청할 수 있습니다. <a href="/privacy" target="_blank" className="underline underline-offset-4 hover:text-ink">개인정보처리방침</a></span>
       </label>
       {message && <p role="status" className="text-[13px] text-red-700">{message}</p>}
     </form>

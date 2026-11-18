@@ -42,3 +42,22 @@ export function NumberedList({ items }: { items: Array<[string, string]> }) {
     </ol>
   );
 }
+
+/** A legal document as numbered sections, each a heading and its paragraphs or list items (lines starting with "- "). */
+export function LegalSections({ sections }: { sections: Array<[string, string[]]> }) {
+  return (
+    <div className="mx-auto w-full max-w-[760px] px-5 pb-20 sm:px-6 md:px-8">
+      {sections.map(([title, lines], index) => {
+        const items = lines.filter((line) => line.startsWith('- ')).map((line) => line.slice(2));
+        const paragraphs = lines.filter((line) => !line.startsWith('- '));
+        return (
+          <section key={title} className="border-t border-outline-soft py-8">
+            <h2 className="text-[19px] font-bold tracking-[-0.015em]"><span className="num mr-2 text-seed">{index + 1}.</span>{title}</h2>
+            {paragraphs.map((line) => <p key={line} className="mt-3 text-[15px] leading-7 text-tertiary">{line}</p>)}
+            {items.length > 0 && <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 text-tertiary marker:text-outline-strong">{items.map((line) => <li key={line}>{line}</li>)}</ul>}
+          </section>
+        );
+      })}
+    </div>
+  );
+}

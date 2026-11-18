@@ -24,6 +24,8 @@ const COLUMNS = [
     { name: '가이드', en: 'Guide', href: '/guide' },
     { name: '주간 메일', en: 'Weekly mail', href: '/newsletter-preview?view=issue' },
     { name: '로그인', en: 'Sign in', href: '/login' },
+    { name: '이용약관', en: 'Terms', href: '/terms' },
+    { name: '개인정보처리방침', en: 'Privacy', href: '/privacy' },
   ] },
 ];
 

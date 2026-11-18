@@ -427,3 +427,25 @@ test('a reviewed list hides rejected problems, drops filed-wrong quotes, and cou
   assert.equal(repeated.qualified, false);
   assert.deepEqual(repeated.platforms, ['hn']);
 });
+
+import { READ_MEMORY_DAYS, rememberRun } from '../lib/opportunities/rules';
+import type { RawSignal } from '../lib/opportunities/types';
+
+test('read memory keeps recent posts and pains, forgets old ones, and drops pains that became evidence', () => {
+  const post = (url: string): RawSignal => ({ id: url, actor: 'hn-ask', platform: 'hn', title: 't', text: 'x'.repeat(2000), url, score: 0, postedAt: null });
+  const now = '2026-11-18T00:00:00.000Z';
+  const old = new Date(new Date(now).getTime() - (READ_MEMORY_DAYS + 1) * 86_400_000).toISOString();
+  const memory = {
+    read: { 'https://old': old, 'https://kept': now },
+    pains: [
+      { quote: 'a pain read too long ago', item: post('https://old'), readAt: old },
+      { quote: 'a pain that is now evidence', item: post('https://used'), readAt: now },
+      { quote: 'a pain still waiting', item: post('https://kept'), readAt: now },
+    ],
+  };
+  const next = rememberRun(memory, ['https://new'], [{ quote: 'A pain still waiting', item: post('https://dup') }, { quote: 'a new pain', item: post('https://new') }], now, new Set(['https://used']));
+  assert.deepEqual(Object.keys(next.read).sort(), ['https://kept', 'https://new']);
+  assert.deepEqual(next.pains.map((pain) => pain.quote), ['a pain still waiting', 'a new pain']);
+  assert.equal(next.pains[1].item.text.length, 800);
+  assert.deepEqual(rememberRun(null, [], [], now, new Set()), { read: {}, pains: [] });
+});

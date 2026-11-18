@@ -3,7 +3,7 @@ import { DISCOVERY_ACTORS, forumHostOf, runDiscoveryActors, searchDemand, search
 import { callJsonModel, createEmbedding, llmUsage } from './llm';
 import { classifySupply, clusterByEmbedding, countFollowers, isListable, isVerbatimQuote, meetsEvidenceBar, toSlug } from './rules';
 import { searchWebDemand, searchWebSupply, webSearchEnabled } from './web';
-import type { ActorRun, Evidence, Opportunity, OpportunitySnapshot, Platform, RawSignal, SupplyItem } from './types';
+import type { ActorRun, Evidence, MemoryPain, Opportunity, OpportunitySnapshot, Platform, RawSignal, SupplyItem } from './types';
 
 // Posts read per run. Runs took 14 to 29 minutes at 360 against a 90-minute limit, so there is room to read more.
 const SAMPLE_LIMIT = Math.max(40, Number(process.env.ENGINE_SAMPLE_LIMIT) || 540);
@@ -71,7 +71,8 @@ ${pains.map((pain) => `- ${pain.who ? `[${pain.who}] ` : ''}${pain.pain ?? ''} (
 
 export type EngineLog = (message: string) => void;
 
-type Checkpoint = { items: RawSignal[]; runs: ActorRun[]; sampled: number; batchesOk: number; batchesTotal: number; quotesRejected: number; pains: Pain[] };
+// `read` is optional because checkpoints written before it existed can still be restored.
+type Checkpoint = { items: RawSignal[]; runs: ActorRun[]; sampled: number; batchesOk: number; batchesTotal: number; quotesRejected: number; pains: Pain[]; read?: string[] };
 export type EngineCheckpointStore = { load: () => Checkpoint | null; save: (checkpoint: Checkpoint) => void };
 
 async function discoverPains(log: EngineLog, knownUrls: ReadonlySet<string>): Promise<Checkpoint> {
@@ -80,9 +81,9 @@ async function discoverPains(log: EngineLog, knownUrls: ReadonlySet<string>): Pr
 
   // Sample across platforms so a large source cannot crowd out the smaller ones.
   const byPlatform = new Map<Platform, RawSignal[]>();
-  // Posts already published as evidence are skipped, so each run spends its model calls on posts not read before.
+  // Posts already published as evidence or read by a recent run are skipped, so each run spends its model calls on new posts.
   const unread = items.filter((item) => !knownUrls.has(item.url));
-  if (unread.length < items.length) log(`skipped ${items.length - unread.length} posts already used as evidence`);
+  if (unread.length < items.length) log(`skipped ${items.length - unread.length} posts already used as evidence or read recently`);
   const now = Date.now();
   const ranked = unread.map((item) => ({ item, rank: signalRank(item, now) })).sort((a, b) => b.rank - a.rank);
   for (const { item } of ranked) byPlatform.set(item.platform, [...(byPlatform.get(item.platform) ?? []), item]);
@@ -116,7 +117,7 @@ async function discoverPains(log: EngineLog, knownUrls: ReadonlySet<string>): Pr
     }
   }
   log(`batches ok ${extraction.filter(Boolean).length}/${batches.length}, pains ${pains.length}, rejected ${quotesRejected}`);
-  return { items, runs, sampled: sample.length, batchesOk: extraction.filter(Boolean).length, batchesTotal: batches.length, quotesRejected, pains };
+  return { items, runs, sampled: sample.length, batchesOk: extraction.filter(Boolean).length, batchesTotal: batches.length, quotesRejected, pains, read: sample.map((item) => item.url) };
 }
 
 type Group = { label?: string; ids?: number[] };
@@ -157,13 +158,20 @@ async function groupPainsWithModel(pains: Pain[], log: EngineLog): Promise<Group
   return answers.flatMap((answer) => answer?.groups ?? []);
 }
 
-export async function runOpportunityEngine(log: EngineLog = () => undefined, store?: EngineCheckpointStore, knownUrls: ReadonlySet<string> = new Set()): Promise<{ snapshot: OpportunitySnapshot; embeddings: Record<string, number[]> }> {
+/**
+ * `carried` are pains earlier runs found but could not yet pair with a second source. They are grouped together with
+ * this run's pains, so evidence for one problem can come from posts read on different days.
+ */
+export async function runOpportunityEngine(log: EngineLog = () => undefined, store?: EngineCheckpointStore, knownUrls: ReadonlySet<string> = new Set(), carried: MemoryPain[] = []): Promise<{ snapshot: OpportunitySnapshot; embeddings: Record<string, number[]>; read: string[]; pains: Pain[] }> {
   const restored = store?.load() ?? null;
   if (restored) log(`resumed from checkpoint: pains ${restored.pains.length}`);
   const discovered = restored ?? await discoverPains(log, knownUrls);
   // An empty result usually means a network outage, and must not be reused by the next run.
   if (!restored && discovered.pains.length) store?.save(discovered);
-  const { items, runs, pains } = discovered;
+  const { items, runs } = discovered;
+  // Ids only need to be unique within this run's grouping, so fresh and carried pains are numbered together.
+  const pains: Pain[] = [...discovered.pains, ...carried.map(({ who, pain, quote, item }) => ({ id: 0, who, pain, quote, item }))].map((pain, id) => ({ ...pain, id }));
+  if (carried.length) log(`carried ${carried.length} pains from earlier runs`);
   let { quotesRejected } = discovered;
 
   const grouped = await groupPains(pains, log);
@@ -331,6 +339,8 @@ ${evidence.map((item, n) => `#${n} ${item.quote}`).join('\n')}`);
 
   return {
     embeddings,
+    read: discovered.read ?? [],
+    pains: discovered.pains,
     snapshot: {
       generatedAt: new Date().toISOString(),
       stats: {
@@ -338,7 +348,7 @@ ${evidence.map((item, n) => `#${n} ${item.quote}`).join('\n')}`);
         sampled: discovered.sampled,
         batchesOk: discovered.batchesOk,
         batchesTotal: discovered.batchesTotal,
-        painsVerified: pains.length,
+        painsVerified: discovered.pains.length,
         quotesRejected,
         candidates: judged.length,
         qualified: judged.filter((item) => item.qualified).length,

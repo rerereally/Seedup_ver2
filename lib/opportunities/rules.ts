@@ -1,5 +1,5 @@
 import { MIN_EVIDENCE, MIN_PLATFORMS } from './types';
-import type { OpportunityStatus, SupplyItem } from './types';
+import type { MemoryPain, OpportunityStatus, ReadMemory, SupplyItem } from './types';
 
 export function normalizeForMatch(value: string) {
   return value.toLowerCase().replace(/[`"'“”‘’*_>]/g, '').replace(/\s+/g, ' ').trim();
@@ -20,6 +20,23 @@ export function uniqueQuotes<T extends { quote: string }>(items: T[]) {
     seen.add(key);
     return true;
   });
+}
+
+// shortcut: 30 days picked by eye; after that a post is read again in case it gained replies. Tune once runs show how fast the pool turns over.
+export const READ_MEMORY_DAYS = 30;
+
+/**
+ * Adds one run to the memory and forgets what is older than READ_MEMORY_DAYS. Pains whose post became evidence are
+ * dropped, since the published result already holds them. Called with no reads and no pains it only prunes.
+ */
+export function rememberRun(memory: ReadMemory | null, read: string[], pains: Array<Omit<MemoryPain, 'readAt'>>, now: string, usedUrls: ReadonlySet<string>): ReadMemory {
+  const cutoff = new Date(now).getTime() - READ_MEMORY_DAYS * 86_400_000;
+  const recent = (at: string) => new Date(at).getTime() >= cutoff;
+  const readAt = Object.fromEntries(Object.entries(memory?.read ?? {}).filter(([, at]) => recent(at)));
+  for (const url of read) readAt[url] = now;
+  const added = pains.map(({ who, pain, quote, item }) => ({ who, pain, quote, item: { ...item, text: item.text.slice(0, 800) }, readAt: now }));
+  const kept = [...(memory?.pains ?? []).filter((pain) => recent(pain.readAt)), ...added].filter((pain) => !usedUrls.has(pain.item.url));
+  return { read: readAt, pains: uniqueQuotes(kept) };
 }
 
 export function meetsEvidenceBar(evidenceCount: number, platformCount: number) {

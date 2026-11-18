@@ -24,6 +24,11 @@ export type RawSignal = {
   repo?: string;
 };
 
+/** A verified pain kept between runs, so one found today can still pair with a post found next week. */
+export type MemoryPain = { who?: string; pain?: string; quote: string; item: RawSignal; readAt: string };
+/** What earlier runs read (post URL → when) and the pains they found that are not yet evidence. */
+export type ReadMemory = { read: Record<string, string>; pains: MemoryPain[] };
+
 export type Evidence = {
   id: string;
   platform: Platform;

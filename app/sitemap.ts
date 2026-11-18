@@ -1,22 +1,20 @@
 import type { MetadataRoute } from 'next';
 import { getAIProducts, getGitHubTrends, getNewsItems, getResearchPapers } from '@/lib/data';
 import { getOpportunities } from '@/lib/opportunities/data';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com').replace(/\/+$/, '');
 
 /**
  * Every public page a search engine should find: the curated reads, repos, papers and products, each verified problem,
- * and PRDs their owners chose to share. Private pages (library, profile, admin) are left out and blocked in robots.
+ * (shared PRD links stay out: their page asks not to be indexed). Private pages (library, profile, admin) are left out and blocked in robots.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [{ opportunities, generatedAt }, news, repos, papers, products, shared] = await Promise.all([
+  const [{ opportunities, generatedAt }, news, repos, papers, products] = await Promise.all([
     getOpportunities(),
     getNewsItems().catch(() => []),
     getGitHubTrends().catch(() => []),
     getResearchPapers(60).catch(() => []),
     getAIProducts().catch(() => []),
-    createAdminClient()?.from('evidence_dossiers').select('id,updated_at').eq('shared', true).limit(1000).then(({ data }) => data ?? []) ?? Promise.resolve([]),
   ]);
   const entry = (path: string, lastModified?: string | null, priority = 0.5): MetadataRoute.Sitemap[number] => ({ url: `${SITE}${path}`, ...(lastModified ? { lastModified } : {}), priority });
   return [
@@ -32,6 +30,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...repos.map((item) => entry(`/github-trends/${item.id}`, item.last_seen_at ?? item.pushed_at)),
     ...papers.map((item) => entry(`/papers/${item.id}`, item.published_at)),
     ...products.map((item) => entry(`/ai-products/${item.id}`, null, 0.4)),
-    ...shared.map((row) => entry(`/spec/${row.id}`, row.updated_at, 0.6)),
   ];
 }

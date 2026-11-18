@@ -63,7 +63,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         {statusNotice && <p role="status" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{statusNotice}</p>}
 
         <div className="flex max-w-[860px] flex-col gap-10">
-          <section>
+          <section id="idea-pages" className="scroll-mt-6">
             <h2 className="text-[17px] font-semibold text-ink">아이디어 소개 페이지</h2>
             <p className="mt-2 text-[15px] text-muted">만들기 전에 아이디어를 소개하는 페이지와 대기자 명단을 만들어, 실제로 신청하는 사람이 있는지 셉니다. 신청한 이메일은 나에게만 보입니다.</p>
             <IdeaPages />

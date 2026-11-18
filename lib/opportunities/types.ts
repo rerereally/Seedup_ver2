@@ -1,4 +1,5 @@
-export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters' | 'stackexchange' | 'forum' | 'web';
+// own: what the maker heard themselves (interviews, notes). Never checked against a source, never counted for the bar.
+export type Platform = 'github' | 'hn' | 'stackoverflow' | 'devto' | 'lobsters' | 'stackexchange' | 'forum' | 'web' | 'own';
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
   // Issues and discussions both: what matters is that the author is a user of that project.
@@ -10,7 +11,11 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   stackexchange: 'Stack Exchange',
   forum: '사용자 포럼',
   web: '웹 검색',
+  own: '내 메모·인터뷰',
 };
+
+/** Quotes that count toward the evidence bar: public posts checked against their source, not the maker's own notes. */
+export const publicEvidence = <T extends { platform: Platform }>(rows: T[]) => rows.filter((row) => row.platform !== 'own');
 
 export type RawSignal = {
   id: string;

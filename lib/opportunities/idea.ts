@@ -51,6 +51,18 @@ export function ideaSpecInput(opportunities: Opportunity[], brief: IdeaBrief, pi
 }
 
 const MAX_NOTES = 1_000;
+const MAX_OWN = 10;
+const MAX_OWN_LENGTH = 400;
+
+/**
+ * Sentences the maker heard in interviews or wrote in notes, sent with an idea PRD. They are evidence of a weaker kind:
+ * labeled as the maker's own, shown without a source link, and never counted toward the evidence bar.
+ */
+export function ownEvidence(value: unknown): Evidence[] {
+  return (Array.isArray(value) ? value : []).flatMap((row) => (typeof row === 'string' && row.trim().length >= 8 ? [row.replace(/\s+/g, ' ').trim().slice(0, MAX_OWN_LENGTH)] : []))
+    .slice(0, MAX_OWN)
+    .map((quote, index) => ({ id: `own_${index + 1}`, platform: 'own' as const, quote, quoteKo: '', url: '', score: 0, postedAt: null }));
+}
 
 /** What the person making the PRD wants (direction, must-haves, what to leave out), typed before generating. */
 export const readNotes = (body: Record<string, unknown> | null) => clip(body?.notes, MAX_NOTES);
@@ -69,7 +81,10 @@ export function inputFromBody(opportunities: Opportunity[], body: Record<string,
   const brief = readBrief(body?.brief);
   // Quotes found on the web for this idea count only in idea mode, and only with this server's signature.
   const live = brief ? readLiveEvidence(body?.liveEvidence, MAX_EVIDENCE).map((evidence) => ({ evidence, slug: 'live' })) : [];
+  const own = brief ? ownEvidence(body?.ownNotes).map((evidence) => ({ evidence, slug: 'own' })) : [];
   const picked = [...findEvidence(opportunities, evidenceIds), ...live].slice(0, MAX_EVIDENCE);
+  // The maker's notes ride after the checked quotes and never push one of them out.
+  picked.push(...own);
   const notes = readNotes(body);
   if (brief) return { input: withNotes(ideaSpecInput(opportunities, brief, picked, lang), notes, lang), picked, brief, notes };
   const input = specInputFor(opportunities, picked, clip(body?.title, 120), lang);

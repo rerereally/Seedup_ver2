@@ -12,11 +12,30 @@ import { useLang } from '@/components/LangProvider';
 import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
 import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
+import MarkdownContent from '@/components/MarkdownContent';
+import { citedQuotes } from '@/lib/opportunities/prd-markdown';
+import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
 import styles from './stage.module.css';
 
 type Version = { spec: Spec; label: string; at: string };
 const MAX_VERSIONS = 20;
+// Versions kept in this browser, so a reload or a later visit picks the work up again. Ten keeps it well under the
+// storage quota (a spec is a few kilobytes).
+const STORED_VERSIONS = 10;
+const STORAGE_PREFIX = 'seedup:prd:';
+
+/** Where one PRD's versions live in this browser: per title and quote set. */
+const storageKeyFor = (title: string, ids: string[]) => `${STORAGE_PREFIX}${title.slice(0, 120)}|${[...ids].sort().join(',').slice(0, 400)}`;
+
+/** Drops every stored version for a title, for "start over". */
+export function forgetStoredPrd(title: string) {
+  try {
+    for (const key of Object.keys(window.localStorage)) if (key.startsWith(`${STORAGE_PREFIX}${title.slice(0, 120)}|`)) window.localStorage.removeItem(key);
+  } catch {
+    // Storage blocked: nothing was stored either.
+  }
+}
 type View = 'trace' | 'tree' | 'flow' | 'wire' | 'doc';
 
 const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['flow', '유저플로우', 'User flow'], ['wire', '와이어프레임', 'Wireframe'], ['tree', '구조 트리', 'IA tree']];
@@ -87,6 +106,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
+  // The PRD as the model writes it, shown until the checked spec arrives. Text is buffered in a ref and drawn once a
+  // frame, so a fast model's hundreds of small pieces do not re-render the page hundreds of times.
+  const [live, setLive] = useState<{ text: string; phase: LivePhase; restarted: boolean } | null>(null);
+  const liveText = useRef('');
+  const liveFrame = useRef(0);
   // Seconds since the current PRD request started, so the wait shows where the work usually is.
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -96,6 +120,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   }, [status]);
   const [slotPending, setSlotPending] = useState<string[]>([]);
   const [instruction, setInstruction] = useState('');
+  // A change to the one item open in the side panel.
+  const [itemInstruction, setItemInstruction] = useState('');
   // The maker's own direction, written before the PRD is made so it shapes the first draft, not a later edit.
   const [notes, setNotes] = useState('');
   const [format, setFormat] = useState<ExportFormat>('agents');
@@ -103,6 +129,39 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Pick up where this browser left off: the stored versions win over the shared cache when they are newer.
+  const storageKey = useMemo(() => storageKeyFor(title, evidenceIds), [title, evidenceIds]);
+  const restoredKey = useRef('');
+  useEffect(() => {
+    if (restoredKey.current === storageKey) return;
+    restoredKey.current = storageKey;
+    let stored: { input: SpecInput; versions: Version[] } | null = null;
+    try {
+      stored = JSON.parse(window.localStorage.getItem(storageKey) ?? 'null');
+    } catch {
+      stored = null;
+    }
+    const latest = stored?.versions?.[stored.versions.length - 1];
+    if (!stored?.input || !latest?.spec || (initial && latest.at <= initial.createdAt)) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from browser storage, which only exists after mount */
+    setInput(stored.input);
+    setSpec(latest.spec);
+    setVersions(stored.versions);
+    setMessage(t(`이 브라우저에 남아 있던 PRD와 버전 기록 ${stored.versions.length}개를 불러왔습니다.`, `Loaded the PRD and ${stored.versions.length} versions left in this browser.`));
+    /* eslint-enable react-hooks/set-state-in-effect */
+    onSpec?.(latest.spec);
+    // Runs once per PRD identity; the props it reads are fixed for that identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+  useEffect(() => {
+    if (!input || !versions.length) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({ input, versions: versions.slice(-STORED_VERSIONS) }));
+    } catch {
+      // Full or blocked storage: the versions still last for this visit.
+    }
+  }, [storageKey, input, versions]);
 
   const markdown = useMemo(() => (input && spec ? renderSpecMarkdown(input, spec) : ''), [input, spec]);
   const brief = useMemo(() => (input && spec ? renderAgentBrief(input, spec, format) : ''), [input, spec, format]);
@@ -113,29 +172,87 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     else setError(json.error ?? fallback);
   };
 
+  // A finished PRD (from the stream's last line or a plain JSON answer) replaces whatever was on screen.
+  const accept = (json: Record<string, unknown>) => {
+    setInput(json.input as SpecInput);
+    setPickedIds(Array.isArray(json.evidenceIds) ? (json.evidenceIds as string[]) : null);
+    if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(String(json.cachedAt)).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(String(json.cachedAt)).toLocaleString('en-US')}.`));
+    setSpec(json.spec as Spec);
+    onSpec?.(json.spec as Spec);
+    setVersions([{ spec: json.spec as Spec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
+    setCompare(null);
+    setFocus(null);
+    setSaveState('idle');
+  };
+
+  const showLive = (phase: LivePhase, restarted = false) => {
+    cancelAnimationFrame(liveFrame.current);
+    liveFrame.current = requestAnimationFrame(() => setLive((before) => ({ text: liveText.current, phase, restarted: restarted || Boolean(before?.restarted) })));
+  };
+
   const generate = async () => {
     setElapsed(0);
     setStatus('loading');
     setError('');
     setMessage('');
     setNeedsLogin(false);
+    liveText.current = '';
+    // Only the PRD route streams; another generator (the repo reverse spec) answers in one piece.
+    const streaming = endpoint === '/api/opportunities/prd';
     try {
-      const { status: code, ok, json } = await postJson(endpoint, { ...(requestBody ?? { title, evidenceIds }), lang, model, notes });
-      if (!ok) fail(code, json, t('PRD를 만들지 못했습니다.', 'Could not create the PRD.'));
-      else {
-        setInput(json.input as SpecInput);
-        setPickedIds(Array.isArray(json.evidenceIds) ? json.evidenceIds : null);
-        if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(json.cachedAt).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(json.cachedAt).toLocaleString('en-US')}.`));
-        setSpec(json.spec as Spec);
-        onSpec?.(json.spec as Spec);
-        setVersions([{ spec: json.spec as Spec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
-        setCompare(null);
-        setFocus(null);
-        setSaveState('idle');
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...(requestBody ?? { title, evidenceIds }), lang, model, notes, ...(streaming ? { stream: true } : {}) }) });
+      if (!response.ok || !response.body || !(response.headers.get('content-type') ?? '').includes('ndjson')) {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) fail(response.status, json, t('PRD를 만들지 못했습니다.', 'Could not create the PRD.'));
+        else accept(json);
+        return;
       }
+      setLive({ text: '', phase: 'waiting', restarted: false });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finished = false;
+      let phase: LivePhase = 'waiting';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          if (!line) continue;
+          let event: { type?: string; text?: string; stage?: LivePhase; error?: string } & Record<string, unknown>;
+          try { event = JSON.parse(line); } catch { continue; }
+          if (event.type === 'delta' && event.text) {
+            liveText.current += event.text;
+            phase = 'writing';
+            showLive(phase);
+          } else if (event.type === 'thinking' && !liveText.current) {
+            phase = 'thinking';
+            showLive(phase);
+          } else if (event.type === 'restart') {
+            liveText.current = '';
+            phase = 'waiting';
+            showLive(phase, true);
+          } else if (event.type === 'stage' && event.stage) {
+            phase = event.stage;
+            showLive(phase);
+          } else if (event.type === 'done') {
+            finished = true;
+            accept(event);
+          } else if (event.type === 'error') {
+            finished = true;
+            setError(event.error ?? t('PRD를 만들지 못했습니다.', 'Could not create the PRD.'));
+          }
+        }
+      }
+      if (!finished) setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
     } finally {
+      cancelAnimationFrame(liveFrame.current);
+      setLive(null);
       setStatus('idle');
     }
   };
@@ -158,7 +275,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   // Idea PRDs carry the user's brief, so follow-up calls rebuild the same context on the server.
   // Follow-up calls rebuild the same context on the server: the idea brief and the maker's notes go along.
-  const ideaBrief = { ...(requestBody?.brief ? { brief: requestBody.brief } : {}), notes };
+  // Web quotes and the maker's own notes go along too: the server numbers the evidence afresh on every call, and
+  // without them a revision would renumber E-n and drop the citations to them.
+  const ideaBrief = { ...(requestBody?.brief ? { brief: requestBody.brief } : {}), ...(requestBody?.liveEvidence ? { liveEvidence: requestBody.liveEvidence } : {}), ...(requestBody?.ownNotes ? { ownNotes: requestBody.ownNotes } : {}), notes };
 
   const fillSlots = async (feature: SpecFeature) => {
     if (!spec) return;
@@ -167,7 +286,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       const requirements = feature.requirementIds.flatMap((rid) => [...spec.requirements, ...spec.hypotheses].find((row) => row.id === rid) ?? []);
       const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, model, ...ideaBrief });
       if (!ok) fail(code, json, t('슬롯을 채우지 못했습니다.', 'Could not fill the slots.'));
-      else setSpec((current) => current && { ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
+      else {
+        const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
+        setSpec((current) => current && fill(current));
+        // Filled slots belong to the current version, so a reload brings them back too.
+        setVersions((list) => list.length ? [...list.slice(0, -1), { ...list[list.length - 1], spec: fill(list[list.length - 1].spec) }] : list);
+      }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
     } finally {
@@ -178,7 +302,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   // Two at a time keeps the free model under its rate limit; a failed feature just stays empty.
   const fillAll = () => spec && inBatches(spec.features.filter((row) => !row.slots && !slotPending.includes(row.id)), 2, fillSlots);
 
-  const revise = async (text = instruction) => {
+  // `label` names the change in the version list when the sent instruction is longer than what the person typed.
+  const revise = async (text = instruction, label = text.trim()) => {
     if (!spec || text.trim().length < 2) return;
     setStatus('revising');
     setError('');
@@ -188,13 +313,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
-        addVersion(next, text.trim());
+        addVersion(next, label);
         setSpec(next);
         onSpec?.(next);
         setFocus(null);
         setInstruction('');
         setSaveState('idle');
-        setMessage(t(`"${text.trim()}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${text.trim()}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
+        setMessage(t(`"${label}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${label}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
       }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -297,6 +422,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       {numbers.map((n) => <span key={n} className="rounded-md bg-seed-soft px-1.5 py-px text-[12px] font-semibold leading-5 text-seed">E{n}</span>)}
     </span>
   );
+  // Prose keeps the model's [E1] tags; each becomes the same chip a requirement line shows.
+  const prose = (text: string) => text.split(/(\[\s*E\s*-?\s*\d+(?:\s*[,，]\s*E?\s*-?\s*\d+)*\s*\])/gi).map((part, index) => (index % 2 ? <span key={index}>{cites(citedQuotes(part))}</span> : part));
+  const priorityBadge = (priority?: string) => priority && <span className={`mr-2 rounded px-1.5 py-px align-[2px] text-[11.5px] font-semibold ${priority === 'P0' ? 'bg-ink text-white' : 'bg-surface-mid text-tertiary'}`}>{priority}</span>;
+  const acceptanceLines = (lines?: string[]) => lines?.length ? lines.map((line) => <span key={line} className="mt-1 block text-[13.5px] leading-6 text-tertiary"><span aria-hidden="true" className="mr-1.5 text-seed">✓</span>{line}</span>) : null;
   // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
   const docRow = (id: string, body: React.ReactNode, quiet = false) => (
     <li key={id}>
@@ -321,6 +450,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     const feature = spec.features.find((row) => row.id === focus);
     const screen = spec.screens.find((row) => row.id === focus);
     const hypothesis = spec.hypotheses.some((row) => row.id === focus);
+    // "Verbatim" is only true of public quotes; the maker's own notes were never checked against a source.
+    const checkedNote = (numbers: number[]) => (numbers.every((n) => input.evidence[n - 1]?.platform !== 'own') ? t('원문과 일치', 'verbatim') : t('일부는 내 메모', 'some are your notes'));
     const names = (ids: string[], rows: Array<{ id: string; title?: string; name?: string }>) => ids.map((id) => `${id} ${rows.find((row) => row.id === id)?.title ?? rows.find((row) => row.id === id)?.name ?? ''}`.trim()).join(', ');
     const rows: Array<[string, React.ReactNode]> = [];
     let kind = '';
@@ -335,7 +466,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       kind = hypothesis ? t('가설', 'Hypothesis') : t('요구사항', 'Requirement');
       title = requirement.title;
       body = requirement.detail;
-      rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E${n}`).join(', ')} ({t('원문과 일치', 'verbatim')})</span>]);
+      rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E${n}`).join(', ')} ({checkedNote(requirement.evidence)})</span>]);
       rows.push([t('기능', 'Features'), names(spec.features.filter((row) => row.requirementIds.includes(requirement.id)).map((row) => row.id), spec.features) || '-']);
     } else if (feature) {
       kind = t('기능', 'Feature');
@@ -343,7 +474,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       body = feature.detail;
       const evidence = [...new Set(spec.requirements.filter((row) => feature.requirementIds.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b);
       rows.push([t('요구사항', 'Requirements'), names(feature.requirementIds, [...spec.requirements, ...spec.hypotheses]) || '-']);
-      rows.push([t('근거', 'Evidence'), evidence.length ? <span key="evidence" className="font-medium text-seed">{evidence.map((n) => `E${n}`).join(', ')} ({t('원문과 일치', 'verbatim')})</span> : t('원문 없음', 'No quote')]);
+      rows.push([t('근거', 'Evidence'), evidence.length ? <span key="evidence" className="font-medium text-seed">{evidence.map((n) => `E${n}`).join(', ')} ({checkedNote(evidence)})</span> : t('원문 없음', 'No quote')]);
       rows.push([t('화면', 'Screens'), names(spec.screens.filter((row) => row.featureIds.includes(feature.id)).map((row) => row.id), spec.screens) || '-']);
     } else if (screen) {
       kind = t('화면', 'Screen');
@@ -365,6 +496,16 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             </div>
           ))}
         </dl>
+        {/* Shown even where the chat takes general change requests: this one names a single item. */}
+        {!quote && signedIn !== false && (
+          <form className="mt-5" onSubmit={(event) => { event.preventDefault(); const text = itemInstruction.trim(); if (text.length < 2) return; setItemInstruction(''); void revise(t(`${focus} "${title}" 항목만 고칩니다. 다른 항목은 글자 하나 바꾸지 않습니다. 요청: ${text}`, `Change only ${focus} "${title}"; leave every other item exactly as it is. Request: ${text}`), `${focus}: ${text}`); }}>
+            <label htmlFor="prd-item-revise" className="text-[13px] font-semibold">{t('이 항목만 고치기', 'Change just this item')}</label>
+            <div className="mt-1.5 flex gap-2">
+              <input id="prd-item-revise" value={itemInstruction} maxLength={200} onChange={(event) => setItemInstruction(event.target.value)} disabled={busy} placeholder={t('예: 수락 기준을 숫자로 바꿔줘', 'e.g. Make the acceptance criteria measurable')} className="h-10 min-w-0 flex-1 rounded-lg border border-field bg-white px-3 text-[13.5px]" />
+              <button type="submit" className="btn-quiet h-10 px-3 text-[13px]" disabled={busy || itemInstruction.trim().length < 2}>{status === 'revising' ? t('고치는 중', 'Revising') : t('고치기', 'Apply')}</button>
+            </div>
+          </form>
+        )}
         {feature && (
           <>
             <h4 className="mt-7 text-[15px] font-semibold">{t('개발 준비', 'Build readiness')}</h4>
@@ -393,14 +534,15 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   const sections: Array<[string, string, boolean]> = spec && input ? [
     ['overview', t('개요', 'Overview'), true],
-    ['problem', t('문제', 'Problem'), true],
+    ['problem', t('배경', 'Background'), true],
     ['requirements', t('요구사항', 'Requirements'), true],
     ['features', t('기능', 'Features'), spec.features.length > 0],
     ['screens', t('화면', 'Screens'), spec.screens.length > 0],
     ['non-goals', t('범위 밖', 'Out of scope'), true],
-    ['hypotheses', t('가설', 'Hypotheses'), spec.hypotheses.length > 0],
     ['risks', t('위험 요소', 'Risks'), spec.risks.length > 0],
-    ['done', t('완료 기준', 'Done when'), true],
+    ['assumptions', t('가정', 'Assumptions'), Boolean(spec.assumptions?.length)],
+    ['done', t('성공 지표', 'Success metrics'), true],
+    ['questions', t('열린 질문', 'Open questions'), Boolean(spec.openQuestions?.length)],
   ] : [];
   const bullets = (rows: string[]) => rows.length
     ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{row}</li>)}</ul>
@@ -450,7 +592,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         {t(`근거 원문 ${input.evidence.length}건`, `${input.evidence.length} source quotes`)}
         {trace && <button type="button" onClick={() => setFocus(null)} className="text-[13px] font-medium text-seed underline-offset-4 hover:underline">{t('전체 보기', 'Show all')}</button>}
       </h3>
-      <p className="mt-1 text-[13px] leading-5 text-muted">{t('모두 원문과 글자 단위로 일치합니다. 문서의 줄을 누르면 그 줄이 기대는 원문만 남습니다.', 'Each matches its source word for word. Press a line in the document to keep only the quotes it stands on.')}</p>
+      <p className="mt-1 text-[13px] leading-5 text-muted">{input.evidence.some((row) => row.platform === 'own') ? t('공개 글은 원문과 글자 단위로 일치합니다. "내 메모·인터뷰"는 직접 들은 말이라 대조하지 않았습니다.', 'Public quotes match their source word for word. Your own notes were not checked.') : t('모두 원문과 글자 단위로 일치합니다. 문서의 줄을 누르면 그 줄이 기대는 원문만 남습니다.', 'Each matches its source word for word. Press a line in the document to keep only the quotes it stands on.')}</p>
       <ol ref={panelRef} className="mt-3 grid gap-2">
         {input.evidence.map((row, index) => {
           const on = !trace || trace.evidence.has(index + 1);
@@ -458,10 +600,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             <li key={row.id} data-quote={index + 1} className={`scroll-mt-4 rounded-xl border px-3.5 py-3 transition-[opacity,border-color,background-color] duration-200 ${on ? 'opacity-100' : 'opacity-35'} ${trace && on ? 'border-seed bg-seed-soft' : 'border-outline-soft bg-white'}`}>
               <p className="flex items-baseline justify-between gap-3 text-[12.5px] text-muted">
                 <span><b className="mr-1.5 font-semibold text-seed">E{index + 1}</b>{PLATFORM_LABELS[row.platform]}{row.postedAt && <time dateTime={row.postedAt} className="ml-2">{new Date(row.postedAt).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'short' })}</time>}</span>
-                <a href={row.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center text-muted underline-offset-4 hover:text-ink hover:underline" aria-label={t(`E${index + 1} 원문 열기`, `Open E${index + 1} source`)}>{t('원문', 'Source')}</a>
+                {row.url
+                  ? <a href={row.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center text-muted underline-offset-4 hover:text-ink hover:underline" aria-label={t(`E${index + 1} 원문 열기`, `Open E${index + 1} source`)}>{t('원문', 'Source')}</a>
+                  : <span className="inline-flex min-h-8 items-center" title={t('직접 들은 말이라 공개 원문과 대조하지 않았습니다', 'Your own notes, not checked against a public post')}>{t('확인 안 됨', 'Unchecked')}</span>}
               </p>
               <button type="button" aria-pressed={focus === `E-${index + 1}`} onClick={() => pick(`E-${index + 1}`)} className="mt-0.5 block w-full rounded-md text-left">
-                <q lang="en" className="block text-[14px] leading-6 text-ink [overflow-wrap:anywhere]">{row.quote}</q>
+                <q lang={row.platform === 'own' ? undefined : 'en'} className="block text-[14px] leading-6 text-ink [overflow-wrap:anywhere]">{row.quote}</q>
                 {lang === 'ko' && row.quoteKo && <span className="mt-1 block text-[13px] leading-5 text-muted">{row.quoteKo}</span>}
               </button>
             </li>
@@ -484,7 +628,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
           {!ready && !customSource && evidenceIds.length > 0 && <p className="mt-3 text-[13px] text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
         </div>
       )}
-      {status === 'loading' && <PrdProgress elapsed={elapsed} lang={lang} />}
+      {status === 'loading' && <LivePrd live={live} elapsed={elapsed} lang={lang} />}
       {/* What the parent shows before a PRD exists (the live draft, the quotes it will use); the PRD replaces it. */}
       {!spec && children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
@@ -552,6 +696,18 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
             </div>
           </div>
 
+          {(spec.draft || spec.hypotheses.length > 0) && signedIn !== false && (
+            <section aria-label={t('가설 확인하기', 'Check the hypotheses')} className="mt-5 rounded-2xl border border-outline-soft bg-surface-low px-5 py-4">
+              <h3 className="text-[15px] font-semibold">{t(`원문이 받쳐 주지 않는 줄 ${spec.hypotheses.length}개를 확인하는 방법`, `How to check the ${spec.hypotheses.length} lines no quote backs`)}</h3>
+              <p className="mt-1 text-[13.5px] leading-6 text-tertiary">{t('가설마다 아래 문서의 확인 방법을 따르거나, 근거가 쌓이게 해 두세요. 근거가 생기면 다시 만들 때 요구사항으로 올라갑니다.', 'Follow the check written under each hypothesis below, or let evidence build up. With evidence, the next PRD turns them into requirements.')}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <WatchIdeaButton idea={title} className="btn-quiet h-10 px-4 text-sm" />
+                <Link href="/profile#idea-pages" className="btn-quiet h-10 px-4 text-sm">{t('소개 페이지로 대기자 모으기', 'Collect a waitlist with a landing page')}</Link>
+                <Link href="/guide#extension" className="inline-flex min-h-10 items-center px-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('읽던 글에서 원문 담기', 'Save quotes from posts you read')}</Link>
+              </div>
+            </section>
+          )}
+
           <details className="mt-4 text-sm text-muted">
             <summary className="cursor-pointer">{t('용어 풀이', 'What the labels mean')}</summary>
             <dl className="mt-2 grid gap-1 [&_dt]:font-semibold [&_dt]:text-ink sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-4">
@@ -594,17 +750,37 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <p className="mt-1 text-[15px] leading-7">{spec.summary}</p>
                       <p className="label mt-5">{t('대상 사용자', 'Target users')}</p>
                       <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.join(', ') || t('정의되지 않음', 'Not defined')}</p>
+                      {spec.scenario && <><p className="label mt-5">{t('사용 장면', 'Scenario')}</p><p className="mt-1 text-[15px] leading-7">{spec.scenario}</p></>}
+                      {spec.goals?.length ? <><p className="label mt-5">{t('목표', 'Goals')}</p>{bullets(spec.goals)}</> : null}
                     </section>
                     <section>
-                      <h4 id="prd-problem" className={h2}>{t('문제', 'Problem')}</h4>
-                      <p className="mt-3 text-[15px] leading-7">{input.problem}</p>
-                      {input.gap && <p className="mt-3 text-[15px] leading-7 text-tertiary">{input.gap}</p>}
+                      <h4 id="prd-problem" className={h2}>{t('배경', 'Background')}</h4>
+                      {spec.background ? (
+                        <>
+                          <p className="mt-3 text-[15px] leading-7">{prose(spec.background)}</p>
+                          <details className="mt-3 text-[13px] text-muted">
+                            <summary className="cursor-pointer">{t('처음 입력한 문제', 'The problem as entered')}</summary>
+                            <p className="mt-2 whitespace-pre-line leading-6">{input.problem}</p>
+                            {input.gap && <p className="mt-2 leading-6">{input.gap}</p>}
+                          </details>
+                        </>
+                      ) : (
+                        <>
+                          <p className="mt-3 text-[15px] leading-7">{input.problem}</p>
+                          {input.gap && <p className="mt-3 text-[15px] leading-7 text-tertiary">{input.gap}</p>}
+                        </>
+                      )}
                     </section>
                     <section>
                       <h4 id="prd-requirements" className={h2}>{t('요구사항', 'Requirements')}</h4>
-                      {spec.requirements.length
-                        ? <ul className="rows mt-3">{spec.requirements.map((row) => docRow(row.id, <>{row.title}{cites(row.evidence)}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}</>))}</ul>
-                        : <p className="mt-3 text-[15px] leading-7 text-muted">{t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}</p>}
+                      {/* Backed and unbacked lines read in one list, as a PRD does; the unbacked ones say so and how to check them. */}
+                      {spec.hypotheses.length > 0 && <p className="mt-1 text-[13px] text-muted">{spec.requirements.length ? t(`원문 번호가 붙은 줄은 원문이 받쳐 주고, "가설" ${spec.hypotheses.length}개는 만들기 전에 확인 방법대로 확인합니다.`, `Lines with quote numbers are backed; the ${spec.hypotheses.length} hypotheses need the check under them first.`) : t('원문이 받쳐 주는 줄이 아직 없어 모두 가설입니다. 줄마다 확인 방법을 따르세요.', 'No line is backed by a quote yet, so all are hypotheses. Follow the check under each.')}</p>}
+                      {spec.requirements.length + spec.hypotheses.length ? (
+                        <ul className="rows mt-3">
+                          {spec.requirements.map((row) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}{cites(row.evidence)}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}</>))}
+                          {spec.hypotheses.map((row) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}<span className="ml-2 rounded border border-dashed border-outline-strong px-1.5 py-px align-[2px] text-[11.5px] font-semibold text-tertiary">{t('가설', 'Hypothesis')}</span>{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}{row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}</>))}
+                        </ul>
+                      ) : <p className="mt-3 text-[15px] leading-7 text-muted">{t('요구사항이 없습니다.', 'No requirements.')}</p>}
                     </section>
                     {spec.features.length > 0 && (
                       <section>
@@ -623,23 +799,30 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <h4 id="prd-non-goals" className={h2}>{t('범위 밖', 'Out of scope')}</h4>
                       {bullets(spec.nonGoals)}
                     </section>
-                    {spec.hypotheses.length > 0 && (
-                      <section>
-                        <h4 id="prd-hypotheses" className={h2}>{t('가설', 'Hypotheses')}</h4>
-                        <p className="mt-1 text-[13px] text-muted">{t('원문이 받쳐 주지 않는 줄입니다. 만들기 전에 사용자에게 확인합니다.', 'No quote backs these lines. Confirm with users before building.')}</p>
-                        <ul className="rows mt-3">{spec.hypotheses.map((row) => docRow(row.id, <>{row.title}{row.detail && <span className="block text-sm leading-6">{row.detail}</span>}</>, true))}</ul>
-                      </section>
-                    )}
                     {spec.risks.length > 0 && (
                       <section>
                         <h4 id="prd-risks" className={h2}>{t('위험 요소', 'Risks')}</h4>
                         {bullets(spec.risks)}
                       </section>
                     )}
+                    {spec.assumptions?.length ? (
+                      <section>
+                        <h4 id="prd-assumptions" className={h2}>{t('가정', 'Assumptions')}</h4>
+                        <p className="mt-1 text-[13px] text-muted">{t('증명되지 않았지만 이 계획이 기대는 것입니다. 틀리면 계획이 바뀝니다.', 'Not proven, but the plan leans on them. If one is wrong, the plan changes.')}</p>
+                        {bullets(spec.assumptions)}
+                      </section>
+                    ) : null}
                     <section>
-                      <h4 id="prd-done" className={h2}>{t('완료 기준', 'Done when')}</h4>
+                      <h4 id="prd-done" className={h2}>{t('성공 지표', 'Success metrics')}</h4>
                       {bullets(spec.metrics)}
                     </section>
+                    {spec.openQuestions?.length ? (
+                      <section>
+                        <h4 id="prd-questions" className={h2}>{t('열린 질문', 'Open questions')}</h4>
+                        <p className="mt-1 text-[13px] text-muted">{t('아직 정하지 않은 결정입니다. 만들기 전에 답을 정하세요.', 'Decisions not made yet. Settle them before building.')}</p>
+                        {bullets(spec.openQuestions)}
+                      </section>
+                    ) : null}
                     {spec.rivals?.length ? (
                       <section>
                         <h4 className={h2}>{t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}</h4>
@@ -907,34 +1090,41 @@ function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: string | n
   );
 }
 
-// Where a PRD request usually is after so many seconds. The server answers in one piece, so these are typical
-// timings, said as such, not live reports.
-const PROGRESS_STEPS: Array<[number, string, string]> = [
-  [0, '원문과 의견을 읽는 중', 'Reading the quotes and your notes'],
-  [8, '요구사항을 쓰는 중', 'Writing the requirements'],
-  [30, '기능과 화면을 잇는 중', 'Linking features and screens'],
-  [55, '빠진 곳을 검사하고 보완하는 중', 'Checking for gaps and repairing'],
-];
-const EXPECTED_SECONDS = 90;
+type LivePhase = 'waiting' | 'thinking' | 'writing' | 'structuring' | 'checking';
 
-function PrdProgress({ elapsed, lang }: { elapsed: number; lang: 'ko' | 'en' }) {
+const PHASES: Record<LivePhase, [string, string]> = {
+  waiting: ['모델에 연결하는 중', 'Connecting to the model'],
+  thinking: ['모델이 쓰기 전에 생각하는 중', 'The model is thinking before it writes'],
+  writing: ['PRD를 쓰는 중', 'Writing the PRD'],
+  structuring: ['문서를 요구사항과 기능으로 나누는 중', 'Splitting the document into requirements and features'],
+  checking: ['빠진 곳을 검사하고 보완하는 중', 'Checking for gaps and repairing'],
+};
+
+/**
+ * What the reader sees while the PRD is made: the real step the server reports, and the document itself as the model
+ * writes it. A generator that does not stream (live is null) shows only the step and the time.
+ */
+function LivePrd({ live, elapsed, lang }: { live: { text: string; phase: LivePhase; restarted: boolean } | null; elapsed: number; lang: 'ko' | 'en' }) {
   const t = translator(lang);
-  const current = PROGRESS_STEPS.filter(([from]) => elapsed >= from).length - 1;
+  const phase = live?.phase ?? 'writing';
   return (
-    <div className="mt-5 max-w-[52em] rounded-2xl border border-outline-soft bg-white p-5" role="status" aria-live="polite">
-      <div className="flex items-baseline justify-between gap-4">
-        <p className="text-[15px] font-semibold">{t(PROGRESS_STEPS[current][1], PROGRESS_STEPS[current][2])}</p>
+    <div className="mt-5 max-w-[52em]" role="status" aria-live="polite" aria-busy="true">
+      <div className="flex items-baseline justify-between gap-4 rounded-xl border border-outline-soft bg-white px-4 py-3">
+        <p className="flex items-center gap-2 text-[15px] font-semibold">
+          <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />
+          {t(PHASES[phase][0], PHASES[phase][1])}
+        </p>
         <p className="num text-sm text-muted">{elapsed}{t('초', 's')}</p>
       </div>
-      <span aria-hidden="true" className="mt-3 block h-1.5 overflow-hidden rounded-full bg-surface-high">
-        <span className="block h-full origin-left rounded-full bg-seed transition-transform duration-1000 motion-reduce:transition-none" style={{ transform: `scaleX(${Math.min(0.95, elapsed / EXPECTED_SECONDS)})` }} />
-      </span>
-      <ol className="mt-4 grid gap-1.5 text-sm sm:grid-cols-4">
-        {PROGRESS_STEPS.map(([from, ko, en], index) => (
-          <li key={from} className={index < current ? 'text-seed' : index === current ? 'font-semibold text-ink' : 'text-muted'}>{t(ko, en)}</li>
-        ))}
-      </ol>
-      <p className="mt-3 text-[13px] text-muted">{t('보통 30초~1분 30초 걸립니다. 무료 모델은 더 오래 걸리거나 실패할 수 있습니다.', 'Usually 30 to 90 seconds. Free models can take longer or fail.')}</p>
+      {live?.restarted && <p className="mt-2 text-[13px] text-muted">{t('첫 모델이 답하지 않아 다른 모델로 다시 쓰고 있습니다.', 'The first model did not answer, so another one is writing it again.')}</p>}
+      {live?.text ? (
+        <div className="mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-4 [&_.article-markdown]:text-[15px]">
+          {/* The renderer knows ## and ### only; the PRD opens with "# 한 줄 요약". */}
+          <MarkdownContent content={live.text.replace(/^# /gm, '## ')} />
+        </div>
+      ) : (
+        <p className="mt-3 text-[13px] text-muted">{phase === 'thinking' ? t('무료 모델은 쓰기 전에 잠시 생각합니다. 글이 나오기 시작하면 여기에 바로 보입니다.', 'Free models think for a while before writing. The text shows up here as soon as it starts.') : t('곧 문서가 여기에 쓰이기 시작합니다.', 'The document will start appearing here shortly.')}</p>
+      )}
     </div>
   );
 }

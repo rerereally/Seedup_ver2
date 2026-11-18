@@ -4,7 +4,8 @@ import { meetsEvidenceBar } from './rules';
 import type { Evidence, Opportunity } from './types';
 
 const MAX_EVIDENCE = 12;
-const MAX_PER_RUN = 12;
+// Problems below the bar that get their own search each run.
+const MAX_PER_RUN = Math.max(1, Number(process.env.ENGINE_TOPUP_LIMIT) || 20);
 
 /**
  * Adds fresh quotes to one problem and recomputes what depends on them. Pure, so the merge rules are testable:

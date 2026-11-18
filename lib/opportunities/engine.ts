@@ -5,7 +5,8 @@ import { classifySupply, clusterByEmbedding, countFollowers, isListable, isVerba
 import { searchWebDemand, searchWebSupply, webSearchEnabled } from './web';
 import type { ActorRun, Evidence, Opportunity, OpportunitySnapshot, Platform, RawSignal, SupplyItem } from './types';
 
-const SAMPLE_LIMIT = 360;
+// Posts read per run. Runs took 14 to 29 minutes at 360 against a 90-minute limit, so there is room to read more.
+const SAMPLE_LIMIT = Math.max(40, Number(process.env.ENGINE_SAMPLE_LIMIT) || 540);
 const EXTRACT_BATCH = 8;
 const MATCH_BATCH = 12;
 const MAX_POSTS_PER_CANDIDATE = 24;

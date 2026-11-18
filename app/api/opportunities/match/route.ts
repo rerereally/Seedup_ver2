@@ -8,7 +8,8 @@ export const runtime = 'nodejs';
 
 const MAX_QUERY_LENGTH = 200;
 const REQUESTS_PER_MINUTE = 30;
-const MIN_SIMILARITY = 0.32;
+// With nemotron-3-embed-1b, a quote scores about 0.36 against its own problem and rarely above 0.27 against others.
+const MIN_SIMILARITY = 0.28;
 const SIMILARITY_BAND = 0.06;
 const MAX_MATCHES = 5;
 const MAX_CACHED_QUERIES = 300;

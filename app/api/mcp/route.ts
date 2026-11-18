@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       return result?.spec ?? null;
     },
     consume: (feature, limit) => consumeUsageFor(service, userId, feature, limit),
-    related: async (idea) => (await retrieveIdeaContext(idea, { maxReferences: 6, syncMissing: false })).map((row) => ({
+    related: async (idea) => (await retrieveIdeaContext(idea, { maxReferences: 6, syncMissing: false, throwOnError: true })).map((row) => ({
       title: String(row.metadata.title ?? row.source_table),
       url: row.metadata.url ?? null,
       source: String(row.metadata.source ?? row.source_table),

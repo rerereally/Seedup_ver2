@@ -192,7 +192,7 @@ SUPABASE_SECRET_KEY=sb_secret_your-key
 OPENROUTER_API_KEY=your-openrouter-api-key
 OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free
 OPENROUTER_FALLBACK_MODELS=openrouter/free
-RAG_EMBEDDING_MODEL=openai/text-embedding-3-small
+RAG_EMBEDDING_MODEL=nvidia/nemotron-3-embed-1b:free
 
 # Site & Admin Security
 NEXT_PUBLIC_SITE_URL=http://localhost:3000

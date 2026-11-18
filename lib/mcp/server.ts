@@ -226,7 +226,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const idea = String(args.idea ?? '').trim().slice(0, 500);
     if (idea.length < 5) return text('Describe the idea in a sentence.', true);
     const rows = await deps.related(idea);
-    return text(rows.length ? rows.map((row) => `- ${row.title} (${row.source}, similarity ${row.similarity.toFixed(2)})${row.url ? ` ${row.url}` : ''}`).join('\n') : 'Nothing similar was collected yet.');
+    return text(rows.length ? rows.map((row) => `- ${row.title} (${row.source}, similarity ${row.similarity.toFixed(2)})${row.url ? ` ${row.url}` : ''}`).join('\n') : 'Nothing Seedup collected is close to this idea.');
   }
   return text(`Unknown tool "${name}".`, true);
 }

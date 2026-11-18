@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { enforceFreeOnlyModels } from '@/lib/ingest/openrouter-models';
+import { fitEmbedding } from '@/lib/opportunities/llm';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export type RagReference = {
@@ -25,19 +26,23 @@ type RagDocument = {
 };
 
 const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small';
-// Must match the vector(1536) column in supabase/schema.sql.
-const EMBEDDING_DIMENSIONS = 1536;
 // Keep evaluation requests bounded. New embeddings are synced lazily, so a
 // large historical table should not consume the whole request timeout.
 const MAX_DOCUMENTS_PER_SOURCE = 18;
+// nemotron-3-embed-1b scores sit low: a related idea's best match is 0.25 to 0.46, unrelated ones top out near 0.38.
+const MIN_SIMILARITY = 0.35;
 
 export async function retrieveIdeaContext(
   idea: string,
-  options?: { maxReferences?: number; syncMissing?: boolean; maxSyncDocuments?: number },
+  // throwOnError: callers that tell the person "nothing similar" must not say so when the search itself failed.
+  options?: { maxReferences?: number; syncMissing?: boolean; maxSyncDocuments?: number; throwOnError?: boolean },
 ): Promise<RagReference[]> {
   const supabase = createAdminClient();
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!supabase || !apiKey) return [];
+  if (!supabase || !apiKey) {
+    if (options?.throwOnError) throw new Error('Search is not configured');
+    return [];
+  }
 
   try {
     // Interactive evaluation must not wait for the entire historical corpus to
@@ -47,16 +52,15 @@ export async function retrieveIdeaContext(
       await syncMissingEmbeddings(supabase, apiKey, documents, options?.maxSyncDocuments ?? 8);
     }
     const [queryEmbedding] = await createEmbeddings(apiKey, [idea]);
-    if (!queryEmbedding?.length) return [];
+    if (!queryEmbedding?.length) throw new Error('No embedding for the idea');
 
     const { data, error } = await supabase.rpc('match_seedup_content', {
       query_embedding: queryEmbedding,
       match_count: options?.maxReferences ?? 6,
-      min_similarity: 0.55,
+      min_similarity: MIN_SIMILARITY,
     });
     if (error) {
-      console.error('RAG similarity search failed', error);
-      return [];
+      throw new Error(`RAG similarity search failed: ${error.message}`);
     }
 
     const matches = ((data ?? []) as Array<Record<string, unknown>>).map((item) => ({
@@ -68,7 +72,7 @@ export async function retrieveIdeaContext(
         similarity: Number(item.similarity ?? 0),
       },
       similarity: Number(item.similarity ?? 0),
-    })).filter((item) => item.content && item.similarity >= 0.55);
+    })).filter((item) => item.content && item.similarity >= MIN_SIMILARITY);
 
     // A source can have more than one embedding after its content changes.
     // Keep the strongest match so the evaluator and UI see one document once.
@@ -81,17 +85,18 @@ export async function retrieveIdeaContext(
     return [...uniqueMatches.values()].sort((left, right) => right.similarity - left.similarity).slice(0, options?.maxReferences ?? 6);
   } catch (error) {
     console.error('RAG context retrieval failed', error);
+    if (options?.throwOnError) throw error;
     return [];
   }
 }
 
 /** Embeds content that has no embedding yet (or whose text changed), newest first, round-robin across sources. */
-export async function syncRagEmbeddings(options: { perSource: number; maxDocuments: number }) {
+export async function syncRagEmbeddings(options: { perSource: number; maxDocuments: number; force?: boolean }) {
   const supabase = createAdminClient();
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!supabase || !apiKey) return null;
   const documents = await loadRagDocuments(supabase, options.perSource);
-  return { scanned: documents.length, ...(await syncMissingEmbeddings(supabase, apiKey, documents, options.maxDocuments)) };
+  return { scanned: documents.length, ...(await syncMissingEmbeddings(supabase, apiKey, documents, options.maxDocuments, options.force)) };
 }
 
 async function loadRagDocuments(supabase: NonNullable<ReturnType<typeof createAdminClient>>, perSource: number) {
@@ -161,9 +166,12 @@ async function syncMissingEmbeddings(
   apiKey: string,
   documents: RagDocument[],
   maxDocuments: number,
+  // After the embedding model changes every stored vector is from another model, so all are embedded again.
+  force = false,
 ) {
   const missing: RagDocument[] = [];
-  for (const sourceTable of [...new Set(documents.map((item) => item.source_table))]) {
+  if (force) missing.push(...documents);
+  else for (const sourceTable of [...new Set(documents.map((item) => item.source_table))]) {
     const sourceDocuments = documents.filter((item) => item.source_table === sourceTable);
     const existing = new Set<string>();
     // Chunked so a large backfill does not exceed the request URL length.
@@ -197,7 +205,7 @@ async function syncMissingEmbeddings(
   for (let index = 0; index < selected.length; index += 20) {
     const batch = selected.slice(index, index + 20);
     // One failed batch (free-model timeout) is counted and skipped; the next run retries it.
-    const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content)).catch((error) => {
+    const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content), 3).catch((error) => {
       console.error('RAG embedding batch failed', error);
       return [] as number[][];
     });
@@ -211,26 +219,33 @@ async function syncMissingEmbeddings(
   return { missing: missing.length, embedded, failed: selected.length - embedded, remaining: missing.length - embedded };
 }
 
-async function createEmbeddings(apiKey: string, input: string[]): Promise<number[][]> {
+async function createEmbeddings(apiKey: string, input: string[], retries = 0): Promise<number[][]> {
   const [model] = enforceFreeOnlyModels([EMBEDDING_MODEL]);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
-  try {
-  const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`,
-      'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
-      'x-title': 'Seedup',
-    },
-    signal: controller.signal,
-    body: JSON.stringify({ model, input, dimensions: EMBEDDING_DIMENSIONS }),
-  });
-  if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
-  const json = await response.json() as { data?: Array<{ embedding?: number[] }> };
-  return (json.data ?? []).map((item) => item.embedding ?? []);
-  } finally {
-    clearTimeout(timeout);
+  for (let attempt = 0; ; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
+          'x-title': 'Seedup',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({ model, input }),
+      });
+      // Free models allow a few requests a minute; batch syncs wait and try again instead of skipping the batch.
+      if (response.status === 429 && attempt < retries) {
+        await new Promise((done) => setTimeout(done, (Number(response.headers.get('retry-after')) || 20) * 1_000));
+        continue;
+      }
+      if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
+      const json = await response.json() as { data?: Array<{ embedding?: number[] }> };
+      return (json.data ?? []).map((item) => fitEmbedding(item.embedding));
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }

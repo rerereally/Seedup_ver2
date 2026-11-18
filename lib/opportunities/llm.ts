@@ -113,6 +113,20 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
   return null;
 }
 
+/** Must match the vector(1536) columns in supabase/schema.sql. */
+export const EMBEDDING_DIMENSIONS = 1536;
+
+/**
+ * Some models only answer at their native size (nemotron-3-embed-1b: 2048), so the size is not sent; the vector is
+ * cut to the column size and scaled back to length 1. Cutting kept the same nearest matches in a check on that model.
+ */
+export function fitEmbedding(vector: number[] | undefined): number[] {
+  const cut = (vector ?? []).slice(0, EMBEDDING_DIMENSIONS);
+  if (cut.length < EMBEDDING_DIMENSIONS) return [];
+  const length = Math.hypot(...cut);
+  return length ? cut.map((value) => value / length) : [];
+}
+
 export async function createEmbedding(input: string, options?: { timeoutMs?: number }): Promise<number[] | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const model = process.env.RAG_EMBEDDING_MODEL?.trim();
@@ -125,11 +139,12 @@ export async function createEmbedding(input: string, options?: { timeoutMs?: num
       method: 'POST',
       signal: controller.signal,
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}`, 'x-title': 'Seedup opportunity engine' },
-      body: JSON.stringify({ model, input: input.slice(0, 2_000), dimensions: 1536 }),
+      body: JSON.stringify({ model, input: input.slice(0, 2_000) }),
     });
     if (!response.ok) return null;
     const json = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
-    return json.data?.[0]?.embedding ?? null;
+    const vector = fitEmbedding(json.data?.[0]?.embedding);
+    return vector.length ? vector : null;
   } catch {
     return null;
   } finally {

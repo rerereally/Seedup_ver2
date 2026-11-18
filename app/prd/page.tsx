@@ -53,21 +53,19 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     return (
       <>
         <Header />
+        {/* A start screen: one box in the middle, like the landing hero. The common header-plus-side layout does not apply. */}
         <main id="main-content" className="page-shell grow">
-          <header>
-            <h1 id="prd-start-heading" className="page-intro-title md:text-[38px]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
-            <p className="page-intro-description">{t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.')}</p>
-          </header>
-          <div className="page-split mt-6">
-          <div className="min-w-0">
-          <section aria-labelledby="prd-start-heading">
-            <div className="w-full"><IdeaComposer examples={IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) }))} /></div>
+          <section className="mx-auto flex min-h-dvh w-full max-w-[54rem] flex-col justify-center pb-16 text-center" aria-labelledby="prd-start-heading">
+            <h1 id="prd-start-heading" className="t-section text-[clamp(30px,3.4vw,44px)]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
+            <p className="t-lead mx-auto mt-3 max-w-[34em]">{t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.')}</p>
+            <div className="mt-8 w-full text-left"><IdeaComposer center autoFocus examples={IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) }))} /></div>
+            {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed mx-auto mt-4">{t('예시 PRD 먼저 보기', 'See an example PRD first')}</Link>}
           </section>
 
-          <section className="mt-10 pb-16" aria-labelledby="verified">
+          <section className="mx-auto w-full max-w-[54rem] pb-16" aria-labelledby="verified">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
               <h2 id="verified" className="scroll-mt-6 text-[17px] font-bold tracking-[-0.015em]">{t('또는 검증된 문제로 시작하기', 'Or start from a verified problem')}</h2>
-              <Link href="/opportunities" className="link-seed">{t('인사이트 전체 보기', 'See all insights')}</Link>
+              <Link href="/newsletter-preview" className="link-seed">{t('인사이트 전체 보기', 'See all insights')}</Link>
             </div>
             <p className="text-[13px] text-muted">{t('원문 3건, 플랫폼 2곳을 넘은 문제입니다. 저장된 PRD가 있으면 바로 열립니다.', 'Problems with 3+ quotes from 2+ sites. A saved PRD opens right away.')}</p>
             {qualified.length ? (
@@ -91,20 +89,6 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
               <p className="empty-state mt-4">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
             )}
           </section>
-          </div>
-
-          <aside className="page-side">
-            <section aria-labelledby="prd-contents">
-              <h2 id="prd-contents" className="text-[16px] font-bold">{t('PRD에 들어가는 것', 'What the PRD contains')}</h2>
-              <ul className="rows mt-3 text-[14px] leading-6">
-                {CONTENTS.map(([ko, koWhat, en, enWhat]) => (
-                  <li key={ko} className="py-3"><b className="block font-semibold">{t(ko, en)}</b><span className="text-muted">{t(koWhat, enWhat)}</span></li>
-                ))}
-              </ul>
-              {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="btn-quiet mt-4 w-full">{t('예시 PRD 보기', 'See an example PRD')}</Link>}
-            </section>
-          </aside>
-          </div>
         </main>
         <Footer />
       </>

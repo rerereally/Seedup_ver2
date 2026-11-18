@@ -125,6 +125,8 @@ Three weights only: 400, 600, 700 (500 only for the mono label). Headings use `t
   or one line, numbers, tabs), then the work in `.page-split` with an optional 320px `.page-side` column that starts
   below the header. Wide tables and grids skip the side column. Detail screens follow the same rule: a back link, the
   title block full width, then the content and its properties side by side in the same `.page-split`. Side columns are flat (no card), groups split by a hairline.
+  Start screens (`/prd`, `/prd/new` with no idea yet) are the one exception: a single centred box with its title,
+  like the landing hero, and the list of verified problems under it in the same centred width.
 
 ## 7. The 100-point scorecard
 

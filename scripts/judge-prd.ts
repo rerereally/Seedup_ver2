@@ -29,7 +29,7 @@ async function judge(doc: string, model: string): Promise<Score | null> {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, 'x-title': 'Seedup PRD judge' },
-      body: JSON.stringify({ model, temperature: 0, max_tokens: 400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: RUBRIC }, { role: 'user', content: `<prd>\n${doc.slice(0, 24_000)}\n</prd>` }] }),
+      body: JSON.stringify({ model, temperature: 0, max_tokens: model.endsWith(":free") ? 16_000 : 400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: RUBRIC }, { role: 'user', content: `<prd>\n${doc.slice(0, 24_000)}\n</prd>` }] }),
     }).catch(() => null);
     if (!response?.ok) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));

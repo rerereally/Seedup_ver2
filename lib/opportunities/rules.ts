@@ -11,6 +11,17 @@ export function isVerbatimQuote(quote: string, sourceText: string) {
   return normalized.length >= 15 && normalizeForMatch(sourceText).includes(normalized);
 }
 
+/** The same sentence reached through two links (a story and its comment) is one voice, not two posts. */
+export function uniqueQuotes<T extends { quote: string }>(items: T[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = normalizeForMatch(item.quote);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function meetsEvidenceBar(evidenceCount: number, platformCount: number) {
   return evidenceCount >= MIN_EVIDENCE && platformCount >= MIN_PLATFORMS;
 }

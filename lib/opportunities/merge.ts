@@ -1,4 +1,4 @@
-import { cosineSimilarity, countFollowers, isListable, meetsEvidenceBar } from './rules';
+import { cosineSimilarity, countFollowers, isListable, meetsEvidenceBar, uniqueQuotes } from './rules';
 import type { Evidence, Opportunity, OpportunityPoint, OpportunitySnapshot, SupplyItem } from './types';
 
 // Measured on two runs over the same posts: the same problem scored 0.55 to 0.90, different problems at most 0.46.
@@ -34,7 +34,7 @@ function unionEvidence(older: Evidence[], newer: Evidence[]) {
   const byUrl = new Map<string, Evidence>();
   // The newer copy wins, except that a translation already made is never thrown away.
   for (const item of [...older, ...newer]) byUrl.set(item.url, { ...item, quoteKo: item.quoteKo || byUrl.get(item.url)?.quoteKo || '' });
-  return [...byUrl.values()].sort((a, b) => b.score - a.score).slice(0, MAX_MERGED_EVIDENCE);
+  return uniqueQuotes([...byUrl.values()].sort((a, b) => b.score - a.score)).slice(0, MAX_MERGED_EVIDENCE);
 }
 
 function unionSupply(older: SupplyItem[], newer: SupplyItem[]) {

@@ -24,7 +24,9 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // getClaims refreshes an expired session like getUser did, but checks the token locally when the project signs
+  // with asymmetric keys instead of asking the auth server on every request (it falls back to that otherwise).
+  await supabase.auth.getClaims();
   return response;
 }
 

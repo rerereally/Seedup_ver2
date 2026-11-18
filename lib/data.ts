@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { cached } from '@/lib/cache';
 
@@ -1023,7 +1023,7 @@ export async function getExistingScrap(itemType: string, itemId: string) {
   const supabase = await createClient();
   if (!supabase) return null;
 
-  const { data: userData } = await supabase.auth.getUser();
+  const userData = { user: await getCurrentUser() };
   if (!userData.user) return null;
 
   const { data, error } = await supabase
@@ -1046,7 +1046,7 @@ export async function getScrapKeySet() {
   const supabase = await createClient();
   if (!supabase) return new Set<string>();
 
-  const { data: userData } = await supabase.auth.getUser();
+  const userData = { user: await getCurrentUser() };
   if (!userData.user) return new Set<string>();
 
   const { data, error } = await supabase

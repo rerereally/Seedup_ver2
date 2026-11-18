@@ -34,15 +34,22 @@ export default function Header() {
   useEffect(() => {
     const supabase = createClient();
     if (!supabase) return;
+    // The listener's first event carries the session from the cookie, so the header needs no network call of its
+    // own; the admin check runs once per signed-in address, not on every auth event.
+    let checked: string | null = null;
     const update = (next?: string | null) => {
       setEmail(next ?? null);
-      if (!next) return setIsAdmin(false);
+      if (!next) {
+        checked = null;
+        return setIsAdmin(false);
+      }
+      if (checked === next) return;
+      checked = next;
       fetch('/api/auth/is-admin')
         .then((response) => (response.ok ? response.json() : { isAdmin: false }))
         .then((result: { isAdmin?: boolean }) => setIsAdmin(Boolean(result.isAdmin)))
         .catch(() => setIsAdmin(false));
     };
-    supabase.auth.getUser().then(({ data }) => update(data.user?.email));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => update(session?.user.email));
     return () => listener.subscription.unsubscribe();
   }, []);

@@ -17,7 +17,7 @@ import { mapPoints } from '@/lib/opportunities/map';
 import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
   title: '오늘의 신호',
@@ -34,7 +34,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   const params = await searchParams;
   const profile = DEMO_NEWSLETTER_PROFILES.find((item) => item.user_id === params.profile) ?? DEMO_NEWSLETTER_PROFILES[0];
   const supabase = await createClient();
-  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const user = supabase ? await getCurrentUser() : null;
   const [news, products, repos, projects, papers, { opportunities, generatedAt }, onboarding, dossiers, archive, lang, articles] = await Promise.all([
     getNewsItems(),
     getAIProducts(),

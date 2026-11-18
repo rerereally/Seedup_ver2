@@ -19,7 +19,7 @@ import { trackRecord, trackRecordSummary } from '@/lib/opportunities/insight';
 import { mapPoints } from '@/lib/opportunities/map';
 import { localizedOpportunity } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 const WEEK_MS = 7 * 86_400_000;
 
@@ -54,7 +54,7 @@ const TOOLS = [
 
 export default async function Home() {
   const supabase = await createClient();
-  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const user = supabase ? await getCurrentUser() : null;
   const lang = await getLang();
   // Signed-in people start from their own desk; everyone else gets the front door.
   if (user) {

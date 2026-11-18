@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { getSupabaseConfig } from './config';
 
 export async function createClient() {
@@ -27,3 +28,12 @@ export async function createClient() {
     },
   });
 }
+
+/**
+ * The signed-in user for this request, read once: `auth.getUser()` asks the Supabase auth server every time, and a
+ * page plus its data helpers used to call it three or four times per request.
+ */
+export const getCurrentUser = cache(async () => {
+  const supabase = await createClient();
+  return supabase ? (await supabase.auth.getUser()).data.user : null;
+});

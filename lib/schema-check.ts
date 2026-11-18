@@ -13,6 +13,7 @@ export const SCHEMA_FILES: Array<{ file: string; tables?: string[]; columns?: Ar
   { file: 'dossier_share_2026_11.sql', columns: [['evidence_dossiers', 'shared']] },
   { file: 'usage_refund_2026_11.sql', functions: ['release_ai_usage'] },
   { file: 'view_count_2026_11.sql', functions: ['increment_content_view'] },
+  { file: 'saved_quotes_2026_11.sql', tables: ['saved_quotes'] },
   { file: 'notify_webhook_2026_11.sql', columns: [['user_onboarding', 'notify_webhook']] },
   { file: 'idea_watches_2026_11.sql', tables: ['idea_watches'] },
   { file: 'built_2026_11.sql', columns: [['evidence_dossiers', 'built_url'], ['evidence_dossiers', 'built_at']] },

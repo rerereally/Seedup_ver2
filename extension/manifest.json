@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Seedup 원문 담기",
+  "version": "0.1.0",
+  "description": "GitHub, Hacker News, Stack Overflow에서 고른 문장을 Seedup PRD 근거로 담습니다. 담을 때 원문과 글자 단위로 대조합니다.",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://seedup.rerereally.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Seedup 원문 담기",
+    "default_popup": "options.html"
+  },
+  "icons": {
+    "48": "icon.png"
+  }
+}

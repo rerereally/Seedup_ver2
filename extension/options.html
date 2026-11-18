@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Seedup 원문 담기 설정</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; width: 340px; margin: 16px; color: #111; }
+    label { display: block; font-weight: 600; margin-top: 12px; }
+    input { width: 100%; box-sizing: border-box; height: 36px; padding: 0 8px; border: 1px solid #8a8a92; border-radius: 8px; }
+    button { margin-top: 12px; height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #1f6b4a; color: #fff; font-weight: 600; }
+    p { color: #555; margin: 4px 0 0; }
+  </style>
+</head>
+<body>
+  <strong>Seedup 원문 담기</strong>
+  <p>글에서 문장을 고르고 오른쪽 클릭 메뉴의 "Seedup에 원문으로 담기"를 누르세요.</p>
+  <label for="token">개인 토큰</label>
+  <input id="token" type="password" autocomplete="off" placeholder="sdp_...">
+  <p>Seedup 프로필 &gt; 에이전트 연결의 직접 설정하기에 있는 토큰입니다.</p>
+  <label for="site">Seedup 주소</label>
+  <input id="site" type="url">
+  <button id="save" type="button">저장</button>
+  <p id="status" role="status"></p>
+  <script src="options.js"></script>
+</body>
+</html>

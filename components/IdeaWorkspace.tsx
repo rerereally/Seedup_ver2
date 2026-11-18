@@ -101,6 +101,13 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   }, [initialIdea]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Sentences saved with the browser extension, offered next to the web finds; nothing is kept until the person picks it.
+  const [saved, setSavedQuotes] = useState<LiveQuote[]>([]);
+  useEffect(() => {
+    if (!signedIn) return;
+    fetch('/api/quotes').then((response) => (response.ok ? response.json() : { quotes: [] })).then((json: { quotes?: LiveQuote[] }) => setSavedQuotes(json.quotes ?? [])).catch(() => undefined);
+  }, [signedIn]);
+
   // Instant keyword matches; meaning-based matches replace them when the embedding answers.
   useEffect(() => {
     if (idea.length < 2) return;
@@ -133,8 +140,9 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }
   }, [restored, idea, answers, keptIds, touched, live]);
 
-  const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...live.map((row) => [row.id, row] as const)]), [pool, live]);
-  const keptLive = live.filter((row) => keptIds.includes(row.id));
+  const offered = useMemo(() => [...live, ...saved.filter((row) => !live.some((item) => item.id === row.id))], [live, saved]);
+  const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...offered.map((row) => [row.id, row] as const)]), [pool, offered]);
+  const keptLive = offered.filter((row) => keptIds.includes(row.id));
   const keptQuotes = keptIds.flatMap((id) => quoteById.get(id) ?? []);
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
@@ -266,7 +274,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
     { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
   ];
-  const picker = <EvidencePicker matched={matched} live={live} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} />;
+  const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} />;
   const threeColumns = !generated;
 
   return (
@@ -436,7 +444,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 }
 
 /** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
-function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string }) {
+function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; saved: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
   const quoteRow = (row: PoolItem['quotes'][number]) => {
     const on = keptIds.includes(row.id);
@@ -457,7 +465,7 @@ function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatfor
     );
   };
   const web = (
-    <div className={matched.length || live.length ? 'mt-6 border-t border-outline-soft pt-5' : 'mt-4'}>
+    <div className={matched.length || live.length || saved.length ? 'mt-6 border-t border-outline-soft pt-5' : 'mt-4'}>
       <p className="text-[14px] font-semibold text-ink">{t('웹에서 원문 더 찾기', 'Find more quotes on the web')}</p>
       <p className="mt-1 text-[13px] leading-5 text-muted">{t('GitHub 이슈, Hacker News, Stack Overflow에서 같은 불편을 말한 글을 찾아, 원문과 글자 단위로 맞는 문장만 가져옵니다. 30초에서 1분 걸립니다.', 'Searches GitHub issues, Hacker News and Stack Overflow for posts about the same problem, keeping only sentences that match the source word for word. Takes 30 to 60 seconds.')}</p>
       <div className="mt-3">
@@ -484,7 +492,7 @@ function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatfor
       {search.message && <p className={`mt-2 text-[13px] leading-5 ${search.state === 'error' ? 'text-red-700' : 'text-tertiary'}`} role="status">{search.message}</p>}
     </div>
   );
-  if (!matched.length && !live.length) {
+  if (!matched.length && !live.length && !saved.length) {
     return (
       <div>
         <p className="text-[15px] font-semibold text-ink">{t('저장된 원문 중 맞는 것이 없습니다', 'No stored quote matches yet')}</p>
@@ -516,6 +524,12 @@ function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatfor
             <ul className="mt-2 space-y-1.5">{item.quotes.map(quoteRow)}            </ul>
           </div>
         ))}
+        {saved.length > 0 && (
+          <div>
+            <p className="text-[14px] font-semibold text-ink">{t('확장으로 담은 원문', 'Saved with the extension')}</p>
+            <ul className="mt-2 space-y-1.5">{saved.map(quoteRow)}</ul>
+          </div>
+        )}
         {live.length > 0 && (
           <div>
             <p className="text-[14px] font-semibold text-ink">{t('웹에서 찾은 원문', 'Found on the web')}</p>

@@ -8,6 +8,7 @@ import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
+import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -45,6 +46,11 @@ export async function POST(request: Request) {
     progress: (slug) => readBuildProgress(service, userId, slug),
     setProgress: (slug, feature, done, note) => writeBuildProgress(service, userId, slug, feature, done, note),
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),
+    validate: async (idea) => {
+      const { opportunities } = await getOpportunities();
+      const report = await buildValidationReport(idea, opportunities).catch(() => null);
+      return report ? renderReport(report, siteUrl) : null;
+    },
   };
   const answer = await handleRpc(body, deps, siteUrl);
   return answer === null ? new Response(null, { status: 202 }) : NextResponse.json(answer);

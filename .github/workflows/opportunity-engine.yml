@@ -73,6 +73,22 @@ jobs:
           body="어떤 파일인지는 실행 기록의 오류 줄에 있습니다: $RUN_URL"
           if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
           else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
+      # PRD generation runs on the site, not here; this reads its log so a broken model or key becomes an issue.
+      - name: Check PRD generation over the last day
+        id: prd
+        continue-on-error: true
+        run: npx tsx scripts/check-prd-health.ts
+      - name: Report failing PRD generation
+        if: steps.prd.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="PRD 생성이 자주 실패합니다"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          body="지난 하루 성공률이 80% 아래입니다. 숫자는 실행 기록에 있습니다: $RUN_URL"
+          if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
       - name: Run the engine
         id: first
         continue-on-error: true

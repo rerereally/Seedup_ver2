@@ -29,6 +29,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     progress: async () => ({}),
     setProgress: async () => undefined,
     kept: async () => [],
+    validate: async (idea) => { calls.push('validate'); return `# report ${idea}`; },
     ...over,
   };
 }
@@ -49,9 +50,9 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
   assert.equal(garbage.error.code, -32700);
 });
 
-test('tools/list exposes the six tools', async () => {
+test('tools/list exposes every tool', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'get_kept_items', 'find_related_content']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'get_kept_items', 'find_related_content', 'validate_idea']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -150,4 +151,32 @@ test('derived MCP tokens come back the same for one issue time, so a second tool
   assert.notEqual(derivedToken('user-1', issued + 1, 'secret'), token);
   assert.notEqual(derivedToken('user-2', issued, 'secret'), token);
   assert.notEqual(derivedToken('user-1', issued, 'other'), token);
+});
+
+test('validate_idea checks the daily limit before making a report, and refuses a missing idea', async () => {
+  const used = deps();
+  const answer = await handleRpc(call('validate_idea', { idea: 'leaked api keys alert' }), used, 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.deepEqual(used.calls, ['consume', 'validate']);
+  assert.match(answer.result.content[0].text, /report leaked api keys alert/);
+  const limited = deps({ consume: async () => false });
+  const stopped = await handleRpc(call('validate_idea', { idea: 'leaked api keys alert' }), limited, 'https://x.test') as { result: { isError?: boolean } };
+  assert.equal(stopped.result.isError, true);
+  assert.deepEqual(limited.calls, []);
+  const empty = await handleRpc(call('validate_idea', { idea: ' ' }), deps(), 'https://x.test') as { result: { isError?: boolean } };
+  assert.equal(empty.result.isError, true);
+});
+
+import { firstUsersFrom, reportVerdict } from '../lib/opportunities/report';
+
+test('the report verdict uses the same 3-quotes-from-2-sites bar as published problems', () => {
+  assert.equal(reportVerdict(0, 0, 0).level, 'no_signal');
+  assert.equal(reportVerdict(3, 1, 0).level, 'more_evidence');
+  assert.equal(reportVerdict(2, 2, 0).level, 'more_evidence');
+  assert.equal(reportVerdict(3, 2, 3).level, 'crowded');
+  assert.equal(reportVerdict(4, 2, 2).level, 'go');
+});
+
+test('first users are one per post, in order', () => {
+  const row = (url: string) => ({ id: url, platform: 'hn' as const, quote: 'q', quoteKo: '', url, score: 0, postedAt: null });
+  assert.deepEqual(firstUsersFrom([row('a'), row('b'), row('a')]).map((item) => item.url), ['a', 'b']);
 });

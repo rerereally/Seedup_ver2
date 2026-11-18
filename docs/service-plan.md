@@ -234,10 +234,13 @@
 | PR | 내용 | 상태 |
 |---|---|---|
 | [#22](https://github.com/rerereally/Seedup_ver2/pull/22) | 맞춤 추천 작동, MCP 버튼 한 번 연결, 웹 원문 찾기 키 수정, 이 계획서 | 머지, 배포 |
-| [#23](https://github.com/rerereally/Seedup_ver2/pull/23) | 매일 수집이 시간 안에 끝나게(이미 본 저장소와 논문은 다시 분석하지 않음), 실패하면 이슈로 알림 | 머지 대기 |
-| [#24](https://github.com/rerereally/Seedup_ver2/pull/24) | 인증 요청 줄이기, 트렌드 전송량 줄이기, 속도 진단 바로잡기, 사용자 확인 가이드, 호스팅 비교 | 머지 대기 |
-| [#25](https://github.com/rerereally/Seedup_ver2/pull/25) | 관리자 화면 사용 지표(PRD 성공률 포함)와 DB 변경 확인, 엔진 실행 전 DB 점검 | 머지 대기(#23 먼저) |
-| [#26](https://github.com/rerereally/Seedup_ver2/pull/26) | 엔진이 한 번에 읽는 글 360 → 540, 보충 검색 12 → 20 | 머지 대기 |
+| [#23](https://github.com/rerereally/Seedup_ver2/pull/23) | 매일 수집이 시간 안에 끝나게(이미 본 저장소와 논문은 다시 분석하지 않음), 실패하면 이슈로 알림 | 머지, 배포 |
+| [#24](https://github.com/rerereally/Seedup_ver2/pull/24) | 인증 요청 줄이기, 트렌드 전송량 줄이기, 속도 진단 바로잡기, 사용자 확인 가이드, 호스팅 비교 | 머지, 배포 |
+| [#25](https://github.com/rerereally/Seedup_ver2/pull/25) | 관리자 화면 사용 지표(PRD 성공률 포함)와 DB 변경 확인, 엔진 실행 전 DB 점검 | 머지, 배포 |
+| [#26](https://github.com/rerereally/Seedup_ver2/pull/26) | 엔진이 한 번에 읽는 글 360 → 540, 보충 검색 12 → 20 | 머지, 배포 |
+| 다음 PR | 쓰지 않는 물리 효과 코드와 matter-js 삭제, PRD 생성이 하루 80% 아래로 실패하면 이슈, PRD 품질 평가 세트(수동 실행 워크플로), sitemap과 robots, **만들 가치 검증 리포트 첫 버전(MCP `validate_idea`와 API, 화면은 UI 작업 때)** | 리뷰 대기 |
+
+**아직 남은 것:** UI 작업 전부(미뤄 둠), 사용자가 할 키 설정과 결정, 사용자 확인, 내 스택 레이더(사용자 확인 결과를 본 뒤), 비공개 저장소 접근(GitHub App을 사용자가 만들어야 함), 3단계 전부.
 
 ### PR #22 내용
 

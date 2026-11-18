@@ -41,3 +41,15 @@ test('the schema check names the SQL file for each missing table, column or func
   ]);
   assert.deepEqual(gaps, [{ file: 'b.sql', missing: ['prd_runs', 'consume_ai_usage()'] }, { file: 'c.sql', missing: ['evidence_dossiers.shared'] }]);
 });
+
+import { evalSummary } from '../lib/opportunities/eval';
+
+test('the PRD evaluation summary counts only returned PRDs for issues and time, and only problem cases for citations', () => {
+  const summary = evalSummary([
+    { id: 'p1', kind: 'problem', ok: true, seconds: 40, issues: 0, requirements: 4, cited: 3, firstIssue: '' },
+    { id: 'p2', kind: 'problem', ok: true, seconds: 60, issues: 2, requirements: 4, cited: 1, firstIssue: 'R1' },
+    { id: 'p3', kind: 'problem', ok: false, seconds: 95, issues: 0, requirements: 0, cited: 0, firstIssue: '' },
+    { id: 'i1', kind: 'idea', ok: true, seconds: 30, issues: 1, requirements: 5, cited: 0, firstIssue: 'M' },
+  ]);
+  assert.deepEqual(summary, { total: 4, ok: 3, successRate: 75, clean: 1, meanIssues: 1, medianSeconds: 40, citedShare: 50 });
+});

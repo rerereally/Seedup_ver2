@@ -44,10 +44,21 @@ async function ingest(request: Request) {
   if (token) headers.authorization = `Bearer ${token}`;
 
   let upserted = 0;
+  let refreshed = 0;
+  let deferred = 0;
   let errors = 0;
   let skipped = 0;
   let pruned = 0;
   const seen = new Set<string>();
+  // Repositories already reviewed only get their numbers refreshed. Reviewing every match again with a free model
+  // (26 queries, up to 390 repos) ran past the workflow's 10-minute limit most days.
+  const { data: knownRows } = await supabase.from('github_trends').select('repo_full_name');
+  const known = new Set((knownRows ?? []).map((row) => String(row.repo_full_name)));
+  // New reviews stop at a count and a time budget, so the step always answers; the rest wait for the next run.
+  // shortcut: repos the review rejects are not stored, so they are reviewed again on later runs within this cap.
+  const maxNew = Math.max(0, Number(url.searchParams.get('maxNew') ?? 25));
+  const deadline = startedAt + Math.max(30, Number(url.searchParams.get('budgetSec') ?? 420)) * 1000;
+  let reviewed = 0;
 
   for (const query of GITHUB_QUERIES) {
     const search = `${query} pushed:>${pushedAfter}`;
@@ -71,6 +82,23 @@ async function ingest(request: Request) {
         }
 
         const topics = Array.isArray(repo.topics) ? repo.topics : [];
+        const now = new Date().toISOString();
+        if (known.has(repo.full_name)) {
+          const { error } = await supabase.from('github_trends').update({ description: repo.description, stars: repo.stargazers_count, forks: repo.forks_count, language: repo.language, topics, pushed_at: repo.pushed_at, last_seen_at: now, updated_at: now }).eq('repo_full_name', repo.full_name);
+          if (error) {
+            errors += 1;
+            console.error('GitHub trend refresh failed', repo.full_name, error);
+            continue;
+          }
+          refreshed += 1;
+          await recordGitHubStarSnapshot(supabase, { repoFullName: repo.full_name, stars: Number(repo.stargazers_count ?? 0), forks: Number(repo.forks_count ?? 0), pushedAt: repo.pushed_at ?? null });
+          continue;
+        }
+        if (reviewed >= maxNew || Date.now() > deadline) {
+          deferred += 1;
+          continue;
+        }
+        reviewed += 1;
         const { analysis } = await analyzeRepo({
           fullName: repo.full_name,
           description: repo.description,
@@ -137,15 +165,15 @@ async function ingest(request: Request) {
 
   await recordIngestRun(supabase, {
     source: 'github',
-    status: getRunStatus(errors, upserted),
+    status: getRunStatus(errors, upserted + refreshed),
     inserted: upserted,
     skipped,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { perQuery, minStars, pushedAfter, pruneDays, pruned, queries: GITHUB_QUERIES.length },
+    detail: { perQuery, minStars, pushedAfter, pruneDays, pruned, queries: GITHUB_QUERIES.length, refreshed, reviewed, deferred, maxNew },
   });
 
-  return NextResponse.json({ ok: true, upserted, skipped, pruned, errors, pushedAfter, minStars });
+  return NextResponse.json({ ok: true, upserted, refreshed, reviewed, deferred, skipped, pruned, errors, pushedAfter, minStars });
 }
 
 async function fetchGitHubJson(url: string, headers: HeadersInit) {

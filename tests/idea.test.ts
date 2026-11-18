@@ -85,3 +85,14 @@ test('the platform comes from the link host', () => {
   assert.equal(platformOfUrl(new URL('https://unix.stackexchange.com/questions/1')), 'stackexchange');
   assert.equal(platformOfUrl(new URL('https://blog.example.com/post')), 'web');
 });
+
+import { builtReply } from '../lib/opportunities/outreach';
+
+test('the built reply quotes the person, links the product and asks instead of selling', () => {
+  const reply = builtReply('I keep leaking API keys in my side projects', 'https://keyguard.dev', 'It scans every push.');
+  assert.match(reply, /you wrote "I keep leaking API keys in my side projects"/);
+  assert.match(reply, /fix it: It scans every push\./);
+  assert.match(reply, /https:\/\/keyguard\.dev/);
+  assert.match(reply, /\?/);
+  assert.ok(builtReply('x'.repeat(300), 'https://a.b').includes('…'));
+});

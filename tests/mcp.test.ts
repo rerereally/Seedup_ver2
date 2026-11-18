@@ -30,6 +30,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     setProgress: async () => undefined,
     kept: async () => [],
     validate: async (idea) => { calls.push('validate'); return `# report ${idea}`; },
+    watch: async () => { calls.push('watch'); return true; },
     ...over,
   };
 }
@@ -52,7 +53,7 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
 
 test('tools/list exposes every tool', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'get_kept_items', 'find_related_content', 'validate_idea']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -179,4 +180,28 @@ test('the report verdict uses the same 3-quotes-from-2-sites bar as published pr
 test('first users are one per post, in order', () => {
   const row = (url: string) => ({ id: url, platform: 'hn' as const, quote: 'q', quoteKo: '', url, score: 0, postedAt: null });
   assert.deepEqual(firstUsersFrom([row('a'), row('b'), row('a')]).map((item) => item.url), ['a', 'b']);
+});
+
+import { newFindings, watchMail } from '../lib/opportunities/watch';
+
+test('a watch reports only quotes and tools it has not seen, and the mail lists them with a way to stop', () => {
+  const quote = (url: string) => ({ id: url, platform: 'hn' as const, quote: `q ${url}`, quoteKo: '', url, score: 0, postedAt: null });
+  const rival = (url: string) => ({ kind: 'github' as const, name: `tool ${url}`, description: '', popularity: 0, url, createdAt: null, relation: 'direct' as const });
+  const found = newFindings({ quotes: [quote('a'), quote('b')], rivals: [rival('r1'), rival('r2')] }, ['a', 'r1']);
+  assert.deepEqual(found.quotes.map((row) => row.url), ['b']);
+  assert.deepEqual(found.rivals.map((row) => row.url), ['r2']);
+  const mail = watchMail('키 유출 알림', found, 'https://seedup.test');
+  assert.match(mail.subject, /키 유출 알림/);
+  assert.match(mail.text, /q b/);
+  assert.match(mail.text, /tool r2 \(같은 문제를 푸는 도구\)/);
+  assert.match(mail.text, /\/profile/);
+});
+
+test('watch_idea starts a watch and refuses an empty idea', async () => {
+  const used = deps();
+  const answer = await handleRpc(call('watch_idea', { idea: 'leaked api keys alert' }), used, 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.deepEqual(used.calls, ['watch']);
+  assert.match(answer.result.content[0].text, /Watching/);
+  const empty = await handleRpc(call('watch_idea', { idea: '' }), deps(), 'https://x.test') as { result: { isError?: boolean } };
+  assert.equal(empty.result.isError, true);
 });

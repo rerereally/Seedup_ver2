@@ -13,16 +13,17 @@ export async function readKept(service: SupabaseClient, userId: string, type: Ke
   if (error || !data?.length) return [];
 
   const repoIds = data.filter((row) => row.item_type === 'github' && row.item_id).map((row) => String(row.item_id));
-  const repos = new Map<string, { repo_url: string; language: string | null; stars: number | null }>();
+  const repos = new Map<string, { repo_url: string; language: string | null; stars: number | null; latest_release?: { tag: string; publishedAt: string; note: string } | null }>();
   if (repoIds.length) {
-    const { data: rows } = await service.from('github_trends').select('id,repo_url,language,stars').in('id', repoIds);
+    const { data: rows } = await service.from('github_trends').select('id,repo_url,language,stars,latest_release').in('id', repoIds);
     for (const row of rows ?? []) repos.set(String(row.id), row);
   }
 
   return data.map((row) => {
     const page = `${siteUrl}${getContentHref(String(row.item_type), row.item_id ? String(row.item_id) : null)}`;
     const repo = row.item_type === 'github' ? repos.get(String(row.item_id)) : undefined;
-    const facts = repo ? [repo.language, repo.stars ? `${repo.stars} stars` : null].filter(Boolean).join(', ') : '';
+    const release = repo?.latest_release;
+    const facts = repo ? [repo.language, repo.stars ? `${repo.stars} stars` : null, release ? `latest release ${release.tag} (${release.publishedAt.slice(0, 10)})${release.note ? `: ${release.note}` : ''}` : null].filter(Boolean).join(', ') : '';
     return { type: String(row.item_type), title: String(row.title), note: row.description ? String(row.description).slice(0, 280) : null, url: repo?.repo_url || page, page, savedAt: String(row.created_at), extra: facts || undefined };
   });
 }

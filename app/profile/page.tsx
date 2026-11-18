@@ -27,6 +27,7 @@ const TOOLS = [
   ['mark_feature_done', '다 만든 기능을 완료로 표시'],
   ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],
   ['find_related_content', '관련 글과 오픈소스 찾기'],
+  ['validate_idea', '아이디어 하나로 만들 가치 검증 리포트(원문, 경쟁 도구, 규모, 첫 사용자)'],
 ];
 
 function notice(status?: string) {

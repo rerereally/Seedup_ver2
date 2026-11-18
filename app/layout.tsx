@@ -11,6 +11,8 @@ const COPY = {
 export async function generateMetadata(): Promise<Metadata> {
   const copy = COPY[await getLang()];
   return {
+    // Absolute URLs for shared links and previews (Open Graph needs them).
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'),
     title: { default: copy.title, template: '%s | Seedup' },
     description: copy.description,
     openGraph: { title: copy.title, description: copy.short, siteName: 'Seedup', locale: copy.locale, type: 'website' },

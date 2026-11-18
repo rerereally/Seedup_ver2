@@ -10,6 +10,7 @@ import type { ExportFormat, Spec, SpecInput } from '@/lib/opportunities/spec';
 import type { Opportunity } from '@/lib/opportunities/types';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
+export const MCP_DAILY_REPORT_LIMIT = 3;
 const SUPPORTED_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 export type McpDeps = {
@@ -24,6 +25,8 @@ export type McpDeps = {
   setProgress: (slug: string, feature: { id: string; title: string }, done: boolean, note: string) => Promise<void>;
   /** What this user kept on the site (repos, articles, papers, products), newest first. */
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
+  /** A validation report for one idea, as Markdown; null when it could not be made. */
+  validate: (idea: string) => Promise<string | null>;
 };
 
 export const KEPT_TYPES = ['github', 'news', 'paper', 'ai_product', 'project'] as const;
@@ -93,6 +96,11 @@ export const TOOLS = [
     name: 'find_related_content',
     description: 'News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
+  },
+  {
+    name: 'validate_idea',
+    description: 'Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
   },
 ] as const;
 
@@ -192,6 +200,13 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const items = await deps.kept(type, limit);
     if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/news?tab=github.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
     return text(`${items.length} kept item${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map(renderKept).join('\n\n')}`);
+  }
+  if (name === 'validate_idea') {
+    const idea = String(args.idea ?? '').trim().slice(0, 300);
+    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
+    if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
+    const report = await deps.validate(idea);
+    return report ? text(report) : text('The report could not be made. Try again in a minute.', true);
   }
   if (name === 'find_related_content') {
     const idea = String(args.idea ?? '').trim().slice(0, 500);

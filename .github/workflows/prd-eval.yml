@@ -1,0 +1,42 @@
+name: PRD evaluation
+
+# Run by hand before and after changing a PRD model or prompt; compare the summary tables.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Model id (empty: the default free model, "exaone": K-EXAONE)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+      OPENROUTER_FALLBACK_MODELS: ${{ vars.OPENROUTER_FALLBACK_MODELS }}
+      OPENROUTER_FREE_ONLY: ${{ vars.OPENROUTER_FREE_ONLY }}
+      EXAONE_API_KEY: ${{ secrets.EXAONE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Make and score 20 PRDs
+        # The input goes through an env var, never straight into the shell line.
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          if [ -n "$MODEL" ]; then npx tsx scripts/eval-prd.ts --model "$MODEL" --out prd-eval.json
+          else npx tsx scripts/eval-prd.ts --out prd-eval.json; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prd-eval
+          path: prd-eval.json

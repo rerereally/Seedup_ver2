@@ -57,31 +57,6 @@ async function loadOpportunityEmbeddings(): Promise<Record<string, number[]>> {
   return local.default as Record<string, number[]>;
 }
 
-export type StageQuote = {
-  id: string;
-  platform: Platform;
-  platformLabel: string;
-  quote: string;
-  quoteKo: string;
-  url: string;
-};
-
-export type StageOpportunity = {
-  slug: string;
-  name: string;
-  nameEn?: string;
-  gapEn?: string;
-  gap: string;
-  problem: string;
-  keywords: string[];
-  directCount: number;
-  bg: string;
-  fg: string;
-  quotes: StageQuote[];
-};
-
-export type StageNews = { id: string; title: string; source: string | null; terms: string[] };
-
 const CHIP_COLORS: Array<[string, string]> = [
   ['#F75001', '#160700'], ['#2F6BFF', '#ffffff'], ['#8B3FE8', '#ffffff'], ['#D92D20', '#ffffff'],
   ['#34C759', '#04140a'], ['#12B5A6', '#031513'], ['#FFC400', '#171200'], ['#FF6FAE', '#1a0610'],
@@ -109,32 +84,6 @@ export function summarizeFunnel(opportunities: Opportunity[]): OpportunityFunnel
   };
 }
 
-export function toStageOpportunities(opportunities: Opportunity[]): StageOpportunity[] {
-  const colors = opportunityColors(opportunities);
-  return opportunities.map((item) => {
-    const { bg, fg } = colors[item.slug];
-    return {
-      slug: item.slug,
-      name: item.name,
-      ...(item.nameEn ? { nameEn: item.nameEn } : {}),
-      ...(item.gapEn ? { gapEn: item.gapEn } : {}),
-      gap: item.gap,
-      problem: item.problem,
-      keywords: item.keywords,
-      directCount: item.directCount,
-      bg,
-      fg,
-      quotes: item.evidence.map((evidence: Evidence) => ({
-        id: evidence.id,
-        platform: evidence.platform,
-        platformLabel: PLATFORM_LABELS[evidence.platform],
-        quote: evidence.quote,
-        quoteKo: evidence.quoteKo,
-        url: evidence.url,
-      })),
-    };
-  });
-}
 
 export function findEvidence(opportunities: Opportunity[], ids: string[]) {
   const wanted = new Set(ids);

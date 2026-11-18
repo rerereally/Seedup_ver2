@@ -79,3 +79,13 @@ test('a document-first PRD with no screens yet is not asked to place its feature
   const withScreen = normalizeSpec({ summary: 's', requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }, { title: 'g', requirements: [1] }], screens: [{ name: 'home', features: [1] }] }, 1);
   assert.match(specIssues(withScreen, input).join('\n'), /F-02 "g"이 어느 화면에도 없습니다/);
 });
+
+import { changedLines, lineDiff } from '../lib/opportunities/spec-diff';
+
+test('the PRD diff shows removed and added lines in order, and only changes in the short form', () => {
+  const before = '# PRD\n\n- R1 로그인\n- R2 검색\n- R3 알림';
+  const after = '# PRD\n\n- R1 로그인\n- R2 검색과 필터\n- R3 알림';
+  assert.deepEqual(lineDiff(before, after).filter((line) => line.kind !== 'same'), [{ kind: 'removed', text: '- R2 검색' }, { kind: 'added', text: '- R2 검색과 필터' }]);
+  assert.deepEqual(changedLines('a\n\nb', 'a\n\nb\n\nc').map((line) => line.text), ['c']);
+  assert.deepEqual(changedLines('same', 'same'), []);
+});

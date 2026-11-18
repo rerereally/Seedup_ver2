@@ -99,6 +99,10 @@ jobs:
         run: |
           sleep 300
           npx tsx scripts/run-opportunity-engine.ts --persist
+      # Watched ideas are checked after the run, once a week each; a failure here never fails the engine run.
+      - name: Check watched ideas
+        continue-on-error: true
+        run: npx tsx scripts/check-idea-watches.ts
       # A mail problem must never mark a good engine run as failed.
       - name: Mail subscribers about changes
         continue-on-error: true

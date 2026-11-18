@@ -11,6 +11,7 @@ import { selectInChunks } from '@/lib/supabase/chunks';
 import { saveIssue } from './issues';
 import { loadReadCandidates, pickReads } from './reads';
 import { claimSend, releaseSend } from './sends';
+import { sendWebhookDigest } from './webhooks';
 
 const WINDOW_HOURS: Record<DigestKind, number> = { changes: 26, weekly: 7 * 24 };
 const SEND_INTERVAL_MS = 600;
@@ -56,6 +57,12 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
   if (kind === 'weekly' && service) {
     const issue: DigestIssue = { kind: digest.kind, subject: digest.subject, headline: digest.headline, lines: digest.lines, top: digest.top, reads: digest.reads };
     await saveIssue(service, period, issue);
+  }
+
+  // Chat webhooks do not need the mail settings, only a deployed address for the links.
+  if (service && /^https:\/\//.test(siteUrl)) {
+    const posted = await sendWebhookDigest(service, kind, period, digest.subject, digest.text).catch(() => ({ sent: 0, failed: 0 }));
+    if (posted.sent || posted.failed) console.log(`webhooks: sent ${posted.sent}, failed ${posted.failed}`);
   }
 
   // A mail whose links point at localhost helps nobody, so a deployed address is required too.

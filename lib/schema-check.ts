@@ -13,6 +13,7 @@ export const SCHEMA_FILES: Array<{ file: string; tables?: string[]; columns?: Ar
   { file: 'dossier_share_2026_11.sql', columns: [['evidence_dossiers', 'shared']] },
   { file: 'usage_refund_2026_11.sql', functions: ['release_ai_usage'] },
   { file: 'view_count_2026_11.sql', functions: ['increment_content_view'] },
+  { file: 'idea_pages_2026_11.sql', tables: ['idea_pages', 'waitlist_signups'] },
 ];
 
 export type ApiSpec = { paths?: Record<string, unknown>; definitions?: Record<string, { properties?: Record<string, unknown> }> };

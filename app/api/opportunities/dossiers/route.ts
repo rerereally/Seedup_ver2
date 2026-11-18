@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
+import { safeSourceUrl } from '@/lib/opportunities/live-evidence';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -78,6 +79,23 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   const id = typeof body?.id === 'string' ? body.id : '';
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: '대상을 찾지 못했습니다.' }, { status: 400 });
+
+  // "I built this" makes the PRD public with the link, so it can appear under its problem; clearing it keeps sharing as is.
+  if (body && 'built' in body) {
+    const built = body.built as { url?: unknown; note?: unknown } | null;
+    const url = built ? safeSourceUrl(built.url) : null;
+    if (built && !url) return NextResponse.json({ error: 'http(s)로 시작하는 공개 주소를 넣어 주세요.' }, { status: 400 });
+    const patch = built && url
+      ? { built_url: url.toString(), built_note: String(built.note ?? '').trim().slice(0, 200) || null, built_at: new Date().toISOString(), shared: true }
+      : { built_url: null, built_note: null, built_at: null };
+    const { data: row, error } = await supabase.from('evidence_dossiers').update(patch).eq('id', id).eq('user_id', data.user.id).not('prd_markdown', 'is', null).select('id').maybeSingle();
+    if (error || !row) {
+      if (error) console.error('Dossier built update failed', error.message);
+      return NextResponse.json({ error: 'PRD가 저장된 항목에만 만든 것을 붙일 수 있습니다.' }, { status: error ? 503 : 404 });
+    }
+    return NextResponse.json({ ok: true, built: Boolean(built), shared: Boolean(built) || undefined, path: `/spec/${row.id}` });
+  }
+
   const shared = body?.shared === true;
 
   const { data: row, error } = await supabase

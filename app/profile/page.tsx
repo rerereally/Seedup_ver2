@@ -3,6 +3,7 @@ import { signOut, updateNewsletterSubscription, updateNotifyWebhook, updateProfi
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import McpConnect from '@/components/McpConnect';
+import IdeaWatches from '@/components/IdeaWatches';
 import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
 import WorkShell from '@/components/WorkShell';
@@ -27,6 +28,7 @@ const TOOLS = [
   ['mark_feature_done', '다 만든 기능을 완료로 표시'],
   ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],
   ['find_related_content', '관련 글과 오픈소스 찾기'],
+  ['watch_idea', '아이디어 지켜보기(매주 새 원문과 경쟁 도구를 메일로)'],
   ['validate_idea', '아이디어 하나로 만들 가치 검증 리포트(원문, 경쟁 도구, 규모, 첫 사용자)'],
 ];
 
@@ -88,6 +90,12 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 </div>
               ))}
             </dl>
+          </section>
+
+          <section>
+            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">5</span> 지켜보는 아이디어</h2>
+            <p className="mt-2 text-[15px] text-muted">매주 한 번 다시 찾아보고, 새 원문이나 경쟁 도구가 생기면 메일로 알려 드립니다.</p>
+            <IdeaWatches />
           </section>
 
           <section className="border-t border-outline-strong pt-8">

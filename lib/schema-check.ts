@@ -14,6 +14,9 @@ export const SCHEMA_FILES: Array<{ file: string; tables?: string[]; columns?: Ar
   { file: 'usage_refund_2026_11.sql', functions: ['release_ai_usage'] },
   { file: 'view_count_2026_11.sql', functions: ['increment_content_view'] },
   { file: 'notify_webhook_2026_11.sql', columns: [['user_onboarding', 'notify_webhook']] },
+  { file: 'idea_watches_2026_11.sql', tables: ['idea_watches'] },
+  { file: 'built_2026_11.sql', columns: [['evidence_dossiers', 'built_url'], ['evidence_dossiers', 'built_at']] },
+  { file: 'repo_releases_2026_11.sql', columns: [['github_trends', 'latest_release']] },
 ];
 
 export type ApiSpec = { paths?: Record<string, unknown>; definitions?: Record<string, { properties?: Record<string, unknown> }> };

@@ -283,6 +283,7 @@ export type GitHubTrend = {
   topics: string[] | null;
   pushed_at: string | null;
   last_seen_at?: string | null;
+  latest_release?: { tag: string; name: string; url: string; publishedAt: string; note: string } | null;
   content_type?: string | null;
   newsletter_section?: string | null;
   newsletter_priority?: number | null;

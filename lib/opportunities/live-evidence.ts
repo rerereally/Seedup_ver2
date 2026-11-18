@@ -13,7 +13,8 @@ const MAX_POSTS = 24;
 const MAX_QUOTES = 10;
 const PLATFORMS = new Set<Platform>(['github', 'hn', 'stackoverflow', 'devto', 'lobsters', 'stackexchange', 'forum', 'web']);
 
-const secret = () => process.env.LIVE_EVIDENCE_SECRET?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
+// The site's Supabase secret is the fallback: it is set wherever the PRD routes run (SUPABASE_SECRET_KEY, see lib/supabase/admin).
+const secret = () => process.env.LIVE_EVIDENCE_SECRET?.trim() || process.env.SUPABASE_SECRET_KEY?.trim() || '';
 const payload = (row: Evidence) => JSON.stringify([row.id, row.platform, row.quote, row.quoteKo, row.url, row.score, row.postedAt]);
 
 export function signEvidence(row: Evidence, key = secret()): LiveQuote | null {

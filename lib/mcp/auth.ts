@@ -1,9 +1,16 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-export const newToken = () => `sdp_${randomBytes(24).toString('hex')}`;
+/**
+ * The token for one user and issue time, derived with the server secret instead of stored, so connecting a second
+ * tool can hand out the same token again instead of replacing it (which would cut off the first tool). Only the
+ * hash is kept; rotating the secret makes old tokens underivable, and the next connect then issues a new one.
+ */
+export function derivedToken(userId: string, issuedAtMs: number, key: string) {
+  return `sdp_${createHmac('sha256', key).update(`mcp:${userId}:${issuedAtMs}`).digest('hex').slice(0, 48)}`;
+}
 
 /** The user a bearer token belongs to, or null. Tokens are looked up by hash, never stored in plain text. */
 export async function userForToken(service: SupabaseClient, authorization: string | null) {

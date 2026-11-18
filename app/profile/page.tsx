@@ -7,6 +7,7 @@ import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
 import WorkShell from '@/components/WorkShell';
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -21,7 +22,10 @@ export const metadata: Metadata = {
 const TOOLS = [
   ['search_opportunities', '만들고 싶은 것으로 검증된 기회 찾기'],
   ['get_opportunity', '원문과 이미 있는 도구까지 한 번에'],
-  ['generate_verified_prd', '원문이 붙은 PRD 만들기'],
+  ['generate_verified_prd', '원문이 붙은 PRD 만들기 (AGENTS.md, CLAUDE.md, Cursor 규칙, 빌더 프롬프트)'],
+  ['get_build_checklist', 'PRD 기능별 구현 체크리스트'],
+  ['mark_feature_done', '다 만든 기능을 완료로 표시'],
+  ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],
   ['find_related_content', '관련 글과 오픈소스 찾기'],
 ];
 
@@ -45,10 +49,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = data.user;
   if (!user) redirect('/login');
 
-  const [{ data: profile }, { data: onboarding }, params] = await Promise.all([
+  const [{ data: profile }, { data: onboarding }, params, connected] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     supabase.from('user_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
     searchParams,
+    createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data }) => Boolean(data)) ?? Promise.resolve(false),
   ]);
 
   const fullName = profile?.full_name ?? user.user_metadata?.full_name ?? '';
@@ -66,10 +71,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         {statusNotice && <p role="status" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{statusNotice}</p>}
 
         <div className="flex max-w-[860px] flex-col gap-10">
-          <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} />
+          <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} connected={connected} />
 
           <section>
-            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">3</span> 쓸 수 있는 도구</h2>
+            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">4</span> 쓸 수 있는 도구</h2>
             <dl className="rows mt-3">
               {TOOLS.map(([name, detail]) => (
                 <div key={name} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-4">

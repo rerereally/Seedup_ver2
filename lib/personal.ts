@@ -1,5 +1,9 @@
 import { getContentHref } from './content-targets';
 import { cached } from './cache';
+import type { ScrapItem } from './data';
+import { loadReadCandidates } from './newsletter/reads';
+import { behaviorSignals, buildRecommendationProfile, scoreNewsletterItems } from './recommendations';
+import type { ScoredNewsletterItem } from './recommendations';
 import { createEmbedding } from './opportunities/llm';
 import { cosineSimilarity } from './opportunities/rules';
 import type { Opportunity } from './opportunities/types';
@@ -65,11 +69,49 @@ export function mixByKind(items: ForYouItem[], limit: number) {
   return out;
 }
 
+type KeptRow = Pick<ScrapItem, 'item_type' | 'item_id' | 'title' | 'tag'>;
+
+const KIND_BY_PREFIX: Record<string, string> = { news: '글', paper: '논문', product: 'AI 제품', repo: '저장소', project: '프로젝트 아이디어' };
+
+/**
+ * Picks from the curated pool by rules alone: onboarding answers, plus the topics of what the reader kept or liked;
+ * kept and disliked items drop out. Needs no embedding key, so it works wherever the site runs.
+ */
+export async function ruleReads(userId: string, answers: unknown, kept: KeptRow[]): Promise<ScoredNewsletterItem[]> {
+  const service = createAdminClient();
+  if (!service) return [];
+  const [candidates, { data: reactions }] = await Promise.all([
+    cached('read-candidates', () => loadReadCandidates(service), 10 * 60_000),
+    service.from('content_reactions').select('item_type,item_id,reaction').eq('user_id', userId),
+  ]);
+  const behavior = behaviorSignals(kept, (reactions ?? []) as Array<{ item_type: string; item_id: string; reaction: string }>, candidates);
+  return scoreNewsletterItems(candidates, { ...buildRecommendationProfile((answers ?? null) as Record<string, unknown> | null, behavior.liked), ...behavior });
+}
+
+export function ruleItem(row: ScoredNewsletterItem, interests: string[], hasKept: boolean): ForYouItem {
+  const { content } = row;
+  const hit = reasonFor(`${content.title} ${content.metadata.short_summary} ${content.metadata.topic_tags.join(' ')}`, interests, false);
+  // Without interests or keeps, "close to your interests" would be untrue; the scorer's own reason says why instead.
+  const reason = hit.startsWith('관심 분야') ? hit : hasKept && row.reasons[0]?.includes('저장') ? '킵한 것과 비슷함' : row.reasons[0] ?? '이번 주 읽을 만한 것';
+  return { key: content.id, kind: KIND_BY_PREFIX[content.id.split(':')[0]] ?? '글', title: content.title, href: content.href, source: content.sourceLabel, reason, score: row.score };
+}
+
 /**
  * A mixed "for you" list: problems to build, reads, repos and products, ranked by how close each is to the person's
- * own words. Nothing to go on (no onboarding, nothing kept, no plans) returns an empty list and the page asks instead.
+ * own words. Uses embeddings when the site has an embedding key; without one (or when they find nothing) it falls
+ * back to the rule picks, so the list is never empty just because a key is missing.
  */
-export async function forYou(userId: string, input: { answers: unknown; keptTitles: string[]; keptKeys: Set<string>; planTitles: string[]; opportunities: Opportunity[]; opportunityEmbeddings: Record<string, number[]> }, limit = 8): Promise<ForYouItem[]> {
+export async function forYou(userId: string, input: { answers: unknown; kept: KeptRow[]; keptKeys: Set<string>; planTitles: string[]; opportunities: Opportunity[]; opportunityEmbeddings: Record<string, number[]> }, limit = 8): Promise<ForYouItem[]> {
+  const keptTitles = input.kept.map((item) => item.title);
+  const interests = interestTokens(input.answers);
+  const hasKept = keptTitles.length > 0;
+  const embedded = await embeddedPicks(userId, { ...input, keptTitles }, interests, hasKept).catch(() => []);
+  if (embedded.length) return mixByKind(embedded, limit);
+  const rules = await ruleReads(userId, input.answers, input.kept).catch(() => []);
+  return mixByKind(rules.map((row) => ruleItem(row, interests, hasKept)), limit);
+}
+
+async function embeddedPicks(userId: string, input: { answers: unknown; keptTitles: string[]; keptKeys: Set<string>; planTitles: string[]; opportunities: Opportunity[]; opportunityEmbeddings: Record<string, number[]> }, interests: string[], hasKept: boolean): Promise<ForYouItem[]> {
   const text = profileText(input.answers, input.keptTitles, input.planTitles);
   if (!text) return [];
   // One embedding per person and profile, reused for an hour; the profile text is the cache key so a change re-embeds.
@@ -80,8 +122,6 @@ export async function forYou(userId: string, input: { answers: unknown; keptTitl
     return embedding;
   }, 60 * 60_000).catch(() => null);
   if (!vector) return [];
-  const interests = interestTokens(input.answers);
-  const hasKept = input.keptTitles.length > 0;
 
   const problems: ForYouItem[] = input.opportunities.flatMap((item) => {
     const embedding = input.opportunityEmbeddings[item.slug];
@@ -103,6 +143,6 @@ export async function forYou(userId: string, input: { answers: unknown; keptTitl
     if (!title) return [];
     return [{ key, kind: label, title, href: getContentHref(itemType, row.source_id), source: String(row.metadata?.source ?? ''), reason: reasonFor(row.content, interests, hasKept), score: Number(row.similarity) }];
   });
-
-  return mixByKind([...problems, ...content], limit);
+  // Embedded problems alone are not a reading list; with no content matches the rule picks take over.
+  return content.length ? [...problems, ...content] : [];
 }

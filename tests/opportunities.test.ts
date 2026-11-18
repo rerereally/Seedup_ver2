@@ -409,3 +409,21 @@ test('the for-you list takes the best of each kind in turn', () => {
   const mixed = mixByKind([row('repo', 0.9), row('repo', 0.8), row('repo', 0.7), row('read', 0.4), row('problem', 0.25)], 4);
   assert.deepEqual(mixed.map((item) => item.key), ['repo0.9', 'read0.4', 'problem0.25', 'repo0.8']);
 });
+
+import { tidyOpportunities } from '../lib/opportunities/review';
+test('a reviewed list hides rejected problems, drops filed-wrong quotes, and counts one sentence once', () => {
+  const quote = (n: number, platform: Evidence['platform'], text = `a distinct complaint number ${n}`): Evidence => ({ ...evidence(n), platform, quote: text });
+  const make = (slug: string, items: Evidence[]): Opportunity => ({ name: 'x', problem: '', gap: '', keywords: [], status: 'open', qualified: true, supply: [], directCount: 0, firstSeenAt: null, followersAfterSignal: 0, slug, evidence: items, platforms: [...new Set(items.map((item) => item.platform))] });
+  const [guardrails, repeated] = tidyOpportunities([
+    make('milvus-missing-now-function', [quote(1, 'github'), quote(2, 'stackoverflow'), quote(3, 'hn')]),
+    make('repeated', [quote(1, 'hn', 'Same words here twice'), quote(2, 'github', 'same words here twice'), quote(3, 'hn')]),
+    make('ai-agent-guardrails', [quote(1, 'github', 'WHEN ASKED TO REBOOT A SERVER IT WENT BACK ON THE SERVER'), quote(2, 'hn'), quote(3, 'github'), quote(4, 'hn')]),
+    make('single', [quote(1, 'hn'), quote(2, 'hn', 'A distinct complaint number 1')]),
+  ]);
+  assert.equal(guardrails.slug, 'ai-agent-guardrails');
+  assert.equal(guardrails.evidence.length, 3);
+  assert.equal(guardrails.qualified, true);
+  assert.equal(repeated.evidence.length, 2);
+  assert.equal(repeated.qualified, false);
+  assert.deepEqual(repeated.platforms, ['hn']);
+});

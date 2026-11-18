@@ -3,6 +3,7 @@ import { signOut, updateNewsletterSubscription, updateNotifyWebhook, updateProfi
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import McpConnect from '@/components/McpConnect';
+import IdeaPages from '@/components/IdeaPages';
 import IdeaWatches from '@/components/IdeaWatches';
 import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
@@ -93,6 +94,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </section>
 
           <section>
+            <h2 className="text-[17px] font-semibold text-ink">아이디어 소개 페이지</h2>
+            <p className="mt-2 text-[15px] text-muted">만들기 전에 아이디어를 소개하는 페이지와 대기자 명단을 만들어, 실제로 신청하는 사람이 있는지 셉니다. 신청한 이메일은 나에게만 보입니다.</p>
+            <IdeaPages />
             <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">5</span> 지켜보는 아이디어</h2>
             <p className="mt-2 text-[15px] text-muted">매주 한 번 다시 찾아보고, 새 원문이나 경쟁 도구가 생기면 메일로 알려 드립니다.</p>
             <IdeaWatches />

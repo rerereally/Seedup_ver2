@@ -22,3 +22,15 @@ test('inBatches with no items finishes without calling run', async () => {
   await inBatches([], 3, async () => { calls += 1; });
   assert.equal(calls, 0);
 });
+
+import { newPageSlug, normalizeEmail, pageCopy, signupsCsv } from '../lib/idea-pages';
+
+test('idea page helpers: slug shape, email check, default headline, safe CSV', () => {
+  assert.match(newPageSlug(), /^[a-z0-9]{10}$/);
+  assert.notEqual(newPageSlug(), newPageSlug());
+  assert.equal(normalizeEmail(' Me@Example.COM '), 'me@example.com');
+  for (const bad of ['', 'no-at', 'a@b', 'a b@c.de', `${'x'.repeat(200)}@a.co`]) assert.equal(normalizeEmail(bad), null, bad);
+  assert.equal(pageCopy('API 키 유출을 바로 알려 주는 도구', '', '').headline, 'API 키 유출을 바로 알려 주는 도구');
+  assert.equal(pageCopy('idea', '키 유출 알림', 'pitch').headline, '키 유출 알림');
+  assert.equal(signupsCsv([{ email: '=cmd@x.io', created_at: '2026-11-18' }]), 'email,signed_up_at\n"\'=cmd@x.io","2026-11-18"');
+});

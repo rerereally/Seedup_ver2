@@ -5,7 +5,7 @@ import { builtReply } from '@/lib/opportunities/outreach';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-/** Read, copy, download or delete a saved evidence dossier from the 보관함 card. */
+/** Read, copy, download or delete a saved evidence dossier from the 북마크 card. */
 export default function DossierPrd({ id, title, markdown, shared: initiallyShared = false, built: initiallyBuilt = null, quotes = [] }: { id: string; title: string; markdown: string | null; shared?: boolean; built?: { url: string; note: string } | null; quotes?: Array<{ quote: string; url: string }> }) {
   const router = useRouter();
   const [message, setMessage] = useState('');
@@ -74,7 +74,7 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
   };
 
   const remove = async () => {
-    if (!window.confirm(`'${title}'을(를) 보관함에서 지울까요? 되돌릴 수 없습니다.`)) return;
+    if (!window.confirm(`'${title}'을(를) 북마크에서 지울까요? 되돌릴 수 없습니다.`)) return;
     setDeleting(true);
     try {
       const response = await fetch(`/api/opportunities/dossiers?id=${encodeURIComponent(id)}`, { method: 'DELETE' });

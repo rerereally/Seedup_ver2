@@ -128,12 +128,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           프로젝트 목록
         </Link>
 
-        <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
-
-          {/* ── 좌측 메인 컬럼 ── */}
-          <div className="flex min-w-0 flex-col gap-5">
-
-            {/* 헤더 */}
+        <header className="mt-4">
+          {/* 헤더 */}
             <div className="min-w-0">
               {/* 메타 배지 */}
               <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
@@ -162,6 +158,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 {displayTitle}
               </h1>
             </div>
+        </header>
+        <div className="mt-8 page-split">
+
+          {/* ── 좌측 메인 컬럼 ── */}
+          <div className="flex min-w-0 flex-col gap-5">
+
 
             {/* 프로젝트 상세 설명 — 마크다운 렌더링 */}
             {project.description && (
@@ -262,7 +264,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 <Terminal className="h-5 w-5 text-ink" />
                 <h2 className="text-xl font-bold tracking-tight text-ink">만드는 순서</h2>
                 <span className="ml-auto text-[13px] font-medium text-muted">
-                  {durationLabel}{hoursLabel ? ` · ${hoursLabel}` : ''}
+                  {durationLabel}{hoursLabel ? `, ${hoursLabel}` : ''}
                 </span>
               </div>
 
@@ -285,7 +287,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
                             {objective && <p className="mt-2 text-sm leading-6 text-muted">{objective}</p>}
                             {!!tasks.length && <ul className="mt-3 grid gap-1">{tasks.map((task) => <li key={task} className="text-xs leading-5 text-muted">- {task}</li>)}</ul>}
-                            {(deliverable || doneWhen || hours || stepTools.length > 0 || acceptanceCriteria.length || risks.length) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}{acceptanceCriteria.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">검증 기준 </span><span className="text-muted">{acceptanceCriteria.join(' · ')}</span></div>}{risks.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">주의할 점 </span><span className="text-muted">{risks.join(' · ')}</span></div>}</div>}
+                            {(deliverable || doneWhen || hours || stepTools.length > 0 || acceptanceCriteria.length || risks.length) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{hours && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">예상 시간 </span><span className="text-muted">{hours}</span></div>}{stepTools.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs"><span className="font-bold text-ink">도구 </span><span className="text-muted">{stepTools.join(', ')}</span></div>}{deliverable && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">산출물 </span><span className="text-muted">{deliverable}</span></div>}{doneWhen && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">완료 조건 </span><span className="text-muted">{doneWhen}</span></div>}{acceptanceCriteria.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">검증 기준 </span><span className="text-muted">{acceptanceCriteria.join(', ')}</span></div>}{risks.length > 0 && <div className="rounded-xl bg-surface-low p-3 text-xs sm:col-span-2"><span className="font-bold text-ink">주의할 점 </span><span className="text-muted">{risks.join(', ')}</span></div>}</div>}
 
                             {/* 이전 문자열 plan 호환용 메타 */}
                             {meta.length > 0 && (
@@ -353,7 +355,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </div>
 
           {/* ── 우측 사이드바 ── */}
-          <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+          <aside className="page-side">
             {/* 다음에 할 것 */}
             <section className="card overflow-hidden">
               <h2 className="flex items-center gap-2 border-b border-outline-soft p-5 text-xl font-bold tracking-tight text-ink">
@@ -363,7 +365,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <ul className="divide-y divide-outline-soft">
                 {[
                   {
-                    label: '아이디어 평가하기',
+                    label: '아이디어 검증하기',
                     desc: '이 프로젝트의 시장성과 난이도를 분석합니다',
                     href: `/ideas?idea=${encodeURIComponent(`${displayTitle}를 7일 안에 만들 수 있는 초보자용 프로젝트로 평가해줘`)}`,
                   },

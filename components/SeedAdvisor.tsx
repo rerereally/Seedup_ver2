@@ -322,7 +322,7 @@ export default function SeedAdvisor() {
                   <a href={repo.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{repo.name}</a>
                 </h2>
                 <p className="text-[13px] text-muted">
-                  {[repo.language, repo.stars ? `★ ${repo.stars.toLocaleString('en-US')}` : '', repo.pushedAt ? `${formatDate(repo.pushedAt)} 작업` : ''].filter(Boolean).join(' · ')}
+                  {[repo.language, repo.stars ? `★ ${repo.stars.toLocaleString('en-US')}` : '', repo.pushedAt ? `${formatDate(repo.pushedAt)} 작업` : ''].filter(Boolean).join(', ')}
                 </p>
               </div>
               <p className="mt-2 leading-7 text-muted">{idea?.summary || repo.description || '설명이 없는 레포입니다.'}</p>
@@ -385,7 +385,7 @@ export default function SeedAdvisor() {
                       <a href={paper.url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold leading-6 text-ink hover:underline">
                         {paper.title} <ArrowUpRight aria-hidden="true" className="inline h-3.5 w-3.5 text-muted" />
                       </a>
-                      <p lang="en" className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-muted">{[paper.year, paper.summary].filter(Boolean).join(' · ')}</p>
+                      <p lang="en" className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-muted">{[paper.year, paper.summary].filter(Boolean).join(', ')}</p>
                     </li>
                   ))}
                 </ul>

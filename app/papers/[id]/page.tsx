@@ -85,17 +85,19 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
             논문 목록
           </Link>
 
-          <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="flex min-w-0 flex-col gap-5">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
+          <header className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted">
                   <span className="chip">{paper.review_type ?? '논문'}</span>
                   {paper.has_code && <span className="chip">코드 공개</span>}
                   {paper.difficulty && <span>{paper.difficulty}</span>}
                   {publishedAt && <span>{publishedAt}</span>}
                 </div>
-                <h1 className="page-intro-title mt-4 break-words md:text-[44px] md:leading-[1.14]">{paper.title}</h1>
+                <h1 className="page-intro-title mt-4 break-words md:text-[34px] md:leading-[1.2]">{paper.title}</h1>
                 {heroSummary && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{heroSummary}</p>}
+          </header>
+          <div className="mt-8 page-split">
+            <div className="flex min-w-0 flex-col gap-5">
+              <div className="min-w-0">
 
                 <div className="mt-6 flex flex-wrap items-center gap-2">
                   <ScrapButton itemType="paper" itemId={paper.id} title={paper.title} description={heroSummary} tag={paper.review_type ?? 'paper'} initialSaved={Boolean(existingScrap)} className="btn-quiet" />
@@ -120,7 +122,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </div>
 
               <section className="border-t border-outline-soft pt-6">
-                <h2 className="text-xl font-bold tracking-tight text-ink">논문 정보</h2>
+                <h2 className="text-[18px] font-bold tracking-tight text-ink">논문 정보</h2>
                 <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
                   {scoreCards.map(([label, value]) => (
                     <div key={label} className="border-t border-outline-soft pt-3">
@@ -133,7 +135,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               {!!readingPoints.length && (
                 <section className="border-t border-outline-soft pt-6">
-                  <h2 className="text-xl font-bold tracking-tight text-ink">읽을 때 볼 것</h2>
+                  <h2 className="text-[18px] font-bold tracking-tight text-ink">읽을 때 볼 것</h2>
                   <ol className="mt-2 divide-y divide-outline-soft">
                     {readingPoints.map((point, index) => (
                       <li key={String(point)} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
@@ -149,7 +151,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
               {!!paper.key_points?.length && (
                 <section className="border-t border-outline-soft pt-6">
-                  <h2 className="text-xl font-bold tracking-tight text-ink">핵심 내용</h2>
+                  <h2 className="text-[18px] font-bold tracking-tight text-ink">핵심 내용</h2>
                   <ol className="mt-2 divide-y divide-outline-soft">
                     {paper.key_points.map((point, index) => (
                       <li key={point} className="flex gap-4 py-3 text-[15px] leading-7 text-ink">
@@ -162,7 +164,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               )}
 
               <section className="border-t border-outline-soft pt-6">
-                <h2 className="mb-2 flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
+                <h2 className="mb-2 flex items-center gap-2 text-[18px] font-bold tracking-tight text-ink">
                   <FlaskConical className="h-5 w-5" />
                   읽기 전에
                 </h2>
@@ -193,13 +195,13 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </section>
 
               <section className="border-t border-outline-soft">
-                <h2 className="flex items-center gap-2 border-b border-outline-soft py-5 text-xl font-bold tracking-tight text-ink">
+                <h2 className="flex items-center gap-2 border-b border-outline-soft py-5 text-[18px] font-bold tracking-tight text-ink">
                   <Lightbulb className="h-4 w-4" />
                   다음에 할 것
                 </h2>
                 <ul className="divide-y divide-outline-soft">
                   {[
-                    { label: paper.implementation_idea ? '구현 아이디어 평가' : '프로젝트로 바꾸기', href: `/ideas?idea=${encodeURIComponent(buildPrompt)}` },
+                    { label: paper.implementation_idea ? '구현 아이디어 검증' : '프로젝트로 바꾸기', href: `/ideas?idea=${encodeURIComponent(buildPrompt)}` },
                     { label: paper.code_url ? '코드 저장소 열기' : '관련 프로젝트 보기', href: paper.code_url ?? '/projects', external: Boolean(paper.code_url) },
                     { label: '논문 목록으로', href: '/news?tab=paper' },
                   ].map((action) => (
@@ -214,7 +216,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               </section>
             </div>
 
-            <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+            <aside className="page-side">
               <ArticleAssistant title={paper.title} summary={heroSummary} content={paperMarkdown} />
 
               {(paper.implementation_idea || paper.service_idea) && (

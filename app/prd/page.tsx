@@ -19,10 +19,19 @@ import { createClient, getCurrentUser } from '@/lib/supabase/server';
 export const metadata: Metadata = { title: 'PRD' };
 
 // One-line ideas to start from: what the workspace finds for them depends on the quotes stored that day.
-const IDEAS: Array<[string, string]> = [
-  ['LLM 제공사를 코드 수정 없이 바꾸는 도구', 'Switch LLM providers without code changes'],
-  ['AI 에이전트의 DB 접근을 막는 가드레일', 'Guardrails between AI agents and databases'],
-  ['Tenor 대신 쓸 GIF 검색 API', 'A GIF search API to replace Tenor'],
+// [short name ko, short name en, the idea ko, the idea en]
+const IDEAS: Array<[string, string, string, string]> = [
+  ['LLM 교체 도구', 'LLM switch', 'LLM 제공사를 코드 수정 없이 바꾸는 도구', 'Switch LLM providers without code changes'],
+  ['에이전트 가드레일', 'Agent guardrails', 'AI 에이전트의 DB 접근을 막는 가드레일', 'Guardrails between AI agents and databases'],
+  ['GIF 검색 API', 'GIF search API', 'Tenor 대신 쓸 GIF 검색 API', 'A GIF search API to replace Tenor'],
+];
+
+// What every PRD holds: [Korean name, Korean note, English name, English note].
+const CONTENTS: Array<[string, string, string, string]> = [
+  ['요구사항', '원문이 받쳐 주는 것만 근거로, 나머지는 가설로', 'Requirements', 'Backed by quotes, or marked as hypotheses'],
+  ['기능 명세', '요구사항, 기능, 화면이 이어진 그래프', 'Feature spec', 'A graph linking requirements, features and screens'],
+  ['유저플로우와 와이어프레임', '화면 순서와 화면별 기능 배치', 'User flow and wireframes', 'Screen order and what each screen holds'],
+  ['에이전트 파일', 'AGENTS.md, CLAUDE.md, .cursorrules로 내보내기', 'Agent file', 'Export as AGENTS.md, CLAUDE.md or .cursorrules'],
 ];
 
 /**
@@ -45,37 +54,57 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
       <>
         <Header />
         <main id="main-content" className="page-shell grow">
-          <section className="mx-auto flex max-w-[860px] flex-col items-center justify-center text-center lg:min-h-[min(calc(100svh-120px),780px)]" aria-labelledby="prd-start-heading">
-            <h1 id="prd-start-heading" className="t-display text-[clamp(32px,4vw,48px)]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
-            <div className="mt-8 w-full"><IdeaComposer examples={IDEAS.map(([ko, en]) => ({ label: t(ko, en), idea: t(ko, en) }))} /></div>
-            {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed mt-4">{t('먼저 예시 PRD 보기', 'See an example PRD first')}</Link>}
+          <header>
+            <h1 id="prd-start-heading" className="page-intro-title md:text-[38px]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
+            <p className="page-intro-description">{t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.')}</p>
+          </header>
+          <div className="page-split mt-6">
+          <div className="min-w-0">
+          <section aria-labelledby="prd-start-heading">
+            <div className="w-full"><IdeaComposer examples={IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) }))} /></div>
           </section>
 
-          <section className="mx-auto mt-32 max-w-[860px] pb-16" aria-labelledby="verified">
-            <h2 id="verified" className="t-section scroll-mt-24">{t('기준을 통과한 문제로 시작하기', 'Start from a problem that passed the bar')}</h2>
-            <p className="mt-2 text-[15px] text-muted">{t('원문 3건, 플랫폼 2곳을 넘은 문제입니다. 저장된 PRD가 있으면 바로 열립니다.', 'Problems with 3+ quotes from 2+ sites. A saved PRD opens right away.')}</p>
+          <section className="mt-10 pb-16" aria-labelledby="verified">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <h2 id="verified" className="scroll-mt-6 text-[17px] font-bold tracking-[-0.015em]">{t('또는 검증된 문제로 시작하기', 'Or start from a verified problem')}</h2>
+              <Link href="/opportunities" className="link-seed">{t('인사이트 전체 보기', 'See all insights')}</Link>
+            </div>
+            <p className="text-[13px] text-muted">{t('원문 3건, 플랫폼 2곳을 넘은 문제입니다. 저장된 PRD가 있으면 바로 열립니다.', 'Problems with 3+ quotes from 2+ sites. A saved PRD opens right away.')}</p>
             {qualified.length ? (
-              <ul className="rows mt-5">
+              <ul className="rows mt-3">
                 {qualified.map((item) => {
                   const text = localizedOpportunity(item, lang);
                   return (
                     <li key={item.slug}>
-                      <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="group flex min-h-20 items-center justify-between gap-6 py-4">
+                      <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="group flex min-h-16 items-center justify-between gap-6 py-3">
                         <span className="min-w-0">
-                          <span className="block text-[17px] font-semibold text-ink underline-offset-4 group-hover:underline">{text.name}</span>
+                          <span className="block text-[15px] font-semibold text-ink underline-offset-4 group-hover:underline">{text.name}</span>
                           <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{text.problem}</span>
                         </span>
-                        <span className="shrink-0 text-right text-sm text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}<span className={`mt-0.5 block font-semibold ${saved.has(item.slug) ? 'text-seed' : ''}`}>{saved.has(item.slug) ? t('PRD 바로 보기', 'Read the PRD') : t('PRD 만들기', 'Make a PRD')}</span></span>
+                        <span className="shrink-0 text-right text-sm text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}{saved.has(item.slug) && <span className="mt-0.5 block font-semibold text-seed">{t('PRD 바로 보기', 'Read the PRD')}</span>}</span>
                       </Link>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="empty-state mt-10">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
+              <p className="empty-state mt-4">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
             )}
-            <div><Link href="/opportunities" className="link-seed mt-6">{t('기회 전체 보기', 'See all opportunities')}</Link></div>
           </section>
+          </div>
+
+          <aside className="page-side">
+            <section aria-labelledby="prd-contents">
+              <h2 id="prd-contents" className="text-[16px] font-bold">{t('PRD에 들어가는 것', 'What the PRD contains')}</h2>
+              <ul className="rows mt-3 text-[14px] leading-6">
+                {CONTENTS.map(([ko, koWhat, en, enWhat]) => (
+                  <li key={ko} className="py-3"><b className="block font-semibold">{t(ko, en)}</b><span className="text-muted">{t(koWhat, enWhat)}</span></li>
+                ))}
+              </ul>
+              {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="btn-quiet mt-4 w-full">{t('예시 PRD 보기', 'See an example PRD')}</Link>}
+            </section>
+          </aside>
+          </div>
         </main>
         <Footer />
       </>
@@ -112,7 +141,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
           {lead && <> <span aria-hidden="true">›</span> <Link href={`/opportunities/${lead.slug}`} className="hover:text-ink">{title}</Link></>}
         </nav>
         <header className="mt-3 max-w-[52em]">
-          <h1 className="text-[clamp(28px,3.2vw,40px)] font-bold leading-tight tracking-[-0.03em]">{title}</h1>
+          <h1 className="page-intro-title">{title}</h1>
           <p className="mt-2 text-[15px] leading-7 text-tertiary">
             {t(`개발자 원문 ${picked.length}건에서 요구사항, 기능, 화면까지 이어진 PRD입니다.`, `A PRD traced from ${picked.length} developer quotes to requirements, features and screens.`)}
             {slugs.length > 1 && t(` 기회 ${slugs.length}개의 원문을 함께 썼습니다.`, ` It draws on ${slugs.length} opportunities.`)}
@@ -142,13 +171,8 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
               <section aria-labelledby="prd-contents">
                 <h2 id="prd-contents" className="text-[15px] font-semibold">{t('PRD에 들어가는 것', 'What the PRD contains')}</h2>
                 <ul className="rows mt-3 text-[14px] leading-6">
-                  {[
-                    [t('요구사항', 'Requirements'), t('원문이 받쳐 주는 것만 근거로, 나머지는 가설로', 'Backed by quotes, or marked as hypotheses')],
-                    [t('기능 명세', 'Feature spec'), t('요구사항, 기능, 화면이 이어진 그래프', 'A graph linking requirements, features and screens')],
-                    [t('유저플로우와 와이어프레임', 'User flow and wireframes'), t('화면 순서와 화면별 기능 배치', 'Screen order and what each screen holds')],
-                    [t('에이전트 파일', 'Agent file'), t('AGENTS.md, CLAUDE.md, .cursorrules로 내보내기', 'Export as AGENTS.md, CLAUDE.md or .cursorrules')],
-                  ].map(([name, what]) => (
-                    <li key={name} className="py-3"><b className="block font-semibold">{name}</b><span className="text-muted">{what}</span></li>
+                  {CONTENTS.map(([ko, koWhat, en, enWhat]) => (
+                    <li key={ko} className="py-3"><b className="block font-semibold">{t(ko, en)}</b><span className="text-muted">{t(koWhat, enWhat)}</span></li>
                   ))}
                 </ul>
               </section>

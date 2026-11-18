@@ -29,7 +29,7 @@ export default function LeadChart({ rows, names, lang, limit = 6 }: { rows: Trac
             <Link href={`/opportunities/${row.slug}`} className="min-w-0 text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">{names[row.slug] ?? row.name}</Link>
             <div className="min-w-0">
               <span aria-hidden="true" className="block h-2 rounded-full bg-surface-high">
-                <span className="block h-full rounded-full bg-seed" style={{ width: `${Math.max(3, (row.first.leadDays / longest) * 100)}%` }} />
+                <span className="grow-x block h-full rounded-full bg-seed" style={{ width: `${Math.max(3, (row.first.leadDays / longest) * 100)}%` }} />
               </span>
               <p className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-0.5 text-[13px] text-muted">
                 <span>{t(`첫 원문 ${month.format(new Date(row.firstSeenAt))}`, `First quote ${month.format(new Date(row.firstSeenAt))}`)}</span>

@@ -279,8 +279,8 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                       <span className="min-w-0 flex-1">
                         <span className="font-semibold text-ink">{row.label}</span>
                         <span className="ml-2 text-muted">{row.note}</span>
-                        {index === 0 && <span className="ml-2 text-muted">· 항상 켜짐</span>}
-                        {row.reason === 'EXAONE 키가 아직 없음' && <span className="ml-2 text-red-700">· EXAONE_API_KEY가 없어 켜도 쓸 수 없음</span>}
+                        {index === 0 && <span className="ml-2 text-muted">항상 켜짐</span>}
+                        {row.reason === 'EXAONE 키가 아직 없음' && <span className="ml-2 text-red-700">EXAONE_API_KEY가 없어 켜도 쓸 수 없음</span>}
                       </span>
                       <code className="hidden text-xs text-muted md:inline">{row.id}</code>
                     </label>
@@ -298,7 +298,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 <li key={item.slug} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                   <span className="min-w-0 flex-1">
                     <a href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="font-semibold text-ink underline-offset-4 hover:underline">{item.name}</a>
-                    <span className={`ml-2 ${saved ? 'text-emerald-700' : 'text-muted'}`}>{saved ? `저장됨 · ${new Date(saved.createdAt).toLocaleDateString('ko-KR')}` : '아직 없음'}</span>
+                    <span className={`ml-2 ${saved ? 'text-emerald-700' : 'text-muted'}`}>{saved ? `저장됨, ${new Date(saved.createdAt).toLocaleDateString('ko-KR')}` : '아직 없음'}</span>
                   </span>
                   <form action={prebuildDemoPrd} className="flex items-center gap-2">
                     <input type="hidden" name="slug" value={item.slug} />
@@ -317,7 +317,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               <>
                 <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
                   {prdByAccount.slice(0, 8).map(([email, total]) => (
-                    <li key={email}><span className="font-semibold text-ink">{email}</span> <span className="text-muted">{total.runs}건 · {won(total.cost)}</span></li>
+                    <li key={email}><span className="font-semibold text-ink">{email}</span> <span className="text-muted">{total.runs}건, {won(total.cost)}</span></li>
                   ))}
                 </ul>
                 <div className="mt-4 overflow-x-auto">

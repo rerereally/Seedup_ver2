@@ -104,7 +104,7 @@ export function renderIssueHtml(issue: DigestIssue, base: string) {
   const ink = '#111113';
   const muted = '#6e6e73';
   const line = '#e5e5ea';
-  const green = '#1f6b4a';
+  const green = '#127a4c';
   const heading = (text: string) => `<p style="margin:36px 0 6px;font-size:13px;font-weight:600;color:${muted};">${escapeHtml(text)}</p>`;
   const row = (href: string, title: string, note: string) => `<tr><td style="padding:14px 0;border-top:1px solid ${line};"><a href="${href}" style="font-size:16px;font-weight:600;line-height:1.45;color:${ink};text-decoration:none;">${escapeHtml(title)}</a>${note ? `<p style="margin:4px 0 0;font-size:14px;line-height:1.6;color:${muted};">${escapeHtml(note)}</p>` : ''}</td></tr>`;
   const table = (rows: string) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table>`;

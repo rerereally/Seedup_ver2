@@ -131,7 +131,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                     const isScrapped = scrapKeys.has(`ai_product:${product.id}`);
                     const rating = displayRating(product.user_rating_average ?? null, product.rating_count);
                     const ratingCount = product.rating_count ?? 0;
-                    const meta = [categoryLabel(product.category), pricingLabel(product.pricing_type)].filter(Boolean).join(' · ');
+                    const meta = [categoryLabel(product.category), pricingLabel(product.pricing_type)].filter(Boolean).join(', ');
 
                     return (
                       <tr key={product.id} className="group relative border-t border-outline-soft align-top transition-colors last:border-b hover:bg-surface-low">

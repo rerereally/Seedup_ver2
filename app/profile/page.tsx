@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
-  title: '에이전트 연결',
+  title: 'MCP 연동',
 };
 
 // Mirrors the tools registered in lib/mcp/server.ts.
@@ -74,7 +74,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="에이전트 연결" description="MCP는 AI 코딩 도구가 바깥 서비스의 데이터를 직접 꺼내 쓰게 하는 연결 방식입니다. 연결하면 Claude Code, Cursor 같은 도구가 Seedup의 기회와 검증된 PRD를 직접 가져갑니다." />
+        <PageIntro title="MCP 연동" description="MCP는 AI 코딩 도구가 바깥 서비스의 데이터를 직접 꺼내 쓰게 하는 연결 방식입니다. 연결하면 Claude Code, Cursor 같은 도구가 Seedup의 기회와 검증된 PRD를 직접 가져갑니다." />
 
         {statusNotice && <p role="status" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{statusNotice}</p>}
 
@@ -115,7 +115,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-ink">{fullName || '이름 없음'}</p>
-                  <p className="truncate text-sm text-muted">{user.email} · Google 로그인</p>
+                  <p className="truncate text-sm text-muted">{user.email}, Google 로그인</p>
                 </div>
               </div>
               <label htmlFor="full_name" className="mt-5 block text-sm font-semibold text-ink">표시 이름</label>
@@ -128,10 +128,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
           <section className="border-t border-outline-soft pt-8">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="text-[17px] font-semibold text-ink">맞춤 추천 설정 <span className="text-sm font-normal text-muted">· {onboarding ? '설정 완료' : '설정 필요'}</span></h2>
+              <h2 className="text-[17px] font-semibold text-ink">맞춤 추천 설정 <span className="text-sm font-normal text-muted">{onboarding ? '설정 완료' : '설정 필요'}</span></h2>
               <Link href="/onboarding" className="link-seed">다시 설정하기</Link>
             </div>
-            <p className="mt-1 text-sm text-muted">관심 분야와 목표를 기준으로 오늘의 신호와 주간 신호를 맞춥니다.</p>
+            <p className="mt-1 text-sm text-muted">관심 분야와 목표를 기준으로 인사이트와 주간 신호를 맞춥니다.</p>
             <dl className="rows mt-4">
               {onboardingQuestions.map((question) => (
                 <div key={question.id} className="grid gap-x-6 gap-y-1 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -144,7 +144,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
           <section className="flex flex-wrap items-center justify-between gap-4 border-t border-outline-soft pt-8">
             <div>
-              <h2 className="text-[17px] font-semibold text-ink">주간 신호 메일 <span className="text-sm font-normal text-muted">· {newsletterSubscribed ? '구독 중' : '구독 안 함'}</span></h2>
+              <h2 className="text-[17px] font-semibold text-ink">주간 신호 메일 <span className="text-sm font-normal text-muted">{newsletterSubscribed ? '구독 중' : '구독 안 함'}</span></h2>
               <p className="mt-1 text-sm text-muted">지켜보는 문제의 변화와 관심 분야 읽을거리를 매주 월요일에 받습니다.</p>
             </div>
             <form action={updateNewsletterSubscription}>

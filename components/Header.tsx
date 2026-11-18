@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Compass, FileText, GitBranch, List, Mail, Search } from 'lucide-react';
+import { Bookmark, Compass, FileText, GitBranch, House, Lightbulb, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, X } from 'lucide-react';
+import { signOut } from '@/app/actions/profile';
+import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
@@ -10,27 +12,34 @@ import { createClient } from '@/lib/supabase/client';
 import { saveLang, useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
-// `match` lists every route that keeps the tab lit, since explore and my-work each span several pages.
-const NAV = [
-  // Signals (the map, this week's issue, every problem) and the reading feed are separate places.
-  { name: '오늘의 신호', en: 'Signals', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail },
-  { name: '읽을 글', en: 'Reads', href: '/news', match: ['/news', '/papers'], icon: List },
-  { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText },
-  { name: '내 저장소', en: 'My repo', href: '/seeds', match: ['/seeds'], icon: GitBranch },
-];
-const EXPLORE = { name: '탐색', en: 'Explore', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
-const WORK = ['/ideas', '/scrap', '/profile'];
-// The desk is the signed-in front page; it lights the account button only on exactly "/".
-const onDesk = (pathname: string | null) => pathname === '/';
+type NavItem = { name: string; en: string; href: string; match: string[]; icon: LucideIcon };
 
-export default function Header() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const lang = useLang();
-  const t = translator(lang);
+// `match` lists every route that keeps the item lit, since several items span more than one page.
+const HOME: NavItem = { name: '홈', en: 'Home', href: '/', match: [], icon: House };
+const SIGNALS: NavItem = { name: '인사이트', en: 'Insights', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail };
+const READS: NavItem = { name: '아티클', en: 'Articles', href: '/news', match: ['/news', '/papers'], icon: List };
+const EXPLORE: NavItem = { name: '트렌드', en: 'Trends', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
+const PRD: NavItem = { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText };
+const IDEAS: NavItem = { name: '아이디어 검증', en: 'Idea validation', href: '/ideas', match: ['/ideas'], icon: Lightbulb };
+const AGENT: NavItem = { name: 'MCP 연동', en: 'MCP', href: '/profile', match: ['/profile', '/onboarding'], icon: Plug };
+const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', match: ['/scrap'], icon: Bookmark };
+const REPO: NavItem = { name: '레포 분석', en: 'Repo analysis', href: '/seeds', match: ['/seeds'], icon: GitBranch };
+
+const GROUPS: Array<{ name: string; en: string; items: NavItem[] }> = [
+  { name: '리서치', en: 'Research', items: [SIGNALS, READS, EXPLORE] },
+  { name: '기획', en: 'Plan', items: [PRD, IDEAS, AGENT] },
+  { name: '내 작업', en: 'My work', items: [SCRAP, REPO] },
+];
+// Phones: the four places used most, the rest is in the drawer.
+const TABS = [HOME, SIGNALS, PRD, SCRAP];
+
+// The desk is the signed-in front page; it lights only on exactly "/".
+const isOn = (pathname: string | null, item: NavItem) =>
+  item.href === '/' ? pathname === '/' : item.match.some((href) => pathname === href || pathname?.startsWith(`${href}/`));
+
+function useAccount() {
   const [email, setEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-
   useEffect(() => {
     const supabase = createClient();
     if (!supabase) return;
@@ -53,74 +62,226 @@ export default function Header() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => update(session?.user.email));
     return () => listener.subscription.unsubscribe();
   }, []);
+  return { email, isAdmin };
+}
 
-  // The idea workspace is a full-screen tool: it has its own make action and needs the bottom of a phone screen.
-  const workspace = pathname?.startsWith('/prd/new') ?? false;
-  const on = (match: string[]) => match.some((href) => pathname === href || pathname?.startsWith(`${href}/`));
-  const link = (item: { name: string; en: string; href: string; match: string[] }) => (
-    <Link
-      key={item.href}
-      href={item.href}
-      aria-current={on(item.match) ? 'page' : undefined}
-      className={`-mb-px inline-flex h-16 items-center border-b-2 text-[15px] transition-colors ${on(item.match) ? 'border-ink font-semibold text-ink' : 'border-transparent text-tertiary hover:text-ink'}`}
+/**
+ * The app shell (default): a fixed left sidebar on wide screens, a top bar with a drawer and a bottom tab bar on phones.
+ * `variant="site"` is the intro site's top bar, used by the signed-out landing.
+ */
+export default function Header({ variant = 'app' }: { variant?: 'app' | 'site' }) {
+  return variant === 'site' ? <SiteHeader /> : <AppShell />;
+}
+
+function LangButton({ className }: { className: string }) {
+  const lang = useLang();
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      onClick={() => { saveLang(lang === 'en' ? 'ko' : 'en'); router.refresh(); }}
+      lang={lang === 'en' ? 'ko' : 'en'}
+      aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}
+      className={className}
     >
-      {t(item.name, item.en)}
+      {lang === 'en' ? '한국어' : 'EN'}
+    </button>
+  );
+}
+
+function AppShell() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const t = translator(useLang());
+  const { email, isAdmin } = useAccount();
+  const [open, setOpen] = useState(false);
+  // The idea workspace needs the bottom of a phone screen for its own make action.
+  const workspace = pathname?.startsWith('/prd/new') ?? false;
+  // Wide screens: the sidebar folds to an icon rail and back, pushing the page. The PRD workspace starts folded.
+  const [folded, setFolded] = useState<boolean | null>(null);
+  const rail = folded ?? workspace;
+
+  // A link in the drawer navigates; the drawer then closes on the new page.
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
+    setOpen(false);
+  }
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        router.push('/search');
+      }
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [router]);
+
+  const item = (entry: NavItem) => (
+    <Link key={entry.href} href={entry.href} aria-current={isOn(pathname, entry) ? 'page' : undefined}>
+      <entry.icon aria-hidden="true" />
+      {t(entry.name, entry.en)}
     </Link>
   );
-  const switchLang = () => {
-    saveLang(lang === 'en' ? 'ko' : 'en');
-    router.refresh();
-  };
+
+  const nav = (
+    <>
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 px-4">
+        <Link href="/" className="inline-flex min-h-10 items-center gap-2 text-[17px] font-bold tracking-tight text-ink">
+          <Logo />
+          Seedup
+        </Link>
+        <button type="button" onClick={() => setOpen(false)} aria-label={t('메뉴 닫기', 'Close menu')} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low lg:hidden">
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => setFolded(true)} aria-label={t('메뉴 접기', 'Collapse menu')} title={t('메뉴 접기', 'Collapse menu')} className="hidden h-9 w-9 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink lg:inline-flex">
+          <PanelLeftClose className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="px-3">
+        <Link href="/search" className="flex h-9 w-full items-center gap-2 rounded-lg border border-outline-soft bg-white px-2.5 text-[14px] text-muted transition-colors hover:border-outline-strong">
+          <Search className="h-4 w-4" aria-hidden="true" />
+          <span className="grow">{t('검색', 'Search')}</span>
+          <span className="kbd hidden lg:inline-flex">⌘K</span>
+        </Link>
+      </div>
+      <nav className="app-nav mt-3 flex grow flex-col gap-5 overflow-y-auto px-3 pb-4" aria-label={t('주요 메뉴', 'Main menu')}>
+        <div className="flex flex-col gap-0.5">{item(HOME)}</div>
+        {GROUPS.map((group) => (
+          <div key={group.name} className="flex flex-col gap-0.5">
+            <p className="px-2.5 pb-1 text-[12px] font-semibold text-muted">{t(group.name, group.en)}</p>
+            {group.items.map(item)}
+          </div>
+        ))}
+        {isAdmin && (
+          <div className="flex flex-col gap-0.5">
+            <Link href="/admin/ingest" aria-current={pathname?.startsWith('/admin') ? 'page' : undefined}>
+              <Settings aria-hidden="true" />
+              {t('관리', 'Admin')}
+            </Link>
+          </div>
+        )}
+      </nav>
+      <div className="shrink-0 border-t border-outline-soft p-3">
+        {email ? (
+          <div className="flex items-center gap-1">
+            <Link href="/profile" className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 text-[14px] text-ink hover:bg-surface-low">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-seed-soft text-[13px] font-semibold text-seed">{email[0].toUpperCase()}</span>
+              <span className="min-w-0 truncate">{email}</span>
+            </Link>
+            <form action={signOut}>
+              <button type="submit" aria-label={t('로그아웃', 'Sign out')} title={t('로그아웃', 'Sign out')} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink">
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Link href="/login" className="btn-quiet h-9 flex-1">{t('로그인', 'Sign in')}</Link>
+            {!pathname?.startsWith('/prd') && !pathname?.startsWith('/newsletter-preview') && <Link href="/prd/new" className="btn h-9 flex-1">{t('PRD 만들기', 'Make a PRD')}</Link>}
+          </div>
+        )}
+        <div className="mt-2 flex items-center gap-1">
+          <ThemeToggle />
+          <LangButton className="inline-flex h-11 items-center px-2 text-[13px] text-tertiary hover:text-ink" />
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-outline-soft bg-white">
-        <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center gap-3 px-5 sm:px-6 md:px-8 lg:gap-6">
-          <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-[19px] font-bold tracking-tight text-ink">
-            <Logo />
-            Seedup
-          </Link>
-
-          <nav className="hidden items-center gap-6 lg:flex" aria-label={t('주요 메뉴', 'Main menu')}>
-            {NAV.map(link)}
-            <span aria-hidden="true" className="h-4 w-px bg-outline-strong" />
-            {link(EXPLORE)}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <Link href="/search" aria-label={t('검색', 'Search')} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-tertiary transition-colors hover:bg-surface-low hover:text-ink">
-              <Search className="h-[18px] w-[18px]" aria-hidden="true" />
+      {rail ? (
+        <aside className="app-sidebar is-rail fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center gap-1 border-r border-outline-soft bg-white py-3 lg:flex">
+          <button type="button" onClick={() => setFolded(false)} aria-label={t('메뉴 펼치기', 'Expand menu')} title={t('메뉴 펼치기', 'Expand menu')} className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink">
+            <PanelLeftOpen className="h-[18px] w-[18px]" aria-hidden="true" />
+          </button>
+          {[HOME, ...GROUPS.flatMap((group) => group.items)].map((entry) => (
+            <Link key={entry.href} href={entry.href} aria-label={t(entry.name, entry.en)} title={t(entry.name, entry.en)} aria-current={isOn(pathname, entry) ? 'page' : undefined} className={`inline-flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-surface-low ${isOn(pathname, entry) ? 'bg-surface-mid text-ink' : 'text-muted'}`}>
+              <entry.icon className="h-[18px] w-[18px]" aria-hidden="true" />
             </Link>
-            {isAdmin && <Link href="/admin/ingest" className="hidden h-10 items-center px-2 text-sm text-tertiary hover:text-ink sm:inline-flex">{t('관리', 'Admin')}</Link>}
-            {/* On phones the theme and language switches live in the footer, so the bar keeps the brand, search and the action. */}
-            <span className="hidden sm:contents"><ThemeToggle /></span>
-            <button type="button" onClick={switchLang} lang={lang === 'en' ? 'ko' : 'en'} className="hidden h-11 items-center px-2 text-sm text-tertiary hover:text-ink sm:inline-flex" aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}>
-              {lang === 'en' ? '한국어' : 'EN'}
-            </button>
-            {email ? (
-              <Link href="/" aria-current={on(WORK) || onDesk(pathname) ? 'page' : undefined} aria-label={t('내 작업대', 'Your desk')} className="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-soft bg-white p-1 text-sm font-medium text-ink transition-colors hover:border-outline-strong lg:pr-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-seed-soft text-sm font-semibold text-seed">{email[0].toUpperCase()}</span>
-                <span className="hidden lg:inline">{t('내 작업대', 'Your desk')}</span>
-              </Link>
-            ) : (
-              <>
-                <Link href="/login" className="inline-flex h-11 items-center whitespace-nowrap px-2 text-sm text-ink">{t('로그인', 'Sign in')}</Link>
-                {!workspace && <Link href="/prd/new" className="btn h-11 whitespace-nowrap px-3.5 sm:px-4">{t('PRD 만들기', 'Make a PRD')}</Link>}
-              </>
-            )}
-          </div>
-        </div>
+          ))}
+          <span className="mt-auto"><ThemeToggle /></span>
+        </aside>
+      ) : (
+        <aside className="app-sidebar fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-outline-soft bg-white lg:flex">{nav}</aside>
+      )}
+
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-outline-soft bg-surface px-4 lg:hidden">
+        <button type="button" onClick={() => setOpen(true)} aria-label={t('메뉴 열기', 'Open menu')} aria-expanded={open} className="-ml-2 inline-flex h-11 w-11 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low">
+          <Menu className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-[17px] font-bold tracking-tight text-ink">
+          <Logo />
+          Seedup
+        </Link>
+        <Link href="/search" aria-label={t('검색', 'Search')} className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low">
+          <Search className="h-5 w-5" aria-hidden="true" />
+        </Link>
       </header>
 
-      {/* Phones get the five places as a bottom bar, so the top row stays just the brand and the account. */}
-      <nav className={`fixed inset-x-0 bottom-0 z-50 grid-cols-5 border-t ${workspace ? 'hidden' : 'grid'} border-outline-soft bg-white pb-[env(safe-area-inset-bottom)] lg:hidden`} aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
-        {[...NAV, EXPLORE].map((item) => (
-          <Link key={item.href} href={item.href} aria-current={on(item.match) ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] ${on(item.match) ? 'font-semibold text-seed' : 'text-muted'}`}>
-            <item.icon className="h-5 w-5" aria-hidden="true" />
-            {t(item.name, item.en)}
-          </Link>
-        ))}
-      </nav>
+      {open && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={t('메뉴', 'Menu')}>
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label={t('메뉴 닫기', 'Close menu')} onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-outline-soft bg-surface">{nav}</aside>
+        </div>
+      )}
+
+      {!workspace && (
+        <nav className="app-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-outline-soft bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
+          {TABS.map((entry) => (
+            <Link key={entry.href} href={entry.href} aria-current={isOn(pathname, entry) ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] ${isOn(pathname, entry) ? 'font-semibold text-seed' : 'text-muted'}`}>
+              <entry.icon className="h-5 w-5" aria-hidden="true" />
+              {t(entry.name, entry.en)}
+            </Link>
+          ))}
+        </nav>
+      )}
     </>
+  );
+}
+
+/** The intro site's top bar: the brand and one action. Everything else is on the page itself or in the footer. */
+const SITE_TABS: Array<[string, string, string]> = [
+  ['인사이트', 'Insights', '/newsletter-preview'],
+  ['아티클', 'Articles', '/news'],
+  ['트렌드', 'Trends', '/trends'],
+  ['PRD', 'PRD', '/prd'],
+  ['레포 분석', 'Repo analysis', '/seeds'],
+];
+
+function SiteHeader() {
+  const t = translator(useLang());
+  const { email } = useAccount();
+  const pathname = usePathname();
+  return (
+    <header className="sticky top-0 z-50 border-b border-outline-soft bg-surface/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center gap-3 px-5 sm:px-6 md:px-8">
+        <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-[19px] font-bold tracking-tight text-ink">
+          <Logo />
+          Seedup
+        </Link>
+        {/* The original top tabs, kept for now so every main page is one click away. */}
+        <nav className="ml-6 hidden items-center gap-6 lg:flex" aria-label={t('주요 메뉴', 'Main menu')}>
+          {SITE_TABS.map(([ko, en, href]) => (
+            <Link key={href} href={href} aria-current={pathname?.startsWith(href) ? 'page' : undefined} className="inline-flex h-11 items-center text-sm text-tertiary transition-colors hover:text-ink aria-[current=page]:font-semibold aria-[current=page]:text-ink">{t(ko, en)}</Link>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <ThemeToggle />
+          {email ? (
+            <Link href="/" className="btn h-10 whitespace-nowrap px-4">{t('홈으로', 'Home')}</Link>
+          ) : (
+            <>
+              <Link href="/login" className="inline-flex h-11 items-center whitespace-nowrap px-2 text-sm text-ink">{t('로그인', 'Sign in')}</Link>
+              <Link href="/prd/new" className="btn h-10 whitespace-nowrap px-4">{t('무료로 시작하기', 'Start free')}</Link>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }

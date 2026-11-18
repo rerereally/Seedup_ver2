@@ -38,11 +38,13 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
       <Header />
       <main id="main-content" className="page-shell grow">
         <Link href="/github-trends" className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-ink"><span aria-hidden="true">‹</span> 오픈소스 목록</Link>
-        <div className="mt-4 grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article className="min-w-0">
-            <p className="text-sm text-muted">{['오픈소스', repo.language].filter(Boolean).join(', ')}</p>
+        <header className="mt-4">
+          <p className="text-sm text-muted">{['오픈소스', repo.language].filter(Boolean).join(', ')}</p>
             <h1 className="page-intro-title mt-3 break-words md:text-[48px] md:leading-[1.1]">{owner && <span className="font-normal text-muted">{owner}/</span>}{name}</h1>
             {repo.description && <p className="mt-4 max-w-[38em] text-lg leading-8 text-muted">{repo.description}</p>}
+        </header>
+        <div className="mt-8 page-split">
+          <article className="min-w-0">
 
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <Link href={repo.repo_url} target="_blank" rel="noreferrer" className="btn">
@@ -82,13 +84,13 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
             </div>
           </article>
 
-          <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
+          <aside className="page-side">
             {projectTitle && (
               <section className="card p-5 md:p-6">
                 <h2 className="label">따라 만들어 볼 것</h2>
                 <p className="mt-2 text-[15px] leading-7 text-ink">{projectTitle}</p>
                 <Link href={`/ideas?idea=${encodeURIComponent(projectTitle)}`} className="btn mt-5 w-full">
-                  이 아이디어 평가하기
+                  이 아이디어 검증하기
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Link>
               </section>

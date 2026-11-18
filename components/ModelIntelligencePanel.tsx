@@ -44,7 +44,7 @@ export default function ModelIntelligencePanel({ models }: { models: ModelIntell
           <h2 className="text-xl font-bold tracking-tight text-ink">지금 많이 쓰는 모델과 성능 순위</h2>
           <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted">사용량, 외부 지능 지수, 사람 선호도는 서로 다른 지표입니다. 목적에 맞게 비교하세요.</p>
         </div>
-        <p className="shrink-0 text-[13px] text-muted">OpenRouter · {snapshotDate ?? '수집 대기'}</p>
+        <p className="shrink-0 text-[13px] text-muted">OpenRouter, {snapshotDate ?? '수집 대기'}</p>
       </div>
       <div className="grid lg:grid-cols-3">
         <RankList title="가장 많이 쓰는 모델" icon={UsersRound} models={popular} rankKey="popularity_rank" empty="OpenRouter 주간 사용량을 수집하면 표시됩니다." />

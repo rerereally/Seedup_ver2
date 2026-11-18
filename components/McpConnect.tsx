@@ -20,7 +20,8 @@ export default function McpConnect({ siteUrl, connected }: { siteUrl: string; co
   const setup = (value: string) => {
     const server = { url: endpoint, headers: { Authorization: `Bearer ${value}` } };
     return {
-      cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=seedup&config=${encodeURIComponent(btoa(JSON.stringify(server)))}`,
+      // btoa takes Latin-1 only and the placeholder "[토큰]" is not, so the JSON is encoded as UTF-8 bytes first.
+      cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=seedup&config=${encodeURIComponent(btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(server)))))}`,
       vscode: `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'seedup', type: 'http', ...server }))}`,
       claude: `claude mcp add --transport http seedup ${endpoint} --header "Authorization: Bearer ${value}"`,
       json: JSON.stringify({ mcpServers: { seedup: server } }, null, 2),

@@ -59,6 +59,8 @@ export type Spec = {
   metrics: string[];
   /** True when the evidence is below the qualification bar: a hypothesis draft, not a verified PRD. */
   draft: boolean;
+  /** Cut to 2 or 3 features in plain words for someone who picked beginner at onboarding. */
+  beginner?: boolean;
   /** Reverse spec only: what the repository already has (its current IA), which new work must not break. */
   existing?: Array<{ name: string; does: string }>;
   /** Language the model wrote in; exports and follow-up calls use the same one. */

@@ -1,6 +1,6 @@
 import { getOpportunities } from '@/lib/opportunities/data';
 import { signEvidence } from '@/lib/opportunities/live-evidence';
-import { buildValidationReport } from '@/lib/opportunities/report';
+import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -35,5 +35,6 @@ export async function POST(request: Request) {
     await releaseDailyUsage(supabase, 'validation_report');
     return NextResponse.json({ error: '리포트를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.' }, { status: 502 });
   }
-  return NextResponse.json({ ...report, quotes: report.quotes.flatMap((row) => signEvidence(row) ?? []) });
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/+$/, '');
+  return NextResponse.json({ ...report, quotes: report.quotes.flatMap((row) => signEvidence(row) ?? []), markdown: renderReport(report, siteUrl) });
 }

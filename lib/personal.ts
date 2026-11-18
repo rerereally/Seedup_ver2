@@ -9,7 +9,8 @@ import { cosineSimilarity } from './opportunities/rules';
 import type { Opportunity } from './opportunities/types';
 import { createAdminClient } from './supabase/admin';
 
-export type ForYouItem = { key: string; kind: string; title: string; href: string; source: string; reason: string; score: number };
+/** target: the content row behind a read, so the desk can mark it not interested; problems have none. */
+export type ForYouItem = { key: string; kind: string; title: string; href: string; source: string; reason: string; score: number; target?: { type: string; id: string } };
 
 const TABLE_KIND: Record<string, [string, string]> = {
   news_items: ['news', '글'],
@@ -72,6 +73,8 @@ export function mixByKind(items: ForYouItem[], limit: number) {
 type KeptRow = Pick<ScrapItem, 'item_type' | 'item_id' | 'title' | 'tag'>;
 
 const KIND_BY_PREFIX: Record<string, string> = { news: '글', paper: '논문', product: 'AI 제품', repo: '저장소', project: '프로젝트 아이디어' };
+// The pool's id prefixes back to the content types reactions are stored under.
+const TYPE_BY_PREFIX: Record<string, string> = { news: 'news', paper: 'paper', product: 'ai_product', repo: 'github', project: 'project' };
 
 /**
  * Picks from the curated pool by rules alone: onboarding answers, plus the topics of what the reader kept or liked;
@@ -93,7 +96,9 @@ export function ruleItem(row: ScoredNewsletterItem, interests: string[], hasKept
   const hit = reasonFor(`${content.title} ${content.metadata.short_summary} ${content.metadata.topic_tags.join(' ')}`, interests, false);
   // Without interests or keeps, "close to your interests" would be untrue; the scorer's own reason says why instead.
   const reason = hit.startsWith('관심 분야') ? hit : hasKept && row.reasons[0]?.includes('저장') ? '킵한 것과 비슷함' : row.reasons[0] ?? '이번 주 읽을 만한 것';
-  return { key: content.id, kind: KIND_BY_PREFIX[content.id.split(':')[0]] ?? '글', title: content.title, href: content.href, source: content.sourceLabel, reason, score: row.score };
+  const [prefix, ...rest] = content.id.split(':');
+  const type = TYPE_BY_PREFIX[prefix];
+  return { key: content.id, kind: KIND_BY_PREFIX[prefix] ?? '글', title: content.title, href: content.href, source: content.sourceLabel, reason, score: row.score, ...(type ? { target: { type, id: rest.join(':') } } : {}) };
 }
 
 /**
@@ -131,17 +136,23 @@ async function embeddedPicks(userId: string, input: { answers: unknown; keptTitl
   });
 
   const service = createAdminClient();
-  const { data } = service ? await service.rpc('match_seedup_content', { query_embedding: vector, match_count: 50, min_similarity: MIN_SIMILARITY }) : { data: null };
+  const [{ data }, { data: dislikes }] = service
+    ? await Promise.all([
+      service.rpc('match_seedup_content', { query_embedding: vector, match_count: 50, min_similarity: MIN_SIMILARITY }),
+      service.from('content_reactions').select('item_type,item_id').eq('user_id', userId).eq('reaction', 'dislike'),
+    ])
+    : [{ data: null }, { data: null }];
+  const disliked = new Set(((dislikes ?? []) as Array<{ item_type: string; item_id: string }>).map((row) => `${row.item_type}:${row.item_id}`));
   const seen = new Set<string>();
   const content: ForYouItem[] = ((data ?? []) as Array<{ source_table: string; source_id: string; content: string; metadata: Record<string, unknown> | null; similarity: number }>).flatMap((row) => {
     const [itemType, label] = TABLE_KIND[row.source_table] ?? [];
     const key = `${itemType}:${row.source_id}`;
     // A source can have several embeddings after its text changed; kept items are already on the desk.
-    if (!itemType || seen.has(key) || input.keptKeys.has(key)) return [];
+    if (!itemType || seen.has(key) || input.keptKeys.has(key) || disliked.has(key)) return [];
     seen.add(key);
     const title = String(row.metadata?.title ?? '').trim();
     if (!title) return [];
-    return [{ key, kind: label, title, href: getContentHref(itemType, row.source_id), source: String(row.metadata?.source ?? ''), reason: reasonFor(row.content, interests, hasKept), score: Number(row.similarity) }];
+    return [{ key, kind: label, title, href: getContentHref(itemType, row.source_id), source: String(row.metadata?.source ?? ''), reason: reasonFor(row.content, interests, hasKept), score: Number(row.similarity), target: { type: itemType, id: row.source_id } }];
   });
   // Embedded problems alone are not a reading list; with no content matches the rule picks take over.
   return content.length ? [...problems, ...content] : [];

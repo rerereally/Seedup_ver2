@@ -73,18 +73,6 @@ export function opportunityColors(opportunities: Opportunity[]): Record<string, 
 
 export type OpportunityFunnel = { quotes: number; problems: number; qualified: number; open: number };
 
-/** How much survives each filter, counted from the run itself so it can never drift from the list. */
-export function summarizeFunnel(opportunities: Opportunity[]): OpportunityFunnel {
-  const qualified = opportunities.filter((item) => item.qualified);
-  return {
-    quotes: opportunities.reduce((sum, item) => sum + item.evidence.length, 0),
-    problems: opportunities.length,
-    qualified: qualified.length,
-    open: qualified.filter((item) => item.status === 'open').length,
-  };
-}
-
-
 export function findEvidence(opportunities: Opportunity[], ids: string[]) {
   const wanted = new Set(ids);
   const found = new Map<string, { evidence: Evidence; slug: string }>();

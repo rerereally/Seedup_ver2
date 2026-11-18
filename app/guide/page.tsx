@@ -9,6 +9,7 @@ import { getLang } from '@/lib/i18n-server';
 export const metadata: Metadata = { title: '가이드', description: 'Seedup을 처음 쓰는 방법, 코딩 에이전트 연결, 자주 묻는 질문.' };
 
 const ISSUES = 'https://github.com/rerereally/Seedup_ver2/issues';
+const EXTENSION = 'https://github.com/rerereally/Seedup_ver2/tree/main/extension';
 
 // [Korean question, Korean answer, English question, English answer]
 const FAQ: Array<[string, string, string, string]> = [
@@ -48,7 +49,23 @@ export default async function GuidePage() {
           <Link href="/#features" className="link-seed mt-6">{t('에이전트 도구 보기', 'See the agent tools')}</Link>
         </SiteRow>
 
-        <SiteRow label="FAQ" title={t('자주 묻는 질문', 'Questions people ask')}>
+        <div id="extension" className="scroll-mt-20">
+          <SiteRow label="Extension" title={t('글에서 바로 원문 담기 (크롬 확장)', 'Save quotes from any page (Chrome extension)')}>
+            <p className="max-w-[40em] text-[16px] leading-8 text-tertiary">{t('GitHub 이슈, Hacker News, Stack Overflow 같은 글에서 문장을 고르고 오른쪽 클릭 메뉴의 "Seedup에 원문으로 담기"를 누르면, Seedup이 그 글을 직접 읽어 문장이 글자 그대로 있는지 확인한 뒤 보관합니다. 담은 문장은 PRD 작업 공간의 근거 목록에 나옵니다. 하루 60개까지 담을 수 있습니다.', 'Select a sentence on a GitHub issue, Hacker News or Stack Overflow page and choose "Seedup에 원문으로 담기" (save to Seedup) from the right-click menu. Seedup reads the page itself, keeps the sentence only if it is there word for word, and lists it in the PRD workspace. Up to 60 a day.')}</p>
+            <NumberedList items={[
+              [t('확장 파일 받기', 'Get the files'), t('GitHub 저장소의 extension 폴더를 내려받습니다. 아직 크롬 웹 스토어에는 없습니다.', 'Download the extension folder from the GitHub repository. It is not on the Chrome Web Store yet.')],
+              [t('개발자 모드 켜기', 'Turn on developer mode'), t('크롬 주소창에 chrome://extensions 를 열고 오른쪽 위 개발자 모드를 켭니다.', 'Open chrome://extensions and switch on Developer mode at the top right.')],
+              [t('폴더 불러오기', 'Load the folder'), t('"압축해제된 확장 프로그램을 로드합니다"를 누르고 extension 폴더를 고릅니다.', 'Click "Load unpacked" and pick the extension folder.')],
+              [t('토큰 넣기', 'Add your token'), t('확장 아이콘을 눌러 개인 토큰을 넣고 저장합니다. 토큰은 MCP 연동 화면의 "직접 설정하기"에 있습니다.', 'Click the extension icon, paste your personal token and save. The token is under "Set it up yourself" on the MCP screen.')],
+            ]} />
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a href={EXTENSION} target="_blank" rel="noopener noreferrer" className="btn">{t('extension 폴더 열기', 'Open the extension folder')}</a>
+              <Link href="/profile" className="btn-quiet">{t('토큰 받기', 'Get a token')}</Link>
+            </div>
+          </SiteRow>
+        </div>
+
+        <SiteRow label="FAQ"title={t('자주 묻는 질문', 'Questions people ask')}>
           <div className="border-t border-outline-soft">
             {FAQ.map(([q, a, qEn, aEn]) => (
               <details key={q} className="group border-b border-outline-soft">

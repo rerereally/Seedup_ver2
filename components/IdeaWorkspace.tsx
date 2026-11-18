@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ViewTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Check, RotateCcw } from 'lucide-react';
 import IdeaComposer from '@/components/IdeaComposer';
+import WatchIdeaButton from '@/components/WatchIdeaButton';
 import ModelPicker from '@/components/ModelPicker';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import type { PrdModel } from '@/lib/opportunities/models';
@@ -277,7 +278,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
     { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
   ];
-  const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} />;
+  const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} idea={idea} />;
   const threeColumns = !generated;
 
   return (
@@ -453,7 +454,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 }
 
 /** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
-function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; saved: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string }) {
+function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext, idea }: { matched: PoolItem[]; live: LiveQuote[]; saved: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string; idea: string }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
   const quoteRow = (row: PoolItem['quotes'][number]) => {
     const on = keptIds.includes(row.id);
@@ -547,6 +548,13 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
         )}
       </div>
       {web}
+      {signedIn && (
+        <div className="mt-5 space-y-3 border-t border-outline-soft pt-4">
+          {!passes && <p className="text-[13px] leading-5 text-muted">{t('근거가 아직 모자라면 지켜보세요. 매주 다시 찾아 새 원문과 경쟁 도구를 메일로 보냅니다.', 'Short on evidence? Watch it: Seedup searches again each week and mails new quotes and rival tools.')}</p>}
+          <WatchIdeaButton idea={idea} className="btn-quiet h-9 px-3 text-[13px]" />
+          {saved.length === 0 && <p className="text-[13px] leading-5 text-muted">{t('읽던 글에서 바로 문장을 담으려면 ', 'To save sentences straight from a page you are reading, ')}<Link href="/guide#extension" className="font-semibold text-seed underline-offset-4 hover:underline">{t('브라우저 확장 설치', 'install the browser extension')}</Link></p>}
+        </div>
+      )}
     </div>
   );
 }

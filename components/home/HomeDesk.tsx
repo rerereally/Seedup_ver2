@@ -12,6 +12,7 @@ import { dossierChanges } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import { forYou } from '@/lib/personal';
+import NotInterestedButton from '@/components/NotInterestedButton';
 import { recentReleases } from '@/lib/ingest/kept-repos';
 import type { RepoRelease } from '@/lib/ingest/kept-repos';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -182,6 +183,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
                     <li key={item.key} className="py-3">
                       <p className="flex flex-wrap gap-x-3 text-[12.5px] text-muted"><span className="font-semibold text-seed">{item.kind}</span>{item.source && <span>{item.source}</span>}<span>{item.reason}</span></p>
                       <Link href={item.href} className="mt-0.5 block text-[15px] font-semibold leading-snug underline-offset-4 hover:underline">{item.title}</Link>
+                      {item.target && <div className="mt-1"><NotInterestedButton itemType={item.target.type} itemId={item.target.id} /></div>}
                     </li>
                   ))}
                 </ul>

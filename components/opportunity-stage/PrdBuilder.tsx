@@ -500,6 +500,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               {showTitle && <h2 className="text-2xl font-bold tracking-tight">{input.title}</h2>}
               <dl className={`flex flex-wrap gap-2 ${showTitle ? 'mt-3' : ''}`}>
                 {spec.draft && <div className="rounded-lg bg-surface-mid px-3 py-1.5 text-[13px] font-semibold text-tertiary"><dt className="sr-only">{t('상태', 'Status')}</dt><dd>{t('가설 초안', 'Hypothesis draft')}</dd></div>}
+                {spec.beginner && <div title={t('온보딩에서 입문자를 골라 기능을 2~3개로 줄이고 쉬운 말로 썼습니다', 'You picked beginner at onboarding, so it keeps 2 or 3 features in plain words')} className="rounded-lg bg-surface-mid px-3 py-1.5 text-[13px] font-semibold text-tertiary"><dt className="sr-only">{t('범위', 'Scope')}</dt><dd>{t('입문자용으로 줄임', 'Cut down for beginners')}</dd></div>}
                 {stats.map(([label, value, green, why]) => (
                   <div key={label} title={why || undefined} className="flex items-baseline gap-1.5 rounded-lg bg-surface-mid px-3 py-1.5 text-[13px]">
                     <dt className="text-muted">{label}</dt>

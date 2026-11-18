@@ -7,6 +7,7 @@ import PageIntro from '@/components/PageIntro';
 import ScrapButton from '@/components/ScrapButton';
 import { Loader2, RotateCcw, X } from 'lucide-react';
 import WorkShell from '@/components/WorkShell';
+import ValidationReportPanel from '@/components/ValidationReportPanel';
 import { useEffect, useState } from 'react';
 
 type RecentIdea = {
@@ -202,6 +203,8 @@ export default function Ideas() {
         {status === 'error' && <div role="alert" className="card flex min-h-[220px] max-w-[760px] items-center justify-center p-6 text-center"><div><p className="font-semibold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
 
         {activeRun && status !== 'saving' && <div className="card max-w-[760px] p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
+
+        {idea.trim().length >= 4 && <ValidationReportPanel idea={idea} isLoggedIn={isLoggedIn} />}
 
         <section className="max-w-[760px]">
           <div className="flex items-center justify-between gap-3">

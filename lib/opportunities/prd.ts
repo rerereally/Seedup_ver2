@@ -75,7 +75,7 @@ JSON만 반환합니다: {"summary":"한 문장","target_users":["..."],"rivals"
 ${quotes(input)}`, { maxTokens: 8_000, timeoutMs: 95_000, title: 'Seedup PRD', model: options.model, onUsage: options.onUsage });
 
   if (!raw) return null;
-  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang: options.lang ?? 'ko', rivals: normalizeRivals(raw.rivals, input.competitors) };
+  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang: options.lang ?? 'ko', rivals: normalizeRivals(raw.rivals, input.competitors), ...(options.beginner ? { beginner: true } : {}) };
   if (!spec.summary || !(spec.requirements.length + (options.idea ? spec.hypotheses.length : 0))) return null;
 
   // One repair pass on what the code check found; kept only when it really has fewer problems.
@@ -165,7 +165,7 @@ ${quotes(input)}`, { maxTokens: 8_000, timeoutMs, title: 'Seedup PRD revise', mo
   const idea = spec.origin === 'idea';
   // A revision keeps the rival comparison unless it returns a new one.
   const rivals = normalizeRivals(raw.rivals, input.competitors);
-  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), rivals: rivals.length ? rivals : spec.rivals ?? [] };
+  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: rivals.length ? rivals : spec.rivals ?? [] };
   if (!revised.summary || !(revised.requirements.length + (idea ? revised.hypotheses.length : 0))) return null;
   // A feature that kept its title keeps the readiness slots already filled for it.
   const slotsByTitle = new Map(spec.features.map((row) => [row.title, row.slots]));

@@ -58,7 +58,7 @@ async function getDossiers() {
   return error ? [] : ((data ?? []) as DossierRow[]);
 }
 
-type DossierRow = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string; shared?: boolean };
+type DossierRow = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string; shared?: boolean; evidence?: Array<{ quote?: string; url?: string }> | null; built_url?: string | null; built_note?: string | null };
 
 export default async function Scrap({ searchParams }: { searchParams: Promise<{ type?: string; q?: string }> }) {
   const params = await searchParams;
@@ -114,7 +114,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
                       </ul>
                     </div>
                   )}
-                  <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} />
+                  <DossierPrd id={dossier.id} title={dossier.title} markdown={dossier.prd_markdown} shared={dossier.shared === true} built={dossier.built_url ? { url: dossier.built_url, note: dossier.built_note ?? '' } : null} quotes={(dossier.evidence ?? []).flatMap((row) => (row.quote && row.url ? [{ quote: row.quote, url: row.url }] : [])).slice(0, 10)} />
                   {dossier.opportunity_slug && <Link href={`/opportunities/${dossier.opportunity_slug}`} className="link-seed mt-2">기회 다시 보기</Link>}
                 </li>
               ))}

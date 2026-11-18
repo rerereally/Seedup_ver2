@@ -9,6 +9,7 @@ import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
+import { MAX_WATCHES_PER_USER } from '@/lib/opportunities/watch';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -50,6 +51,12 @@ export async function POST(request: Request) {
       const { opportunities } = await getOpportunities();
       const report = await buildValidationReport(idea, opportunities).catch(() => null);
       return report ? renderReport(report, siteUrl) : null;
+    },
+    watch: async (idea) => {
+      const { count } = await service.from('idea_watches').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+      if ((count ?? 0) >= MAX_WATCHES_PER_USER) return false;
+      const { error } = await service.from('idea_watches').upsert({ user_id: userId, idea }, { onConflict: 'user_id,idea', ignoreDuplicates: true });
+      return !error;
     },
   };
   const answer = await handleRpc(body, deps, siteUrl);

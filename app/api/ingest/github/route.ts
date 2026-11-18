@@ -1,5 +1,6 @@
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { analyzeRepo } from '@/lib/ingest/ai';
+import { refreshKeptRepos } from '@/lib/ingest/kept-repos';
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
 import { GITHUB_QUERIES } from '@/lib/ingest/sources';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -156,6 +157,12 @@ async function ingest(request: Request) {
     }
   }
 
+  // Kept repositories get their latest release whether or not today's searches found them.
+  const kept = await refreshKeptRepos(supabase, headers).catch((error) => {
+    console.error('kept repo refresh failed', error);
+    return { checked: 0, releases: 0 };
+  });
+
   try {
     pruned = await pruneStaleGitHubRepos(supabase, pruneDays);
   } catch (error) {
@@ -170,7 +177,7 @@ async function ingest(request: Request) {
     skipped,
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { perQuery, minStars, pushedAfter, pruneDays, pruned, queries: GITHUB_QUERIES.length, refreshed, reviewed, deferred, maxNew },
+    detail: { perQuery, minStars, pushedAfter, pruneDays, pruned, queries: GITHUB_QUERIES.length, refreshed, reviewed, deferred, maxNew, keptChecked: kept.checked, keptReleases: kept.releases },
   });
 
   return NextResponse.json({ ok: true, upserted, refreshed, reviewed, deferred, skipped, pruned, errors, pushedAfter, minStars });

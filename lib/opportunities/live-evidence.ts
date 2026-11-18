@@ -3,8 +3,10 @@ import { callJsonModel } from './llm';
 import type { ModelUsage } from './llm';
 import { isVerbatimQuote } from './rules';
 import { cleanText, searchDemand } from './actors';
-import { fetchPageText } from './web';
+import { fetchPageText, safeSourceUrl } from './web';
 import type { Evidence, Platform, RawSignal } from './types';
+
+export { safeSourceUrl };
 
 /** A quote found on the web for one idea, with the server's signature so the PRD routes can trust it came from here. */
 export type LiveQuote = Evidence & { sig: string };
@@ -97,22 +99,6 @@ export async function findLiveEvidence(idea: string, onUsage?: (usage: ModelUsag
     if (quotes.length >= MAX_QUOTES) break;
   }
   return { phrases, quotes };
-}
-
-/**
- * A link a person pastes is fetched by us, never trusted as given: only public http(s) addresses with a host name
- * (no IP literals, no local names), so the server cannot be pointed at internal addresses.
- */
-export function safeSourceUrl(value: unknown): URL | null {
-  try {
-    const url = new URL(String(value ?? '').trim());
-    if (!/^https?:$/.test(url.protocol) || url.username || url.password) return null;
-    const host = url.hostname.toLowerCase();
-    if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(localhost|local|internal|lan|home|corp)$/.test(host)) return null;
-    return url;
-  } catch {
-    return null;
-  }
 }
 
 export function platformOfUrl(url: URL): Platform {

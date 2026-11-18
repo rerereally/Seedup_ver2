@@ -1,4 +1,4 @@
-import { quotesFromLink, signEvidence } from '@/lib/opportunities/live-evidence';
+import { quotesFromLink, safeSourceUrl, signEvidence } from '@/lib/opportunities/live-evidence';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const url = typeof body?.url === 'string' ? body.url.slice(0, 500) : '';
   const idea = typeof body?.idea === 'string' ? body.idea.trim().slice(0, 300) : '';
   const quote = typeof body?.quote === 'string' ? body.quote.slice(0, 400) : '';
-  if (!url) return NextResponse.json({ error: MESSAGES.bad_url }, { status: 400 });
+  if (!safeSourceUrl(url)) return NextResponse.json({ error: MESSAGES.bad_url }, { status: 400 });
   if (!signEvidence({ id: 'lv_check', platform: 'web', quote: '', quoteKo: '', url: '', score: 0, postedAt: null })) {
     return NextResponse.json({ error: '서버 설정이 끝나지 않아 지금은 추가할 수 없습니다.' }, { status: 503 });
   }

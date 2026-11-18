@@ -1314,6 +1314,34 @@ $$;
 revoke all on function public.release_ai_usage(text) from public, anon;
 grant execute on function public.release_ai_usage(text) to authenticated;
 
+-- Same count as consume_ai_usage for MCP calls, which carry a personal token instead of a session (no auth.uid()).
+-- The server passes the user id, so only the service role may call it.
+create or replace function public.consume_ai_usage_for(p_user uuid, p_feature text, p_daily_limit integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  if p_user is null then
+    return false;
+  end if;
+
+  insert into public.ai_usage (user_id, feature, count)
+  values (p_user, p_feature, 1)
+  on conflict (user_id, feature, usage_date)
+  do update set count = public.ai_usage.count + 1
+  returning count into v_count;
+
+  return v_count <= p_daily_limit;
+end;
+$$;
+
+revoke all on function public.consume_ai_usage_for(uuid, text, integer) from public, anon, authenticated;
+grant execute on function public.consume_ai_usage_for(uuid, text, integer) to service_role;
+
 -- Atomic content view counter. Safe to run more than once.
 -- The table allowlist must match getContentTable in lib/content-targets.ts.
 
@@ -1364,3 +1392,159 @@ grant select, insert, update, delete on public.mcp_tokens to service_role;
 
 -- Owners can make one saved PRD readable by anyone with its link (read-only, served by the server).
 alter table public.evidence_dossiers add column if not exists shared boolean not null default false;
+
+
+-- PRD model menu: which models the admin allows, and a log of who ran which model.
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+
+create table if not exists public.prd_runs (
+  id bigint generated always as identity primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  email text,
+  kind text not null,
+  model text not null,
+  requested_model text not null,
+  title text,
+  ok boolean not null,
+  calls int not null default 0,
+  prompt_tokens int not null default 0,
+  completion_tokens int not null default 0,
+  cost_usd numeric(10, 5) not null default 0,
+  duration_ms int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists prd_runs_created_at_idx on public.prd_runs (created_at desc);
+
+alter table public.app_settings enable row level security;
+alter table public.prd_runs enable row level security;
+revoke all on public.app_settings, public.prd_runs from anon, authenticated;
+grant select, insert, update, delete on public.app_settings, public.prd_runs to service_role;
+
+-- Features a coding agent marked done through MCP (mark_feature_done), shown on the PRD page.
+create table if not exists public.build_progress (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  slug text not null,
+  feature_id text not null,
+  feature_title text not null default '',
+  note text not null default '',
+  done_at timestamptz not null default now(),
+  primary key (user_id, slug, feature_id)
+);
+
+alter table public.build_progress enable row level security;
+drop policy if exists "read own build progress" on public.build_progress;
+create policy "read own build progress" on public.build_progress for select to authenticated using (auth.uid() = user_id);
+revoke all on public.build_progress from anon;
+revoke insert, update, delete on public.build_progress from authenticated;
+grant select on public.build_progress to authenticated;
+grant select, insert, update, delete on public.build_progress to service_role;
+
+-- One row per weekly issue for the web archive, and one send receipt per issue per recipient.
+create table if not exists public.newsletter_issues (
+  period_key text primary key,
+  subject text not null,
+  data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.newsletter_issues enable row level security;
+revoke all on public.newsletter_issues from anon, authenticated;
+grant select, insert, update, delete on public.newsletter_issues to service_role;
+
+create table if not exists public.newsletter_sends (
+  id bigint generated always as identity primary key,
+  kind text not null,
+  period_key text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  sent_at timestamptz not null default now(),
+  unique (kind, period_key, user_id)
+);
+create index if not exists newsletter_sends_sent_at_idx on public.newsletter_sends (sent_at desc);
+
+alter table public.newsletter_sends enable row level security;
+revoke all on public.newsletter_sends from anon, authenticated;
+grant select, insert, update, delete on public.newsletter_sends to service_role;
+
+-- Validation kit: a public page for one idea with a waitlist.
+create table if not exists public.idea_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  slug text not null unique check (slug ~ '^[a-z0-9]{10}$'),
+  idea text not null check (char_length(idea) between 4 and 300),
+  headline text not null check (char_length(headline) between 4 and 120),
+  pitch text not null default '' check (char_length(pitch) <= 600),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.waitlist_signups (
+  id uuid primary key default gen_random_uuid(),
+  page_id uuid not null references public.idea_pages(id) on delete cascade,
+  email text not null check (char_length(email) between 5 and 200),
+  created_at timestamptz not null default now(),
+  unique (page_id, email)
+);
+
+alter table public.idea_pages enable row level security;
+alter table public.waitlist_signups enable row level security;
+drop policy if exists "idea_pages_own" on public.idea_pages;
+create policy "idea_pages_own" on public.idea_pages for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "waitlist_owner_select" on public.waitlist_signups;
+create policy "waitlist_owner_select" on public.waitlist_signups for select to authenticated using (exists (select 1 from public.idea_pages p where p.id = page_id and p.user_id = auth.uid()));
+drop policy if exists "waitlist_owner_delete" on public.waitlist_signups;
+create policy "waitlist_owner_delete" on public.waitlist_signups for delete to authenticated using (exists (select 1 from public.idea_pages p where p.id = page_id and p.user_id = auth.uid()));
+grant select, insert, update, delete on public.idea_pages to authenticated;
+grant select, delete on public.waitlist_signups to authenticated;
+grant select, insert, update, delete on public.idea_pages, public.waitlist_signups to service_role;
+
+-- Sentences a person saved from a post (browser extension), verified word for word against the source.
+create table if not exists public.saved_quotes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  url text not null,
+  quote text not null check (char_length(quote) between 12 and 400),
+  platform text not null default 'web',
+  page_title text,
+  created_at timestamptz not null default now(),
+  unique (user_id, url, quote)
+);
+
+alter table public.saved_quotes enable row level security;
+drop policy if exists "saved_quotes_own_select" on public.saved_quotes;
+create policy "saved_quotes_own_select" on public.saved_quotes for select to authenticated using (auth.uid() = user_id);
+drop policy if exists "saved_quotes_own_delete" on public.saved_quotes;
+create policy "saved_quotes_own_delete" on public.saved_quotes for delete to authenticated using (auth.uid() = user_id);
+grant select, delete on public.saved_quotes to authenticated;
+grant select, insert, update, delete on public.saved_quotes to service_role;
+
+-- Ideas a person asked Seedup to keep checking weekly.
+create table if not exists public.idea_watches (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  idea text not null check (char_length(idea) between 4 and 300),
+  known_urls text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  checked_at timestamptz,
+  unique (user_id, idea)
+);
+
+alter table public.idea_watches enable row level security;
+drop policy if exists "idea_watches_own_select" on public.idea_watches;
+create policy "idea_watches_own_select" on public.idea_watches for select to authenticated using (auth.uid() = user_id);
+drop policy if exists "idea_watches_own_insert" on public.idea_watches;
+create policy "idea_watches_own_insert" on public.idea_watches for insert to authenticated with check (auth.uid() = user_id);
+drop policy if exists "idea_watches_own_delete" on public.idea_watches;
+create policy "idea_watches_own_delete" on public.idea_watches for delete to authenticated using (auth.uid() = user_id);
+grant select, insert, delete on public.idea_watches to authenticated;
+grant select, insert, update, delete on public.idea_watches to service_role;
+
+-- Incremental columns added after initial launch.
+alter table public.user_onboarding add column if not exists notify_webhook text;
+alter table public.evidence_dossiers add column if not exists built_url text;
+alter table public.evidence_dossiers add column if not exists built_note text;
+alter table public.evidence_dossiers add column if not exists built_at timestamptz;
+alter table public.github_trends add column if not exists latest_release jsonb;

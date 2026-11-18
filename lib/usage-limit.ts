@@ -1,12 +1,24 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * Whether a failed limit check lets the call through. In production it does not: a missing migration or a database
+ * outage would otherwise turn every paid model call into an unlimited one. Locally (and in tests) it does, so a
+ * database without the SQL files still works. USAGE_LIMIT_FAIL_OPEN=true|false overrides either default.
+ */
+export function usageLimitFailsOpen(env: Record<string, string | undefined> = process.env) {
+  const override = env.USAGE_LIMIT_FAIL_OPEN?.trim().toLowerCase();
+  if (override === 'true') return true;
+  if (override === 'false') return false;
+  return env.NODE_ENV !== 'production';
+}
+
 /** Counts one use of a paid-for feature. Returns false once today's limit is used up. */
 export async function consumeDailyUsage(supabase: SupabaseClient, feature: string, dailyLimit: number) {
   const { data, error } = await supabase.rpc('consume_ai_usage', { p_feature: feature, p_daily_limit: dailyLimit });
   if (error) {
-    // These routes already require login, so a missing migration should not take the feature down.
-    console.error('Usage limit check failed', feature, error.message);
-    return true;
+    const open = usageLimitFailsOpen();
+    console.error(`Usage limit check failed (${open ? 'allowing' : 'blocking'} the call)`, feature, error.message);
+    return open;
   }
   return data === true;
 }

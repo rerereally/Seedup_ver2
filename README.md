@@ -113,12 +113,17 @@ flowchart LR
 
 ### 5. Seedup MCP 서버 — Claude Code · Cursor 직결 (`/api/mcp`, `/profile`)
 - **표준 Streamable HTTP JSON-RPC 2.0 서버 (`lib/mcp/server.ts`)**: 외부 무거운 의존성 없이 Cloudflare Workers 환경에서 즉시 동작하는 경량 MCP 서버 구현
-- **프로필 개인 토큰 관리 (`components/McpConnect.tsx`)**: `/profile`에서 개인용 `sdup_...` 토큰 발급/폐기(DB에는 SHA-256 해시만 저장) 및 원클릭 연결 명령어 복사
-- **4대 제공 도구 (`TOOLS`)**:
+- **프로필 개인 토큰 관리 (`components/McpConnect.tsx`)**: `/profile`에서 개인용 `sdp_...` 토큰 발급/폐기(DB에는 SHA-256 해시만 저장) 및 원클릭 연결 명령어 복사
+- **9개 제공 도구 (`TOOLS`)**:
   1. `search_opportunities`: 검증된 개발자 불만 기회 키워드 검색
   2. `get_opportunity`: 특정 기회의 문제·시장 빈틈·원문 증언(`E-n`)·직접 경쟁 도구 상세 조회
-  3. `generate_verified_prd`: 근거 추적형 스펙을 `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, Lovable·Bolt·v0 프롬프트, `PRD` 포맷으로 즉시 생성 (동일 근거 캐시 히트 시 일일 한도 미차감)
-  4. `find_related_content`: 아이디어와 의미적으로 가까운 수집 뉴스·논문·레포·제품 검색
+  3. `generate_verified_prd`: 근거 추적형 스펙을 `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, Lovable·Bolt·v0 프롬프트, `PRD` 포맷으로 즉시 생성 (동일 근거 캐시 히트 시 일일 한도 미차감, 하루 10회)
+  4. `get_build_checklist`: 생성한 PRD의 기능(`F-n`)별 완료 기준과 완료 여부 조회
+  5. `mark_feature_done`: 완료 기준을 통과한 기능을 완료로 표시(사이트 PRD 화면에 진행 상황 반영)
+  6. `get_kept_items`: 사용자가 보관함에 저장한 레포·아티클·논문·제품 조회
+  7. `find_related_content`: 아이디어와 의미적으로 가까운 수집 뉴스·논문·레포·제품 검색
+  8. `validate_idea`: 아이디어 하나에 대한 "만들 가치" 검증 리포트(원문 인용·기존 도구·첫 사용자·판정, 하루 3회)
+  9. `watch_idea`: 아이디어 지켜보기 등록(매주 새 원문·경쟁 도구 메일 알림, 최대 10개)
 
 ### 6. AI 아이디어 검증기 & pgvector 하이브리드 RAG (`/ideas`)
 - **사전 입력 검증 (`validateIdeaInput`)**: 최소 글자 수, 자모 연타, 비속어, 무의미 입력을 LLM 호출 전 필터링
@@ -222,14 +227,24 @@ INGEST_INTERNAL_URL=http://localhost:3000
 Supabase Dashboard의 **SQL Editor**에서 아래 파일들을 실행합니다.
 1. **초기 전체 스키마**: [supabase/schema.sql](supabase/schema.sql) (신규 프로젝트는 이 파일에 전체 테이블·인덱스·RLS가 포함되어 있습니다)
 2. **운영 중 프로젝트 증분 마이그레이션**:
-   - [supabase/opportunities_2026_11.sql](supabase/opportunities_2026_11.sql): 기회 엔진(`opportunities`) 및 증언 도시에(`evidence_dossiers`)
-   - [supabase/hardening_2026_11.sql](supabase/hardening_2026_11.sql): 일일 AI 호출 쿼터(`daily_usage_limits`, `consume_daily_usage` RPC) 및 RLS 강화
+   - [supabase/opportunities_2026_11.sql](supabase/opportunities_2026_11.sql): 기회 엔진(`opportunities`), 증언 도시에(`evidence_dossiers`), 일일 AI 쿼터(`ai_usage`, `consume_ai_usage` RPC)
+   - [supabase/hardening_2026_11.sql](supabase/hardening_2026_11.sql): 수집 로그(`ingest_runs`, `ingest_rejections`) 서버 전용 제한 및 아이디어 평가(`idea_evaluations`) RLS 강화
    - [supabase/view_count_2026_11.sql](supabase/view_count_2026_11.sql): 상세 페이지 조회수 원자적 증가(`increment_content_view` RPC)
-   - [supabase/usage_refund_2026_11.sql](supabase/usage_refund_2026_11.sql): LLM 생성 실패 시 일일 쿼터 즉시 반환(`release_daily_usage` RPC)
+   - [supabase/usage_refund_2026_11.sql](supabase/usage_refund_2026_11.sql): LLM 생성 실패 시 일일 쿼터 즉시 반환(`release_ai_usage` RPC)
+   - [supabase/mcp_usage_2026_11.sql](supabase/mcp_usage_2026_11.sql): MCP 호출 일일 쿼터 원자적 차감(`consume_ai_usage_for` RPC, service role 전용)
    - [supabase/mcp_tokens_2026_11.sql](supabase/mcp_tokens_2026_11.sql): 개인용 MCP 토큰(`mcp_tokens`) 테이블 및 RLS
-   - [supabase/prd_cache_2026_11.sql](supabase/prd_cache_2026_11.sql): 동일 증언 조합 PRD 캐시 조회용 인덱스(`evidence_dossiers_cache_idx`)
+   - [supabase/prd_models_2026_11.sql](supabase/prd_models_2026_11.sql): PRD 허용 모델 설정(`app_settings`) 및 실행 로그(`prd_runs`)
+   - [supabase/prd_cache_2026_11.sql](supabase/prd_cache_2026_11.sql): 동일 증언 조합 PRD 캐시(`prd_cache`)
+   - [supabase/build_progress_2026_11.sql](supabase/build_progress_2026_11.sql): MCP 구현 완료 체크리스트(`build_progress`)
    - [supabase/dossier_share_2026_11.sql](supabase/dossier_share_2026_11.sql): 보관함 PRD 공개 공유 링크(`/spec/[id]`) 컬럼 및 정책
+   - [supabase/built_2026_11.sql](supabase/built_2026_11.sql): 공유 PRD "만들었어요" 링크·메모 컬럼(`built_url`, `built_note`, `built_at`)
+   - [supabase/newsletter_issues_2026_11.sql](supabase/newsletter_issues_2026_11.sql): 주간 뉴스레터 웹 아카이브(`newsletter_issues`)
    - [supabase/newsletter_sends_2026_11.sql](supabase/newsletter_sends_2026_11.sql): 뉴스레터 및 다이제스트 중복 발송 방지(`newsletter_sends`)
+   - [supabase/repo_releases_2026_11.sql](supabase/repo_releases_2026_11.sql): 킵한 저장소 최신 릴리스(`github_trends.latest_release`)
+   - [supabase/notify_webhook_2026_11.sql](supabase/notify_webhook_2026_11.sql): 디스코드·슬랙 웹훅 알림(`user_onboarding.notify_webhook`)
+   - [supabase/idea_watches_2026_11.sql](supabase/idea_watches_2026_11.sql): 아이디어 주간 지켜보기(`idea_watches`)
+   - [supabase/saved_quotes_2026_11.sql](supabase/saved_quotes_2026_11.sql): 브라우저 확장으로 담은 원문 문장(`saved_quotes`)
+   - [supabase/idea_pages_2026_11.sql](supabase/idea_pages_2026_11.sql): 검증 실험 키트 공개 페이지·대기자 명단(`idea_pages`, `waitlist_signups`)
 3. **OAuth Redirect URL 등록** (`Authentication > URL Configuration`):
    - `http://localhost:3000/auth/callback`
    - `https://seedup.rerereally.com/auth/callback`
@@ -240,7 +255,7 @@ Supabase Dashboard의 **SQL Editor**에서 아래 파일들을 실행합니다.
 # 개발 서버 실행 (http://localhost:3000)
 npm run dev
 
-# 타입 검사 · 린트 · 단위 테스트(66개) · 프로덕션 빌드
+# 타입 검사 · 린트 · 단위 테스트(138개) · 프로덕션 빌드
 npm run typecheck
 npm run lint
 npm test
@@ -256,7 +271,7 @@ SMOKE_BASE_URL=http://localhost:3000 npm run smoke
 
 Seedup은 코딩 에이전트에서 바로 검증된 기회를 검색하고 근거 추적형 PRD(`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`)를 가져올 수 있도록 **MCP 서버(`/api/mcp`)**를 제공합니다.
 
-1. 사이트 로그인 후 **`프로필(/profile) → MCP 연결`**에서 개인 토큰(`sdup_...`)을 발급받습니다.
+1. 사이트 로그인 후 **`프로필(/profile) → MCP 연결`**에서 개인 토큰(`sdp_...`)을 발급받습니다.
 2. **Claude Code**에서 아래 명령 한 줄로 연결합니다:
    ```bash
    claude mcp add --transport http seedup https://seedup.rerereally.com/api/mcp \
@@ -344,7 +359,7 @@ lib/
   usage-limit.ts              원자적 일일 AI 쿼터 차감 및 실패 시 자동 환불
   i18n.ts & i18n-server.ts    한/영 번역 헬퍼 및 서버 쿠키 로더
 supabase/                     전체 스키마(schema.sql) 및 기능별 마이그레이션 SQL
-tests/                        단위 및 통합 검증 테스트 (66개 테스트 케이스)
+tests/                        단위 및 통합 검증 테스트 (138개 테스트 케이스)
 ```
 
 ---

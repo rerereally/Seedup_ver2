@@ -24,10 +24,15 @@ export async function userForToken(service: SupabaseClient, authorization: strin
 
 /**
  * Daily limit for MCP calls, counted in the same ai_usage table as the website.
- * shortcut: read-then-write through the service role (no auth.uid() for consume_ai_usage); two calls in the same
- * instant can both pass at the limit. Move to a service-role RPC with an atomic upsert if MCP traffic grows.
+ * consume_ai_usage_for (supabase/mcp_usage_2026_11.sql) counts in one statement, so two calls in the same instant
+ * cannot both pass at the limit. Until that file is applied, it falls back to a read-then-write count, which still
+ * limits but can let a burst through.
  */
 export async function consumeUsageFor(service: SupabaseClient, userId: string, feature: string, dailyLimit: number) {
+  const { data: allowed, error: rpcError } = await service.rpc('consume_ai_usage_for', { p_user: userId, p_feature: feature, p_daily_limit: dailyLimit });
+  if (!rpcError) return allowed === true;
+  console.error('MCP atomic usage count failed, falling back to read-then-write', rpcError.message);
+
   const usageDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
   const { data } = await service.from('ai_usage').select('count').eq('user_id', userId).eq('feature', feature).eq('usage_date', usageDate).maybeSingle();
   const count = Number(data?.count ?? 0);

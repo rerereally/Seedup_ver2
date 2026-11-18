@@ -12,6 +12,23 @@ type WebResult = { title: string; url: string; content: string };
 
 const PAGE_WINDOW = 1_500;
 const MAX_PAGE_BYTES = 2_000_000;
+const MAX_REDIRECTS = 3;
+
+/**
+ * Only public http(s) addresses with a host name (no IP literals, no local names), so a user-supplied link or an
+ * HTTP redirect cannot point the server at internal addresses.
+ */
+export function safeSourceUrl(value: unknown): URL | null {
+  try {
+    const url = new URL(String(value ?? '').trim());
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(localhost|local|internal|lan|home|corp)$/.test(host)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
 
 export const webSearchEnabled = () => Boolean(process.env.TAVILY_API_KEY?.trim());
 
@@ -33,14 +50,33 @@ async function webSearch(query: string, maxResults: number): Promise<WebResult[]
   }
 }
 
-/** The page as plain text, fetched by us, so a quote is checked against the page itself and never against a search snippet. */
-export async function fetchPageText(url: string): Promise<string | null> {
+/**
+ * The page as plain text, fetched by us, so a quote is checked against the page itself and never against a search
+ * snippet. Redirects are checked against `safeSourceUrl` so a public link cannot redirect to an internal address.
+ */
+export async function fetchPageText(
+  url: string,
+  fetcher: typeof fetch = fetch,
+): Promise<string | null> {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { 'user-agent': 'SeedupOpportunityEngine/1.0', accept: 'text/html,text/plain' } });
-    const type = response.headers.get('content-type') ?? '';
-    if (!response.ok || !/text\/(html|plain)/.test(type)) return null;
-    const html = (await response.text()).slice(0, MAX_PAGE_BYTES);
-    return cleanText(html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' '));
+    let current = safeSourceUrl(url);
+    for (let hops = 0; current && hops <= MAX_REDIRECTS; hops += 1) {
+      const response = await fetcher(current.toString(), {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'user-agent': 'SeedupOpportunityEngine/1.0', accept: 'text/html,text/plain' },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        current = location ? safeSourceUrl(new URL(location, current).toString()) : null;
+        continue;
+      }
+      const type = response.headers.get('content-type') ?? '';
+      if (!response.ok || !/text\/(html|plain)/.test(type)) return null;
+      const html = (await response.text()).slice(0, MAX_PAGE_BYTES);
+      return cleanText(html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' '));
+    }
+    return null;
   } catch {
     return null;
   }

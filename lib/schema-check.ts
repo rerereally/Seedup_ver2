@@ -12,6 +12,7 @@ export const SCHEMA_FILES: Array<{ file: string; tables?: string[]; columns?: Ar
   { file: 'newsletter_sends_2026_11.sql', tables: ['newsletter_sends'] },
   { file: 'dossier_share_2026_11.sql', columns: [['evidence_dossiers', 'shared']] },
   { file: 'usage_refund_2026_11.sql', functions: ['release_ai_usage'] },
+  { file: 'mcp_usage_2026_11.sql', functions: ['consume_ai_usage_for'] },
   { file: 'view_count_2026_11.sql', functions: ['increment_content_view'] },
   { file: 'idea_pages_2026_11.sql', tables: ['idea_pages', 'waitlist_signups'] },
   { file: 'saved_quotes_2026_11.sql', tables: ['saved_quotes'] },

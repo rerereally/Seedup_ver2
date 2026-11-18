@@ -96,3 +96,20 @@ test('the built reply quotes the person, links the product and asks instead of s
   assert.match(reply, /\?/);
   assert.ok(builtReply('x'.repeat(300), 'https://a.b').includes('…'));
 });
+
+import { fetchPageText } from '../lib/opportunities/web';
+
+test('fetchPageText blocks redirects to private or local hosts and follows safe redirects', async () => {
+  const redirectTo = (location: string): typeof fetch => (async () => new Response(null, { status: 302, headers: { location } })) as typeof fetch;
+  assert.equal(await fetchPageText('https://example.com/start', redirectTo('http://127.0.0.1/admin')), null);
+  assert.equal(await fetchPageText('https://example.com/start', redirectTo('http://localhost:3000/secret')), null);
+
+  let hops = 0;
+  const safeRedirect: typeof fetch = (async () => {
+    hops += 1;
+    return hops === 1
+      ? new Response(null, { status: 301, headers: { location: '/article' } })
+      : new Response('<html><body><p>Hello verified world</p></body></html>', { status: 200, headers: { 'content-type': 'text/html' } });
+  }) as typeof fetch;
+  assert.equal(await fetchPageText('https://example.com/start', safeRedirect), 'Hello verified world');
+});

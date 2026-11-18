@@ -42,3 +42,6 @@ tsconfig.tsbuildinfo
 
 # graphify knowledge graph (local)
 graphify-out/
+
+# agent worktrees (local)
+.claude/worktrees/

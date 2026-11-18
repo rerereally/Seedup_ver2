@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  # Opens or updates one issue when a run fails.
+  issues: write
 
 # Two runs merging into the same result at once would overwrite each other.
 concurrency:
@@ -69,3 +71,13 @@ jobs:
           npx tsx scripts/send-opportunity-digest.ts --kind changes
           # The schedule fires at 07:00 KST, so this is Monday morning in Korea.
           if [ "$(TZ=Asia/Seoul date +%u)" = "1" ]; then npx tsx scripts/send-opportunity-digest.ts --kind weekly; fi
+      - name: Report the failure in an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="기회 엔진 실행이 실패했습니다"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "실행: $RUN_URL"
+          else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "실행: $RUN_URL"; fi

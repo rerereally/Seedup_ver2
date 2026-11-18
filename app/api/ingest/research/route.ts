@@ -75,9 +75,14 @@ async function ingest(request: Request) {
     errors += 1;
   }
 
+  // A stored paper does not change, so it is not reviewed again; a time budget keeps the step inside the workflow limit.
+  const { data: storedRows } = candidates.length ? await supabase.from('research_papers').select('paper_url').in('paper_url', candidates.map((paper) => paper.paperUrl).filter(Boolean)) : { data: [] };
+  const stored = new Set((storedRows ?? []).map((row) => String(row.paper_url)));
+  const deadline = startedAt + Math.max(30, Number(url.searchParams.get('budgetSec') ?? 420)) * 1000;
+
   for (const paper of candidates) {
     try {
-      if (!paper.title || !paper.paperUrl) {
+      if (!paper.title || !paper.paperUrl || stored.has(paper.paperUrl) || Date.now() > deadline) {
         skipped += 1;
         continue;
       }

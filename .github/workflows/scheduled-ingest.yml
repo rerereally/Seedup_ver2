@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # Opens or updates one issue when a run fails, so a stopped collection does not go unnoticed.
+  issues: write
 
 concurrency:
   group: scheduled-ingest
@@ -79,11 +81,12 @@ jobs:
       - name: Run ingest steps
         run: |
           failed=0
+          printf '| step | status |\n|---|---|\n' > steps.md
           for path in \
             '/api/ingest/rss?limit=5&minScore=50' \
             '/api/ingest/products?limit=12' \
-            '/api/ingest/github?limit=15&minStars=50&pruneDays=30' \
-            '/api/ingest/research?limit=12&minScore=55&minFitScore=18' \
+            '/api/ingest/github?limit=15&minStars=50&pruneDays=30&maxNew=25&budgetSec=420' \
+            '/api/ingest/research?limit=12&minScore=55&minFitScore=18&budgetSec=420' \
             '/api/ingest/external-trends' \
             '/api/ingest/trends' \
             '/api/ingest/embeddings?perSource=40&max=60'
@@ -100,14 +103,28 @@ jobs:
               [ "$attempt" = 1 ] && sleep 20
             done
             echo "$path -> $status"
+            echo "| \`${path%%\?*}\` | $status |" >> steps.md
             case "$status" in
               2*) ;;
               *) failed=1 ;;
             esac
           done
 
+          cat steps.md >> "$GITHUB_STEP_SUMMARY"
           exit "$failed"
 
       - name: Show server log on failure
         if: failure() && steps.mode.outputs.mode == 'local'
         run: tail -n 80 server.log || true
+
+      - name: Report the failure in an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="매일 수집이 실패했습니다"
+          body="$(printf '%s\n\n%s\n' "실행: $RUN_URL" "$(cat steps.md 2>/dev/null || echo '단계 결과 없음')")"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi

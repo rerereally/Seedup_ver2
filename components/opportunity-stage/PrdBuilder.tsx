@@ -195,6 +195,29 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     }
   };
 
+  // The document comes first; screens (user flow, wireframes) are designed only when the reader asks for them.
+  const designScreens = async () => {
+    if (!spec || status !== 'idle') return;
+    setStatus('revising');
+    setError('');
+    setMessage('');
+    try {
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, mode: 'screens', model, ...ideaBrief });
+      if (!ok) fail(code, json, t('화면을 설계하지 못했습니다.', 'Could not design the screens.'));
+      else {
+        const next = json.spec as Spec;
+        setSpec(next);
+        onSpec?.(next);
+        setSaveState('idle');
+        setMessage(t(`화면 ${next.screens.length}개를 설계했습니다. 유저플로우와 와이어프레임에서 볼 수 있습니다.`, `Designed ${next.screens.length} screens. See them in the user flow and wireframes.`));
+      }
+    } catch {
+      setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
+    } finally {
+      setStatus('idle');
+    }
+  };
+
   const sentInstruction = useRef(externalInstruction?.id ?? 0);
   useEffect(() => {
     if (!externalInstruction || externalInstruction.id === sentInstruction.current) return;
@@ -498,16 +521,28 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
                     {t('에이전트 파일', 'Agent file')}
                     <select className="h-9 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{EXPORT_FILES[key]}</option>)}
+                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{key === 'prompt' ? t('Lovable·Bolt·v0 프롬프트', 'Lovable·Bolt·v0 prompt') : EXPORT_FILES[key]}</option>)}
                     </select>
                   </label>
                   <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
-                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format].split('/').pop()!, brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
                   <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 에이전트 연결부터', 'First time? Connect your agent')}</Link>
                 </div>
               </details>
             </div>
           </div>
+
+          <details className="mt-4 text-sm text-muted">
+            <summary className="cursor-pointer">{t('용어 풀이', 'What the labels mean')}</summary>
+            <dl className="mt-2 grid gap-1 [&_dt]:font-semibold [&_dt]:text-ink sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-4">
+              <dt>PRD</dt><dd>{t('무엇을 누구를 위해 왜 만드는지 정리한 기획 문서', 'A plan of what to build, for whom and why')}</dd>
+              <dt>E</dt><dd>{t('원문: 실제 사람이 공개 글에 쓴 문장', 'Evidence: a sentence a real person wrote in a public post')}</dd>
+              <dt>R</dt><dd>{t('요구사항: 원문이 말하는, 해결돼야 하는 것', 'Requirement: what the quotes say must be solved')}</dd>
+              <dt>F</dt><dd>{t('기능: 요구사항을 해결하려고 만드는 것', 'Feature: what you build to meet a requirement')}</dd>
+              <dt>S</dt><dd>{t('화면: 사용자가 기능을 만나는 곳', 'Screen: where users meet a feature')}</dd>
+              <dt>H</dt><dd>{t('가설: 원문이 뒷받침하지 않아 사용자에게 먼저 확인할 것', 'Hypothesis: no quote backs it yet, so check with users first')}</dd>
+            </dl>
+          </details>
 
           <div className="tabs mt-6" role="tablist" aria-label={t('PRD 보기 방식', 'PRD view')}>
             {VIEWS.map(([key, label, labelEn]) => (
@@ -664,9 +699,17 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 </ul>
               )}
 
-              {view === 'wire' && <Wireframes spec={spec} focus={focus} pick={pick} lang={lang} />}
+              {(view === 'wire' || view === 'flow') && !spec.screens.length && (
+                <div className="rounded-2xl border border-dashed border-outline-strong px-6 py-8">
+                  <p className="text-[15px] font-semibold">{t('아직 화면 설계가 없습니다', 'No screens designed yet')}</p>
+                  <p className="mt-1 text-[14px] leading-6 text-muted">{t('문서를 먼저 확인하고, 기능이 맞으면 화면을 설계하세요. 기능마다 어느 화면에 나오는지, 사용자가 어떤 순서로 만나는지 만듭니다.', 'Check the document first; once the features look right, design the screens: which screen shows each feature and the order users meet them.')}</p>
+                  <button type="button" className="btn mt-4 h-11 px-5" disabled={status !== 'idle'} onClick={() => void designScreens()}>{status === 'revising' ? t('설계하는 중', 'Designing') : t('화면 설계 만들기', 'Design the screens')}</button>
+                </div>
+              )}
 
-              {view === 'flow' && (
+              {view === 'wire' && spec.screens.length > 0 && <Wireframes spec={spec} focus={focus} pick={pick} lang={lang} />}
+
+              {view === 'flow' && spec.screens.length > 0 && (
                 <div>
                   <ol className={styles.flow}>
                     {spec.screens.map((screen) => (

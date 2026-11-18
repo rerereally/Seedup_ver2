@@ -27,7 +27,11 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
   const matched = query
     ? opportunities.filter((item) => [item.name, item.problem, item.nameEn, item.problemEn, ...item.keywords].some((value) => value?.toLowerCase().includes(query)))
     : opportunities;
-  const filtered = stage === 'verified' ? matched.filter((item) => item.qualified) : stage === 'gathering' ? matched.filter((item) => !item.qualified) : matched;
+  const weekend = opportunities.filter((item) => item.build?.size === 'weekend').length;
+  const filtered = stage === 'verified' ? matched.filter((item) => item.qualified)
+    : stage === 'gathering' ? matched.filter((item) => !item.qualified)
+      : stage === 'weekend' ? matched.filter((item) => item.build?.size === 'weekend')
+        : matched;
   // Verified problems first, then the ones closest to the bar.
   const sorted = [...filtered].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length);
   const visible = all ? sorted : sorted.slice(0, PAGE_SIZE);
@@ -54,9 +58,10 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
             <input type="search" name="q" defaultValue={q ?? ''} aria-label={t('기회 찾기', 'Find opportunities')} placeholder={t('만들고 싶은 것을 입력하면 맞는 원문과 기회를 찾습니다', 'Type what you want to build to find matching quotes and opportunities')} className="h-12 w-full border bg-white px-4 text-[15px] text-ink placeholder:text-muted" />
           </form>
           <nav className="seg" aria-label={t('단계로 걸러 보기', 'Filter by stage')}>
-            <Link href={href({})} scroll={false} aria-current={stage === 'verified' || stage === 'gathering' ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
+            <Link href={href({})} scroll={false} aria-current={stage === 'verified' || stage === 'gathering' || stage === 'weekend' ? undefined : 'page'}>{t('전체', 'All')} {opportunities.length}</Link>
             <Link href={href({ stage: 'verified' })} scroll={false} aria-current={stage === 'verified' ? 'page' : undefined}>{t('검증된 문제', 'Verified')} {verified}</Link>
             <Link href={href({ stage: 'gathering' })} scroll={false} aria-current={stage === 'gathering' ? 'page' : undefined}>{t('원문 모으는 중', 'Gathering')} {opportunities.length - verified}</Link>
+            {(weekend > 0 || stage === 'weekend') && <Link href={href({ stage: 'weekend' })} scroll={false} aria-current={stage === 'weekend' ? 'page' : undefined}>{t('주말 프로젝트', 'Weekend builds')} {weekend}</Link>}
           </nav>
         </div>
 

@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
+import { Bot, Check, FileText, GitBranch, Lightbulb } from 'lucide-react';
 import IdeaComposer from '@/components/IdeaComposer';
 import RepoPicks, { rankRepos } from '@/components/RepoPicks';
 import { getContentHref } from '@/lib/content-targets';
 import { getGitHubTrends, getScrapKeySet, getScraps } from '@/lib/data';
 import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
-import { getOpportunities } from '@/lib/opportunities/data';
+import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { dossierChanges } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
-import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
+import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
+import { forYou } from '@/lib/personal';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -25,27 +27,40 @@ const TYPE_LABELS: Record<string, [string, string]> = {
   trend: ['트렌드', 'Trend'],
 };
 
+const h2 = 'text-[20px] font-bold tracking-[-0.02em]';
+
 /**
- * The signed-in front page: what this person is working on (their PRDs and the problems they watch, with what changed
- * since they saved them), what is worth a look today, and what they kept for their coding agent.
+ * The signed-in front page, in the order a builder works: start something, pick up what is in progress, then what is
+ * worth a look for this person. New accounts get a short setup list instead of empty sections.
  */
 export default async function HomeDesk({ user, lang }: { user: User; lang: Lang }) {
   const t = translator(lang);
   const supabase = await createClient();
-  const [{ opportunities, generatedAt }, scraps, keptKeys, trends, dossierRows, token] = await Promise.all([
+  const [{ opportunities, generatedAt }, scraps, keptKeys, trends, dossierRows, token, answers, embeddings] = await Promise.all([
     getOpportunities(),
     getScraps(),
     getScrapKeySet(),
     getGitHubTrends(),
     supabase ? supabase.from('evidence_dossiers').select('*').order('updated_at', { ascending: false }).limit(6).then(({ data, error }) => (error ? [] : (data ?? []) as Dossier[])) : Promise.resolve([] as Dossier[]),
     createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data }) => Boolean(data)) ?? Promise.resolve(false),
+    supabase ? supabase.from('user_onboarding').select('answers').eq('user_id', user.id).maybeSingle().then(({ data }) => (data?.answers ?? null) as unknown) : Promise.resolve(null),
+    getOpportunityEmbeddings().catch(() => ({} as Record<string, number[]>)),
   ]);
 
   const dossiers = dossierRows.map((dossier) => {
     const opportunity = opportunities.find((item) => item.slug === dossier.opportunity_slug);
     return { ...dossier, opportunity, notes: opportunity ? dossierChanges(dossier.evidence_ids, dossier.updated_at, opportunity, describeChange).notes : [] };
   });
-  // Today's picks: verified problems seen most recently, then the ones with the most quotes.
+  const onboarded = Boolean(answers && Object.keys(answers as object).length);
+  const picks = await forYou(user.id, {
+    answers,
+    keptTitles: scraps.map((item) => item.title),
+    keptKeys,
+    planTitles: dossiers.map((item) => (item.opportunity ? item.opportunity.name : item.title)),
+    opportunities,
+    opportunityEmbeddings: embeddings,
+  }).catch(() => []);
+  // Shown when there is nothing personal yet, and always as the day's shared picks: verified problems seen most recently.
   const signals = [...opportunities]
     .filter((item) => item.qualified)
     .sort((a, b) => String(b.lastSeenAt ?? b.firstSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? a.firstSeenAt ?? '')) || b.evidence.length - a.evidence.length)
@@ -53,78 +68,120 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
   const repos = rankRepos(trends);
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });
   const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' });
-  const h2 = 'text-[22px] font-bold tracking-[-0.02em]';
+
+  const setup = [
+    { done: onboarded, label: t('관심 분야와 스택 고르기', 'Pick your interests and stack'), hint: t('추천이 내 관심사로 바뀝니다', 'Recommendations follow your interests'), href: '/onboarding' },
+    { done: dossiers.length > 0, label: t('첫 PRD 만들기', 'Make your first PRD'), hint: t('한 줄 아이디어면 됩니다', 'One line of an idea is enough'), href: '/prd' },
+    { done: token, label: t('코딩 에이전트 연결', 'Connect your coding agent'), hint: t('Claude Code·Cursor가 PRD를 직접 가져갑니다', 'Claude Code and Cursor read your PRDs'), href: '/profile' },
+  ];
+  const setupLeft = setup.filter((step) => !step.done).length;
+  const actions = [
+    { icon: FileText, label: t('아이디어로 PRD', 'PRD from an idea'), href: '/prd' },
+    { icon: GitBranch, label: t('내 저장소 평가', 'Review my repo'), href: '/seeds' },
+    { icon: Lightbulb, label: t('아이디어 평가', 'Score an idea'), href: '/ideas' },
+    { icon: Bot, label: token ? t('에이전트 연결됨', 'Agent connected') : t('에이전트 연결', 'Connect agent'), href: '/profile' },
+  ];
 
   return (
     <main id="main-content" className="page-shell grow">
       <header>
         <p className="text-sm text-muted">{day.format(new Date(generatedAt))}</p>
         <h1 className="page-intro-title mt-2">{t('내 작업대', 'Your desk')}</h1>
-        <p className="mt-3 max-w-[40em] text-[15px] leading-7 text-tertiary">{t('만들던 PRD와 지켜보는 문제, 오늘 볼 신호, 킵해 둔 것이 여기 모입니다.', 'Your PRDs and watched problems, today’s signals, and what you kept, in one place.')}</p>
-        <div className="mt-6 max-w-[44rem]"><IdeaComposer compact id="home-idea" placeholder={t('새 아이디어를 한 줄로 적으면 PRD 작업 공간이 열립니다', 'Write a new idea in one line to open the PRD workspace')} /></div>
+        <div className="mt-6 max-w-[44rem]"><IdeaComposer compact id="home-idea" placeholder={t('만들고 싶은 것을 한 줄로 적으면 PRD 작업 공간이 열립니다', 'Write what you want to build in one line to open the PRD workspace')} /></div>
+        <nav aria-label={t('바로 가기', 'Shortcuts')} className="mt-4 flex flex-wrap gap-2">
+          {actions.map(({ icon: Icon, label, href }) => (
+            <Link key={href} href={href} className="inline-flex h-10 items-center gap-2 rounded-full border border-outline-soft px-4 text-sm text-tertiary hover:border-outline-strong hover:text-ink">
+              <Icon aria-hidden="true" className="h-4 w-4" />{label}
+            </Link>
+          ))}
+        </nav>
       </header>
 
-      <div className="mt-16 grid gap-x-14 gap-y-16 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0">
-          <section aria-labelledby="desk-prds">
-            <h2 id="desk-prds" className={h2}>{t('내 PRD와 지켜보는 문제', 'Your PRDs and watched problems')}</h2>
-            {dossiers.length ? (
-              <ul className="rows mt-4">
+      <div className="mt-14 grid gap-x-14 gap-y-14 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-14">
+          {setupLeft > 0 && (
+            <section aria-labelledby="desk-setup" className="rounded-2xl border border-outline-soft p-6">
+              <h2 id="desk-setup" className={h2}>{t(`시작하기 · ${setup.length - setupLeft}/${setup.length}`, `Get started · ${setup.length - setupLeft}/${setup.length}`)}</h2>
+              <ol className="mt-4 grid gap-1 sm:grid-cols-3">
+                {setup.map((step) => (
+                  <li key={step.href}>
+                    <Link href={step.href} className="flex min-h-14 items-start gap-3 rounded-xl px-3 py-2.5 hover:bg-surface-low">
+                      <span aria-hidden="true" className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${step.done ? 'border-seed bg-seed text-on-seed' : 'border-outline-strong'}`}>{step.done && <Check className="h-3 w-3" strokeWidth={3} />}</span>
+                      <span className="min-w-0">
+                        <span className={`block text-[15px] font-semibold ${step.done ? 'text-muted line-through' : ''}`}>{step.label}</span>
+                        <span className="block text-[13px] text-muted">{step.hint}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          {dossiers.length > 0 && (
+            <section aria-labelledby="desk-prds">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                <h2 id="desk-prds" className={h2}>{t('이어서 하기', 'Pick up where you left off')}</h2>
+                <Link href="/scrap" className="link-seed">{t('보관함', 'Library')}</Link>
+              </div>
+              <ul className="rows mt-3">
                 {dossiers.map((dossier) => (
-                  <li key={dossier.id} className="py-5">
+                  <li key={dossier.id} className="py-4">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                      <Link href={dossier.opportunity_slug ? `/prd?opportunity=${encodeURIComponent(dossier.opportunity_slug)}` : '/scrap'} className="text-[17px] font-semibold leading-snug underline-offset-4 hover:underline">
+                      <Link href={dossier.opportunity_slug ? `/prd?opportunity=${encodeURIComponent(dossier.opportunity_slug)}` : '/scrap'} className="text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">
                         {dossier.opportunity ? localizedOpportunity(dossier.opportunity, lang).name : dossier.title}
                       </Link>
-                      <time dateTime={dossier.updated_at} className="text-[13px] text-muted">{t(`${date.format(new Date(dossier.updated_at))} 저장`, `Saved ${date.format(new Date(dossier.updated_at))}`)}</time>
+                      <span className="text-[13px] text-muted">
+                        {t(`원문 ${dossier.evidence_ids.length}건`, `${dossier.evidence_ids.length} quotes`)} · {dossier.prd_markdown ? t('PRD 있음', 'PRD saved') : t('PRD 아직 없음', 'No PRD yet')} · <time dateTime={dossier.updated_at}>{date.format(new Date(dossier.updated_at))}</time>
+                      </span>
                     </div>
-                    <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-muted">
-                      <span>{t(`원문 ${dossier.evidence_ids.length}건`, `${dossier.evidence_ids.length} quotes`)}</span>
-                      <span>{dossier.prd_markdown ? t('PRD 있음', 'PRD saved') : t('PRD 아직 없음', 'No PRD yet')}</span>
-                    </p>
-                    {dossier.notes.length > 0 && (
-                      <div className="mt-3 border-l-2 border-seed pl-4">
-                        <p className="text-[13px] font-semibold text-seed">{t('저장한 뒤 달라진 것', 'Changed since you saved it')}</p>
-                        <ul className="mt-1 grid gap-0.5 text-[14px] leading-6">{dossier.notes.slice(0, 3).map((note) => <li key={note}>{note}</li>)}</ul>
-                      </div>
-                    )}
+                    {dossier.notes.length > 0 && <p className="mt-1.5 text-[14px] text-seed">{t('저장한 뒤 달라짐', 'Changed since saved')}: {dossier.notes.slice(0, 2).join(' · ')}</p>}
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          <section aria-labelledby="desk-for-you">
+            <h2 id="desk-for-you" className={h2}>{t('나를 위한 추천', 'For you')}</h2>
+            {picks.length ? (
+              <>
+                <p className="mt-1 text-[13px] text-muted">{t('고른 관심 분야, 킵한 것, 만들고 있는 PRD와 가까운 순서입니다.', 'Ordered by how close each is to your interests, what you kept and the PRDs you are making.')}</p>
+                <ul className="rows mt-3">
+                  {picks.map((item) => (
+                    <li key={item.key} className="py-3.5">
+                      <p className="flex flex-wrap gap-x-2 text-[12.5px] text-muted"><span className="font-semibold text-seed">{item.kind}</span>{item.source && <span>{item.source}</span>}<span>· {item.reason}</span></p>
+                      <Link href={item.href} className="mt-0.5 block text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">{item.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-outline-strong px-6 py-8">
-                <p className="text-[15px] font-semibold">{t('아직 저장한 PRD가 없습니다', 'No saved PRD yet')}</p>
-                <p className="mt-1 text-[14px] leading-6 text-muted">{t('PRD를 보관함에 저장하면 여기서 이어서 볼 수 있고, 새 원문이나 경쟁 도구가 생기면 바뀐 점을 알려 드립니다.', 'Save a PRD to pick it up here; when new quotes or rival tools appear, this shows what changed.')}</p>
-                <Link href="/prd#verified" className="link-seed mt-3">{t('검증된 문제로 PRD 만들기', 'Make a PRD from a verified problem')}</Link>
-              </div>
+              <p className="mt-2 text-[14px] leading-6 text-muted">
+                {onboarded
+                  ? t('추천을 준비하는 중입니다. 글이나 저장소를 킵하면 더 정확해집니다.', 'Recommendations are warming up. Keeping articles or repos makes them sharper.')
+                  : <>{t('관심 분야를 고르면 이 자리에 나에게 맞는 문제, 글, 저장소가 모입니다. ', 'Pick your interests and this fills with problems, reads and repos that fit you. ')}<Link href="/onboarding" className="font-semibold text-seed underline-offset-4 hover:underline">{t('관심 분야 고르기', 'Pick interests')}</Link></>}
+              </p>
             )}
           </section>
 
-          <section className="mt-16" aria-labelledby="desk-signals">
+          <section aria-labelledby="desk-signals">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <h2 id="desk-signals" className={h2}>{t('오늘 볼 신호', 'Signals for today')}</h2>
+              <h2 id="desk-signals" className={h2}>{t('오늘 검증된 문제', 'Verified problems today')}</h2>
               <Link href="/newsletter-preview" className="link-seed">{t('오늘의 신호 전체', 'All of today’s signals')}</Link>
             </div>
-            <ol className="rows mt-4">
+            <ol className="rows mt-3">
               {signals.map((item) => {
                 const text = localizedOpportunity(item, lang);
                 const quote = item.evidence.find((row) => row.quote.length >= 30 && row.quote.length <= 220) ?? item.evidence[0];
                 return (
-                  <li key={item.slug} className="py-6">
-                    <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">
-                      <span className="font-semibold text-seed">{t(`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 이상`, `${MIN_EVIDENCE}+ quotes, ${MIN_PLATFORMS}+ sites`)}</span>
-                      <span>{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}</span>
-                      <span>{item.directCount ? t(`직접 경쟁 ${item.directCount}개`, `${item.directCount} direct rivals`) : t('직접 경쟁 없음', 'No direct rival')}</span>
-                    </p>
-                    <Link href={`/opportunities/${item.slug}`} className="mt-1.5 block text-[18px] font-semibold leading-snug underline-offset-4 hover:underline">{text.name}</Link>
-                    <p className="mt-1 line-clamp-2 text-[15px] leading-7 text-tertiary">{text.problem}</p>
-                    {quote && (
-                      <blockquote className="mt-3 border-l-2 border-seed pl-4">
-                        <p lang="en" className="line-clamp-2 text-[15px] leading-7">“{quote.quote}”</p>
-                        <footer className="mt-0.5 text-[13px] text-muted">{PLATFORM_LABELS[quote.platform]}</footer>
-                      </blockquote>
-                    )}
-                    <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="btn-quiet mt-4 h-10">{t('이 문제로 PRD 만들기', 'Make a PRD from this')}</Link>
+                  <li key={item.slug} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 py-4">
+                    <div className="min-w-0 flex-1 basis-[22rem]">
+                      <Link href={`/opportunities/${item.slug}`} className="text-[16px] font-semibold leading-snug underline-offset-4 hover:underline">{text.name}</Link>
+                      {quote && <p lang="en" className="mt-1 line-clamp-1 text-[14px] text-tertiary">“{quote.quote}” <span className="text-muted">· {PLATFORM_LABELS[quote.platform]}</span></p>}
+                      <p className="mt-1 text-[13px] text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)} · {item.directCount ? t(`직접 경쟁 ${item.directCount}개`, `${item.directCount} direct rivals`) : t('직접 경쟁 없음', 'No direct rival')}</p>
+                    </div>
+                    <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="btn-quiet h-10 shrink-0">{t('PRD 만들기', 'Make a PRD')}</Link>
                   </li>
                 );
               })}
@@ -132,27 +189,22 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
           </section>
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-14">
+        <aside className="flex min-w-0 flex-col gap-12">
           <section aria-labelledby="desk-kept">
             <div className="flex items-baseline justify-between gap-4">
               <h2 id="desk-kept" className={h2}>{t('킵한 것', 'Kept')}</h2>
               <Link href="/scrap" className="link-seed">{t('보관함', 'Library')}</Link>
             </div>
             {scraps.length ? (
-              <ul className="rows mt-4">
+              <ul className="rows mt-3">
                 {scraps.slice(0, 5).map((item) => (
-                  <li key={item.id} className="py-3.5">
+                  <li key={item.id} className="py-3">
                     <p className="text-[12.5px] text-muted">{t(...(TYPE_LABELS[item.item_type] ?? [item.item_type, item.item_type]))}</p>
                     <Link href={getContentHref(item.item_type, item.item_id)} className="mt-0.5 block truncate text-[15px] font-semibold underline-offset-4 hover:underline">{item.title}</Link>
                   </li>
                 ))}
               </ul>
-            ) : <p className="mt-3 text-[14px] leading-6 text-muted">{t('글이나 저장소에서 킵하기를 누르면 여기에 모입니다.', 'Press Keep on an article or a repository and it lands here.')}</p>}
-            <p className="mt-4 rounded-xl bg-surface-low px-4 py-3 text-[13px] leading-5 text-tertiary">
-              {token
-                ? t('에이전트가 연결되어 있습니다. 코딩 에이전트가 MCP get_kept_items로 킵한 것을 가져갑니다.', 'Your agent is connected; it reads what you kept through MCP get_kept_items.')
-                : <>{t('에이전트를 연결하면 코딩 에이전트가 킵한 저장소와 글을 바로 가져갑니다. ', 'Connect your agent and it can read what you kept. ')}<Link href="/profile" className="font-semibold text-seed underline-offset-4 hover:underline">{t('에이전트 연결', 'Connect')}</Link></>}
-            </p>
+            ) : <p className="mt-2 text-[14px] leading-6 text-muted">{t('글이나 저장소에서 킵하기를 누르면 여기에 모이고, 연결된 코딩 에이전트도 가져갈 수 있습니다.', 'Press Keep on an article or repo and it lands here, where your connected agent can read it too.')}</p>}
           </section>
 
           {repos.length > 0 && (

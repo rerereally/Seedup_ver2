@@ -72,3 +72,10 @@ test('the rival comparison keeps only competitors the input listed, under their 
   ], ['Portkey-AI', 'LiteLLM']);
   assert.deepEqual(rivals, [{ name: 'Portkey-AI', misses: 'no schema mapping', answer: 'maps every provider' }]);
 });
+
+test('a document-first PRD with no screens yet is not asked to place its features on screens', () => {
+  const docOnly = normalizeSpec({ summary: 's', requirements: [{ title: 'r', detail: '설정 파일 한 줄로 모델을 바꾸면 다음 요청부터 적용된다', evidence: [1] }], features: [{ title: 'f', detail: 'd', requirements: [1] }], screens: [], metrics: ['1초 안에 응답한다'] }, 1);
+  assert.doesNotMatch(specIssues(docOnly, input).join('\n'), /화면에도 없습니다/);
+  const withScreen = normalizeSpec({ summary: 's', requirements: [{ title: 'r', evidence: [1] }], features: [{ title: 'f', requirements: [1] }, { title: 'g', requirements: [1] }], screens: [{ name: 'home', features: [1] }] }, 1);
+  assert.match(specIssues(withScreen, input).join('\n'), /F-02 "g"이 어느 화면에도 없습니다/);
+});

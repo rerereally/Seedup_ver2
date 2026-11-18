@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { runOpportunityEngine } from '../lib/opportunities/engine';
 import { applyMerge, mergeRuns } from '../lib/opportunities/merge';
+import { fillBuildEstimates } from '../lib/opportunities/build';
+import { topUpEvidence } from '../lib/opportunities/topup';
 import type { Opportunity, OpportunitySnapshot } from '../lib/opportunities/types';
 import type { EngineCheckpointStore } from '../lib/opportunities/engine';
 
@@ -86,6 +88,16 @@ async function publish(snapshot: OpportunitySnapshot, embeddings: Record<string,
   });
 }
 
+/** Writes only each row's data and the columns derived from it, so a fill adds no history rows and changes no published flags. */
+async function publishRows(opportunities: Opportunity[]) {
+  const supabase = database();
+  if (!supabase) throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are required to persist');
+  for (const opportunity of opportunities) {
+    const { error } = await supabase.from('opportunities').update({ data: opportunity, qualified: opportunity.qualified, status: opportunity.status }).eq('slug', opportunity.slug);
+    if (error) throw new Error(`update failed for ${opportunity.slug}: ${error.message}`);
+  }
+}
+
 // ENGINE_CHECKPOINT=/path/file.json lets a failed run restart after the slow collection step.
 function checkpointStore(): EngineCheckpointStore | undefined {
   const file = process.env.ENGINE_CHECKPOINT;
@@ -99,6 +111,24 @@ function checkpointStore(): EngineCheckpointStore | undefined {
 async function main() {
   const persist = process.argv.includes('--persist');
   const previous = await loadPrevious(persist);
+  // --build-only and --topup-only work on the current result without a new collection run.
+  const buildOnly = process.argv.includes('--build-only');
+  const topupOnly = process.argv.includes('--topup-only');
+  if (buildOnly || topupOnly) {
+    if (!previous) throw new Error('no previous result to fill');
+    const snapshotFile = resolve(SNAPSHOT_DIR, 'snapshot.json');
+    const snapshot = JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot;
+    const current = persist ? { ...snapshot, generatedAt: previous.generatedAt, opportunities: previous.opportunities } : snapshot;
+    const log = (message: string) => console.log(timestamp(), message);
+    if (topupOnly) {
+      const result = await topUpEvidence(current.opportunities, new Date().toISOString(), log);
+      console.log(`evidence top-up: searched ${result.searched}, quotes added ${result.added}, newly qualified ${result.qualified}`);
+    }
+    if (buildOnly) console.log(`build estimates filled: ${await fillBuildEstimates(current.opportunities, log)}/${current.opportunities.length}`);
+    if (!persist) writeFileSync(snapshotFile, `${JSON.stringify(applyMerge(current, current.opportunities), null, 1)}\n`);
+    else await publishRows(current.opportunities);
+    return;
+  }
   const knownUrls = new Set((previous?.opportunities ?? []).flatMap((item) => item.evidence.map((evidence) => evidence.url)));
   const run = await runOpportunityEngine((message) => console.log(timestamp(), message), checkpointStore(), knownUrls);
 
@@ -107,7 +137,12 @@ async function main() {
   }
 
   const merged = mergeRuns(previous, { opportunities: run.snapshot.opportunities, embeddings: run.embeddings }, run.snapshot.generatedAt);
+  const log = (message: string) => console.log(timestamp(), message);
+  // Problems still below the bar get a search of their own before the result is written.
+  const topup = await topUpEvidence(merged.opportunities, run.snapshot.generatedAt, log);
+  log(`evidence top-up: searched ${topup.searched}, quotes added ${topup.added}, newly qualified ${topup.qualified}`);
   const snapshot = applyMerge(run.snapshot, merged.opportunities);
+  await fillBuildEstimates(snapshot.opportunities, log);
   writeFileSync(resolve(SNAPSHOT_DIR, 'snapshot.json'), `${JSON.stringify(snapshot, null, 1)}\n`);
   writeFileSync(resolve(SNAPSHOT_DIR, 'embeddings.json'), JSON.stringify(merged.embeddings));
   if (persist) await publish(snapshot, merged.embeddings);

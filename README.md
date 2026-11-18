@@ -35,7 +35,7 @@
 | :--- | :--- | :--- | :--- |
 | **근거 검증** | 단일 매체 요약, 읽고 북마크만 쌓인 채 휘발됨 | 사용자의 짧은 프롬프트만 보고 그럴듯한 소설형 PRD 생성 | **100% 원문 글자 대조(`isVerbatimQuote`)**: 실제 게시글 원문에 존재하는 증언만 채택하고, 근거 없는 요구사항은 서버가 강제로 **`가설(H-n)`**로 분리 |
 | **시장 공급 대조** | 시장 경쟁 상황 분석 없음 | 이미 GitHub 스타 2만 개짜리 오픈소스가 있어도 칭찬만 함 | **수요 5대 플랫폼 × 공급 4대 채널 교차 확인**: 기존 오픈소스·패키지 유무와 첫 불만 이후 후발 도구 등장 시차(`trackRecord`)까지 정량 산출 |
-| **스펙 구조 & 코딩 연결** | 읽기(Reading)에서 끝남 | 정적 마크다운 텍스트 1장 출력 후 끝남 | **`증언(E) → 요구사항(R) → 기능(F) → 화면(S)` 양방향 추적 + 6대 개발 준비 슬롯 + `AGENTS.md` / `CLAUDE.md` / `.cursorrules` + MCP 서버 직결** |
+| **스펙 구조 & 코딩 연결** | 읽기(Reading)에서 끝남 | 정적 마크다운 텍스트 1장 출력 후 끝남 | **`증언(E) → 요구사항(R) → 기능(F) → 화면(S)` 양방향 추적 + 6대 개발 준비 슬롯 + `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` + MCP 서버 직결** |
 | **기존 프로젝트 성장** | 지원 안 함 | 새 창업 아이템만 다룸 | **내 씨앗(`/seeds`) 역기획(Reverse Spec)**: 내 GitHub 공개 레포의 기존 구조를 분석해 깨지 않는 선에서 **다음 기능 3가지(GitHub Issue 생성) + 최신 논문 + 역기획 스펙** 제안 |
 
 ---
@@ -64,7 +64,7 @@ flowchart LR
   end
 
   subgraph A["4. 에이전트 & 빌더 실행"]
-    A1["AGENTS.md · CLAUDE.md · .cursorrules"]
+    A1["AGENTS.md · CLAUDE.md · .cursor/rules"]
     A2["Seedup MCP Server (/api/mcp)"]
     A3["내 GitHub 레포 역기획 (/seeds) & 공유 링크 (/spec/[id])"]
   end
@@ -101,7 +101,7 @@ flowchart LR
   - **근거 추적(Trace) / 구조 트리(IA Tree) / 유저플로우(Mermaid Flowchart) / 마크다운 문서(Document)** 4가지 뷰를 단일 `Spec` 상태에서 실시간 전환
   - 원문 증언 목록은 불변으로 고정한 채 자연어 지시문으로 기획서를 수정하고, 변경된 항목 수 표시 및 **1단계 되돌리기(`undo`)** 지원
 - **3종 코딩 에이전트 포맷 내보내기 & 공개 공유 링크 (`/spec/[id]`)**:
-  - **`AGENTS.md` · `CLAUDE.md` · `.cursorrules`** 3종 에이전트 브리프 및 PRD 마크다운 복사/다운로드 지원
+  - **`AGENTS.md` · `CLAUDE.md` · `.cursor/rules`** 3종 에이전트 브리프, Lovable·Bolt·v0에 붙여넣는 첫 프롬프트 및 PRD 마크다운 복사/다운로드 지원
   - 보관함(`/scrap`)에 저장한 PRD는 소유자 토글 하나로 **읽기 전용 공개 공유 링크(`/spec/[id]`)**를 생성해 팀원·심사위원과 즉시 공유 가능
 
 ### 4. 내 씨앗 — GitHub 저장소 어드바이저 & 역기획 (`/seeds`)
@@ -117,7 +117,7 @@ flowchart LR
 - **4대 제공 도구 (`TOOLS`)**:
   1. `search_opportunities`: 검증된 개발자 불만 기회 키워드 검색
   2. `get_opportunity`: 특정 기회의 문제·시장 빈틈·원문 증언(`E-n`)·직접 경쟁 도구 상세 조회
-  3. `generate_verified_prd`: 근거 추적형 스펙을 `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `PRD` 포맷으로 즉시 생성 (동일 근거 캐시 히트 시 일일 한도 미차감)
+  3. `generate_verified_prd`: 근거 추적형 스펙을 `AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, Lovable·Bolt·v0 프롬프트, `PRD` 포맷으로 즉시 생성 (동일 근거 캐시 히트 시 일일 한도 미차감)
   4. `find_related_content`: 아이디어와 의미적으로 가까운 수집 뉴스·논문·레포·제품 검색
 
 ### 6. AI 아이디어 검증기 & pgvector 하이브리드 RAG (`/ideas`)
@@ -150,7 +150,7 @@ flowchart LR
 | **Authentication** | Supabase Auth (Google OAuth, GitHub OAuth), SHA-256 Personal MCP Tokens |
 | **AI & Embeddings** | OpenRouter API (LLM 생성·전처리·검증·역기획 및 `openai/text-embedding-3-small` 임베딩) |
 | **Data Collectors** | `rss-parser`, GitHub REST API, Hacker News Algolia API, Stack Exchange API, DEV.to API, Lobsters, npm Registry, VS Code Marketplace, arXiv API, OpenAlex API |
-| **Agent Integration** | Model Context Protocol (MCP, Streamable HTTP JSON-RPC 2.0), `AGENTS.md` / `CLAUDE.md` / `.cursorrules` |
+| **Agent Integration** | Model Context Protocol (MCP, Streamable HTTP JSON-RPC 2.0), `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` |
 | **Email & Cron** | Resend API (`newsletter_sends` 멱등성 보장), GitHub Actions Scheduled Workflows |
 | **Deployment** | Cloudflare Workers, `@opennextjs/cloudflare` (Smart Placement) |
 
@@ -254,7 +254,7 @@ SMOKE_BASE_URL=http://localhost:3000 npm run smoke
 
 ## 🔌 MCP 서버 연결 가이드 (Claude Code · Cursor)
 
-Seedup은 코딩 에이전트에서 바로 검증된 기회를 검색하고 근거 추적형 PRD(`AGENTS.md`, `CLAUDE.md`, `.cursorrules`)를 가져올 수 있도록 **MCP 서버(`/api/mcp`)**를 제공합니다.
+Seedup은 코딩 에이전트에서 바로 검증된 기회를 검색하고 근거 추적형 PRD(`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`)를 가져올 수 있도록 **MCP 서버(`/api/mcp`)**를 제공합니다.
 
 1. 사이트 로그인 후 **`프로필(/profile) → MCP 연결`**에서 개인 토큰(`sdup_...`)을 발급받습니다.
 2. **Claude Code**에서 아래 명령 한 줄로 연결합니다:

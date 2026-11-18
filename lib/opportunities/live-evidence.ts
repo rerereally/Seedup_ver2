@@ -61,8 +61,9 @@ ${posts.map((post, id) => `#${id} [${post.platform}] ${post.title}\n${post.text.
  * Searches developer sites for posts about the idea and keeps only quotes that match their source word for word. Uses
  * the default (free) model: this is collection, not writing.
  */
-export async function findLiveEvidence(idea: string, onUsage?: (usage: ModelUsage) => void): Promise<{ phrases: string[]; quotes: Evidence[] }> {
-  const phraseAnswer = await callJsonModel<{ phrases?: unknown[] }>(phrasePrompt(idea), { maxTokens: 300, timeoutMs: 25_000, onUsage });
+export async function findLiveEvidence(idea: string, onUsage?: (usage: ModelUsage) => void, knownPhrases: string[] = [], model?: string): Promise<{ phrases: string[]; quotes: Evidence[] }> {
+  // Phrases the caller already has (a problem's stored keywords) skip the model call that free models often fail.
+  const phraseAnswer = knownPhrases.length ? { phrases: knownPhrases } : await callJsonModel<{ phrases?: unknown[] }>(phrasePrompt(idea), { maxTokens: 300, timeoutMs: 25_000, onUsage, model });
   const phrases = (phraseAnswer?.phrases ?? []).filter((row): row is string => typeof row === 'string').map((row) => row.trim()).filter((row) => row.length >= 3).slice(0, MAX_PHRASES);
   if (!phrases.length) return { phrases: [], quotes: [] };
 
@@ -75,7 +76,7 @@ export async function findLiveEvidence(idea: string, onUsage?: (usage: ModelUsag
     .map((post, index) => ({ ...post, id: String(index), actor: 'live' }) as RawSignal);
   if (!posts.length) return { phrases, quotes: [] };
 
-  const answer = await callJsonModel<{ quotes?: Array<{ id?: number; quote?: string; quote_ko?: string }> }>(quotePrompt(idea, posts), { maxTokens: 1800, timeoutMs: 45_000, onUsage });
+  const answer = await callJsonModel<{ quotes?: Array<{ id?: number; quote?: string; quote_ko?: string }> }>(quotePrompt(idea, posts), { maxTokens: 1800, timeoutMs: 45_000, onUsage, model });
   const quotes: Evidence[] = [];
   for (const row of answer?.quotes ?? []) {
     const post = posts[Number(row.id)];

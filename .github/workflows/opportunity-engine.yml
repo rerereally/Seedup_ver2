@@ -28,6 +28,11 @@ jobs:
       OPENROUTER_FREE_ONLY: ${{ vars.OPENROUTER_FREE_ONLY }}
       RAG_EMBEDDING_MODEL: ${{ vars.RAG_EMBEDDING_MODEL }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Web search for competitors and more quotes; without it the engine never searches the open web.
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      # Optional steadier model for the evidence top-up (for example "exaone", which needs EXAONE_API_KEY).
+      ENGINE_EVIDENCE_MODEL: ${{ vars.ENGINE_EVIDENCE_MODEL }}
+      EXAONE_API_KEY: ${{ secrets.EXAONE_API_KEY }}
       # Mail is optional: without these three the digest step prints what it would send and stops.
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       NEWSLETTER_FROM_EMAIL: ${{ secrets.NEWSLETTER_FROM_EMAIL }}

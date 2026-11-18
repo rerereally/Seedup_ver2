@@ -38,3 +38,9 @@ export const onboardingQuestions = [
 ] as const;
 
 export type OnboardingAnswers = Record<string, string | string[]>;
+
+/** 입문자·초보자 answers to the level question; they get a smaller, plain-language PRD. */
+export function isBeginner(answers: unknown) {
+  const level = (answers as Record<string, unknown> | null | undefined)?.level;
+  return [level].flat().some((value) => /^(입문자|초보자)/.test(String(value ?? '')));
+}

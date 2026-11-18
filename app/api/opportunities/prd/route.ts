@@ -1,4 +1,5 @@
 import { toLang } from '@/lib/i18n';
+import { isBeginner } from '@/lib/onboarding';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
 import { loadPrdPolicy, pickPrdModel } from '@/lib/opportunities/models';
@@ -40,10 +41,12 @@ export async function POST(request: Request) {
   }
 
   const cache = createAdminClient();
+  const { data: onboarding } = await supabase.from('user_onboarding').select('answers').eq('user_id', data.user.id).maybeSingle();
+  const beginner = isBeginner(onboarding?.answers);
   // Every account may pick a model; the admin's policy decides which ones run. Anything else falls back to free.
   const model = pickPrdModel(body?.model, await loadPrdPolicy(cache));
   const run = prdRunLog(cache, data.user, 'prd', model ?? 'default');
-  const result = await generatePrd(input, { draft, lang: toLang(body?.lang), idea: personal, model, onUsage: run.onUsage }).catch((error) => {
+  const result = await generatePrd(input, { draft, lang: toLang(body?.lang), idea: personal, model, onUsage: run.onUsage, beginner, screens: false }).catch((error) => {
     console.error('PRD generation failed', error);
     return null;
   });
@@ -58,7 +61,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
 
-  if (!personal) await writePrdCache(cache, ids, input, result.spec);
+  // The cache stands in for anyone's failed request, so it keeps only full-scope PRDs.
+  if (!personal && !beginner) await writePrdCache(cache, ids, input, result.spec);
   return NextResponse.json({
     ok: true,
     input,

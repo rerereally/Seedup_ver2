@@ -102,3 +102,29 @@ test('an earlier single-source result is not carried into the next run', () => {
   assert.deepEqual(opportunities.map((item) => item.slug), ['pair']);
   assert.deepEqual(summary.expired, ['lonely']);
 });
+
+test('a merged problem keeps the build estimate it already had', () => {
+  const build = { size: 'weekend' as const, days: 2, stack: ['Next.js'], hard: [] };
+  const previous = { generatedAt: DAY1, opportunities: [opp('a', [ev(1)], { build })], embeddings: { a: vec(1, 0) } };
+  const { opportunities } = mergeRuns(previous, { opportunities: [opp('a', [ev(1), ev(2)])], embeddings: { a: vec(1, 0) } }, DAY2);
+  assert.deepEqual(opportunities[0].build, build);
+});
+
+import { addEvidence } from '../lib/opportunities/topup';
+
+test('a top-up adds only new sources and re-judges the evidence bar', () => {
+  const base = opp('a', [ev(1, 'hn'), ev(2, 'hn')]);
+  assert.equal(addEvidence(base, [ev(1, 'hn')], DAY2), base);
+  const grown = addEvidence(base, [ev(3, 'github'), ev(3, 'github')], DAY2);
+  assert.deepEqual(grown.evidence.map((row) => row.id), ['ev1', 'ev2', 'ev3']);
+  assert.deepEqual(grown.platforms, ['hn', 'github']);
+  assert.equal(grown.qualified, true);
+  assert.equal(grown.lastSeenAt, DAY2);
+});
+
+import { searchPhrases } from '../lib/opportunities/topup';
+
+test('top-up search phrases pair up English keywords and skip Korean ones', () => {
+  assert.deepEqual(searchPhrases({ keywords: ['cron', '크론', 'queue', 'worker', 'monitoring', 'node.js', 'jobs', 'x'] }), ['cron queue', 'worker monitoring', 'node.js jobs']);
+  assert.deepEqual(searchPhrases({ keywords: ['크론', '큐'] }), []);
+});

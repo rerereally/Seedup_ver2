@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 const LINKS = [
-  { name: '아이디어 평가', href: '/ideas' },
+  { name: '내 작업대', href: '/' },
   { name: '보관함', href: '/scrap' },
+  { name: '아이디어 평가', href: '/ideas' },
+  { name: '내 저장소 평가', href: '/seeds' },
   { name: '에이전트 연결', href: '/profile' },
 ];
 
@@ -18,7 +20,7 @@ export default function WorkShell({ children }: { children: ReactNode }) {
       <nav className="side-nav flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible" aria-label="내 작업">
         <p className="hidden px-4 pb-2 text-sm text-muted lg:block">내 작업</p>
         {LINKS.map((link) => (
-          <Link key={link.href} href={link.href} aria-current={pathname === link.href || pathname?.startsWith(`${link.href}/`) ? 'page' : undefined} className="shrink-0 whitespace-nowrap">{link.name}</Link>
+          <Link key={link.href} href={link.href} aria-current={pathname === link.href || (link.href !== '/' && pathname?.startsWith(`${link.href}/`)) ? 'page' : undefined} className="shrink-0 whitespace-nowrap">{link.name}</Link>
         ))}
       </nav>
       <div className="page-stack min-w-0">{children}</div>

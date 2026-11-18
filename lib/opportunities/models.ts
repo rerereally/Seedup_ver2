@@ -56,11 +56,11 @@ export function prdModels(policy: PrdPolicy): PrdModel[] {
   const on = new Set(policy.enabled);
   const base = baseModel();
   const rows: PrdModel[] = [];
-  if (base) rows.push({ id: base, label: '무료 모델', note: '기본 · 비용 없음, 느리고 가끔 실패', free: isFreeOpenRouterModel(base), available: true });
+  if (base) rows.push({ id: base, label: '무료 모델', note: '기본 · 비용 없음, 보통 30초~1분', free: isFreeOpenRouterModel(base), available: true });
   rows.push({
     id: EXAONE_ID,
     label: 'K-EXAONE 2.5',
-    note: 'LG AI연구원 · 현재 무료 API',
+    note: 'LG AI연구원 · 무료, 느림(PRD 한 편에 2분 넘게)',
     free: true,
     available: exaoneConfigured() && on.has(EXAONE_ID),
     reason: !exaoneConfigured() ? 'EXAONE 키가 아직 없음' : on.has(EXAONE_ID) ? undefined : '관리자가 막아 둠',

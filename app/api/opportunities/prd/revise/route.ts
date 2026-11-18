@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeSlots } from '@/lib/opportunities/spec';
-import type { Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
+import type { Priority, Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -28,11 +28,14 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
   const requirement = (row: unknown): SpecRequirement => {
     const record = (row ?? {}) as Record<string, unknown>;
     const evidence = list(record.evidence, 12).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= evidenceCount);
-    return { id: clip(record.id, 8), title: clip(record.title, 120), detail: clip(record.detail, 400), evidence };
+    const priority = typeof record.priority === 'string' && /^P[012]$/.test(record.priority) ? (record.priority as Priority) : undefined;
+    const acceptance = list(record.acceptance, 4).map((item) => clip(item, 240)).filter(Boolean);
+    const check = clip(record.check, 300);
+    return { id: clip(record.id, 8), title: clip(record.title, 120), detail: clip(record.detail, 600), evidence, ...(priority ? { priority } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) };
   };
   const features: SpecFeature[] = list(raw.features, 10).map((row) => {
     const record = (row ?? {}) as Record<string, unknown>;
-    return { id: clip(record.id, 8), title: clip(record.title, 120), detail: clip(record.detail, 400), requirementIds: ids(record.requirementIds), slots: normalizeSlots(record.slots) };
+    return { id: clip(record.id, 8), title: clip(record.title, 120), detail: clip(record.detail, 600), requirementIds: ids(record.requirementIds), slots: normalizeSlots(record.slots) };
   });
   const screens: SpecScreen[] = list(raw.screens, 8).map((row) => {
     const record = (row ?? {}) as Record<string, unknown>;
@@ -48,8 +51,14 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
     screens,
     nonGoals: strings('nonGoals', 6),
     risks: strings('risks', 6),
-    metrics: strings('metrics', 5),
+    metrics: strings('metrics', 6),
     draft,
+    // The narrative parts of a Markdown-written PRD; without them a revision would quietly drop them.
+    ...(clip(raw.background, 1500) ? { background: clip(raw.background, 1500) } : {}),
+    ...(clip(raw.scenario, 1000) ? { scenario: clip(raw.scenario, 1000) } : {}),
+    ...(strings('goals', 5).length ? { goals: strings('goals', 5) } : {}),
+    ...(strings('assumptions', 6).length ? { assumptions: strings('assumptions', 6) } : {}),
+    ...(strings('openQuestions', 6).length ? { openQuestions: strings('openQuestions', 6) } : {}),
     ...(raw.beginner === true ? { beginner: true } : {}),
     ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
     lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),

@@ -30,13 +30,13 @@ function subscribe(onChange: () => void) {
 }
 
 /**
- * The model the reader picked, if it is still usable. Otherwise K-EXAONE when the admin allows it (free on LG's API,
- * and faster and steadier than the free OpenRouter model), else the first row, the free model. Never a paid one by default.
+ * The model the reader picked, if it is still usable; otherwise the first row, the free model. Never a paid one by default.
  */
 export function usePrdModel(models: PrdModel[]) {
   const picked = useSyncExternalStore(subscribe, read, () => '');
   const usable = models.filter((row) => row.available);
-  return (usable.find((row) => row.id === picked) ?? usable.find((row) => row.id === EXAONE_ID) ?? usable[0])?.id;
+  // The free list writes a PRD in about half a minute; K-EXAONE took 3+ minutes (2026-11-18), so only when picked.
+  return (usable.find((row) => row.id === picked) ?? usable[0])?.id;
 }
 
 export default function ModelPicker({ models }: { models: PrdModel[] }) {

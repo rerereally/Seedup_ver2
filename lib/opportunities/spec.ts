@@ -42,7 +42,12 @@ export const slotLabels = (lang: Lang = 'ko') => (lang === 'en' ? SLOT_LABELS_EN
 
 export const SLOT_KEYS = Object.keys(SLOT_LABELS) as Array<keyof ReadinessSlots>;
 
-export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[] };
+export type Priority = 'P0' | 'P1' | 'P2';
+/**
+ * priority: P0 the first version is useless without it, P1 it ships in the first version, P2 later.
+ * acceptance: conditions a test can check. check: for a line no quote backs, how to find out if it is true.
+ */
+export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; priority?: Priority; acceptance?: string[]; check?: string };
 export type SpecFeature = { id: string; title: string; detail: string; requirementIds: string[]; slots: ReadinessSlots | null };
 export type SpecScreen = { id: string; name: string; does: string; featureIds: string[] };
 
@@ -69,6 +74,15 @@ export type Spec = {
   origin?: 'idea';
   /** Each listed competitor: what it misses for these users and how this product answers it. Names only from the input. */
   rivals?: SpecRival[];
+  /** Why this is worth building, in prose; [E1]-style tags cite the quotes. */
+  background?: string;
+  /** One concrete moment of a target user meeting the problem and the product. */
+  scenario?: string;
+  goals?: string[];
+  /** What the plan takes for granted without proof. */
+  assumptions?: string[];
+  /** Decisions nobody has made yet; the PRD asks instead of guessing. */
+  openQuestions?: string[];
 };
 
 export type SpecRival = { name: string; misses: string; answer: string };
@@ -97,7 +111,7 @@ export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 /** Where each brief goes. `prompt` is no repo file: it is pasted as the first message in Lovable, Bolt, v0 or Replit. */
 export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursor/rules/seedup.mdc', prompt: 'prompt.md' };
 
-type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown };
+type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; acceptance?: unknown; check?: unknown };
 
 export type RawSpec = {
   summary?: unknown;
@@ -110,6 +124,11 @@ export type RawSpec = {
   metrics?: unknown;
   existing?: unknown;
   rivals?: unknown;
+  background?: unknown;
+  scenario?: unknown;
+  goals?: unknown;
+  assumptions?: unknown;
+  open_questions?: unknown;
 };
 
 const text = (value: unknown, limit = 400) => String(value ?? '').trim().slice(0, limit);
@@ -138,7 +157,11 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
   const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
-    return title ? [{ title, detail: text(record.detail), evidence: numbers(record.evidence, evidenceCount) }] : [];
+    if (!title) return [];
+    const priority = typeof record.priority === 'string' && /^P[012]$/.test(record.priority) ? (record.priority as Priority) : undefined;
+    const acceptance = stringList(record.acceptance, 4, 240);
+    const check = text(record.check, 300);
+    return [{ title, detail: text(record.detail, 600), evidence: numbers(record.evidence, evidenceCount), ...(priority ? { priority } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
   });
   // Raw requirement position (1-based) -> kept requirement id, for features that cite requirements by number.
   const requirementId = new Map<number, string>();
@@ -164,7 +187,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     const title = text(record.title, 120);
     const requirementIds = numbers(record.requirements, rows.length).flatMap((n) => requirementId.get(n) ?? []);
     if (!title || !requirementIds.length) return;
-    const kept = { id: id('F', features.length), title, detail: text(record.detail), requirementIds, slots: null };
+    const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: null };
     features.push(kept);
     featureId.set(index + 1, kept.id);
   });
@@ -186,8 +209,13 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     screens,
     nonGoals: stringList(raw.non_goals, 6),
     risks: stringList(raw.risks, 6),
-    metrics: stringList(raw.metrics, 5),
+    metrics: stringList(raw.metrics, 6),
     draft,
+    ...(text(raw.background, 1500) ? { background: text(raw.background, 1500) } : {}),
+    ...(text(raw.scenario, 1000) ? { scenario: text(raw.scenario, 1000) } : {}),
+    ...(stringList(raw.goals, 5).length ? { goals: stringList(raw.goals, 5) } : {}),
+    ...(stringList(raw.assumptions, 6, 240).length ? { assumptions: stringList(raw.assumptions, 6, 240) } : {}),
+    ...(stringList(raw.open_questions, 6, 240).length ? { openQuestions: stringList(raw.open_questions, 6, 240) } : {}),
     ...(options.idea ? { origin: 'idea' as const } : {}),
     ...(Array.isArray(raw.existing) ? {
       existing: raw.existing.slice(0, 12).flatMap((row) => {
@@ -243,11 +271,14 @@ export function mermaidFlow(spec: Spec) {
 function evidenceSection(evidence: Evidence[], lang: Lang = 'ko') {
   return evidence.map((item, index) => {
     const korean = item.quoteKo && lang === 'ko' ? `\n   - 번역: ${item.quoteKo}` : '';
-    return `${index + 1}. [E-${index + 1}] "${item.quote}" ([${lang === 'en' ? `${item.platform} source` : `${PLATFORM_LABELS[item.platform]} 원문`}](${item.url}))${korean}`;
+    const source = item.url ? `[${lang === 'en' ? `${item.platform} source` : `${PLATFORM_LABELS[item.platform]} 원문`}](${item.url})` : lang === 'en' ? "the maker's own notes, not checked against a source" : '만드는 사람이 직접 들은 말, 원문 확인 안 됨';
+    return `${index + 1}. [E-${index + 1}] "${item.quote}" (${source})${korean}`;
   }).join('\n');
 }
 
 const cite = (evidence: number[]) => evidence.map((n) => `E-${n}`).join(', ');
+/** Prose keeps its [E1]-style citations; exports spell them as the evidence list does (E-1). */
+const citeTags = (prose: string) => prose.replace(/\[(E\s*-?\s*\d+(?:\s*,\s*E?\s*-?\s*\d+)*)\]/gi, (_, group: string) => `[${[...group.matchAll(/\d+/g)].map((n) => `E-${n[0]}`).join(', ')}]`);
 const bullets = (items: string[], empty: string) => (items.length ? items.map((item) => `- ${item}`).join('\n') : `- ${empty}`);
 
 function slotLines(slots: ReadinessSlots | null, english = false, lang: Lang = 'ko') {
@@ -263,38 +294,40 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const lang = spec.lang ?? 'ko';
   const t = translator(lang);
   const english = lang === 'en';
-  const requirements = spec.requirements.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)}`).join('\n\n');
+  const acceptance = (row: SpecRequirement) => (row.acceptance?.length ? `\n${row.acceptance.map((line) => `- ${t('수락 기준', 'Acceptance')}: ${line}`).join('\n')}` : '');
+  const priority = (row: SpecRequirement) => (row.priority ? `[${row.priority}] ` : '');
+  const requirements = spec.requirements.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)}`).join('\n\n');
   const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
-  const hypotheses = spec.hypotheses.map((row) => `- **${row.id}. ${row.title}**: ${row.detail}`).join('\n');
+  const hypotheses = spec.hypotheses.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}`).join('\n\n');
   const undefinedText = t('정의되지 않음', 'Not defined');
   return `# ${input.title} PRD
 ${spec.draft ? `\n> ${t('가설 초안: 원문이 기준(원문 3건, 플랫폼 2곳)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
 ## ${t('한 줄 요약', 'Summary')}
 ${spec.summary}
-
+${spec.background ? `\n## ${t('배경', 'Background')}\n${citeTags(spec.background)}\n` : ''}
 ${spec.existing?.length ? `## ${t('기존 구조 (역기획)', 'Existing structure (reverse spec)')}\n${t('지금 레포에 이미 있는 것입니다. 새 기능은 이 구조를 깨지 않아야 합니다.', 'What the repo already has. New work must not break it.')}\n\n${spec.existing.map((row) => `- **${row.name}**${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${t('해결할 문제', 'Problem')}
 ${input.problem}
 
 ${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing tools')}\n${input.gap}\n\n` : ''}## ${t('대상 사용자', 'Target users')}
 ${bullets(spec.targetUsers, undefinedText)}
-
+${spec.scenario ? `\n## ${t('사용 장면', 'Scenario')}\n${spec.scenario}\n` : ''}${spec.goals?.length ? `\n## ${t('목표', 'Goals')}\n${bullets(spec.goals, undefinedText)}\n` : ''}
 ## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
 ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
 
 ## ${t('기능 명세 (R → F)', 'Features (R → F)')}
 ${features || t('요구사항을 충족하는 기능이 아직 없습니다.', 'No feature serves a requirement yet.')}
 
-${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('근거 문장이 뒷받침하지 않아 요구사항에서 제외한 항목입니다.', 'Left out of the requirements because no quote backs them.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
+${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('원문이 받쳐 주지 않는 요구사항입니다. 만들기 전에 확인 방법대로 확인하세요.', 'No quote backs these. Check them as described before building.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
 ${bullets(spec.nonGoals, undefinedText)}
 
 ## ${t('위험 요소', 'Risks')}
 ${bullets(spec.risks, undefinedText)}
-
+${spec.assumptions?.length ? `\n## ${t('가정', 'Assumptions')}\n${bullets(spec.assumptions, undefinedText)}\n` : ''}
 ## ${t('성공 지표', 'Success metrics')}
 ${bullets(spec.metrics, undefinedText)}
-
+${spec.openQuestions?.length ? `\n## ${t('열린 질문', 'Open questions')}\n${bullets(spec.openQuestions, undefinedText)}\n` : ''}
 ${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${row.misses}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
 ${evidenceSection(input.evidence, lang)}
 `;
@@ -311,7 +344,8 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
   };
   const tasks = spec.features.map((feature) => {
     const requirements = feature.requirementIds.map((rid) => spec.requirements.find((row) => row.id === rid)).filter(Boolean);
-    return `- [ ] ${feature.id}. ${feature.title}: ${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}\n${slotLines(feature.slots, true)}`;
+    const accept = requirements.flatMap((row) => row!.acceptance ?? []);
+    return `- [ ] ${feature.id}. ${feature.title}: ${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}\n${slotLines(feature.slots, true)}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
   const flow = mermaidFlow(spec);
@@ -332,7 +366,7 @@ ${bullets(spec.nonGoals, 'Nothing listed yet.')}
 ## Done when
 ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 
-## Rules
+${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}## Rules
 - Ship one feature at a time and keep each change small.
 - Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
 - When a readiness slot says "open question", ask instead of guessing.

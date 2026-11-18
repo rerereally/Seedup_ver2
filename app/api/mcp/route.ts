@@ -13,7 +13,7 @@ import { MAX_WATCHES_PER_USER } from '@/lib/opportunities/watch';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 110;
+export const maxDuration = 160;
 
 const unauthorized = () => NextResponse.json(
   { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /agents (MCP 연동).' } },

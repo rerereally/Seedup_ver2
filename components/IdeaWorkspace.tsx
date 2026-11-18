@@ -6,7 +6,7 @@ import { ArrowUp, Check, RotateCcw } from 'lucide-react';
 import IdeaComposer from '@/components/IdeaComposer';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import ModelPicker from '@/components/ModelPicker';
-import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import PrdBuilder, { forgetStoredPrd } from '@/components/opportunity-stage/PrdBuilder';
 import type { PrdModel } from '@/lib/opportunities/models';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
@@ -23,18 +23,22 @@ export type PoolItem = {
   quotes: Array<{ id: string; platform: Platform; quote: string; quoteKo: string; url: string }>;
 };
 
-type Question = { key: string; ko: string; en: string; hintKo?: string; hintEn?: string; chips: Array<[string, string]> };
+type FixedQuestion = { key: string; ko: string; en: string; hintKo?: string; hintEn?: string; chips: Array<[string, string]> };
+/** One question as the chat shows it, in the reader's language: fixed, or written for this idea by the server. */
+type Question = { key: string; text: string; hint?: string; chips: string[] };
+type Plan = { idea: string; questions: Question[] };
 /** A quote found on the web for this idea; the server signed it, so the PRD route will accept it as evidence. */
 type LiveQuote = PoolItem['quotes'][number] & { score: number; postedAt: string | null; sig: string };
 type Search = { state: 'idle' | 'busy' | 'done' | 'error'; message?: string };
-type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[] };
+type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[]; plan?: Plan; own?: string[] };
 type Note = { id: number; role: 'user' | 'assistant'; text: string };
 
 const STORAGE_KEY = 'seedup:idea-workspace';
 const MAX_MATCHED_PROBLEMS = 3;
 const MAX_KEPT = 12;
 
-const QUESTIONS: Question[] = [
+// Asked when no model writes questions for the idea in time, and for answers saved before questions were tailored.
+const QUESTIONS: FixedQuestion[] = [
   { key: 'users', ko: '누가 가장 먼저 쓰나요?', en: 'Who uses it first?', hintKo: '한 부류로 좁힐수록 PRD가 날카로워집니다.', hintEn: 'The narrower, the sharper the PRD.', chips: [['1인 개발자', 'Solo developers'], ['작은 개발팀', 'Small dev teams'], ['입문 개발자·학생', 'Beginners and students'], ['개발자가 아닌 실무자', 'Non-developers at work']] },
   { key: 'pain', ko: '그 사람이 지금 가장 불편한 점은 무엇인가요?', en: 'What hurts them most today?', hintKo: '아래는 개발자들이 실제로 말한 불편입니다.', hintEn: 'Below are problems developers actually wrote about.', chips: [] },
   { key: 'now', ko: '지금은 그 문제를 어떻게 버티고 있나요?', en: 'How do they cope today?', chips: [['직접 코드를 짜서', 'They write their own code'], ['여러 도구를 오가며', 'They juggle several tools'], ['문서·엑셀로 손수', 'By hand in docs or sheets'], ['그냥 포기한다', 'They give up']] },
@@ -43,6 +47,9 @@ const QUESTIONS: Question[] = [
   { key: 'out', ko: '이번 버전에서 하지 않을 것은 무엇인가요?', en: 'What will this version not do?', chips: [['결제', 'Payments'], ['팀 협업', 'Team collaboration'], ['모바일 앱', 'Mobile app'], ['다국어', 'Other languages']] },
   { key: 'extra', ko: '그 밖에 PRD에 꼭 반영할 생각이 있나요?', en: 'Anything else the PRD must reflect?', hintKo: '방향, 기술 선택, 피하고 싶은 것 등 무엇이든 좋습니다.', hintEn: 'Direction, tech choices, things to avoid: anything goes.', chips: [] },
 ];
+const EXTRA = QUESTIONS[QUESTIONS.length - 1];
+
+const fixedQuestion = (row: FixedQuestion, en: boolean): Question => ({ key: row.key, text: en ? row.en : row.ko, hint: en ? row.hintEn : row.hintKo, chips: row.chips.map(([ko, enLabel]) => (en ? enLabel : ko)) });
 
 // [short name ko, short name en, the idea ko, the idea en]
 const EXAMPLES: Array<[string, string, string, string]> = [
@@ -85,6 +92,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [notes, setNotes] = useState<Note[]>([]);
   const [live, setLive] = useState<LiveQuote[]>([]);
   const [search, setSearch] = useState<Search>({ state: 'idle' });
+  // Questions written for this idea; null while they are being written, then the fixed list if none came back.
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [planFailed, setPlanFailed] = useState(false);
+  // Sentences the maker heard in interviews or wrote down: shown as their own notes, never counted for the bar.
+  const [own, setOwn] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
 
@@ -99,6 +111,10 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       setKept(saved.kept ?? []);
       setTouched(Boolean(saved.touched));
       setLive(Array.isArray(saved.live) ? saved.live : []);
+      setOwn(Array.isArray(saved.own) ? saved.own : []);
+      if (saved.plan?.idea === saved.idea) setPlan(saved.plan);
+      // Answers saved before questions were tailored belong to the fixed list.
+      else if (saved.answers && Object.keys(saved.answers).length) setPlanFailed(true);
     }
     setRestored(true);
   }, [initialIdea]);
@@ -124,7 +140,9 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
   const matched = useMemo(() => {
     if (!idea) return [];
-    const semanticSlugs = semantic?.query === idea && semantic.slugs.length ? semantic.slugs : null;
+    // A meaning-based answer is trusted even when empty: "nothing close" must not fall back to the keyword match, which
+    // pairs ideas on one shared word and would keep unrelated quotes as evidence.
+    const semanticSlugs = semantic?.query === idea ? semantic.slugs : null;
     const slugs = semanticSlugs ?? matchOpportunities(idea, pool).slugs;
     const rank = (slug: string) => slugs.indexOf(slug);
     return pool.filter((item) => slugs.includes(item.slug))
@@ -137,11 +155,27 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   useEffect(() => {
     if (!restored) return;
     try {
-      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live } satisfies Saved));
+      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live, own, ...(plan ? { plan } : {}) } satisfies Saved));
     } catch {
       // Private mode or full storage: the chat still works, it just will not survive a reload.
     }
-  }, [restored, idea, answers, keptIds, touched, live]);
+  }, [restored, idea, answers, keptIds, touched, live, plan, own]);
+
+  // Once per idea: questions about what this idea leaves open, with options from it and its closest quotes.
+  const planFor = useRef('');
+  useEffect(() => {
+    if (!restored || !idea || plan?.idea === idea || planFailed || planFor.current === idea) return;
+    planFor.current = idea;
+    const quotes = matchOpportunities(idea, pool).slugs.flatMap((slug) => pool.find((item) => item.slug === slug)?.quotes ?? []).slice(0, 4).map((row) => row.quote);
+    fetch('/api/ideas/questions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea, quotes, lang }) })
+      .then((response) => (response.ok ? response.json() : { questions: null }))
+      .then((json: { questions?: Array<{ key: string; question: string; why: string; options: string[] }> | null }) => {
+        if (planFor.current !== idea) return;
+        if (!json.questions?.length) return setPlanFailed(true);
+        setPlan({ idea, questions: json.questions.map((row) => ({ key: row.key, text: row.question, hint: row.why, chips: row.options })) });
+      })
+      .catch(() => { if (planFor.current === idea) setPlanFailed(true); });
+  }, [restored, idea, plan, planFailed, pool, lang]);
 
   const offered = useMemo(() => [...live, ...saved.filter((row) => !live.some((item) => item.id === row.id))], [live, saved]);
   const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...offered.map((row) => [row.id, row] as const)]), [pool, offered]);
@@ -150,14 +184,17 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
 
-  const step = QUESTIONS.findIndex((question) => !(question.key in answers));
-  const current = step === -1 ? null : QUESTIONS[step];
-  const answered = QUESTIONS.filter((question) => answers[question.key]).length;
+  // The free-text "anything else" question always closes the list, tailored or fixed.
+  const questions = useMemo<Question[]>(() => (plan?.idea === idea ? [...plan.questions, fixedQuestion(EXTRA, en)] : planFailed ? QUESTIONS.map((row) => fixedQuestion(row, en)) : []), [plan, idea, planFailed, en]);
+  const planning = Boolean(idea) && !questions.length;
+  const step = questions.findIndex((question) => !(question.key in answers));
+  const current = step === -1 ? null : questions[step];
+  const answered = questions.filter((question) => answers[question.key]).length;
 
   const brief = useMemo(() => ({
     idea,
-    answers: QUESTIONS.filter((question) => answers[question.key]).map((question) => ({ question: en ? question.en : question.ko, answer: answers[question.key] })),
-  }), [idea, answers, en]);
+    answers: questions.filter((question) => answers[question.key]).map((question) => ({ question: question.text, answer: answers[question.key] })),
+  }), [idea, answers, questions]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
@@ -197,6 +234,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const reset = () => {
     if (Object.keys(answers).length && !window.confirm(t('답한 내용이 모두 지워집니다. 새로 시작할까요?', 'All your answers will be cleared. Start over?'))) return;
     try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* nothing saved */ }
+    forgetStoredPrd(idea);
     setIdea('');
     setAnswers({});
     setKept([]);
@@ -204,6 +242,10 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setLive([]);
     setSearch({ state: 'idle' });
     setNotes([]);
+    setPlan(null);
+    setPlanFailed(false);
+    setOwn([]);
+    planFor.current = '';
     setGenerated(false);
     setPending(null);
     setPane('chat');
@@ -258,14 +300,25 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }
   };
 
+  // Short of the evidence bar, look on the web once per idea without waiting to be asked: a PRD with quotes is the
+  // point, and a person rarely finds the search button before writing. Signed-in only (it spends a daily quota).
+  const searchedFor = useRef('');
+  useEffect(() => {
+    if (!restored || !signedIn || !idea || passes || search.state !== 'idle' || searchedFor.current === idea || live.length) return;
+    searchedFor.current = idea;
+    void searchWeb();
+    // searchWeb reads the latest state when it runs; re-running on its identity would search again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, signedIn, idea, passes, search.state, live.length]);
+
   if (restored && !idea) {
     return <IdeaStart onSubmit={send} en={en} problems={pool.filter((item) => item.qualified)} />;
   }
 
-  const chips: Array<[string, string]> = current?.key === 'pain'
-    ? matched.map((item) => [item.problem, item.problem] as [string, string])
-    : current?.chips ?? [];
-  const placeholder = current ? t('직접 적거나 질문 아래에서 고르세요', 'Type, or pick one under the question')
+  // The fixed "what hurts" question offers the matched problems; tailored questions bring their own options.
+  const chips: string[] = current?.key === 'pain' && !current.chips.length ? matched.map((item) => item.problem) : current?.chips ?? [];
+  const placeholder = planning ? t('이 아이디어에 맞는 질문을 고르는 중입니다', 'Choosing questions for this idea')
+    : current ? t('직접 적거나 질문 아래에서 고르세요', 'Type, or pick one under the question')
     : generated ? t('고칠 점을 적어 주세요. 예: 타겟을 초보 개발자로 좁혀줘', 'Ask for a change, e.g. narrow it to beginners')
       : t('질문이 끝났습니다. PRD를 만들어 보세요.', 'Questions are done. Make the PRD.');
 
@@ -274,11 +327,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: t('아이디어', 'Idea'), state: 'done' },
     // No quotes is a fact about the idea, not a step to do now: it never competes with the current question.
     { label: keptQuotes.length ? t(`근거 ${keptQuotes.length}건`, `${keptQuotes.length} quotes`) : t('근거 없음', 'No quotes'), state: keptQuotes.length ? 'done' : 'todo' },
-    { label: t(`질문 ${answered}/${QUESTIONS.length}`, `Questions ${answered}/${QUESTIONS.length}`), state: current ? 'now' : 'done' },
-    { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
+    { label: planning ? t('질문 준비 중', 'Preparing questions') : t(`질문 ${answered}/${questions.length}`, `Questions ${answered}/${questions.length}`), state: current || planning ? 'now' : 'done' },
+    { label: 'PRD', state: generated ? 'done' : current || planning ? 'todo' : 'now' },
     { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
   ];
-  const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} idea={idea} />;
+  const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} idea={idea} own={own} setOwn={setOwn} />;
   const threeColumns = !generated;
 
   return (
@@ -340,31 +393,44 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               )}
             </Bubble>
 
-            {QUESTIONS.slice(0, step === -1 ? QUESTIONS.length : step + 1).map((question) => (
+            {planning && (
+              <Bubble role="assistant">
+                <p className="flex items-center gap-2 text-muted"><span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />{t('이 아이디어에서 아직 정해지지 않은 것을 찾아 질문을 고르는 중입니다.', 'Finding what this idea leaves open and choosing questions.')}</p>
+              </Bubble>
+            )}
+            {questions.slice(0, step === -1 ? questions.length : step + 1).map((question) => (
               <div key={question.key} className="space-y-6">
                 <Bubble role="assistant">
-                  <p className="font-semibold text-ink">{en ? question.en : question.ko}</p>
-                  {(en ? question.hintEn : question.hintKo) && question.key === current?.key && <p className="mt-1 text-[13px] text-muted">{en ? question.hintEn : question.hintKo}</p>}
+                  <p className="font-semibold text-ink">{question.text}</p>
+                  {question.hint && question.key === current?.key && <p className="mt-1 text-[13px] text-muted">{question.hint}</p>}
                   {question.key === current?.key && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {chips.map(([ko, enLabel]) => (
-                        <button key={ko} type="button" onClick={() => send(en ? enLabel : ko)} className="min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink">{en ? enLabel : ko}</button>
+                      {chips.map((label) => (
+                        <button key={label} type="button" onClick={() => send(label)} className="min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink">{label}</button>
                       ))}
+                      {plan?.idea === idea && question.key !== EXTRA.key && <button type="button" onClick={() => send(t('잘 모르겠어요. 원문과 아이디어에 맞게 정해 주세요.', 'Not sure. Decide what fits the idea and the quotes.'))} className="min-h-10 rounded-2xl border border-outline-soft bg-white px-3.5 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{t('잘 모르겠어요', 'Not sure')}</button>}
                       <button type="button" onClick={() => setAnswers((before) => ({ ...before, [question.key]: '' }))} className="min-h-10 rounded-2xl border border-dashed border-outline-strong px-3.5 text-[13px] text-tertiary hover:border-ink hover:text-ink">{t('건너뛰기', 'Skip')}</button>
                     </div>
                   )}
                 </Bubble>
                 {question.key in answers && (
-                  <Bubble role="user" onEdit={() => setAnswers((before) => Object.fromEntries(Object.entries(before).filter(([key]) => QUESTIONS.findIndex((row) => row.key === key) < QUESTIONS.indexOf(question))))} editLabel={t('이 답부터 다시', 'Redo from here')}>
+                  <Bubble role="user" onEdit={() => setAnswers((before) => Object.fromEntries(Object.entries(before).filter(([key]) => questions.findIndex((row) => row.key === key) < questions.indexOf(question))))} editLabel={t('이 답부터 다시', 'Redo from here')}>
                     {answers[question.key] || <span className="text-muted">{t('건너뜀', 'Skipped')}</span>}
                   </Bubble>
                 )}
               </div>
             ))}
 
-            {!current && !generated && (
+            {!current && !planning && !generated && (
               <Bubble role="assistant">
                 <p>{t('질문이 끝났습니다. 지금 내용으로 PRD 문서를 만들까요? 문서를 먼저 쓰고, 화면 설계와 개발 준비 칸은 문서를 확인한 뒤 버튼 하나로 이어서 만듭니다.', 'That is everything. Write the PRD document now? The document comes first; screens and readiness slots follow with one click once you have checked it.')}</p>
+                <p className={`mt-2 text-[14px] ${passes ? 'text-seed' : 'text-muted'}`}>
+                  {passes
+                    ? t(`근거 원문 ${keptQuotes.length}건이 기준을 넘었습니다. 원문이 받쳐 주는 줄은 요구사항으로 씁니다.`, `${keptQuotes.length} quotes pass the bar; lines they back become requirements.`)
+                    : keptQuotes.length
+                      ? t(`근거 원문이 ${keptQuotes.length}건이라 기준(${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳)에 못 미칩니다. 가설 초안으로 쓰고, 원문이 없는 줄마다 확인 방법을 붙입니다.`, `${keptQuotes.length} quotes is below the bar (${MIN_EVIDENCE} from ${MIN_PLATFORMS} sites). It becomes a hypothesis draft, with a way to check each unbacked line.`)
+                      : t('근거 원문이 없어 모든 요구사항이 가설이 됩니다. 가설마다 누구에게 무엇을 물어 확인할지 함께 씁니다.', 'No quotes, so every requirement is a hypothesis. Each one comes with who to ask and what, to check it.')}
+                </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {signedIn && <div className="sm:hidden"><ModelPicker models={models} /></div>}
                   {signedIn
@@ -381,14 +447,14 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               </Bubble>
             )}
             {notes.map((note) => <Bubble key={note.id} role={note.role}>{note.text}</Bubble>)}
-            {pending && <p className="text-sm text-muted">{pending === 'generate' ? t('오른쪽에 PRD를 쓰는 중입니다. 무료 모델은 최대 1분 30초 걸립니다.', 'Writing the PRD on the right. The free model can take up to 90 s.') : t('수정 요청을 반영하는 중입니다.', 'Applying your change.')}</p>}
+            {pending && <p className="text-sm text-muted">{pending === 'generate' ? t('오른쪽에 PRD가 쓰이는 모습이 바로 보입니다. 보통 30초에서 2분 걸립니다.', 'The PRD is being written on the right as you watch. Usually 30 seconds to 2 minutes.') : t('수정 요청을 반영하는 중입니다.', 'Applying your change.')}</p>}
           </div>
 
           <div className="border-t border-outline-soft px-4 pb-4 pt-3">
             {!generated && (
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="text-[13px] leading-5 text-muted">
-                  {current ? t('지금 만들면 답하지 않은 칸은 가설로 채워집니다', 'Make it now and unanswered parts are filled as hypotheses') : t('질문 끝', 'All answered')}
+                  {current || planning ? t('지금 만들면 답하지 않은 칸은 가설로 채워집니다', 'Make it now and unanswered parts are filled as hypotheses') : t('질문 끝', 'All answered')}
                 </span>
                 {signedIn
                   ? <button type="button" className="btn h-9 shrink-0 whitespace-nowrap px-3.5" onClick={generate} disabled={pending !== null}>{pending === 'generate' ? t('작성 중', 'Writing') : t('PRD 만들기', 'Make PRD')}</button>
@@ -427,7 +493,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             evidenceIds={keptIds}
             ready={passes}
             loginNext={loginNext}
-            requestBody={{ brief, evidenceIds: keptIds.filter((id) => !id.startsWith('lv_')), liveEvidence: keptLive, title: idea }}
+            requestBody={{ brief, evidenceIds: keptIds.filter((id) => !id.startsWith('lv_')), liveEvidence: keptLive, ownNotes: own, title: idea }}
             models={models}
             hideRevise
             signedIn={signedIn}
@@ -444,7 +510,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               say('assistant', message === 'login' ? t('로그인이 필요합니다. 답변은 그대로 남아 있습니다.', 'Please sign in. Your answers are kept.') : message);
             }}
           >
-            {!generated && <LiveDraft idea={idea} answers={answers} current={current?.key ?? null} quotes={keptQuotes} passes={passes} en={en} found={matched[0]?.problem ?? ''} onOpenQuotes={() => { setSide('quotes'); setPane('chat'); }} />}
+            {!generated && <LiveDraft idea={idea} questions={questions} answers={answers} current={current?.key ?? null} quotes={keptQuotes} passes={passes} en={en} found={matched[0]?.problem ?? ''} onOpenQuotes={() => { setSide('quotes'); setPane('chat'); }} />}
           </PrdBuilder>
         </section>
 
@@ -454,8 +520,9 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 }
 
 /** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
-function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext, idea }: { matched: PoolItem[]; live: LiveQuote[]; saved: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string; idea: string }) {
+function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext, idea, own, setOwn }: { matched: PoolItem[]; live: LiveQuote[]; saved: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string; idea: string; own: string[]; setOwn: (rows: string[]) => void }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
+  const [ownDraft, setOwnDraft] = useState('');
   const quoteRow = (row: PoolItem['quotes'][number]) => {
     const on = keptIds.includes(row.id);
     return (
@@ -548,6 +615,25 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
         )}
       </div>
       {web}
+      <details className="mt-5 border-t border-outline-soft pt-4" open={own.length > 0}>
+        <summary className="cursor-pointer text-[14px] font-semibold text-ink">{t('내가 직접 들은 말 넣기', 'Add what you heard yourself')} <span className="font-normal text-muted">{t('인터뷰, 메모', 'interviews, notes')}{own.length ? ` · ${own.length}` : ''}</span></summary>
+        <p className="mt-1.5 text-[13px] leading-5 text-muted">{t('한 줄에 한 문장씩 넣으세요. 공개 글과 대조할 수 없어 "내 메모"로 표시되고, 근거 기준(원문 3건, 2곳)에는 들어가지 않습니다.', 'One sentence per line. They cannot be checked against a public post, so they show as your notes and do not count toward the evidence bar.')}</p>
+        {own.length > 0 && (
+          <ul className="mt-2 space-y-1.5">
+            {own.map((row) => (
+              <li key={row} className="flex items-start justify-between gap-2 rounded-xl border border-outline-soft bg-white px-3 py-2 text-[13.5px] leading-6">
+                <q className="min-w-0 text-ink">{row}</q>
+                <button type="button" onClick={() => setOwn(own.filter((item) => item !== row))} className="shrink-0 text-[12.5px] text-muted hover:text-ink" aria-label={t('이 메모 빼기', 'Remove this note')}>{t('빼기', 'Remove')}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="mt-2" onSubmit={(event) => { event.preventDefault(); const lines = ownDraft.split('\n').map((line) => line.trim()).filter((line) => line.length >= 8); if (!lines.length) return; setOwn([...new Set([...own, ...lines])].slice(0, 10)); setOwnDraft(''); }}>
+          <label htmlFor="own-notes" className="sr-only">{t('직접 들은 말', 'What you heard')}</label>
+          <textarea id="own-notes" rows={3} value={ownDraft} maxLength={2000} onChange={(event) => setOwnDraft(event.target.value)} placeholder={t('예: 매주 월요일마다 깨진 빌드 원인을 찾느라 오전이 다 가요 (프론트엔드 개발자 인터뷰)', 'e.g. Every Monday my morning goes to finding why the build broke (frontend dev interview)')} className="block w-full rounded-lg border border-field bg-white px-3 py-2 text-[13.5px] leading-6" />
+          <button type="submit" className="btn-quiet mt-2 h-9 px-3 text-[13px]" disabled={ownDraft.trim().length < 8 || own.length >= 10}>{t('담기', 'Add')}</button>
+        </form>
+      </details>
       {signedIn && (
         <div className="mt-5 space-y-3 border-t border-outline-soft pt-4">
           {!passes && <p className="text-[13px] leading-5 text-muted">{t('근거가 아직 모자라면 지켜보세요. 매주 다시 찾아 새 원문과 경쟁 도구를 메일로 보냅니다.', 'Short on evidence? Watch it: Seedup searches again each week and mails new quotes and rival tools.')}</p>}
@@ -570,17 +656,10 @@ function Bubble({ role, children, onEdit, editLabel }: { role: 'user' | 'assista
 }
 
 /** The document as the chat fills it, before the model writes the full PRD: nothing here is invented. */
-function LiveDraft({ idea, answers, current, quotes, passes, en, found, onOpenQuotes }: { idea: string; answers: Record<string, string>; current: string | null; quotes: PoolItem['quotes']; passes: boolean; en: boolean; found: string; onOpenQuotes: () => void }) {
+function LiveDraft({ idea, questions, answers, current, quotes, passes, en, found, onOpenQuotes }: { idea: string; questions: Question[]; answers: Record<string, string>; current: string | null; quotes: PoolItem['quotes']; passes: boolean; en: boolean; found: string; onOpenQuotes: () => void }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
-  const rows: Array<[string, string, string]> = [
-    [t('대상 사용자', 'Target users'), 'users', t('누가 가장 먼저 쓰는지', 'Who uses it first')],
-    [t('문제', 'Problem'), 'pain', found ? t(`원문이 말하는 문제: ${found}`, `What the quotes describe: ${found}`) : t('그 사람이 가장 불편한 점', 'What hurts them most')],
-    [t('지금의 해결 방법', 'How they cope today'), 'now', t('지금은 어떻게 버티는지', 'How they get by today')],
-    [t('첫 버전에 꼭 있어야 할 것', 'Must-haves for v1'), 'must', t('첫 버전의 기능 세 가지 이내', 'Up to three things v1 must do')],
-    [t('플랫폼', 'Platform'), 'platform', t('웹, 앱, CLI 같은 쓰는 곳', 'Web, app, CLI or wherever it runs')],
-    [t('범위 밖', 'Out of scope'), 'out', t('이번 버전에서 하지 않을 것', 'What this version leaves out')],
-    [t('추가 의견', 'Other direction'), 'extra', t('방향, 기술 선택, 피하고 싶은 것', 'Direction, tech choices, things to avoid')],
-  ];
+  // One row per question asked, whatever the questions are; the matched problem fills in for the fixed "what hurts".
+  const rows: Array<[string, string, string]> = questions.map((question) => [question.text, question.key, question.key === 'pain' && found ? t(`원문이 말하는 문제: ${found}`, `What the quotes describe: ${found}`) : question.hint ?? '']);
   const after = t('PRD를 만들면 요구사항, 기능, 화면이 이어진 기능 명세 그래프와 유저플로우, 와이어프레임이 함께 생깁니다. 원문이 받쳐 주지 않는 줄은 모두 가설로 남습니다.', 'Making the PRD adds the feature graph (requirement, feature, screen), user flow and wireframes. Lines no quote backs stay hypotheses.');
   return (
     <div className="mx-auto grid max-w-[1000px] gap-12 py-2 sm:py-4 xl:grid-cols-[minmax(0,720px)_200px] xl:justify-between">
@@ -615,7 +694,6 @@ function LiveDraft({ idea, answers, current, quotes, passes, en, found, onOpenQu
                   <h3 className="flex flex-wrap items-baseline gap-x-2 text-[15px] font-semibold">
                     {label}
                     {now && <span className="text-[13px] font-semibold text-seed">{t('지금 질문', 'Asking now')}</span>}
-                    {value && key === 'must' && <span className="text-[13px] font-normal text-muted">{t('가설, 원문으로 확인 전', 'Hypothesis until quotes back it')}</span>}
                   </h3>
                   {value === undefined
                     ? <p className="mt-1.5 text-[15px] leading-7 text-muted">{hint}<span className="mt-0.5 block text-[13px]">{t('왼쪽 질문에 답하면 여기에 채워집니다.', 'Answer the question on the left to fill this in.')}</span></p>

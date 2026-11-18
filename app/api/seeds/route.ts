@@ -1,3 +1,4 @@
+import { clientOf, rateLimited } from '@/lib/throttle';
 import { toLang } from '@/lib/i18n';
 import { getGitHubTrends, getNewsItems } from '@/lib/data';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
@@ -24,7 +25,6 @@ const LIMITS = { repos: 8, ideas: 12, papers: 12 } as const;
 const repoCache = new Map<string, { at: number; repos: SeedRepo[] }>();
 const ideaCache = new Map<string, SeedIdea>();
 const paperCache = new Map<string, SeedPaper[]>();
-const recent = new Map<string, number[]>();
 
 const LOOKUP_MESSAGES: Record<GitHubLookupFailure, [string, number]> = {
   not_found: ['그 아이디의 GitHub 계정을 찾지 못했습니다.', 404],
@@ -32,16 +32,7 @@ const LOOKUP_MESSAGES: Record<GitHubLookupFailure, [string, number]> = {
   unavailable: ['GitHub에서 레포를 읽지 못했습니다. 잠시 뒤에 다시 시도해 주세요.', 502],
 };
 
-function isThrottled(client: string, step: keyof typeof LIMITS) {
-  const key = `${step}:${client}`;
-  const now = Date.now();
-  const times = (recent.get(key) ?? []).filter((time) => now - time < 60_000);
-  if (times.length >= LIMITS[step]) return true;
-  times.push(now);
-  recent.set(key, times);
-  if (recent.size > 2_000) recent.clear();
-  return false;
-}
+const isThrottled = (client: string, step: keyof typeof LIMITS) => rateLimited(`seeds:${step}:${client}`, LIMITS[step]);
 
 function remember<T>(cache: Map<string, T>, key: string, value: T) {
   if (cache.size >= MAX_CACHED) cache.clear();
@@ -59,7 +50,7 @@ async function loadRepos(login: string) {
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const step = params.get('step') ?? 'repos';
-  const client = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const client = clientOf(request);
   const tooMany = () => NextResponse.json({ error: '요청이 너무 많습니다. 1분 뒤에 다시 시도해 주세요.' }, { status: 429 });
 
   if (step === 'papers') {

@@ -1,3 +1,4 @@
+import { clientOf, rateLimited } from '@/lib/throttle';
 import { getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { createEmbedding } from '@/lib/opportunities/llm';
 import { rankBySimilarity } from '@/lib/opportunities/match';
@@ -8,25 +9,14 @@ export const runtime = 'nodejs';
 
 const MAX_QUERY_LENGTH = 200;
 const REQUESTS_PER_MINUTE = 30;
-// With nemotron-3-embed-1b, a quote scores about 0.36 against its own problem and rarely above 0.27 against others.
-const MIN_SIMILARITY = 0.28;
+// With nemotron-3-embed-1b, ideas typed on the site score 0.5 to 0.8 against their own problem and 0.24 to 0.28 against
+// a problem that only shares a word ("회의록" vs meeting time zones), measured 2026-11-19.
+const MIN_SIMILARITY = 0.35;
 const SIMILARITY_BAND = 0.06;
 const MAX_MATCHES = 5;
 const MAX_CACHED_QUERIES = 300;
 
-// Per-instance, best effort. It keeps one visitor from burning the free embedding quota.
-const recentRequests = new Map<string, number[]>();
 const queryCache = new Map<string, string[]>();
-
-function isThrottled(key: string) {
-  const now = Date.now();
-  const recent = (recentRequests.get(key) ?? []).filter((time) => now - time < 60_000);
-  if (recent.length >= REQUESTS_PER_MINUTE) return true;
-  recent.push(now);
-  recentRequests.set(key, recent);
-  if (recentRequests.size > 2_000) recentRequests.clear();
-  return false;
-}
 
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get('q')?.trim().slice(0, MAX_QUERY_LENGTH) ?? '';
@@ -36,8 +26,7 @@ export async function GET(request: Request) {
   const cached = queryCache.get(cacheKey);
   if (cached) return NextResponse.json({ slugs: cached });
 
-  const client = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  if (isThrottled(client)) return NextResponse.json({ slugs: null, reason: 'throttled' }, { status: 429 });
+  if (rateLimited(`match:${clientOf(request)}`, REQUESTS_PER_MINUTE)) return NextResponse.json({ slugs: null, reason: 'throttled' }, { status: 429 });
 
   // The page keeps its keyword result whenever this cannot answer, so failures are not user-facing.
   const embedding = await createEmbedding(query, { timeoutMs: 7_000 });

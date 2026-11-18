@@ -45,6 +45,8 @@ async function main() {
   ];
 
   const rows: EvalRow[] = [];
+  // The written PRDs, so scripts/judge-prd.ts can score their content, not only their shape.
+  const docs: Record<string, string | null> = {};
   for (const item of cases) {
     if (!item.input) {
       console.log(`${item.id}: missing from the snapshot, skipped`);
@@ -54,6 +56,7 @@ async function main() {
     const result = await generatePrd(item.input, { idea: item.kind === 'idea', model, screens: false }).catch(() => null);
     const seconds = Math.round((Date.now() - startedAt) / 1000);
     const spec = result?.spec ?? null;
+    docs[item.id] = result?.markdown ?? null;
     const issues = spec ? specIssues(spec, item.input) : [];
     const cited = spec ? spec.requirements.filter((row) => row.evidence.length).length : 0;
     rows.push({ id: item.id, kind: item.kind, ok: Boolean(spec), seconds, issues: issues.length, requirements: spec ? spec.requirements.length + spec.hypotheses.length : 0, cited, firstIssue: issues[0] ?? '' });
@@ -61,7 +64,7 @@ async function main() {
   }
 
   const summary = evalSummary(rows);
-  writeFileSync(out, `${JSON.stringify({ model: model ?? 'default', at: new Date().toISOString(), summary, rows }, null, 1)}\n`);
+  writeFileSync(out, `${JSON.stringify({ model: model ?? 'default', at: new Date().toISOString(), summary, rows, docs }, null, 1)}\n`);
   const table = [
     `### PRD 평가 (${model ?? '기본 모델'})`,
     '',

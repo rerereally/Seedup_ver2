@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, getScraps, type ArticleFeedItem, type GitHubTrend } from '@/lib/data';
 import { ruleReads } from '@/lib/personal';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { ArrowLeft, ArrowRight, Star } from 'lucide-react';
 import Link from 'next/link';
@@ -152,7 +152,7 @@ function RepoRow({ repo, isKept, lead }: { repo: GitHubTrend; isKept: boolean; l
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string; tab?: string; page?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const user = supabase ? await getCurrentUser() : null;
   const [articles, scrapKeys, { opportunities }, trends] = await Promise.all([getArticleFeedItems(), getScrapKeySet(), getOpportunities(), getGitHubTrends()]);
   const tab = ['popular', 'news', 'paper', 'github', ...(user ? ['for-you'] : [])].includes(params.tab ?? '') ? params.tab as 'popular' | 'news' | 'paper' | 'github' | 'for-you' : 'new';
   // For a signed-in reader: their onboarding answers plus what they kept, liked or disliked, scored without embeddings.

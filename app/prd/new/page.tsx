@@ -7,7 +7,7 @@ import { getOpportunities } from '@/lib/opportunities/data';
 import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { localizedOpportunity } from '@/lib/opportunities/types';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: '아이디어로 PRD 만들기' };
 
@@ -16,7 +16,7 @@ const QUOTES_PER_PROBLEM = 4;
 /** The idea workspace: a short planning chat on the left, the PRD filling in on the right. */
 export default async function NewPrdPage({ searchParams }: { searchParams: Promise<{ idea?: string }> }) {
   const [{ idea }, lang, { opportunities }, supabase] = await Promise.all([searchParams, getLang(), getOpportunities(), createClient()]);
-  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const user = supabase ? await getCurrentUser() : null;
 
   // Only what the chat needs to match quotes in the browser: names, keywords and a few quotes per problem.
   const pool: PoolItem[] = opportunities.map((item) => {

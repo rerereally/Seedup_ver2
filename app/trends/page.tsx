@@ -14,6 +14,14 @@ export default async function Trends({ searchParams }: { searchParams: Promise<{
   const showModels = (await searchParams).tab === 'models';
   const [trends, models] = await Promise.all([getTrends(), getModelIntelligence()]);
   const totalSignals = trends.reduce((sum, trend) => sum + Number(trend.sources_count ?? 0), 0);
+  // The browser gets only what the accordion shows: one source list (it reads detected before refs), five of each.
+  const slim = trends.map(({ source_refs, detected_sources, bars: _bars, ...trend }) => ({
+    ...trend,
+    detected_sources: (detected_sources ?? source_refs ?? []).slice(0, 5),
+    project_ideas: trend.project_ideas?.slice(0, 5) ?? null,
+    why_trending: trend.why_trending?.slice(0, 5) ?? null,
+    bars: null,
+  }));
 
   return (
     <>
@@ -22,7 +30,7 @@ export default async function Trends({ searchParams }: { searchParams: Promise<{
         <ExploreTabs current={showModels ? '/trends?tab=models' : undefined} />
         {showModels ? <ModelIntelligencePanel models={models} /> : (
           <>
-            <TrendAccordion trends={trends} />
+            <TrendAccordion trends={slim} />
             <p className="text-[13px] leading-6 text-muted">
               기사, AI 제품, GitHub, 논문에서 같은 주제가 얼마나 겹쳐 나오는지 세어 순위를 매겼습니다.
               {trends.length > 0 && <> 주제 <span className="num">{trends.length}</span>개 · 겹친 신호 <span className="num">{totalSignals}</span>건.</>}

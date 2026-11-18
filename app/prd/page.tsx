@@ -14,7 +14,7 @@ import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache, samplePrdSlug } from '@
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'PRD' };
 
@@ -92,7 +92,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
   const pickedIds = picked.map((item) => item.evidence.id);
   const supabase = await createClient();
   const [user, saved] = await Promise.all([
-    supabase ? supabase.auth.getUser().then(({ data }) => data.user) : null,
+    supabase ? getCurrentUser() : null,
     readPrdCache(createAdminClient(), pickedIds),
   ]);
   // What a coding agent marked done through MCP. Only an opportunity's own PRD has it, since that is what MCP builds from.

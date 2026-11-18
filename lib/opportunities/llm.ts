@@ -1,4 +1,4 @@
-import { enforceFreeOnlyModels } from '../ingest/openrouter-models';
+import { enforceFreeOnlyModels, isFreeOpenRouterModel } from '../ingest/openrouter-models';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const MIN_CALL_INTERVAL_MS = 3_100; // Free tier allows 20 requests per minute.
@@ -58,6 +58,12 @@ function modelChain(chosen?: string) {
 
 const messagesFor = (prompt: string, system?: string) => [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: prompt }];
 
+// Free reasoning models count their thinking inside max_tokens and cannot turn it off: ernie 5.5 flash thinks for
+// 6k to 8k tokens whatever the effort setting, so at 8k it often ended with no answer at all (measured 2026-11-19).
+// A free model costs nothing more for a higher cap, and the cap only bites when thinking runs long.
+const FREE_MIN_TOKENS = 16_000;
+const tokenCap = (model: string, requested: number) => (model === EXAONE_ID || isFreeOpenRouterModel(model) ? Math.max(requested, FREE_MIN_TOKENS) : requested);
+
 /** Tokens one call used, reported to whoever logs PRD runs. `model` is the menu id that answered. */
 export type ModelUsage = { model: string; promptTokens: number; completionTokens: number };
 
@@ -95,7 +101,7 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
             model: endpoint.model,
             messages: messagesFor(prompt, options?.system),
             // Free reasoning models spend tokens before answering, so the limit must stay generous.
-            max_tokens: options?.maxTokens ?? 6_000,
+            max_tokens: tokenCap(model, options?.maxTokens ?? 6_000),
             ...endpoint.extra,
             ...(options?.reasoning && model !== EXAONE_ID ? { reasoning: { effort: options.reasoning } } : {}),
           }),
@@ -195,7 +201,7 @@ export async function streamText(prompt: string, options: StreamOptions = {}): P
         body: JSON.stringify({
           model: endpoint.model,
           messages: messagesFor(prompt, options.system),
-          max_tokens: options.maxTokens ?? 8_000,
+          max_tokens: tokenCap(model, options.maxTokens ?? 8_000),
           stream: true,
           stream_options: { include_usage: true },
           ...endpoint.extra,

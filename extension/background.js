@@ -14,7 +14,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
   const { token, site } = await chrome.storage.sync.get({ token: '', site: 'https://seedup.rerereally.com' });
   if (!token) {
-    notify('먼저 확장 설정에 Seedup 토큰을 넣어 주세요. (프로필의 에이전트 연결에서 확인)');
+    notify('먼저 확장 설정에 Seedup 토큰을 넣어 주세요. (Seedup의 MCP 연동 화면에서 확인)');
     chrome.runtime.openOptionsPage();
     return;
   }

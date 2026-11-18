@@ -546,7 +546,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   </label>
                   <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
                   <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format].split('/').pop()!, brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
-                  <Link href="/profile" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 MCP 연동부터', 'First time? Connect your agent')}</Link>
+                  <Link href="/agents" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 MCP 연동부터', 'First time? Connect your agent')}</Link>
                 </div>
               </details>
             </div>

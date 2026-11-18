@@ -21,7 +21,7 @@ const READS: NavItem = { name: '아티클', en: 'Articles', href: '/news', match
 const EXPLORE: NavItem = { name: '트렌드', en: 'Trends', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
 const PRD: NavItem = { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText };
 const IDEAS: NavItem = { name: '아이디어 검증', en: 'Idea validation', href: '/ideas', match: ['/ideas'], icon: Lightbulb };
-const AGENT: NavItem = { name: 'MCP 연동', en: 'MCP', href: '/profile', match: ['/profile', '/onboarding'], icon: Plug };
+const AGENT: NavItem = { name: 'MCP 연동', en: 'MCP', href: '/agents', match: ['/agents'], icon: Plug };
 const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', match: ['/scrap'], icon: Bookmark };
 const REPO: NavItem = { name: '레포 분석', en: 'Repo analysis', href: '/seeds', match: ['/seeds'], icon: GitBranch };
 

@@ -60,7 +60,7 @@ export default async function GuidePage() {
             ]} />
             <div className="mt-8 flex flex-wrap gap-3">
               <a href={EXTENSION} target="_blank" rel="noopener noreferrer" className="btn">{t('extension 폴더 열기', 'Open the extension folder')}</a>
-              <Link href="/profile" className="btn-quiet">{t('토큰 받기', 'Get a token')}</Link>
+              <Link href="/agents" className="btn-quiet">{t('토큰 받기', 'Get a token')}</Link>
             </div>
           </SiteRow>
         </div>

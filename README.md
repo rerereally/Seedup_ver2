@@ -111,9 +111,9 @@ flowchart LR
 - **내 레포 역기획 (`Reverse Spec`)**: 선택한 저장소의 `README.md`, 상위 2단계 파일 트리, `package.json`/`pyproject.toml` 매니페스트를 분석해 **기존 구조(`existing` IA — 새 기능이 깨면 안 되는 것)**를 보존하면서 시장 증언과 연결된 새 기능 Living Spec을 생성
 - **arXiv + OpenAlex 이중 폴백 논문 추천**: 저장소 주제에 맞는 최신 학술 논문 최대 3편 추천
 
-### 5. Seedup MCP 서버 — Claude Code · Cursor 직결 (`/api/mcp`, `/profile`)
+### 5. Seedup MCP 서버 — Claude Code · Cursor 직결 (`/api/mcp`, `/agents`)
 - **표준 Streamable HTTP JSON-RPC 2.0 서버 (`lib/mcp/server.ts`)**: 외부 무거운 의존성 없이 Cloudflare Workers 환경에서 즉시 동작하는 경량 MCP 서버 구현
-- **프로필 개인 토큰 관리 (`components/McpConnect.tsx`)**: `/profile`에서 개인용 `sdp_...` 토큰 발급/폐기(DB에는 SHA-256 해시만 저장) 및 원클릭 연결 명령어 복사
+- **프로필 개인 토큰 관리 (`components/McpConnect.tsx`)**: `/agents`에서 개인용 `sdp_...` 토큰 발급/폐기(DB에는 SHA-256 해시만 저장) 및 원클릭 연결 명령어 복사
 - **9개 제공 도구 (`TOOLS`)**:
   1. `search_opportunities`: 검증된 개발자 불만 기회 키워드 검색
   2. `get_opportunity`: 특정 기회의 문제·시장 빈틈·원문 증언(`E-n`)·직접 경쟁 도구 상세 조회
@@ -271,7 +271,7 @@ SMOKE_BASE_URL=http://localhost:3000 npm run smoke
 
 Seedup은 코딩 에이전트에서 바로 검증된 기회를 검색하고 근거 추적형 PRD(`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`)를 가져올 수 있도록 **MCP 서버(`/api/mcp`)**를 제공합니다.
 
-1. 사이트 로그인 후 **`프로필(/profile) → MCP 연결`**에서 개인 토큰(`sdp_...`)을 발급받습니다.
+1. 사이트 로그인 후 **`MCP 연동(/agents)`**에서 개인 토큰(`sdp_...`)을 발급받습니다.
 2. **Claude Code**에서 아래 명령 한 줄로 연결합니다:
    ```bash
    claude mcp add --transport http seedup https://seedup.rerereally.com/api/mcp \

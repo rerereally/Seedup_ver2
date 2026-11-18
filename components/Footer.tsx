@@ -16,7 +16,7 @@ const COLUMNS = [
   { name: '기획', en: 'Plan', links: [
     { name: 'PRD', en: 'PRD', href: '/prd' },
     { name: '아이디어 검증', en: 'Idea validation', href: '/ideas' },
-    { name: 'MCP 연동', en: 'MCP', href: '/profile' },
+    { name: 'MCP 연동', en: 'MCP', href: '/agents' },
     { name: '레포 분석', en: 'Repo analysis', href: '/seeds' },
   ] },
   { name: 'Seedup', en: 'Seedup', links: [

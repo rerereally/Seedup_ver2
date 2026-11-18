@@ -223,7 +223,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           {tab === 'github' ? (
             paginatedRepos.length ? (
               <>
-                <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">이번 주 스타가 많이 늘어난 저장소를 골랐습니다. <b className="font-semibold text-ink">킵하기</b>로 모아 두면 북마크에 남고, 코딩 에이전트가 MCP <code className="font-mono text-[13px]">get_kept_items</code>로 가져갑니다. <Link href="/profile" className="text-seed underline-offset-4 hover:underline">MCP 연동</Link></p>
+                <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">이번 주 스타가 많이 늘어난 저장소를 골랐습니다. <b className="font-semibold text-ink">킵하기</b>로 모아 두면 북마크에 남고, 코딩 에이전트가 MCP <code className="font-mono text-[13px]">get_kept_items</code>로 가져갑니다. <Link href="/agents" className="text-seed underline-offset-4 hover:underline">MCP 연동</Link></p>
                 <div className="mt-6 divide-y divide-outline-soft border-b border-outline-soft">
                   {paginatedRepos.map((repo, index) => <RepoRow key={repo.id} repo={repo} isKept={scrapKeys.has(`github:${repo.id}`)} lead={index === 0 && currentPage === 1} />)}
                 </div>

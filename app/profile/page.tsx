@@ -2,14 +2,12 @@ import type { Metadata } from 'next';
 import { signOut, updateNewsletterSubscription, updateNotifyWebhook, updateProfileSettings } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-import McpConnect from '@/components/McpConnect';
 import IdeaPages from '@/components/IdeaPages';
 import IdeaWatches from '@/components/IdeaWatches';
 import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
 import WorkShell from '@/components/WorkShell';
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -17,21 +15,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
-  title: 'MCP 연동',
+  title: '설정',
 };
-
-// Mirrors the tools registered in lib/mcp/server.ts.
-const TOOLS = [
-  ['search_opportunities', '만들고 싶은 것으로 검증된 기회 찾기'],
-  ['get_opportunity', '원문과 이미 있는 도구까지 한 번에'],
-  ['generate_verified_prd', '원문이 붙은 PRD 만들기 (AGENTS.md, CLAUDE.md, Cursor 규칙, 빌더 프롬프트)'],
-  ['get_build_checklist', 'PRD 기능별 구현 체크리스트'],
-  ['mark_feature_done', '다 만든 기능을 완료로 표시'],
-  ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],
-  ['find_related_content', '관련 글과 오픈소스 찾기'],
-  ['watch_idea', '아이디어 지켜보기(매주 새 원문과 경쟁 도구를 메일로)'],
-  ['validate_idea', '아이디어 하나로 만들 가치 검증 리포트(원문, 경쟁 도구, 규모, 첫 사용자)'],
-];
 
 function notice(status?: string) {
   if (status === 'saved') return '프로필이 저장되었습니다.';
@@ -57,11 +42,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = data.user;
   if (!user) redirect('/login');
 
-  const [{ data: profile }, { data: onboarding }, params, connected] = await Promise.all([
+  const [{ data: profile }, { data: onboarding }, params] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     supabase.from('user_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
     searchParams,
-    createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data }) => Boolean(data)) ?? Promise.resolve(false),
   ]);
 
   const fullName = profile?.full_name ?? user.user_metadata?.full_name ?? '';
@@ -74,30 +58,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="MCP 연동" description="MCP는 AI 코딩 도구가 바깥 서비스의 데이터를 직접 꺼내 쓰게 하는 연결 방식입니다. 연결하면 Claude Code, Cursor 같은 도구가 Seedup의 기회와 검증된 PRD를 직접 가져갑니다." />
+        <PageIntro title="설정" description="계정, 맞춤 추천, 알림, 그리고 내가 만든 아이디어 소개 페이지와 지켜보는 아이디어를 관리합니다." aside={<Link href="/agents" className="btn-quiet h-10 px-4 text-sm">MCP 연동 (코딩 에이전트 연결)</Link>} />
 
         {statusNotice && <p role="status" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{statusNotice}</p>}
 
         <div className="flex max-w-[860px] flex-col gap-10">
-          <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} connected={connected} />
-
-          <section>
-            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">4</span> 쓸 수 있는 도구</h2>
-            <dl className="rows mt-3">
-              {TOOLS.map(([name, detail]) => (
-                <div key={name} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-4">
-                  <dt className="font-mono text-sm text-ink">{name}</dt>
-                  <dd className="text-[15px] text-muted">{detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
           <section>
             <h2 className="text-[17px] font-semibold text-ink">아이디어 소개 페이지</h2>
             <p className="mt-2 text-[15px] text-muted">만들기 전에 아이디어를 소개하는 페이지와 대기자 명단을 만들어, 실제로 신청하는 사람이 있는지 셉니다. 신청한 이메일은 나에게만 보입니다.</p>
             <IdeaPages />
-            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">5</span> 지켜보는 아이디어</h2>
+            <h2 className="mt-10 text-[17px] font-semibold text-ink">지켜보는 아이디어</h2>
             <p className="mt-2 text-[15px] text-muted">매주 한 번 다시 찾아보고, 새 원문이나 경쟁 도구가 생기면 메일로 알려 드립니다.</p>
             <IdeaWatches />
           </section>

@@ -81,14 +81,14 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
   const setup = [
     { done: onboarded, label: t('관심 분야와 스택 고르기', 'Pick your interests and stack'), hint: t('추천이 내 관심사로 바뀝니다', 'Recommendations follow your interests'), href: '/onboarding' },
     { done: dossiers.length > 0, label: t('첫 PRD 만들기', 'Make your first PRD'), hint: t('한 줄 아이디어면 됩니다', 'One line of an idea is enough'), href: '/prd' },
-    { done: token, label: t('코딩 에이전트 연결', 'Connect your coding agent'), hint: t('Claude Code·Cursor가 PRD를 직접 가져갑니다', 'Claude Code and Cursor read your PRDs'), href: '/profile' },
+    { done: token, label: t('코딩 에이전트 연결', 'Connect your coding agent'), hint: t('Claude Code·Cursor가 PRD를 직접 가져갑니다', 'Claude Code and Cursor read your PRDs'), href: '/agents' },
   ];
   const setupLeft = setup.filter((step) => !step.done).length;
   const actions = [
     { icon: FileText, label: t('아이디어로 PRD', 'PRD from an idea'), href: '/prd' },
     { icon: GitBranch, label: t('레포 분석', 'Repo analysis'), href: '/seeds' },
     { icon: Lightbulb, label: t('아이디어 검증', 'Idea validation'), href: '/ideas' },
-    { icon: Bot, label: token ? t('MCP 연동됨', 'MCP connected') : t('MCP 연동', 'MCP'), href: '/profile' },
+    { icon: Bot, label: token ? t('MCP 연동됨', 'MCP connected') : t('MCP 연동', 'MCP'), href: '/agents' },
   ];
 
   return (

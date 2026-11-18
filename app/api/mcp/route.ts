@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 110;
 
 const unauthorized = () => NextResponse.json(
-  { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /profile (MCP 연결).' } },
+  { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /agents (MCP 연동).' } },
   { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } },
 );
 

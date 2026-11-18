@@ -46,12 +46,12 @@ async function postJson(url: string, body: unknown) {
   return { status: response.status, ok: response.ok, json };
 }
 
-/** Counts items whose title or text changed, so a revision reports what it actually touched. */
+/** Counts items (by id) that were added, removed or changed in any field, so a revision reports what it touched. */
 function changedCount(before: Spec, after: Spec) {
-  const key = (spec: Spec) => new Set([...spec.requirements, ...spec.hypotheses].map((row) => `${row.title}|${row.detail}`).concat(spec.features.map((row) => `${row.title}|${row.detail}`), spec.screens.map((row) => `${row.name}|${row.does}`)));
-  const a = key(before);
-  const b = key(after);
-  return [...b].filter((item) => !a.has(item)).length + [...a].filter((item) => !b.has(item)).length;
+  const items = (spec: Spec) => new Map([...spec.requirements, ...spec.hypotheses, ...spec.features, ...spec.screens].map((row) => [row.id, JSON.stringify(row)]));
+  const a = items(before);
+  const b = items(after);
+  return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
 export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [], hideRevise = false, showTitle = true, agentSlug }: {

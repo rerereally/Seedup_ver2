@@ -281,8 +281,7 @@ const cite = (evidence: number[]) => evidence.map((n) => `E-${n}`).join(', ');
 const citeTags = (prose: string) => prose.replace(/\[(E\s*-?\s*\d+(?:\s*,\s*E?\s*-?\s*\d+)*)\]/gi, (_, group: string) => `[${[...group.matchAll(/\d+/g)].map((n) => `E-${n[0]}`).join(', ')}]`);
 const bullets = (items: string[], empty: string) => (items.length ? items.map((item) => `- ${item}`).join('\n') : `- ${empty}`);
 
-function slotLines(slots: ReadinessSlots | null, english = false, lang: Lang = 'ko') {
-  if (!slots) return english ? '  - Readiness slots not filled yet. Ask before guessing.' : '  - 개발 준비 슬롯이 아직 비어 있습니다. 추측하지 말고 먼저 물어보세요.';
+function slotLines(slots: ReadinessSlots, english = false, lang: Lang = 'ko') {
   return SLOT_KEYS.map((key) => {
     const label = english ? key : slotLabels(lang)[key];
     const values = slots[key];
@@ -297,7 +296,7 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const acceptance = (row: SpecRequirement) => (row.acceptance?.length ? `\n${row.acceptance.map((line) => `- ${t('수락 기준', 'Acceptance')}: ${line}`).join('\n')}` : '');
   const priority = (row: SpecRequirement) => (row.priority ? `[${row.priority}] ` : '');
   const requirements = spec.requirements.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)}`).join('\n\n');
-  const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}`).join('\n\n');
+  const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}${row.slots ? `\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}` : ''}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
   const hypotheses = spec.hypotheses.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}`).join('\n\n');
@@ -328,7 +327,7 @@ ${spec.assumptions?.length ? `\n## ${t('가정', 'Assumptions')}\n${bullets(spec
 ## ${t('성공 지표', 'Success metrics')}
 ${bullets(spec.metrics, undefinedText)}
 ${spec.openQuestions?.length ? `\n## ${t('열린 질문', 'Open questions')}\n${bullets(spec.openQuestions, undefinedText)}\n` : ''}
-${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${row.misses}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
+${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${citeTags(row.misses)}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
 ${evidenceSection(input.evidence, lang)}
 `;
 }
@@ -345,7 +344,7 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
   const tasks = spec.features.map((feature) => {
     const requirements = feature.requirementIds.map((rid) => spec.requirements.find((row) => row.id === rid)).filter(Boolean);
     const accept = requirements.flatMap((row) => row!.acceptance ?? []);
-    return `- [ ] ${feature.id}. ${feature.title}: ${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}\n${slotLines(feature.slots, true)}`;
+    return `- [ ] ${feature.id}. ${feature.title}: ${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
   const flow = mermaidFlow(spec);

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { signOut, updateNewsletterSubscription, updateProfileSettings } from '@/app/actions/profile';
+import { signOut, updateNewsletterSubscription, updateNotifyWebhook, updateProfileSettings } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import McpConnect from '@/components/McpConnect';
@@ -34,6 +34,10 @@ function notice(status?: string) {
   if (status === 'saved') return '프로필이 저장되었습니다.';
   if (status === 'subscribed') return '주간 신호 구독을 신청했습니다.';
   if (status === 'unsubscribed') return '주간 신호 구독을 해지했습니다.';
+  if (status === 'webhook-saved') return '채팅 알림을 저장했습니다. 다음 알림부터 그 채널로도 갑니다.';
+  if (status === 'webhook-cleared') return '채팅 알림을 껐습니다.';
+  if (status === 'webhook-invalid') return '디스코드나 슬랙의 웹훅 주소만 넣을 수 있습니다.';
+  if (status === 'webhook-failed') return '채팅 알림을 저장하지 못했습니다. DB 설정(notify_webhook_2026_11.sql)을 확인하세요.';
   return null;
 }
 
@@ -134,6 +138,15 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <form action={updateNewsletterSubscription}>
               <input type="hidden" name="subscribed" value={newsletterSubscribed ? 'false' : 'true'} />
               <SubmitButton pendingText={newsletterSubscribed ? '해지 중' : '신청 중'} className={newsletterSubscribed ? 'btn-quiet' : 'btn'}>{newsletterSubscribed ? '구독 해지' : '구독하기'}</SubmitButton>
+            </form>
+          </section>
+
+          <section className="border-t border-outline-soft pt-8">
+            <h2 className="text-[17px] font-semibold text-ink">디스코드, 슬랙 알림 <span className="text-sm font-normal text-muted">· {onboarding?.notify_webhook ? '켜짐' : '꺼짐'}</span></h2>
+            <p className="mt-1 text-sm text-muted">채널의 웹훅 주소를 넣으면 주간 신호와 변경 알림을 그 채널로도 보냅니다. 비우고 저장하면 꺼집니다.</p>
+            <form action={updateNotifyWebhook} className="mt-3 flex flex-wrap gap-2">
+              <input name="webhook" type="url" defaultValue={onboarding?.notify_webhook ?? ''} placeholder="https://discord.com/api/webhooks/... 또는 https://hooks.slack.com/services/..." className="h-11 min-w-0 flex-1 basis-[22rem] rounded-lg border border-field bg-white px-3 text-[14px]" />
+              <SubmitButton pendingText="저장 중" className="btn-quiet h-11">저장</SubmitButton>
             </form>
           </section>
 

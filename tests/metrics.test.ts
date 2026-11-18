@@ -53,3 +53,18 @@ test('the PRD evaluation summary counts only returned PRDs for issues and time, 
   ]);
   assert.deepEqual(summary, { total: 4, ok: 3, successRate: 75, clean: 1, meanIssues: 1, medianSeconds: 40, citedShare: 50 });
 });
+
+import { recentReleases, releaseNote } from '../lib/ingest/kept-repos';
+
+test('release notes keep the first lines that say something, without headings, links or badges', () => {
+  const body = "## What's Changed\n![badge](https://x/y.svg)\n* Add **streaming** support to the [client](https://x)\n* Fix memory leak in worker pool\n\n**Full Changelog**: https://github.com/a/b/compare/v1...v2";
+  assert.equal(releaseNote(body), 'Add streaming support to the client Fix memory leak in worker pool');
+  assert.equal(releaseNote(null), '');
+  assert.ok(releaseNote('x'.repeat(500)).length <= 200);
+});
+
+test('recent releases keep the last 30 days, newest first', () => {
+  const now = new Date('2026-11-18T00:00:00Z').getTime();
+  const row = (id: string, at: string | null) => ({ id, latest_release: at ? { tag: 'v1', name: 'v1', url: 'u', publishedAt: at, note: '' } : null });
+  assert.deepEqual(recentReleases([row('old', '2026-09-01T00:00:00Z'), row('a', '2026-11-01T00:00:00Z'), row('none', null), row('b', '2026-11-17T00:00:00Z')], 30, now).map((item) => item.id), ['b', 'a']);
+});

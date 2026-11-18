@@ -12,6 +12,8 @@ import { dossierChanges } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import { forYou } from '@/lib/personal';
+import { recentReleases } from '@/lib/ingest/kept-repos';
+import type { RepoRelease } from '@/lib/ingest/kept-repos';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -66,6 +68,11 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     .sort((a, b) => String(b.lastSeenAt ?? b.firstSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? a.firstSeenAt ?? '')) || b.evidence.length - a.evidence.length)
     .slice(0, 3);
   const repos = rankRepos(trends);
+  const keptRepoIds = scraps.filter((item) => item.item_type === 'github' && item.item_id).map((item) => String(item.item_id));
+  const keptRepoRows = keptRepoIds.length && supabase
+    ? await supabase.from('github_trends').select('id,repo_full_name,latest_release').in('id', keptRepoIds).then(({ data, error }) => (error ? [] : (data ?? []) as Array<{ id: string; repo_full_name: string; latest_release: RepoRelease | null }>))
+    : [];
+  const releases = recentReleases(keptRepoRows).slice(0, 4);
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });
   const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' });
 
@@ -210,6 +217,21 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
               </ul>
             ) : <p className="mt-2 text-[14px] leading-6 text-muted">{t('글이나 저장소에서 킵하기를 누르면 여기에 모이고, 연결된 코딩 에이전트도 가져갈 수 있습니다.', 'Press Keep on an article or repo and it lands here, where your connected agent can read it too.')}</p>}
           </section>
+
+          {releases.length > 0 && (
+            <section aria-labelledby="desk-releases">
+              <h2 id="desk-releases" className={h2}>{t('킵한 저장소 새 소식', 'New in repos you kept')}</h2>
+              <ul className="rows mt-3">
+                {releases.map((repo) => (
+                  <li key={repo.id} className="py-3">
+                    <p className="flex flex-wrap gap-x-3 text-[12.5px] text-muted"><span className="font-semibold text-seed">{repo.latest_release?.tag}</span><span>{date.format(new Date(String(repo.latest_release?.publishedAt)))}</span></p>
+                    <a href={repo.latest_release?.url} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[15px] font-semibold underline-offset-4 hover:underline">{repo.repo_full_name}</a>
+                    {repo.latest_release?.note && <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-muted">{repo.latest_release.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {repos.length > 0 && (
             <section aria-labelledby="desk-repos">

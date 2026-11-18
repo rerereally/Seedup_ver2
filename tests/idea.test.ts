@@ -68,3 +68,31 @@ test('live web quotes count only with a valid server signature, and only for ide
   assert.deepEqual(classic.picked.map((row) => row.evidence.id), ['e1']);
   delete process.env.LIVE_EVIDENCE_SECRET;
 });
+
+import { platformOfUrl, safeSourceUrl } from '../lib/opportunities/live-evidence';
+
+test('a pasted link is fetched only when it is a public http(s) address with a host name', () => {
+  for (const bad of ['javascript:alert(1)', 'file:///etc/passwd', 'http://localhost:3000', 'http://127.0.0.1/', 'http://10.0.0.5/x', 'http://[::1]/', 'http://intranet/', 'http://db.internal/', 'https://user:pw@github.com/a', 'not a url']) {
+    assert.equal(safeSourceUrl(bad), null, bad);
+  }
+  assert.equal(safeSourceUrl('https://github.com/a/b/issues/1')?.hostname, 'github.com');
+});
+
+test('the platform comes from the link host', () => {
+  assert.equal(platformOfUrl(new URL('https://github.com/a/b/issues/1')), 'github');
+  assert.equal(platformOfUrl(new URL('https://news.ycombinator.com/item?id=1')), 'hn');
+  assert.equal(platformOfUrl(new URL('https://stackoverflow.com/questions/1/x')), 'stackoverflow');
+  assert.equal(platformOfUrl(new URL('https://unix.stackexchange.com/questions/1')), 'stackexchange');
+  assert.equal(platformOfUrl(new URL('https://blog.example.com/post')), 'web');
+});
+
+import { builtReply } from '../lib/opportunities/outreach';
+
+test('the built reply quotes the person, links the product and asks instead of selling', () => {
+  const reply = builtReply('I keep leaking API keys in my side projects', 'https://keyguard.dev', 'It scans every push.');
+  assert.match(reply, /you wrote "I keep leaking API keys in my side projects"/);
+  assert.match(reply, /fix it: It scans every push\./);
+  assert.match(reply, /https:\/\/keyguard\.dev/);
+  assert.match(reply, /\?/);
+  assert.ok(builtReply('x'.repeat(300), 'https://a.b').includes('…'));
+});

@@ -224,6 +224,28 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }
   };
 
+  // A link the person found themselves; the server keeps only sentences that appear in that post word for word.
+  const addLink = async (url: string, quote: string) => {
+    setSearch({ state: 'busy' });
+    try {
+      const response = await fetch('/api/opportunities/evidence-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url, quote, idea }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSearch({ state: 'error', message: json.error ?? t('추가하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not add it. Try again shortly.') });
+        return false;
+      }
+      const found = (Array.isArray(json.quotes) ? json.quotes : []) as LiveQuote[];
+      setLive((before) => [...before, ...found.filter((row) => !before.some((old) => old.id === row.id))]);
+      setTouched(true);
+      setKept([...keptIds, ...found.map((row) => row.id).filter((id) => !keptIds.includes(id))].slice(0, MAX_KEPT));
+      setSearch({ state: 'done', message: t(`그 글에서 원문 ${found.length}건을 확인하고 근거로 담았습니다.`, `Checked and kept ${found.length} quotes from that post.`) });
+      return true;
+    } catch {
+      setSearch({ state: 'error', message: t('연결이 끊겼습니다. 다시 시도해 주세요.', 'Connection lost. Try again.') });
+      return false;
+    }
+  };
+
   if (restored && !idea) {
     return <IdeaStart onSubmit={send} en={en} />;
   }
@@ -244,7 +266,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: 'PRD', state: generated ? 'done' : current ? 'todo' : 'now' },
     { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
   ];
-  const picker = <EvidencePicker matched={matched} live={live} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} signedIn={signedIn} loginNext={loginNext} />;
+  const picker = <EvidencePicker matched={matched} live={live} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} />;
   const threeColumns = !generated;
 
   return (
@@ -414,7 +436,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 }
 
 /** The quotes found for the idea, to keep or drop, with the evidence bar they add up to. */
-function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; signedIn: boolean; loginNext: string }) {
+function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatforms, passes, en, search, onSearch, onAddLink, signedIn, loginNext }: { matched: PoolItem[]; live: LiveQuote[]; keptIds: string[]; toggle: (id: string) => void; keptCount: number; keptPlatforms: number; passes: boolean; en: boolean; search: Search; onSearch: () => void; onAddLink: (url: string, quote: string) => Promise<boolean>; signedIn: boolean; loginNext: string }) {
   const t = (ko: string, enText: string) => (en ? enText : ko);
   const quoteRow = (row: PoolItem['quotes'][number]) => {
     const on = keptIds.includes(row.id);
@@ -443,6 +465,22 @@ function EvidencePicker({ matched, live, keptIds, toggle, keptCount, keptPlatfor
           ? <button type="button" onClick={onSearch} disabled={search.state === 'busy'} className={`${matched.length || live.length ? 'btn-quiet' : 'btn'} h-10 whitespace-nowrap`}>{search.state === 'busy' ? t('웹에서 찾는 중', 'Searching the web') : live.length ? t('한 번 더 찾기', 'Search again') : t('웹에서 찾기', 'Search the web')}</button>
           : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 whitespace-nowrap">{t('로그인하고 웹에서 찾기', 'Sign in to search the web')}</Link>}
       </div>
+      {signedIn && (
+        <form
+          className="mt-4 grid gap-2"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const data = new FormData(form);
+            if (await onAddLink(String(data.get('url') ?? ''), String(data.get('quote') ?? ''))) form.reset();
+          }}
+        >
+          <label className="text-[13px] font-semibold text-ink" htmlFor="evidence-link">{t('직접 찾은 글 링크로 추가', 'Add a post you found')}</label>
+          <input id="evidence-link" name="url" type="url" required placeholder="https://github.com/…/issues/123" className="h-10 rounded-lg border border-field bg-white px-3 text-[14px]" />
+          <input name="quote" type="text" placeholder={t('담을 문장 (비우면 글에서 찾아 줍니다)', 'Sentence to keep (leave empty to find one)')} className="h-10 rounded-lg border border-field bg-white px-3 text-[14px]" />
+          <button type="submit" disabled={search.state === 'busy'} className="btn-quiet h-10 justify-self-start whitespace-nowrap">{t('원문과 대조해 담기', 'Check and keep')}</button>
+        </form>
+      )}
       {search.message && <p className={`mt-2 text-[13px] leading-5 ${search.state === 'error' ? 'text-red-700' : 'text-tertiary'}`} role="status">{search.message}</p>}
     </div>
   );

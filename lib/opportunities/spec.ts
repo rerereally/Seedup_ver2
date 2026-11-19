@@ -104,6 +104,8 @@ export type SpecInput = {
   gap: string;
   evidence: Evidence[];
   competitors: string[];
+  /** "name: what it does" for each competitor, from the product search, so the PRD says what a tool misses from its listing instead of from memory. */
+  competitorNotes?: string[];
 };
 
 export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
@@ -310,7 +312,7 @@ ${spec.existing?.length ? `## ${t('기존 구조 (역기획)', 'Existing structu
 ${input.problem}
 
 ${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing tools')}\n${input.gap}\n\n` : ''}## ${t('대상 사용자', 'Target users')}
-${bullets(spec.targetUsers, undefinedText)}
+${bullets(spec.targetUsers.map(citeTags), undefinedText)}
 ${spec.scenario ? `\n## ${t('사용 장면', 'Scenario')}\n${spec.scenario}\n` : ''}${spec.goals?.length ? `\n## ${t('목표', 'Goals')}\n${bullets(spec.goals, undefinedText)}\n` : ''}
 ## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
 ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
@@ -388,7 +390,7 @@ export function renderBuilderPrompt(input: SpecInput, spec: Spec) {
   return `Build a simple web app: ${input.title}.
 
 What it does: ${spec.summary}
-${spec.targetUsers.length ? `Who it is for: ${spec.targetUsers.join(', ')}\n` : ''}
+${spec.targetUsers.length ? `Who it is for: ${spec.targetUsers.join(', ').replace(/\s*\[E[^\]]*\]/gi, '')}\n` : ''}
 The problem, in real users' words:
 ${quotes || `- ${input.problem}`}
 

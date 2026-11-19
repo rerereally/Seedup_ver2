@@ -1,3 +1,4 @@
+import { isPromotion } from './rules';
 import type { ActorRun, Platform, RawSignal, SupplyItem, SupplyKind } from './types';
 
 /**
@@ -27,6 +28,8 @@ const HOST_INTERVAL_MS: Record<string, number> = {
   'itunes.apple.com': 3_200,
 };
 const WINDOW_DAYS = 365;
+// The "newest first" searches look this far back, so every daily run sees posts the yearly top lists never reach.
+const RECENT_DAYS = 30;
 // The occupation sites get a few posts a week, so a year of them is too thin to confirm a problem twice.
 const NETWORK_WINDOW_DAYS = 365 * 3;
 
@@ -180,9 +183,14 @@ export const DISCOVERY_ACTORS: Actor[] = [
     async run(session, push) {
       const excluded = EXCLUDED_REPOS.map((repo) => `-repo:${repo}`).join(' ');
       const { iso } = windowStart();
-      for (const topic of GITHUB_TOPICS) {
-        const q = `${topic} "feature request" is:issue is:open reactions:>=4 created:>=${iso} ${excluded}`;
-        const json = await session.json<{ items?: GithubIssue[] }>(`https://api.github.com/search/issues?q=${encodeURIComponent(q)}&sort=reactions&order=desc&per_page=12`);
+      const recent = windowStart(RECENT_DAYS).iso;
+      // The most-reacted issues of the year change little from day to day, so each topic also reads the newest ones.
+      const queries = GITHUB_TOPICS.flatMap((topic) => [
+        `q=${encodeURIComponent(`${topic} "feature request" is:issue is:open reactions:>=4 created:>=${iso} ${excluded}`)}&sort=reactions&order=desc&per_page=12`,
+        `q=${encodeURIComponent(`${topic} "feature request" is:issue is:open reactions:>=1 created:>=${recent} ${excluded}`)}&sort=created&order=desc&per_page=6`,
+      ]);
+      for (const query of queries) {
+        const json = await session.json<{ items?: GithubIssue[] }>(`https://api.github.com/search/issues?${query}`);
         for (const issue of json?.items ?? []) {
           push({ platform: 'github', title: cleanText(issue.title), text: cleanText(issue.body).slice(0, 900), url: issue.html_url, score: issue.reactions?.total_count ?? 0, postedAt: issue.created_at ?? null, repo: issue.repository_url.split('/').slice(-2).join('/') });
         }
@@ -207,8 +215,14 @@ export const DISCOVERY_ACTORS: Actor[] = [
     id: 'hn-pain-comments',
     async run(session, push) {
       const { epoch } = windowStart();
-      for (const phrase of [...HN_PAIN_PHRASES, ...HN_WORK_PHRASES]) {
-        const json = await session.json<{ hits?: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(phrase)}&tags=comment&numericFilters=created_at_i>${epoch}&hitsPerPage=50`);
+      const recent = windowStart(RECENT_DAYS).epoch;
+      // Relevance over the year finds the strongest complaints; newest-first over the last weeks keeps each day's run fresh.
+      const urls = [...HN_PAIN_PHRASES, ...HN_WORK_PHRASES].flatMap((phrase) => [
+        `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(phrase)}&tags=comment&numericFilters=created_at_i>${epoch}&hitsPerPage=50`,
+        `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(phrase)}&tags=comment&numericFilters=created_at_i>${recent}&hitsPerPage=20`,
+      ]);
+      for (const url of urls) {
+        const json = await session.json<{ hits?: HnHit[] }>(url);
         for (const hit of json?.hits ?? []) {
           const text = cleanText(hit.comment_text).slice(0, 900);
           push({ platform: 'hn', title: cleanText(hit.story_title), text, url: hnUrl(hit.objectID), score: 0, postedAt: hit.created_at ?? null });
@@ -220,8 +234,13 @@ export const DISCOVERY_ACTORS: Actor[] = [
     id: 'stackoverflow-unanswered',
     async run(session, push) {
       const { epoch } = windowStart();
-      for (const tag of STACK_TAGS) {
-        const json = await session.json<{ items?: StackQuestion[] }>(`https://api.stackexchange.com/2.3/questions/no-answers?order=desc&sort=votes&tagged=${encodeURIComponent(tag)}&site=stackoverflow&pagesize=15&fromdate=${epoch}&filter=withbody`);
+      const recent = windowStart(RECENT_DAYS).epoch;
+      const urls = STACK_TAGS.flatMap((tag) => [
+        `https://api.stackexchange.com/2.3/questions/no-answers?order=desc&sort=votes&tagged=${encodeURIComponent(tag)}&site=stackoverflow&pagesize=15&fromdate=${epoch}&filter=withbody`,
+        `https://api.stackexchange.com/2.3/questions/no-answers?order=desc&sort=creation&tagged=${encodeURIComponent(tag)}&site=stackoverflow&pagesize=6&fromdate=${recent}&filter=withbody`,
+      ]);
+      for (const url of urls) {
+        const json = await session.json<{ items?: StackQuestion[] }>(url);
         for (const question of json?.items ?? []) {
           push({ platform: 'stackoverflow', title: cleanText(question.title), text: cleanText(question.body).slice(0, 900), url: question.link, score: question.score ?? 0, postedAt: stackDate(question.creation_date) });
         }
@@ -328,17 +347,22 @@ export async function runDiscoveryActors() {
     const startedAt = Date.now();
     let items = 0;
     let crashed = false;
+    let promotions = 0;
     try {
       await actor.run(session, (item) => {
         // A title with almost no body gives the model nothing to quote, and only costs a slot in the sample.
         if (!item.url || dataset.has(item.url) || `${item.title} ${item.text}`.length < MIN_POST_CHARS) return;
+        if (isPromotion(item)) {
+          promotions += 1;
+          return;
+        }
         dataset.set(item.url, { ...item, id: String(dataset.size), actor: actor.id });
         items += 1;
       });
     } catch {
       crashed = true;
     }
-    runs.push({ id: actor.id, status: crashed || !items ? 'failed' : session.errors ? 'partial' : 'ok', items, errors: session.errors + (crashed ? 1 : 0), durationMs: Date.now() - startedAt });
+    runs.push({ id: actor.id, status: crashed || !items ? 'failed' : session.errors ? 'partial' : 'ok', items, errors: session.errors + (crashed ? 1 : 0), durationMs: Date.now() - startedAt, promotions });
   }));
   return { items: [...dataset.values()], runs };
 }

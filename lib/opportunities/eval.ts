@@ -21,3 +21,24 @@ export function evalSummary(rows: EvalRow[]) {
     citedShare: requirements ? Math.round((problems.reduce((sum, row) => sum + row.cited, 0) / requirements) * 100) : 0,
   };
 }
+
+export type PrecisionLabels = Record<string, { slug: string; quote: string; relevant: boolean; note?: string; by: string }>;
+
+/**
+ * Citation precision over the quotes still published: labeled ones count, a label for a quote no longer shown is
+ * ignored, and quotes without a label are returned so they can be judged. `byPeople` counts labels a person confirmed
+ * (anything but the model's draft), since the promise to users rests on human judgement.
+ */
+export function precisionOf(opportunities: Array<{ slug: string; evidence: Array<{ id: string; quote: string }> }>, labels: PrecisionLabels) {
+  const published = opportunities.flatMap((item) => item.evidence.map((evidence) => ({ id: evidence.id, slug: item.slug, quote: evidence.quote })));
+  const labeled = published.flatMap((row) => (labels[row.id] ? [{ ...row, ...labels[row.id] }] : []));
+  const relevant = labeled.filter((row) => row.relevant).length;
+  return {
+    labeled: labeled.length,
+    relevant,
+    byPeople: labeled.filter((row) => row.by !== 'claude-draft').length,
+    precision: labeled.length ? Math.round((relevant / labeled.length) * 100) : null,
+    wrong: labeled.filter((row) => !row.relevant),
+    unlabeled: published.filter((row) => !labels[row.id]),
+  };
+}

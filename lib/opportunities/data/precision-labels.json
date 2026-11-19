@@ -1,0 +1,654 @@
+{
+ "_about": "인용 정밀도 평가 세트. relevant는 그 인용을 쓴 사람이 문제 문장의 문제를 직접 겪고 있다는 판단. by가 claude-draft인 줄은 사람이 확인한 뒤 by를 자기 이름으로 바꾼다. scripts/eval-precision.ts가 읽는다.",
+ "labels": {
+  "ev_ef6df13b6d1c88c6": {
+   "slug": "gif-api-replacement",
+   "quote": "No public announcement. Just quietly added to killed by google.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5bd7100a28bddf0a": {
+   "slug": "gif-api-replacement",
+   "quote": "Tenor recently announced they will be shutting down their API on June 30.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_1855150a668a51d0": {
+   "slug": "gif-api-replacement",
+   "quote": "The GIF integration is currently broken due to the deprecation and shutdown of the Tenor API.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7cd7abded751d0fa": {
+   "slug": "gif-api-replacement",
+   "quote": "Google’s Tenor API shutdown (June 30, 2026) causes gif insert = error",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_1bae684854e5aeb6": {
+   "slug": "gif-api-replacement",
+   "quote": "Google has announced that the Tenor GIF API will be fully discontinued on June 30, 2026.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_b6432aa794b45592": {
+   "slug": "llm-provider-schema-normalization",
+   "quote": "What is your AI harness that lets you switch LLM models easily?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e6db4be2344f2b7c": {
+   "slug": "llm-provider-schema-normalization",
+   "quote": "Amazon Bedrock does not provide an API that returns:",
+   "relevant": false,
+   "note": "잘린 문장이라 무엇이 문제인지 알 수 없다",
+   "by": "claude-draft"
+  },
+  "ev_7ff7699e23a0b8e7": {
+   "slug": "llm-provider-schema-normalization",
+   "quote": "every time I wanted to try a different LLM provider, I had to rewrite large parts of my code.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_b201bf463c9ee0ee": {
+   "slug": "canopy-fisheye-distortion-analyzer",
+   "quote": "Is there a tool available that can determine the projection distortion of my lens for me?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_43bda4ac6f7b4b58": {
+   "slug": "canopy-fisheye-distortion-analyzer",
+   "quote": "Check if our cameras have a normal lens or a fisheye lens, and measure the lens distortion for each camera model",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7de6966b5f0552c9": {
+   "slug": "cofounder-ai-conversation-visibility",
+   "quote": "I've no idea about the conversation he is having with his agents.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5451f7c42201386a": {
+   "slug": "cofounder-ai-conversation-visibility",
+   "quote": "Without the conversation log linked to the commit, you're reviewing output without context.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_67a00321614277f7": {
+   "slug": "caller-transcription-confidence",
+   "quote": "`caller_confidence` is `1.0` on every turn, because Whisper always reports 1.0",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5472d26b50645f72": {
+   "slug": "caller-transcription-confidence",
+   "quote": "I want to check how confident the transcription of the caller's turn was",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_ee18ea5132ba0965": {
+   "slug": "database-cli-inconsistent-commands",
+   "quote": "manually inspecting payloads would not be quick and easy w/o some custom tooling",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_2a7fa85f1154e0ec": {
+   "slug": "database-cli-inconsistent-commands",
+   "quote": "My biggest pain point with using different cli to connect to different databases is that they all do things like listing tables differently.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_93a2c20b2f7d7e8c": {
+   "slug": "matrix-homeserver-migration",
+   "quote": "migrating between Matrix homeserver implementations remains a problem with no satisfying solution",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_3937f43b72b2ad55": {
+   "slug": "matrix-homeserver-migration",
+   "quote": "leaving us all stranded without any sort of migration path",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e552ec396c7823c6": {
+   "slug": "cron-queue-worker-monitoring",
+   "quote": "most teams have zero monitoring on their cron jobs and queue workers",
+   "relevant": false,
+   "note": "자기 도구를 소개하는 글의 시장 주장이지, 본인이 겪는 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_7d96ddd37705c0cd": {
+   "slug": "cron-queue-worker-monitoring",
+   "quote": "I built this to keep track of a worker that was stopping too often without an obvious reason",
+   "relevant": false,
+   "note": "자기 도구 홍보(\"I built this\")",
+   "by": "claude-draft"
+  },
+  "ev_82435864a62bc739": {
+   "slug": "llm-code-validation",
+   "quote": "how do you validate the performance or architectural quality of the outcome?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_64d679fe9ef3ec79": {
+   "slug": "llm-code-validation",
+   "quote": "the capacity to curate and evaluate is still the same",
+   "relevant": false,
+   "note": "검증 도구가 없다는 말이 아니라 일반적인 소감",
+   "by": "claude-draft"
+  },
+  "ev_f9b629d1aa333c07": {
+   "slug": "us-uk-academic-english-converter",
+   "quote": "Is there a tool that could help me to put my article into British English?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_386373871a503339": {
+   "slug": "video-repost-and-edit-detection",
+   "quote": "Would reverse video search be a better approach for finding unauthorized copies",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_dd23710a66667da0": {
+   "slug": "warc-wacz-archive-viewer",
+   "quote": "it would be nice to have an easier way to explore what you’ve captured",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_bc17c2d6af433df4": {
+   "slug": "landscape-photo-village-identifier",
+   "quote": "Tools to assist in identifying villages in landscape photos",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_48a28a13c9e2566b": {
+   "slug": "ai-code-quality-control",
+   "quote": "How do you keep up quality when you vibe-code?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_a1fd5dc27315e387": {
+   "slug": "corrupted-excel-recovery",
+   "quote": "So I have not had a lot of success with Excel's built-in",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_74a921ba743ebeb2": {
+   "slug": "qgis-layer-refresh",
+   "quote": "For the data to be refreshed, I have to restart QGIS Server.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_193be7fd3d0020e4": {
+   "slug": "rag-citation-verification",
+   "quote": "I already check every cited ID against the retrieved list in code and reject unknown IDs.",
+   "relevant": false,
+   "note": "이미 코드로 검사하고 있다는 말이라 도구가 없다는 근거가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_b38a9939f9aa044e": {
+   "slug": "gnucash-transaction-counter",
+   "quote": "I need to determine the total number of transaction entries in my GNU Cash DB for the last accounting year.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5afd1150c2a87f4a": {
+   "slug": "gis-polygon-point-generation",
+   "quote": "Doing this manually would be imprecise and extremely time-consuming.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_0b2802b87a85d8e0": {
+   "slug": "technical-illustration-graph-builder",
+   "quote": "Efficient workflow for recreating argumentation-style directed graphs in Adobe Illustrator",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_a379775f6affb7eb": {
+   "slug": "ai-test-review-bottleneck",
+   "quote": "Agreed, we had agents writing standard integration/unit/e2e tests but turned out to be a ton of work reviewing just that",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_99244524e161a87d": {
+   "slug": "playwright-screenshot-reproducibility",
+   "quote": "Reproducible Playwright Screenshot Tests Among Environments for Implementing Visual Regression",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_a6711ef6405ae1bb": {
+   "slug": "stateless-graphics-api",
+   "quote": "The world could use an API that's basically GL but without global hidden singleton (per thread!) BS behind the scenes.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_d97149301cfda08a": {
+   "slug": "google-stitch-mcp-server",
+   "quote": "Is there a Google Stitch MCP Server which i can connect to my IDE?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_90606c25837c9331": {
+   "slug": "llm-template-token-limit",
+   "quote": "If I send full product + full template rules for every request, token usage becomes too high.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_8ab264bae02b265a": {
+   "slug": "engineering-decision-rationale-documentation",
+   "quote": "Every solution requires someone to manually write something. Nobody does.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7725b440d9ca45cc": {
+   "slug": "ios-simulator-ai-inspection",
+   "quote": "What I’m missing is a tool to inspect iOS simulator the same way.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e8c013d24c8ca7c0": {
+   "slug": "pdf-scientific-char-embedding-error",
+   "quote": "Embedding models fail possibly on scientific characters no matter how the pdf is parsed",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5332add903674faf": {
+   "slug": "mcp-llm-streaming-unsupported",
+   "quote": "I don't want to wait for the completed response and return the whole text",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_3780a6021c932d56": {
+   "slug": "agentic-coding-flow-interruption",
+   "quote": "Those very small wait times do not let me reach a concentration state.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_016da5ee115bac0b": {
+   "slug": "unclear-query-detection",
+   "quote": "how do you build a system that can detect when the user’s question needs clarification",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_58d8608e3eb413eb": {
+   "slug": "cuda-loop-memory-extraction",
+   "quote": "extract static loop and memory access features directly from CUDA source code",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_8441fdb1fcc988f6": {
+   "slug": "free-software-showcase",
+   "quote": "Subreddits have a blanket ban on self-promotion, even if it is free software.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_9071c90df8164e5c": {
+   "slug": "ai-pipeline-data-masking",
+   "quote": "Is there a way of masking or temporary removing this data",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_06ec606e2a7734d1": {
+   "slug": "overdue-payment-collection",
+   "quote": "chasing overdue invoices is manual, awkward, and nobody has a good system for it",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_804c76837778023b": {
+   "slug": "overdue-payment-collection",
+   "quote": "I was tired of manually chasing customers when their subscription payments failed on my gym SaaS.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_1ab2691a6bb9285b": {
+   "slug": "unified-ai-conversation-viewer",
+   "quote": "no good way to view/search/combine them together.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7531866c40ea0c3c": {
+   "slug": "unified-ai-conversation-viewer",
+   "quote": "Around a year ago, I found myself using Claude Code and Codex to search their own transcripts.",
+   "relevant": false,
+   "note": "자기 도구를 만든 계기를 말하는 글의 도입부",
+   "by": "claude-draft"
+  },
+  "ev_1101d6c704ecdace": {
+   "slug": "resume-data-entry-automation",
+   "quote": "Looking for a tech job is a helpless data-entry nightmare",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_079598213bbdd1c8": {
+   "slug": "resume-data-entry-automation",
+   "quote": "repeatedly entering the same details into job application forms",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_c28b1d893165dbde": {
+   "slug": "full-company-tech-stack-detection",
+   "quote": "Is there a tool (open source preferably or inexpensive) that can show me the entire tech stack of a company?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_362ccfa04f861d98": {
+   "slug": "serverless-cost-control",
+   "quote": "Cloud Run accrued ~$4,676. There was no traffic spike",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e0c00beaa99cd84d": {
+   "slug": "simple-secure-file-sharing",
+   "quote": "PGP is way too complex for them, Signal requires installing an app",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_681319cc4b7a7ddc": {
+   "slug": "local-ci-cd-ssh-scp",
+   "quote": "local CI software to automate this process: pick my source code, send it to a machine",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_3c8fe6dbca3f0842": {
+   "slug": "llm-reverse-engineering-defense",
+   "quote": "how can one guard against having their source code essentially unveiled",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_c89d1545df895865": {
+   "slug": "personal-app-remote-hosting",
+   "quote": "the biggest pain point for me right now is making these available to my multiple devices over the internet.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_5efaedff8a220fd4": {
+   "slug": "engineering-context-loss",
+   "quote": "The major time cost for me is to re-explaining context and past decisions, client rules, that we already do.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_f405d350d6ca28c6": {
+   "slug": "overdue-invoice-tracking",
+   "quote": "chasing overdue invoices is manual, awkward, and nobody has a good system for it.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_19959c2686d5684f": {
+   "slug": "overdue-invoice-tracking",
+   "quote": "chasing it is a manual, awkward, easy-to-postpone task",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_a2b30cc4f200ab6d": {
+   "slug": "overdue-invoice-tracking",
+   "quote": "I kept losing hours every week writing 'just checking in' emails for unpaid invoices",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_99212f1625a736d9": {
+   "slug": "mesh-to-step-conversion",
+   "quote": "its my only gripe for any CAD software as no one did something like this",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_370222ba5b0608ee": {
+   "slug": "mesh-to-step-conversion",
+   "quote": "there just isn't an easier way to do this fully automated without AI",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_9bf538af63e6a67d": {
+   "slug": "mesh-to-step-conversion",
+   "quote": "Is there a reliable way to convert an STL/GLB mesh into a fully editable STEP CAD model?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_be5cdb07cfed6bfe": {
+   "slug": "ai-agent-guardrails",
+   "quote": "there is currently no protocol-level way to pause an agent",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_ed8ea7393190f57c": {
+   "slug": "ai-agent-guardrails",
+   "quote": "agents will consistently violate the communication preferences",
+   "relevant": false,
+   "note": "에이전트가 대화 선호를 어긴다는 말로, 접근 제어나 일시 정지 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_e267408439588750": {
+   "slug": "ai-agent-guardrails",
+   "quote": "figure out how to put guardrails around agents",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7cc5f1a71330efe0": {
+   "slug": "ai-coding-context-sharing",
+   "quote": "The major time cost for me is to re-explaining context and past decisions",
+   "relevant": false,
+   "note": "AI에게 맥락을 다시 설명하는 부담이지, 동료와 맥락을 공유하는 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_f6cd0ee2ec5913d9": {
+   "slug": "ai-coding-context-sharing",
+   "quote": "I wish there was a better handoff as well from Chat to Codex.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_a2ed491eabf8cf9a": {
+   "slug": "ai-coding-context-sharing",
+   "quote": "The conversation ends and everything disappears.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_0f52ea475946c00e": {
+   "slug": "ai-coding-context-sharing",
+   "quote": "if one LLM exhausted mid-task there was no clean handoff to the other",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_cba99a64042f9d21": {
+   "slug": "international-meeting-time-zone-sync",
+   "quote": "many of us haven't found a good way to sync our times on the meeting calendar",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_d3630b7f6d3701a3": {
+   "slug": "international-meeting-time-zone-sync",
+   "quote": "One of the biggest drawbacks of BigTech (and many other industries) is the goddamn time zones and early / late meetings.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_6c77d5d7ac020f1a": {
+   "slug": "international-meeting-time-zone-sync",
+   "quote": "Not knowing what time it is for my Australian colleagues at all without checking my phone every single time is worse.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_4222b32db2638e11": {
+   "slug": "agent-workflow-control",
+   "quote": "things are getting too complex with no central notion of behaviour definitions",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_928902f4a97e15c5": {
+   "slug": "agent-workflow-control",
+   "quote": "It would also be nice to have a second agent review every command",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_0105f0aa5d0f5fdb": {
+   "slug": "agent-context-knowledge-sharing",
+   "quote": "without requiring each project to put them in a different folder",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_b6da6aa11eef18c2": {
+   "slug": "agent-context-knowledge-sharing",
+   "quote": "Why is there no harness where this is a native functionality?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_df09320ad5928bb7": {
+   "slug": "ai-slop-feed-filter",
+   "quote": "Hell I would pay for a tool right now to filter ai slop from the feeds.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_d47ab63f29adfd1d": {
+   "slug": "ai-slop-feed-filter",
+   "quote": "The main annoyance I have is keeping AI slop out of my feed so that I can instead learn from genuine experts.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_f4dbb7577782ba9a": {
+   "slug": "workflow-execution-verification",
+   "quote": "a workflow's `active` flag is a stored boolean, not a promise that a trigger is armed.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_0ccc21c75e403fea": {
+   "slug": "workflow-execution-verification",
+   "quote": "Nothing in the execution log is red",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_1c206070681d6aea": {
+   "slug": "requirements-management-gap",
+   "quote": "I’ve repeatedly hit the same failure mode: at any moment, it’s hard to answer",
+   "relevant": false,
+   "note": "잘린 문장이라 무엇을 답하기 어려운지 알 수 없다",
+   "by": "claude-draft"
+  },
+  "ev_55ce5e619ef8208c": {
+   "slug": "requirements-management-gap",
+   "quote": "One big pain point that has existed forever and has never really been addresses adequately is the ability to come up with requirements.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_d4cfc45454fdb6df": {
+   "slug": "requirements-management-gap",
+   "quote": "Requirements change, scope fluctuates, problem space evolves - grows and shrinks, accretion is unavoidable.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_685c11b4bf6770bc": {
+   "slug": "silent-workflow-failure-detection",
+   "quote": "When a workflow quietly stopped in your own business, who noticed first?",
+   "relevant": false,
+   "note": "다른 사람에게 경험을 묻는 질문이라 본인이 겪는 문제인지 알 수 없다",
+   "by": "claude-draft"
+  },
+  "ev_e069c129fd570fca": {
+   "slug": "silent-workflow-failure-detection",
+   "quote": "워크플로 실패 후에도 텔레그램 실패 알림이 오지 않음",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7fb767bfbb372c6c": {
+   "slug": "rag-citation-verification",
+   "quote": "Citation enforcement fails or the model does not cite what it uses",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7e5a9db1e75f6c44": {
+   "slug": "rag-citation-verification",
+   "quote": "sometimes it cites an ID that was never retrieved",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_3a542f662bd8e3b1": {
+   "slug": "ai-agent-evaluation-testing",
+   "quote": "Do you systematically evaluate agent skills, either before or while using them?",
+   "relevant": false,
+   "note": "다른 사람의 방법을 묻는 질문이라 본인이 겪는 문제인지 알 수 없다",
+   "by": "claude-draft"
+  },
+  "ev_0f6ab0809129f889": {
+   "slug": "ai-agent-evaluation-testing",
+   "quote": "Biggest pain point is testing against real deployment setups vs my janky local Chrome + CDP dev loop.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7d761a2c96fe7b80": {
+   "slug": "ai-agent-evaluation-testing",
+   "quote": "doesn't help me evaluate whether I could drop an agent in my complex",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_dabdda7e143fc574": {
+   "slug": "ai-agent-evaluation-testing",
+   "quote": "How evals need to change once agents are combined and using tools",
+   "relevant": false,
+   "note": "글의 주제 문장이지 본인이 겪는 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_aa8aa7af0a4efe49": {
+   "slug": "cloud-run-cold-start-manager",
+   "quote": "“sane way” to manage Cloud Run cold starts for AI",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7dd9fc158917dd70": {
+   "slug": "cloud-run-cold-start-manager",
+   "quote": "I’m experiencing a similar issue hosting MCP Server on Cloud Run with scale-to-zero for cost optimization.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_1c1054b17716ccdb": {
+   "slug": "open-source-pr-quality-filter",
+   "quote": "As an open source maintainer, I get a lot of AI slop PRs.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_2a6af7f4830961b5": {
+   "slug": "open-source-pr-quality-filter",
+   "quote": "What they do want, however, is to not have to spend time on the thousands of AI generated pull requests and bug reports.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_6fd3bb9a7d642471": {
+   "slug": "ai-agent-tool-schema-discovery",
+   "quote": "how do you actually optimize for agent discovery?",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_3d9ac9f6f8b2bec1": {
+   "slug": "ai-agent-tool-schema-discovery",
+   "quote": "clients need capability-based discovery, this pattern feels insufficient",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_7d09b9b8b285ab26": {
+   "slug": "ai-code-quality-enforcement",
+   "quote": "The unnecessary comment is a staple of vibed code, but the tone also annoys me because it leaves behind the prompt.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_0e198a2862732ae4": {
+   "slug": "ai-code-quality-enforcement",
+   "quote": "Use styles and practices from this existing code base",
+   "relevant": false,
+   "note": "에이전트에게 주는 지시문이지 불만이 아니다",
+   "by": "claude-draft"
+  },
+  "ev_3c92008630345de0": {
+   "slug": "ai-code-quality-enforcement",
+   "quote": "It fights the language, and introduces unnecessary abstractions, inconsistent patterns",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_28a6391a6284889c": {
+   "slug": "distributed-compliance-observability",
+   "quote": "Compliance and observability are still a problem.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_f29b1c0d584a60e0": {
+   "slug": "distributed-compliance-observability",
+   "quote": "When I tried to figure out what happened, I had scattered logs across services with no way to prove what the agents actually said.",
+   "relevant": true,
+   "by": "claude-draft"
+  }
+ }
+}

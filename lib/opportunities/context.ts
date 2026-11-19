@@ -22,7 +22,12 @@ export function specInputFor(opportunities: Opportunity[], picked: Array<{ evide
   const distinct = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))];
   const relatedProblems = distinct(others.map((item) => item.problem)).filter((problem) => problem !== lead.problem.trim());
   const gaps = distinct([lead.gap, ...others.map((item) => item.gap)]);
-  const competitors = distinct(involved.flatMap((item) => item.supply.filter((supply) => supply.relation === 'direct').map((supply) => supply.name))).slice(0, MAX_COMPETITORS);
+  const direct = involved.flatMap((item) => item.supply.filter((supply) => supply.relation === 'direct'));
+  const competitors = distinct(direct.map((supply) => supply.name)).slice(0, MAX_COMPETITORS);
+  const competitorNotes = competitors.map((name) => {
+    const description = direct.find((supply) => supply.name.trim() === name)?.description.trim();
+    return description ? `${name}: ${description}` : name;
+  });
 
   return {
     title: requestedTitle || lead.name,
@@ -30,5 +35,6 @@ export function specInputFor(opportunities: Opportunity[], picked: Array<{ evide
     gap: gaps.join('\n'),
     evidence: picked.map((item) => item.evidence),
     competitors,
+    competitorNotes,
   };
 }

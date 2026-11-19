@@ -749,7 +749,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <p className="label mt-4">{t('한 줄 정의', 'One line')}</p>
                       <p className="mt-1 text-[15px] leading-7">{spec.summary}</p>
                       <p className="label mt-5">{t('대상 사용자', 'Target users')}</p>
-                      <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.join(', ') || t('정의되지 않음', 'Not defined')}</p>
+                      <p className="mt-1 text-[15px] leading-7">{spec.targetUsers.length ? prose(spec.targetUsers.join(', ')) : t('정의되지 않음', 'Not defined')}</p>
                       {spec.scenario && <><p className="label mt-5">{t('사용 장면', 'Scenario')}</p><p className="mt-1 text-[15px] leading-7">{spec.scenario}</p></>}
                       {spec.goals?.length ? <><p className="label mt-5">{t('목표', 'Goals')}</p>{bullets(spec.goals)}</> : null}
                     </section>

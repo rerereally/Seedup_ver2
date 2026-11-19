@@ -40,7 +40,7 @@ export default function ValidationReportPanel({ idea, isLoggedIn }: { idea: stri
   return (
     <section aria-labelledby="validation-report" className="card max-w-[760px] p-6 md:p-7">
       <h2 id="validation-report" className="text-lg font-semibold text-ink">원문으로 검증하기</h2>
-      <p className="mt-1.5 text-sm leading-6 text-muted">평가하기의 점수는 AI의 참고 의견이고, 검증 리포트는 GitHub 이슈, Hacker News, Stack Overflow에서 이 문제를 겪는 사람의 글을 찾아 원문과 글자 그대로 맞는 문장만 담고, 이미 있는 도구와 첫 사용자 후보를 함께 보여 줍니다. 1분 정도 걸리고 하루 3번까지 만들 수 있습니다.</p>
+      <p className="mt-1.5 text-sm leading-6 text-muted">검증 리포트는 GitHub 이슈, Hacker News, Stack Overflow에서 이 문제를 겪는 사람의 글을 찾아 원문과 글자 그대로 맞는 문장만 담고, 이미 있는 도구와 첫 사용자 후보를 함께 보여 줍니다. 1분 정도 걸리고 하루 3번까지 만들 수 있습니다.</p>
       {!isLoggedIn ? (
         <Link href="/login?next=/ideas" className="btn mt-4 h-11 px-5">로그인하고 검증 리포트 만들기</Link>
       ) : (

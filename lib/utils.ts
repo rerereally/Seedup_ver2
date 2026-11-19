@@ -1,4 +1,18 @@
 /** Runs `run` over items with at most `limit` in flight, starting them in order. */
+/** Maps `items` with at most `limit` running at once, keeping each result at its item's index. */
+export async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>) {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      out[index] = await worker(items[index], index);
+    }
+  }));
+  return out;
+}
+
 export async function inBatches<T>(items: T[], limit: number, run: (item: T) => Promise<void>) {
   let next = 0;
   const worker = async () => {

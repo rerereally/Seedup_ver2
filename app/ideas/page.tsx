@@ -174,8 +174,8 @@ export default function Ideas() {
       <label htmlFor="idea-chat-input" className="text-sm font-semibold text-ink">만들고 싶은 것</label>
       <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 데이터베이스마다 다른 CLI 명령을 하나로 통일해 주는 도구" className="mt-2 block h-28 w-full resize-y border bg-white px-4 py-3 text-[15px] leading-7 text-ink placeholder:text-muted focus:border-seed focus:outline-none" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] leading-5 text-muted">시장성, 차별성, 구현 난이도, 포트폴리오 가치, MVP 계획을 봅니다. <span className="hidden sm:inline">⌘/Ctrl + Enter</span></p>
-        <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn disabled:cursor-not-allowed">{status === 'saving' ? '분석 중…' : '평가하기'}</button>
+        <p className="text-[13px] leading-5 text-muted">적고 나면 아래에서 원문으로 검증합니다. AI 참고 점수는 시장성, 차별성, 구현 난이도를 모델이 매긴 의견입니다. <span className="hidden sm:inline">⌘/Ctrl + Enter</span></p>
+        <button type="button" onClick={handleSubmit} disabled={!idea.trim() || status === 'saving'} className="btn-quiet h-11 disabled:cursor-not-allowed">{status === 'saving' ? '분석 중…' : 'AI 참고 점수'}</button>
       </div>
     </div>
   );
@@ -184,7 +184,7 @@ export default function Ideas() {
     <>
       <Header />
       <WorkShell>
-        <PageIntro title="아이디어 검증" description="모아 둔 뉴스·논문·오픈소스·제품 자료에 비춰 내 아이디어를 평가합니다. 원문 대조가 아니라 AI가 매기는 참고 점수입니다." />
+        <PageIntro title="아이디어 검증" description="아이디어 한 줄로, 이 문제를 실제로 겪는 사람들의 글과 이미 있는 도구, 첫 사용자 후보를 찾아 만들 가치를 검증합니다. 담는 문장은 모두 원문과 글자 그대로 대조합니다." />
 
         {composer}
 
@@ -202,9 +202,10 @@ export default function Ideas() {
         {status === 'saving' && <div className="card flex min-h-[220px] max-w-[760px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-seed" /><p className="mt-4 font-semibold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
         {status === 'error' && <div role="alert" className="card flex min-h-[220px] max-w-[760px] items-center justify-center p-6 text-center"><div><p className="font-semibold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
 
-        {activeRun && status !== 'saving' && <div className="card max-w-[760px] p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
-
+        {/* The evidence check is the page's main answer; the model's score below is a second opinion. */}
         {idea.trim().length >= 4 && <ValidationReportPanel idea={idea} isLoggedIn={isLoggedIn} />}
+
+        {activeRun && status !== 'saving' && <div className="card max-w-[760px] p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
 
         <section className="max-w-[760px]">
           <div className="flex items-center justify-between gap-3">

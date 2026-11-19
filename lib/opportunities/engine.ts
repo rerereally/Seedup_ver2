@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { mapLimit } from '../utils';
 import { DISCOVERY_ACTORS, forumHostOf, runDiscoveryActors, searchDemand, searchSupply, signalRank, stackSiteOf, SUPPLY_COVERAGE } from './actors';
 import { callJsonModel, createEmbedding, llmUsage } from './llm';
 import { classifySupply, clusterByEmbedding, countFollowers, isCompleteQuote, isListable, isVerbatimQuote, meetsEvidenceBar, toSlug } from './rules';
@@ -28,19 +29,6 @@ type Candidate = Plan & { label: string; pains: Pain[] };
 
 // The example slug in the plan prompt. A model that echoes it back has not named anything.
 const SLUG_EXAMPLE = 'english-kebab-case';
-
-async function mapLimit<T, R>(list: T[], limit: number, worker: (item: T, index: number) => Promise<R>) {
-  const out = new Array<R>(list.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, async () => {
-    while (next < list.length) {
-      const index = next;
-      next += 1;
-      out[index] = await worker(list[index], index);
-    }
-  }));
-  return out;
-}
 
 function evidenceId(url: string, quote: string) {
   return `ev_${createHash('sha256').update(`${url}\n${quote}`).digest('hex').slice(0, 16)}`;

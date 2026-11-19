@@ -45,7 +45,7 @@ export default async function AgentsPage() {
           <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} connected={connected} />
 
           <section>
-            <h2 className="text-[17px] font-semibold text-ink"><span className="num text-seed">4</span> 쓸 수 있는 도구</h2>
+            <h2 className="text-[17px] font-semibold text-ink">쓸 수 있는 도구 <span className="num font-normal text-muted">{TOOLS.length}개</span></h2>
             <dl className="rows mt-3">
               {TOOLS.map(([name, detail]) => (
                 <div key={name} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-4">

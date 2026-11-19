@@ -2322,6 +2322,12 @@
     ]
   },
   {
+    "file": "20261119150000_built_example_counts.sql",
+    "functions": [
+      "built_example_counts"
+    ]
+  },
+  {
     "file": "20261119160000_feature_recheck.sql",
     "functions": [
       "flag_build_progress_for_commit"

@@ -72,7 +72,12 @@ function stageLabel(item: Opportunity, en: boolean) {
   return en ? `${platforms} more platform` : `플랫폼 ${platforms}곳 더 필요`;
 }
 
-export default function OpportunityTable({ opportunities, lang = 'ko' }: { opportunities: Opportunity[]; lang?: 'ko' | 'en' }) {
+export default function OpportunityTable({ opportunities, builtCounts, fitReasons, lang = 'ko' }: {
+  opportunities: Opportunity[];
+  builtCounts?: ReadonlyMap<string, number>;
+  fitReasons?: ReadonlyMap<string, string>;
+  lang?: 'ko' | 'en';
+}) {
   const en = lang === 'en';
   if (!opportunities.length) return <p className="empty-state">{en ? 'No opportunity matches yet.' : '이 조건에 맞는 기회가 아직 없습니다.'}</p>;
 
@@ -93,23 +98,31 @@ export default function OpportunityTable({ opportunities, lang = 'ko' }: { oppor
         </tr>
       </thead>
       <tbody>
-        {opportunities.map((item) => (
-          // data-slug lets the side preview follow the row being pointed at (OpportunityMap), and mark it.
-          <tr key={item.slug} data-slug={item.slug} className="relative border-b border-outline-soft transition-colors hover:bg-surface-low data-[previewed]:bg-surface-low data-[previewed]:shadow-[inset_2px_0_0_var(--color-seed)]">
-            <td className="py-5 pr-4">
-              {/* The stretched link makes the whole row a target while the table stays a real table. */}
-              <Link href={`/opportunities/${item.slug}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
-              {item.build && <span className="chip ml-2 align-middle" title={en ? 'AI estimate for one person building with AI coding tools' : 'AI 코딩 도구로 혼자 만들 때의 AI 추정'}>{BUILD_LABELS[item.build.size][en ? 1 : 0]}</span>}
-              {!item.qualified && <span className="ml-2 align-middle text-[13px] text-muted">{en ? 'Gathering' : '원문 모으는 중'}, {stageLabel(item, en)}</span>}
-              <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{item.audience && <span className="text-tertiary">{en ? item.audienceEn || item.audience : item.audience}: </span>}{localizedOpportunity(item, lang).problem}</p>
-            </td>
-            <td className="num hidden py-5 pr-4 sm:table-cell">{item.evidence.length}</td>
-            <td className="hidden truncate py-5 pr-4 min-[1400px]:table-cell" title={item.platforms.map((platform) => PLATFORM_LABELS[platform]).join(', ')}>
-              {item.platforms.length ? PLATFORM_LABELS[item.platforms[0]] : ''}{item.platforms.length > 1 && <span className="text-muted">{en ? ` +${item.platforms.length - 1}` : ` 외 ${item.platforms.length - 1}곳`}</span>}
-            </td>
-            <td className="hidden py-5 min-[1400px]:table-cell">{item.directCount ? <span className="num">{item.directCount}{en ? '' : '개'}</span> : <span className="text-muted">{en ? 'None' : '없음'}</span>}</td>
-          </tr>
-        ))}
+        {opportunities.map((item) => {
+          const builtCount = builtCounts?.get(item.slug) ?? 0;
+          const reason = fitReasons?.get(item.slug);
+          return (
+            // data-slug lets the side preview follow the row being pointed at (OpportunityMap), and mark it.
+            <tr key={item.slug} data-slug={item.slug} className="relative border-b border-outline-soft transition-colors hover:bg-surface-low data-[previewed]:bg-surface-low data-[previewed]:shadow-[inset_2px_0_0_var(--color-seed)]">
+              <td className="py-5 pr-4">
+                {/* The stretched link makes the whole row a target while the table stays a real table. */}
+                <Link href={`/opportunities/${item.slug}`} className="font-semibold text-ink after:absolute after:inset-0 after:content-['']">{localizedOpportunity(item, lang).name}</Link>
+                {item.build && <span className="chip ml-2 align-middle" title={en ? 'AI estimate for one person building with AI coding tools' : 'AI 코딩 도구로 혼자 만들 때의 AI 추정'}>{BUILD_LABELS[item.build.size][en ? 1 : 0]}</span>}
+                {!item.qualified && <span className="ml-2 align-middle text-[13px] text-muted">{en ? 'Gathering' : '원문 모으는 중'}, {stageLabel(item, en)}</span>}
+                <p className="mt-1 line-clamp-2 text-sm text-muted sm:line-clamp-1">{item.audience && <span className="text-tertiary">{en ? item.audienceEn || item.audience : item.audience}: </span>}{localizedOpportunity(item, lang).problem}</p>
+                {(reason || builtCount > 0) && <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted">
+                  {reason && <span>{reason}</span>}
+                  {builtCount > 0 && <span className="text-tertiary"><span className="num">{builtCount.toLocaleString(lang)}</span>{en ? ` ${builtCount === 1 ? 'person' : 'people'} built it` : '명이 만들었어요'}</span>}
+                </p>}
+              </td>
+              <td className="num hidden py-5 pr-4 sm:table-cell">{item.evidence.length}</td>
+              <td className="hidden truncate py-5 pr-4 min-[1400px]:table-cell" title={item.platforms.map((platform) => PLATFORM_LABELS[platform]).join(', ')}>
+                {item.platforms.length ? PLATFORM_LABELS[item.platforms[0]] : ''}{item.platforms.length > 1 && <span className="text-muted">{en ? ` +${item.platforms.length - 1}` : ` 외 ${item.platforms.length - 1}곳`}</span>}
+              </td>
+              <td className="hidden py-5 min-[1400px]:table-cell">{item.directCount ? <span className="num">{item.directCount}{en ? '' : '개'}</span> : <span className="text-muted">{en ? 'None' : '없음'}</span>}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

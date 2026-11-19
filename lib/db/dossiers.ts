@@ -41,6 +41,14 @@ export async function builtExamples(slug: string) {
   return error ? [] : ((data ?? []) as Array<{ id: string; title: string; built_url: string; built_note: string | null; built_at: string }>);
 }
 
+export async function builtExampleCounts(slugs: string[]) {
+  const service = slugs.length ? createAdminClient() : null;
+  if (!service) return new Map<string, number>();
+  const { data, error } = await service.rpc('built_example_counts', { p_slugs: slugs });
+  const rows = error ? [] : (data ?? []) as Array<{ opportunity_slug: string; maker_count: number }>;
+  return new Map(rows.map((row) => [row.opportunity_slug, row.maker_count]));
+}
+
 /** A PRD its owner shared, or null. */
 export async function sharedPrd(id: string) {
   const service = createAdminClient();

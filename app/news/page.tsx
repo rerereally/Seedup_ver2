@@ -135,7 +135,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             {/* One lead with its picture, then the rest as a two-column grid of cards. */}
             {(() => {
               const [first, ...rest] = paginatedArticles;
-              const reasonOf = (item: ArticleFeedItem) => (tab === 'for-you' ? personal.get(`${item.type}:${item.id}`)?.reason : lead && currentPage === 1 && item === lead.item ? `나에게 맞는 글${lead.reason ? `, ${lead.reason}` : ''}` : undefined);
+              const reasonOf = (item: ArticleFeedItem) => (tab === 'for-you' ? personal.get(`${item.type}:${item.id}`)?.reason : lead && currentPage === 1 && item === lead.item ? (lead.reason ? `나에게 맞는 글, ${lead.reason}` : '오늘의 추천') : undefined);
               return (
                 <>
                   <div className="mt-8"><ArticleLead item={first} isScrapped={scrapKeys.has(`${first.type === 'paper' ? 'paper' : 'news'}:${first.id}`)} returnTo={currentHref} reason={reasonOf(first)} /></div>

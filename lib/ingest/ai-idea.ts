@@ -8,10 +8,10 @@ import type {
   RecommendedTechnology,
   ScoreBreakdown,
 } from './ai-types';
-import { callOpenRouter, getIdeaEvaluationModels } from '../llm';
+import { callJsonModel, callOpenRouter, getIdeaEvaluationModels } from '../llm';
 import { truncate } from './text';
 
-export async function evaluateIdea(input: { idea: string; context?: string }) {
+export async function evaluateIdea(input: { idea: string; context?: string; model?: string }) {
   const fallback: IdeaEvaluation = {
     score: 0,
     verdict: '평가에 필요한 근거를 만들지 못했습니다.',
@@ -63,7 +63,7 @@ export async function evaluateIdea(input: { idea: string; context?: string }) {
 - 위험, 다음 단계, 신뢰도, 점수 사유는 서버가 근거 기준으로 만들므로 출력하지 않는다. JSON을 끝까지 닫는 것이 가장 중요하다.`;
 
   try {
-    const { result, model } = await callOpenRouter<IdeaEvaluation>(apiKey, [
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [
       { role: 'system', content: '너는 Seedup의 근거 기반 스타트업/포트폴리오 아이디어 평가 코치다. 반드시 JSON만 반환한다. 동일한 아이디어와 동일한 근거에는 항상 같은 평가 기준과 점수 체계를 적용한다. 제공된 참고 자료에 없는 최신 사실은 단정하지 않는다.' },
       {
         role: 'user',
@@ -97,7 +97,12 @@ ${compactRules}
 참고 자료:
 ${input.context || '관련 자료를 찾지 못했다. 일반론을 최신 사실처럼 말하지 말고 불확실성을 표시하라.'}`,
       },
-    ], { models: getIdeaEvaluationModels(), jsonMode: true, temperature: 0, timeoutMs: 20_000, maxTokens: 1_100 });
+    ];
+    // A model picked on the /prd menu goes first (free models behind it); without one, the evaluation's own free list.
+    const { result, model } = input.model
+      ? { result: await callJsonModel<IdeaEvaluation>(messages[1].content, { system: messages[0].content, model: input.model, maxTokens: 1_100, timeoutMs: 90_000, title: 'Seedup idea evaluation' }), model: input.model }
+      : await callOpenRouter<IdeaEvaluation>(apiKey, messages, { models: getIdeaEvaluationModels(), jsonMode: true, temperature: 0, timeoutMs: 20_000, maxTokens: 1_100 });
+    if (!result) throw new Error('empty response');
 
     return { evaluation: normalizeIdeaEvaluation(result, fallback), model };
   } catch (error) {

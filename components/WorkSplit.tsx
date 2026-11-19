@@ -45,7 +45,7 @@ export function Bubble({ role, children, onEdit, editLabel }: { role: 'user' | '
  * The work screen every /prd tool opens into, the same frame as the PRD workspace (IdeaWorkspace): a bar on top,
  * the chat on the left and that tool's own result on the right. Phones see one side at a time.
  */
-export default function WorkSplit({ title, stages, chat, composer, result, resultLabel, onReset }: { title: string; stages: Stage[]; chat: ReactNode; composer: ReactNode; result: ReactNode; resultLabel: string; onReset: () => void }) {
+export default function WorkSplit({ title, stages, chat, composer, result, resultLabel, onReset, tools }: { title: string; stages: Stage[]; chat: ReactNode; composer: ReactNode; result: ReactNode; resultLabel: string; onReset: () => void; tools?: ReactNode }) {
   const [pane, setPane] = useState<'chat' | 'result'>('chat');
   useEffect(() => {
     const show = (event: Event) => {
@@ -62,6 +62,7 @@ export default function WorkSplit({ title, stages, chat, composer, result, resul
       <div className="flex min-h-14 items-center gap-4 border-b border-outline-soft bg-white px-4 sm:px-5">
         <p className="min-w-0 flex-1 truncate text-[15px] font-semibold md:hidden" title={title}>{title}</p>
         <Stages stages={stages} />
+        {tools && <div className="hidden shrink-0 sm:block">{tools}</div>}
         <button type="button" onClick={onReset} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted hover:bg-surface-low hover:text-ink">
           <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작
         </button>

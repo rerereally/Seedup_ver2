@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Header from '@/components/Header';
 import IdeaCheckWorkspace from '@/components/IdeaCheckWorkspace';
+import { prdPolicy } from '@/lib/db/server';
+import { prdModels } from '@/lib/opportunities/models';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: '아이디어 검증' };
@@ -14,7 +16,7 @@ export default async function ValidatePage({ searchParams }: { searchParams: Pro
     <>
       <Header />
       <main id="main-content" className="grow">
-        <IdeaCheckWorkspace initialIdea={(idea ?? '').trim().slice(0, 300)} evaluationId={evaluationId} signedIn={Boolean(user)} />
+        <IdeaCheckWorkspace initialIdea={(idea ?? '').trim().slice(0, 300)} evaluationId={evaluationId} signedIn={Boolean(user)} models={user ? prdModels(await prdPolicy()) : []} />
       </main>
     </>
   );

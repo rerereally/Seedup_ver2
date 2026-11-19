@@ -36,8 +36,8 @@ const IDEAS: Array<[string, string, string, string]> = [
 
 // Ideas to check, for the idea validation switch: [short name ko, short name en, the idea ko, the idea en]
 const CHECKS: Array<[string, string, string, string]> = [
-  ['데일리 이슈 리포트 봇', 'Daily issue bot', '저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구', 'A bot that sums up repo issues to the team Slack every day'],
-  ['논문 구현 아이디어', 'Paper to project', '논문 초록을 넣으면 작은 실험과 구현 가능한 프로젝트로 바꿔 주는 웹앱', 'A web app that turns a paper abstract into small experiments and projects'],
+  ['이슈 요약 봇', 'Issue digest bot', '저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구', 'A bot that sums up repo issues to the team Slack every day'],
+  ['논문 구현', 'Paper to project', '논문 초록을 넣으면 작은 실험과 구현 가능한 프로젝트로 바꿔 주는 웹앱', 'A web app that turns a paper abstract into small experiments and projects'],
   ['DB CLI 통합', 'One DB CLI', '데이터베이스마다 다른 CLI 명령을 하나로 묶는 개발자 도구', 'One CLI for every database'],
 ];
 
@@ -97,6 +97,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
                   repo: {
                     title: t('내 레포에서 다음 기능을 찾아요', 'Find the next feature in your repos'),
                     lead: t('GitHub 공개 레포를 읽고, 레포마다 고칠 점과 더할 기능을 짚은 뒤 그 레포의 PRD를 만듭니다.', 'Reads your public GitHub repos, points out fixes and features for each, then makes its PRD.'),
+                    examples: ['vercel', 'supabase', 'torvalds'].map((login) => ({ label: login, idea: login })),
                   },
                 }}
               />

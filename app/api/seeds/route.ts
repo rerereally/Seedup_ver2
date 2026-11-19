@@ -9,6 +9,8 @@ import { specInputFor } from '@/lib/opportunities/context';
 import { readNotes, withNotes } from '@/lib/opportunities/idea';
 import { generateReverseSpec } from '@/lib/opportunities/prd';
 import type { GitHubLookupFailure, SeedRepo } from '@/lib/seeds/github';
+import { prdPolicy } from '@/lib/db/server';
+import { pickPrdModel } from '@/lib/opportunities/models';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -70,7 +72,8 @@ export async function GET(request: Request) {
   if (step === 'ideas') {
     // One repo per request, so a slow answer for one never holds back the others.
     const repoName = (params.get('repo') ?? '').slice(0, 100);
-    const cacheKey = `${login}/${repoName}`;
+    const model = pickPrdModel(params.get('model'), await prdPolicy());
+    const cacheKey = `${login}/${repoName}/${model ?? 'default'}`;
     const cached = ideaCache.get(cacheKey);
     if (cached) return NextResponse.json({ idea: cached });
     // The model quota is shared by every feature, so only signed-in users may spend it, within a daily limit.
@@ -85,7 +88,7 @@ export async function GET(request: Request) {
     try {
       const [repos, { opportunities }] = await Promise.all([loadRepos(login), getOpportunities()]);
       const repo = repos.find((item) => item.name === repoName);
-      idea = repo ? (await suggestIdeas([repo], opportunities))?.[repo.name] ?? null : null;
+      idea = repo ? (await suggestIdeas([repo], opportunities, model))?.[repo.name] ?? null : null;
     } catch {
       idea = null;
     }
@@ -181,7 +184,7 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'reverse_spec', DAILY_REVERSE_LIMIT))) {
     return NextResponse.json({ error: `역기획 스펙은 하루 ${DAILY_REVERSE_LIMIT}번까지 만들 수 있습니다.` }, { status: 429 });
   }
-  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }, toLang(body?.lang)).catch((error) => {
+  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }, toLang(body?.lang), pickPrdModel(body?.model, await prdPolicy())).catch((error) => {
     console.error('Reverse spec failed', error);
     return null;
   });

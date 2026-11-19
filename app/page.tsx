@@ -18,10 +18,13 @@ import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { DEMO_PRD } from '@/lib/opportunities/demo-prd';
 import { trackRecord, trackRecordSummary } from '@/lib/opportunities/insight';
+import { parseSealedPredictions, scorePredictions } from '@/lib/opportunities/predictions';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import predictionLedger from '@/predictions/sealed.jsonl';
 
 const WEEK_MS = 7 * 86_400_000;
+const SEALED_PREDICTIONS = parseSealedPredictions(predictionLedger);
 
 // The hero's example chips. Ideas only: what the workspace finds for them depends on the quotes stored that day.
 const EXAMPLES = [
@@ -76,6 +79,10 @@ export default async function Home() {
   const issue = latest?.issue ?? buildOpportunityDigest(opportunities, new Date(now - WEEK_MS).toISOString(), '', 'weekly', now);
   const rows = trackRecord(opportunities);
   const record = trackRecordSummary(rows, opportunities.length);
+  const predictions = scorePredictions(SEALED_PREDICTIONS, opportunities, now);
+  const predictionCounts = { pending: 0, hit: 0, miss: 0 };
+  for (const { status } of predictions) predictionCounts[status]++;
+  const predictionLabels = { pending: t('대기', 'Pending'), hit: t('적중', 'Hit'), miss: t('빗나감', 'Miss') };
   const names = Object.fromEntries(opportunities.map((item) => [item.slug, localizedOpportunity(item, lang).name]));
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com').replace(/\/+$/, '');
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' });
@@ -190,19 +197,50 @@ export default async function Home() {
           </ul>
         </section>
 
-        {rows.length > 0 && (
-          <section className="section reveal grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" aria-labelledby="record-heading">
+        {(rows.length > 0 || predictions.length > 0) && (
+          <section className="section reveal grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" aria-labelledby={rows.length ? 'record-heading' : 'predictions-heading'}>
             <div>
-              <p className="site-label">Record</p>
-              <h2 id="record-heading" className="t-section mt-3 text-[clamp(28px,3vw,40px)]">{t('도구가 나오기 전에 먼저 봤습니다.', 'We saw it before the tools shipped.')}</h2>
-              <dl className="mt-8 grid grid-cols-2 gap-6 border-y border-outline-soft py-6">
-                <div><dt className="text-[14px] text-muted">{t('앞선 기간 (중간값)', 'Median lead')}</dt><dd className="num mt-1 text-[clamp(36px,3.6vw,52px)] font-bold leading-none tracking-[-0.04em] text-seed">{t(`${record.medianLeadDays}일`, `${record.medianLeadDays}d`)}</dd></div>
-                <div><dt className="text-[14px] text-muted">{t('도구보다 먼저 본 문제', 'Seen before a tool')}</dt><dd className="num mt-1 text-[clamp(36px,3.6vw,52px)] font-bold leading-none tracking-[-0.04em]">{record.hits}<span className="text-[0.45em] font-semibold text-muted"> / {record.total}</span></dd></div>
-              </dl>
-              <p className="mt-4 text-[13px] leading-6 text-muted">{t(`Seedup이 가진 가장 이른 원문과, 그 뒤에 처음 나온 관련 도구 사이의 날짜를 ${asOf} 기준으로 셌습니다. 더 이른 원문이 있었을 수 있습니다.`, `Counted as of ${asOf} from the earliest quote Seedup holds to the first related tool after it. Earlier quotes may exist.`)}</p>
-              <Link href="/opportunities" className="link-seed mt-2">{t('적중 기록 자세히', 'The full track record')}</Link>
+              {rows.length > 0 && (
+                <>
+                  <p className="site-label">Record</p>
+                  <h2 id="record-heading" className="t-section mt-3 text-[clamp(28px,3vw,40px)]">{t('도구가 나오기 전에 먼저 봤습니다.', 'We saw it before the tools shipped.')}</h2>
+                  <dl className="mt-8 grid grid-cols-2 gap-6 border-y border-outline-soft py-6">
+                    <div><dt className="text-[14px] text-muted">{t('앞선 기간 (중간값)', 'Median lead')}</dt><dd className="num mt-1 text-[clamp(36px,3.6vw,52px)] font-bold leading-none tracking-[-0.04em] text-seed">{t(`${record.medianLeadDays}일`, `${record.medianLeadDays}d`)}</dd></div>
+                    <div><dt className="text-[14px] text-muted">{t('도구보다 먼저 본 문제', 'Seen before a tool')}</dt><dd className="num mt-1 text-[clamp(36px,3.6vw,52px)] font-bold leading-none tracking-[-0.04em]">{record.hits}<span className="text-[0.45em] font-semibold text-muted"> / {record.total}</span></dd></div>
+                  </dl>
+                  <p className="mt-4 text-[13px] leading-6 text-muted">{t(`Seedup이 가진 가장 이른 원문과, 그 뒤에 처음 나온 관련 도구 사이의 날짜를 ${asOf} 기준으로 셌습니다. 더 이른 원문이 있었을 수 있습니다.`, `Counted as of ${asOf} from the earliest quote Seedup holds to the first related tool after it. Earlier quotes may exist.`)}</p>
+                  <Link href="/opportunities" className="link-seed mt-2">{t('적중 기록 자세히', 'The full track record')}</Link>
+                </>
+              )}
+              {predictions.length > 0 && (
+                <div className="card mt-4 px-4 py-3">
+                  <details>
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      <span id="predictions-heading">{t('봉인 예측', 'Sealed predictions')}</span>
+                      <span className="ml-2 inline-flex flex-wrap gap-x-2 font-normal text-muted">
+                        {(Object.keys(predictionCounts) as Array<keyof typeof predictionCounts>).map((status) => (
+                          <span key={status}>{predictionLabels[status]} <span className="num">{predictionCounts[status]}</span></span>
+                        ))}
+                      </span>
+                    </summary>
+                    <ul className="rows mt-3">
+                      {predictions.map(({ slug, name, sealedAt, withinDays, status }) => (
+                        <li key={slug} className="flex items-start justify-between gap-3 py-2 text-sm">
+                          <div className="min-w-0 [overflow-wrap:anywhere]">
+                            <p className="font-semibold">{name}</p>
+                            <p className="mt-0.5 text-muted"><time dateTime={sealedAt}>{sealedAt.slice(0, 10)}</time> / {t(`${withinDays}일 안에 직접 도구 등장`, `Direct tool within ${withinDays} days`)}</p>
+                          </div>
+                          <span className="chip shrink-0 text-[13px]">{predictionLabels[status]}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                  <p className="mt-2 text-[13px] text-muted">{t(`${asOf} 수집분 기준`, `Data as of ${asOf}`)}</p>
+                  <a className="link-seed" href="/predictions/sealed.jsonl">{t('봉인 원본과 해시', 'Sealed records and hashes')}</a>
+                </div>
+              )}
             </div>
-            <LeadChart rows={rows} names={names} lang={lang} />
+            {rows.length > 0 && <LeadChart rows={rows} names={names} lang={lang} />}
           </section>
         )}
 

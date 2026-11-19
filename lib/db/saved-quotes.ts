@@ -1,7 +1,7 @@
 // Sentences a user saved from the browser extension. The extension sends the user's MCP token, not a Supabase
 // session, so saving runs with the service key for the user the token names; reading goes through their own session.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { consumeUsageFor, userForToken } from '@/lib/mcp/auth';
+import { consumeUsageFor, releaseUsageFor, userForToken } from '@/lib/mcp/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /** The user an MCP token belongs to; `undefined` when the server is not configured, null for a bad token. */
@@ -13,6 +13,11 @@ export async function tokenUser(authorization: string | null) {
 export async function consumeForTokenUser(userId: string, feature: string, dailyLimit: number) {
   const service = createAdminClient();
   return service ? consumeUsageFor(service, userId, feature, dailyLimit) : false;
+}
+
+export async function releaseForTokenUser(userId: string, feature: string) {
+  const service = createAdminClient();
+  if (service) await releaseUsageFor(service, userId, feature);
 }
 
 export async function saveQuoteFor(userId: string, row: { url: string; quote: string; platform: string; page_title: string | null }) {

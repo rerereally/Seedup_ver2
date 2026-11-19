@@ -1,7 +1,10 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { usageLimitFailsOpen } from '@/lib/usage-limit';
 
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
+const todayKst = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
 
 /**
  * The token for one user and issue time, derived with the server secret instead of stored, so connecting a second
@@ -33,11 +36,58 @@ export async function consumeUsageFor(service: SupabaseClient, userId: string, f
   if (!rpcError) return allowed === true;
   console.error('MCP atomic usage count failed, falling back to read-then-write', rpcError.message);
 
-  const usageDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-  const { data } = await service.from('ai_usage').select('count').eq('user_id', userId).eq('feature', feature).eq('usage_date', usageDate).maybeSingle();
+  const usageDate = todayKst();
+  const { data, error: readError } = await service.from('ai_usage').select('count').eq('user_id', userId).eq('feature', feature).eq('usage_date', usageDate).maybeSingle();
+  if (readError) {
+    const open = usageLimitFailsOpen();
+    console.error(`MCP usage read failed (${open ? 'allowing' : 'blocking'} the call)`, feature, readError.message);
+    return open;
+  }
   const count = Number(data?.count ?? 0);
   if (count >= dailyLimit) return false;
   const { error } = await service.from('ai_usage').upsert({ user_id: userId, feature, usage_date: usageDate, count: count + 1 }, { onConflict: 'user_id,feature,usage_date' });
-  if (error) console.error('MCP usage count failed', error.message);
+  if (error) {
+    const open = usageLimitFailsOpen();
+    console.error(`MCP usage count failed (${open ? 'allowing' : 'blocking'} the call)`, feature, error.message);
+    return open;
+  }
   return true;
+}
+
+/**
+ * Gives back one use counted by `consumeUsageFor` when the model or downstream call failed.
+ * Uses optimistic compare-and-swap on `count` so concurrent refunds cannot double-decrement.
+ */
+export async function releaseUsageFor(service: SupabaseClient, userId: string, feature: string) {
+  const usageDate = todayKst();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error: readError } = await service
+      .from('ai_usage')
+      .select('count')
+      .eq('user_id', userId)
+      .eq('feature', feature)
+      .eq('usage_date', usageDate)
+      .maybeSingle();
+    if (readError) {
+      console.error('MCP usage refund read failed', feature, readError.message);
+      return;
+    }
+    const count = Number(data?.count ?? 0);
+    if (count <= 0) return;
+
+    const { data: updated, error: updateError } = await service
+      .from('ai_usage')
+      .update({ count: count - 1 })
+      .eq('user_id', userId)
+      .eq('feature', feature)
+      .eq('usage_date', usageDate)
+      .eq('count', count)
+      .select('count')
+      .maybeSingle();
+    if (updateError) {
+      console.error('MCP usage refund failed', feature, updateError.message);
+      return;
+    }
+    if (updated) return;
+  }
 }

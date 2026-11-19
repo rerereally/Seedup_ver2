@@ -13,6 +13,7 @@ import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
 export const MCP_DAILY_REPORT_LIMIT = 3;
+export const MCP_MAX_BATCH_SIZE = 10;
 const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
 export type McpDeps = {
@@ -21,6 +22,8 @@ export type McpDeps = {
   cachedSpec: (evidenceIds: string[]) => Promise<{ input: SpecInput; spec: Spec } | null>;
   generate: (input: SpecInput, draft: boolean) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
+  /** Refunds one metered use when the downstream model call fails or returns nothing usable. */
+  release?: (feature: string) => Promise<void>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
   progress: (slug: string) => Promise<BuildProgress>;
   linkCommit(slug: string, link: { sha: string; message: string; files: string[]; featureIds: string[] }): Promise<void>;
@@ -367,8 +370,17 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       if (!input) return text('This opportunity has no quotes yet.', true);
       if (!(await deps.consume('mcp_prd', MCP_DAILY_PRD_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_PRD_LIMIT} PRDs). Try again tomorrow.`, true);
       const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
-      const spec = await deps.generate(input, draft);
-      if (!spec) return text('The model did not answer. Try again in a minute.', true);
+      let spec: Spec | null = null;
+      try {
+        spec = await deps.generate(input, draft);
+      } catch (error) {
+        await deps.release?.('mcp_prd').catch(() => undefined);
+        throw error;
+      }
+      if (!spec) {
+        await deps.release?.('mcp_prd').catch(() => undefined);
+        return text('The model did not answer. Try again in a minute.', true);
+      }
       result = { input, spec };
     }
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format, slug);
@@ -429,10 +441,19 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       if (!(await deps.consume('mcp_verify', 10))) return text('Daily limit reached (10 feature reviews). Try again tomorrow.', true);
 
       const criteria = featureCriteria(cached.spec, feature).map((criterion, index) => ({ number: index + 1, criterion }));
-      const review = await deps.verifyFeature(JSON.stringify({
-        criteria, diff: diff.slice(0, 20_000), truncated: diff.length > 20_000,
-      })) as { checks?: Array<{ number: number; status: string; reason: string } | null> } | null;
-      if (!Array.isArray(review?.checks) || !review.checks.length) return text('The model did not return a review. Try again in a minute.', true);
+      let review: { checks?: Array<{ number: number; status: string; reason: string } | null> } | null = null;
+      try {
+        review = await deps.verifyFeature(JSON.stringify({
+          criteria, diff: diff.slice(0, 20_000), truncated: diff.length > 20_000,
+        })) as { checks?: Array<{ number: number; status: string; reason: string } | null> } | null;
+      } catch (error) {
+        await deps.release?.('mcp_verify').catch(() => undefined);
+        throw error;
+      }
+      if (!Array.isArray(review?.checks) || !review.checks.length) {
+        await deps.release?.('mcp_verify').catch(() => undefined);
+        return text('The model did not return a review. Try again in a minute.', true);
+      }
       const checks = new Map(review.checks.map((row) => [row?.number, row]));
       const lines = criteria.map(({ number, criterion }) => {
         const check = checks.get(number);
@@ -482,15 +503,25 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;
     const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
     const items = await deps.kept(type, limit);
-    if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/news?tab=github.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
+    if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/github-trends.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
     return text(`${items.length} kept item${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map(renderKept).join('\n\n')}`);
   }
   if (name === 'validate_idea') {
     const idea = String(args.idea ?? '').trim().slice(0, 300);
     if (idea.length < 4) return text('Describe the idea in a sentence.', true);
     if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
-    const report = await deps.validate(idea);
-    return report ? text(report) : text('The report could not be made. Try again in a minute.', true);
+    let report: string | null = null;
+    try {
+      report = await deps.validate(idea);
+    } catch (error) {
+      await deps.release?.('mcp_report').catch(() => undefined);
+      throw error;
+    }
+    if (!report) {
+      await deps.release?.('mcp_report').catch(() => undefined);
+      return text('The report could not be made. Try again in a minute.', true);
+    }
+    return text(report);
   }
   if (name === 'watch_idea') {
     const idea = String(args.idea ?? '').trim().slice(0, 300);
@@ -559,6 +590,10 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
 /** One JSON-RPC message or a batch. Returns null when only notifications came in (the route answers 202). */
 export async function handleRpc(body: unknown, deps: McpDeps, siteUrl: string) {
   if (Array.isArray(body)) {
+    if (!body.length) return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
+    if (body.length > MCP_MAX_BATCH_SIZE) {
+      return { jsonrpc: '2.0', id: null, error: { code: -32600, message: `Batch size exceeds limit of ${MCP_MAX_BATCH_SIZE}` } };
+    }
     const answers = (await Promise.all(body.map((item) => handleOne((item ?? {}) as RpcRequest, deps, siteUrl)))).filter(Boolean);
     return answers.length ? answers : null;
   }

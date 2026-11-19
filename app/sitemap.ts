@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entry('/', generatedAt, 1),
     entry('/newsletter-preview', generatedAt, 0.9),
     entry('/news', null, 0.9),
-    entry('/news?tab=github', null, 0.8),
+    entry('/github-trends', null, 0.8),
     entry('/prd', null, 0.8),
     entry('/about', null, 0.7),
     entry('/guide', null, 0.7),

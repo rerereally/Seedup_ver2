@@ -50,13 +50,43 @@ async function webSearch(query: string, maxResults: number): Promise<WebResult[]
   }
 }
 
+async function readBodyUpTo(response: Response, maxBytes: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return (await response.text()).slice(0, maxBytes);
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  try {
+    while (received < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+      const remaining = maxBytes - received;
+      if (value.byteLength >= remaining) {
+        text += decoder.decode(value.subarray(0, remaining), { stream: false });
+        received = maxBytes;
+        await reader.cancel().catch(() => undefined);
+        return text;
+      }
+      text += decoder.decode(value, { stream: true });
+      received += value.byteLength;
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 /**
  * The page as plain text, fetched by us, so a quote is checked against the page itself and never against a search
- * snippet. Redirects are checked against `safeSourceUrl` so a public link cannot redirect to an internal address.
+ * snippet. Redirects are checked against `safeSourceUrl` so a public link cannot redirect to an internal address,
+ * and bodies are read incrementally up to `maxBytes` so an oversized response cannot exhaust Worker memory.
  */
 export async function fetchPageText(
   url: string,
   fetcher: typeof fetch = fetch,
+  maxBytes = MAX_PAGE_BYTES,
 ): Promise<string | null> {
   try {
     let current = safeSourceUrl(url);
@@ -68,12 +98,16 @@ export async function fetchPageText(
       });
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
+        await response.body?.cancel().catch(() => undefined);
         current = location ? safeSourceUrl(new URL(location, current).toString()) : null;
         continue;
       }
       const type = response.headers.get('content-type') ?? '';
-      if (!response.ok || !/text\/(html|plain)/.test(type)) return null;
-      const html = (await response.text()).slice(0, MAX_PAGE_BYTES);
+      if (!response.ok || !/text\/(html|plain)/.test(type)) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const html = await readBodyUpTo(response, maxBytes);
       return cleanText(html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' '));
     }
     return null;

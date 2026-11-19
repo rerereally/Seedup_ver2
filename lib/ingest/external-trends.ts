@@ -1,11 +1,20 @@
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
+import {
+  extractBuildIdeas,
+  IMPLEMENTATION_PATTERNS,
+  isGenericTitle,
+  normalizeNameKey,
+  normalizePackageLikeName,
+  TOOL_MODEL_NAMES,
+  type TrendCategory,
+  type TrendEntityType,
+  WORKFLOW_PATTERNS,
+} from '@/lib/ingest/trend-builder';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 
 type ExternalSourceType = 'npm' | 'huggingface' | 'devto' | 'stackoverflow' | 'product_hunt' | 'hackernews';
-type TrendCategory = '개발 워크플로우' | 'AI 도구·모델' | '구현 패턴' | '오픈소스 프로젝트' | '빌드 아이디어';
-type TrendEntityType = 'workflow' | 'tool' | 'model' | 'architecture' | 'pattern' | 'build_idea';
 
 type SourceConfig = {
   name: string;
@@ -47,65 +56,6 @@ type Signal = {
 
 const FETCH_TIMEOUT_MS = 18_000;
 const SOURCE_CONCURRENCY = 6;
-
-const TOOL_MODEL_NAMES = [
-  'Codex',
-  'Claude Code',
-  'Cursor',
-  'Windsurf',
-  'Gemini CLI',
-  'Qwen',
-  'DeepSeek',
-  'Kimi',
-  'Ollama',
-  'v0',
-  'Lovable',
-  'Bolt',
-  'Aider',
-  'OpenHands',
-  'Cline',
-  'Continue',
-  'Devin',
-  'Perplexity',
-  'Grok',
-  'Hugging Face Spaces',
-  'LiteLLM',
-  'Dify',
-  'Flowise',
-];
-
-const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
-  [/code review|pull request review|pr review|코드 리뷰/i, 'AI Code Review'],
-  [/codebase q&a|ask.*codebase|코드베이스.*질문|코드베이스.*q&a/i, 'Codebase Q&A'],
-  [/test generation|generate tests?|테스트.*생성/i, 'Test Generation'],
-  [/design to code|figma to code|디자인.*코드|figma.*code/i, 'Design to Code'],
-  [/prompt to app|text to app|프롬프트.*앱/i, 'Prompt to App'],
-  [/pair programming|페어 프로그래밍/i, 'AI Pair Programming'],
-  [/qa agent|quality assurance agent|browser.*qa|qa.*agent/i, 'AI QA Agent'],
-  [/automated refactoring|refactor|리팩터링/i, 'Automated Refactoring'],
-  [/debugging|debug agent|디버깅/i, 'AI-assisted Debugging'],
-  [/documentation|docs agent|문서화/i, 'AI 기반 문서화'],
-  [/\bprd\b|product requirement|requirements? to code|기획서.*코드/i, 'PRD to Code'],
-];
-
-const PATTERN_ENTITIES: Array<[RegExp, string, TrendEntityType]> = [
-  [/\bmcp\b|model context protocol/i, 'MCP Server Design', 'architecture'],
-  [/\brag\b|retrieval augmented|retrieval-augmented/i, 'RAG Evaluation', 'pattern'],
-  [/agent memory|long[-\s]term memory|memory layer/i, 'Agent Memory', 'pattern'],
-  [/tool calling|function calling/i, 'Tool Calling', 'pattern'],
-  [/vector search|vector database|embedding search/i, 'Vector Search', 'architecture'],
-  [/observability|tracing|telemetry/i, 'LLM Observability', 'architecture'],
-  [/prompt caching|semantic cach/i, 'Prompt Caching', 'pattern'],
-  [/streaming ui|streaming response/i, 'Streaming UI', 'pattern'],
-  [/structured output|json schema|schema output/i, 'Structured Output', 'pattern'],
-  [/browser automation|browser agent|computer use/i, 'Browser Automation', 'pattern'],
-  [/multi[-\s]?agent|orchestration/i, 'Multi-Agent Workflow', 'architecture'],
-  [/human[-\s]?in[-\s]?the[-\s]?loop|hitl/i, 'Human-in-the-loop', 'pattern'],
-  [/eval pipeline|evaluation pipeline|benchmark/i, 'Eval Pipeline', 'pattern'],
-  [/rate limit|rate limiting/i, 'Rate Limit Handling', 'pattern'],
-];
-
-const GENERIC = new Set(['ai', 'llm', 'agent', 'coding agent', 'ai agent', 'developer', 'development', 'tool', 'tools', 'app', 'service', 'product', 'python', 'javascript', 'typescript', 'react', 'next.js', 'supabase', 'api', 'github', 'open source', 'rag', 'mcp', 'automation', 'workflow', 'dashboard', 'template', 'starter', 'boilerplate', 'framework']);
 
 export async function ingestExternalTrends(request: Request) {
   const startedAt = Date.now();
@@ -418,8 +368,8 @@ function buildSignalsForItem(item: ExternalItem) {
   }
 
   if (item.sourceType === 'npm' || item.sourceType === 'huggingface') {
-    const entityName = normalizePackageLikeName(item.title);
-    if (entityName && !isGeneric(entityName)) {
+    const entityName = normalizePackageLikeName(decodeHtml(item.title));
+    if (entityName && !isGenericTitle(entityName)) {
       addSignal(signals, item, entityName, 'AI 도구·모델', item.sourceType === 'huggingface' && item.tags.includes('model') ? 'model' : 'tool', baseWeight, [entityName]);
     }
   }
@@ -428,7 +378,7 @@ function buildSignalsForItem(item: ExternalItem) {
     if (pattern.test(text)) addSignal(signals, item, name, '개발 워크플로우', 'workflow', baseWeight * 0.9, item.tags);
   }
 
-  for (const [pattern, name, entityType] of PATTERN_ENTITIES) {
+  for (const [pattern, name, entityType] of IMPLEMENTATION_PATTERNS) {
     if (pattern.test(text)) addSignal(signals, item, name, '구현 패턴', entityType, baseWeight, item.tags);
   }
 
@@ -441,11 +391,11 @@ function buildSignalsForItem(item: ExternalItem) {
 
 function addSignal(signals: Signal[], item: ExternalItem, name: string, category: TrendCategory, entityType: TrendEntityType, weight: number, relatedSkills: string[] = [], projectIdea?: string) {
   const displayName = cleanName(name);
-  if (!displayName || isGeneric(displayName)) return;
+  if (!displayName || isGenericTitle(displayName)) return;
 
   signals.push({
     keyword: displayName,
-    normalized_keyword: normalizeKey(displayName),
+    normalized_keyword: normalizeNameKey(displayName),
     source_type: item.sourceType,
     source_id: deterministicUuid(`${item.sourceType}:${item.url ?? item.title}`),
     source_title: item.title,
@@ -455,7 +405,7 @@ function addSignal(signals: Signal[], item: ExternalItem, name: string, category
       category,
       entity_type: entityType,
       display_name: displayName,
-      related_skills: relatedSkills.filter((skill) => !isGeneric(skill)).slice(0, 8),
+      related_skills: relatedSkills.filter((skill) => !isGenericTitle(skill)).slice(0, 8),
       related_tools: category === 'AI 도구·모델' ? [displayName] : [],
       source_name: item.sourceName,
       ...(projectIdea ? { project_idea: projectIdea } : {}),
@@ -464,51 +414,14 @@ function addSignal(signals: Signal[], item: ExternalItem, name: string, category
   });
 }
 
-function extractBuildIdeas(text: string) {
-  const lower = text.toLowerCase();
-  const ideas = new Set<string>();
-  if (/\bmcp\b|model context protocol/i.test(lower)) ideas.add('MCP 서버 만들기');
-  if (/code review|pull request|github pr|pr summary|코드 리뷰|pr 요약/i.test(lower)) ideas.add('AI 코드 리뷰 봇');
-  if (/\brag\b|retrieval|vector/i.test(lower)) ideas.add('RAG 품질 평가 대시보드');
-  if (/news curation|news aggregator|newsletter|큐레이션/i.test(lower)) ideas.add('AI 뉴스 큐레이션 에이전트');
-  if (/figma|design to code|디자인/i.test(lower)) ideas.add('Figma to Code 워크플로우');
-  if (/document|knowledge base|문서|검색/i.test(lower)) ideas.add('개인 문서 기반 AI 검색 앱');
-  if (/browser automation|browser agent|qa agent|computer use/i.test(lower)) ideas.add('브라우저 자동화 QA 에이전트');
-  if (/cost|pricing|token|latency|비용/i.test(lower)) ideas.add('LLM 비용 모니터링 대시보드');
-  if (/product hunt|ai product|제품/i.test(lower)) ideas.add('AI 제품 비교 대시보드');
-  if (/paper|research|논문/i.test(lower)) ideas.add('논문 to 프로젝트 추천기');
-  if (/codebase|repository|repo|코드베이스/i.test(lower)) ideas.add('코드베이스 Q&A 챗봇');
-  return [...ideas];
-}
-
 function getSourceBaseWeight(sourceType: ExternalSourceType) {
   if (sourceType === 'npm' || sourceType === 'product_hunt' || sourceType === 'huggingface') return 20;
   if (sourceType === 'hackernews') return 17;
   return 14;
 }
 
-function normalizePackageLikeName(value: string) {
-  const name = value
-    .replace(/^@/, '')
-    .split('/')
-    .pop()
-    ?.replace(/^hf[-_]/i, '')
-    .trim() ?? '';
-  if (!name || name.length > 48) return '';
-  return cleanName(name);
-}
-
 function cleanName(value: string) {
   return decodeHtml(value).replace(/\s+/g, ' ').trim().slice(0, 64);
-}
-
-function normalizeKey(value: string) {
-  return cleanName(value).toLowerCase().replace(/[^a-z0-9가-힣]+/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function isGeneric(value: string) {
-  const normalized = normalizeKey(value);
-  return GENERIC.has(normalized) || /^(ai|llm|agent|rag|mcp|tool|app|api|sdk|framework|starter|template|dashboard)$/i.test(value.trim());
 }
 
 function dedupeSignals(signals: Signal[]) {

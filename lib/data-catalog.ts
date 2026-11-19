@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { cached } from '@/lib/cache';
+import { isGenericTitle } from '@/lib/ingest/trend-builder';
 import type {
   AIProduct,
   AIProductReview,
@@ -345,32 +346,8 @@ async function loadModelIntelligence(): Promise<ModelIntelligence[]> {
 }
 
 function isDisplayableTrend(trend: Trend) {
-  const keyword = trend.keyword.trim().toLowerCase();
-  const generic = new Set([
-    'ai',
-    'llm',
-    'api',
-    'github',
-    'open source',
-    'typescript',
-    'react',
-    'next.js',
-    'nextjs',
-    'node.js',
-    'rust',
-    'tui',
-    'benchmark',
-    'python',
-    'javascript',
-    'developer',
-    'development',
-    'tool',
-    'tools',
-    'product',
-    'news',
-    'paper',
-  ]);
-  if (generic.has(keyword)) return false;
+  const keyword = trend.keyword.trim();
+  if (isGenericTitle(keyword)) return false;
   if (/(이\s*저장소|이\s*프로젝트|활용하여|참고하여|핵심\s*기능\s*만들어보기)/i.test(trend.keyword)) return false;
 
   const sourceCount = Number(trend.sources_count ?? 0);
@@ -382,14 +359,13 @@ function isDisplayableTrend(trend: Trend) {
   ].filter(Boolean).length;
 
   const category = normalizeTrendCategory(trend.category);
-  if (category === '오픈소스 프로젝트') return Number(trend.github_repo_count ?? 0) > 0 && !generic.has(keyword);
-  if (category === 'AI 도구·모델') return !generic.has(keyword) && ['tool', 'model', 'ai_tool', 'ai_model'].includes(String(trend.entity_type ?? trend.trend_type ?? ''));
-  if (category === '개발 워크플로우') return !generic.has(keyword);
-  if (category === '구현 패턴') return !generic.has(keyword);
-  if (category === '빌드 아이디어') return sourceCount >= 2 && sourceDiversity >= 2;
+  if (category === '오픈소스 프로젝트') return Number(trend.github_repo_count ?? 0) > 0;
+  if (category === 'AI 도구·모델') return ['tool', 'model', 'ai_tool', 'ai_model'].includes(String(trend.entity_type ?? trend.trend_type ?? ''));
+  if (category === '개발 워크플로우') return true;
+  if (category === '구현 패턴') return true;
+  if (category === '빌드 아이디어') return sourceCount >= 2;
 
   if (trend.category === '오픈소스/GitHub') return Number(trend.github_repo_count ?? 0) > 0;
-  if (trend.category === '빌드 아이디어') return sourceCount >= 2 && sourceDiversity >= 2;
   if (trend.category === '스킬/아키텍처') return sourceCount >= 3 && sourceDiversity >= 2;
   return sourceCount >= 2 || Number(trend.display_score ?? trend.score ?? 0) >= 60;
 }

@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 /** Read, copy, download or delete a saved evidence dossier from the 북마크 card. */
-export default function DossierPrd({ id, title, markdown, shared: initiallyShared = false, built: initiallyBuilt = null, quotes = [] }: { id: string; title: string; markdown: string | null; shared?: boolean; built?: { url: string; note: string } | null; quotes?: Array<{ quote: string; url: string }> }) {
+export default function DossierPrd({ id, title, markdown, shared: initiallyShared = false, listed: initiallyListed = false, built: initiallyBuilt = null, quotes = [] }: { id: string; title: string; markdown: string | null; shared?: boolean; listed?: boolean; built?: { url: string; note: string } | null; quotes?: Array<{ quote: string; url: string }> }) {
   const router = useRouter();
   const [message, setMessage] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [shared, setShared] = useState(initiallyShared);
   const [sharing, setSharing] = useState(false);
+  const [listed, setListed] = useState(initiallyListed);
   const sharePath = `/spec/${id}`;
   const [built, setBuilt] = useState(initiallyBuilt);
   const [savingBuilt, setSavingBuilt] = useState(false);
@@ -51,6 +52,7 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? '공유 설정을 바꾸지 못했습니다.');
       setShared(!shared);
+      if (shared) setListed(false);
       if (!shared) {
         const url = `${window.location.origin}${sharePath}`;
         await navigator.clipboard.writeText(url).catch(() => undefined);
@@ -58,6 +60,24 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
       } else setMessage('공유 링크를 껐습니다. 이전 링크는 더 이상 열리지 않습니다.');
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : '공유 설정을 바꾸지 못했습니다.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  // The public list (/spec) needs the link on, so listing turns it on too; unlisting keeps the link.
+  const toggleList = async () => {
+    setSharing(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/opportunities/dossiers', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, listed: !listed }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? '공개 목록 설정을 바꾸지 못했습니다.');
+      setListed(!listed);
+      if (!listed) setShared(true);
+      setMessage(listed ? '공개 목록에서 내렸습니다. 공유 링크는 그대로입니다.' : '공개 목록에 올렸습니다. 누구나 /spec에서 이 PRD를 보고, 같은 원문으로 자기 PRD를 만들 수 있습니다.');
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : '공개 목록 설정을 바꾸지 못했습니다.');
     } finally {
       setSharing(false);
     }
@@ -99,6 +119,7 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
         {markdown && <button type="button" className="btn-quiet" onClick={copy}>마크다운 복사</button>}
         {markdown && <button type="button" className="btn-quiet" onClick={() => downloadText('PRD.md', markdown)}>PRD.md 받기</button>}
         {markdown && <button type="button" className="btn-quiet" disabled={sharing} aria-pressed={shared} onClick={() => void toggleShare()}>{shared ? '공유 링크 끄기' : '공유 링크 만들기'}</button>}
+        {markdown && <button type="button" className="btn-quiet" disabled={sharing} aria-pressed={listed} onClick={() => void toggleList()}>{listed ? '공개 목록에서 내리기' : '공개 목록에 올리기'}</button>}
         {markdown && shared && <a href={sharePath} target="_blank" rel="noopener noreferrer" className="btn-quiet">공유 화면 열기</a>}
         <button type="button" className="btn-quiet" disabled={deleting} onClick={remove}>{deleting ? '지우는 중' : '삭제'}</button>
       </div>

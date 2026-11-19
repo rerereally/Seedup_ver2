@@ -49,6 +49,15 @@ export async function builtExampleCounts(slugs: string[]) {
   return new Map(rows.map((row) => [row.opportunity_slug, row.maker_count]));
 }
 
+export type ListedPrd = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; built_url: string | null; updated_at: string };
+
+/** PRDs their owners both shared and listed (public_prds.sql), newest first. Empty before that migration runs. */
+export async function listedPrds(limit = 60): Promise<ListedPrd[]> {
+  const { data, error } = (await createAdminClient()?.from('evidence_dossiers').select('id,title,opportunity_slug,evidence_ids,built_url,updated_at').eq('shared', true).eq('listed', true).not('prd_markdown', 'is', null).order('updated_at', { ascending: false }).limit(limit)) ?? { data: null, error: null };
+  if (error) console.error('Listed PRDs failed', error.message);
+  return error ? [] : ((data ?? []) as ListedPrd[]);
+}
+
 /** A PRD its owner shared, or null. */
 export async function sharedPrd(id: string) {
   const service = createAdminClient();

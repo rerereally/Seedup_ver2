@@ -102,6 +102,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
                   },
                 }}
               />
+              <p className="mt-4 text-center text-[14px] text-muted"><Link href="/spec" className="link-seed">{t('다른 사람이 공개한 PRD 보기', 'See PRDs others listed')}</Link></p>
             </div>
           </section>
 

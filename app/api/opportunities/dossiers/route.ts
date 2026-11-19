@@ -80,7 +80,7 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-/** Turns the public read-only link of one saved PRD on or off. Only the owner can, and only for a PRD that exists. */
+/** Turns the public read-only link, the public list entry, or "I built this" of one saved PRD on or off. Only the owner can. */
 export async function PATCH(request: Request) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
@@ -106,9 +106,23 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true, built: Boolean(built), shared: Boolean(built) || undefined, path: `/spec/${row.id}` });
   }
 
+  // Listing puts the PRD on the public /spec list, which needs the link to be on; unlisting leaves the link as is.
+  if (body && 'listed' in body) {
+    const listed = body.listed === true;
+    const { data: row, error } = await updateSavedPrd(supabase, data.user.id, id, listed ? { listed, shared: true } : { listed });
+    if (error || !row) {
+      if (error) console.error('Dossier list toggle failed', error.message);
+      return NextResponse.json({ error: '공개 목록 설정을 바꾸지 못했습니다. PRD가 저장된 항목만 올릴 수 있습니다.' }, { status: error ? 503 : 404 });
+    }
+    return NextResponse.json({ ok: true, listed, shared: listed || undefined, path: `/spec/${row.id}` });
+  }
+
   const shared = body?.shared === true;
 
-  const { data: row, error } = await updateSavedPrd(supabase, data.user.id, id, { shared });
+  // Turning the link off also takes the PRD off the public list, so sharing it again later never lists it unasked.
+  let { data: row, error } = await updateSavedPrd(supabase, data.user.id, id, shared ? { shared } : { shared, listed: false });
+  // Before public_prds.sql runs there is no listed column; turning sharing off must still work.
+  if (!shared && error?.message.includes('listed')) ({ data: row, error } = await updateSavedPrd(supabase, data.user.id, id, { shared }));
   if (error || !row) {
     if (error) console.error('Dossier share toggle failed', error.message);
     return NextResponse.json({ error: '공유 설정을 바꾸지 못했습니다. PRD가 저장된 항목만 공유할 수 있습니다.' }, { status: error ? 503 : 404 });

@@ -7,6 +7,8 @@ import SeedAdvisor from '@/components/SeedAdvisor';
 import type { SeedStatus } from '@/components/SeedAdvisor';
 import WorkSplit, { Bubble, ChatInput, showInResult } from '@/components/WorkSplit';
 import type { Stage } from '@/components/WorkSplit';
+import { translator } from '@/lib/i18n';
+import type { Lang } from '@/lib/i18n';
 
 const formatDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(new Date(value));
 
@@ -14,10 +16,11 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { dateSty
  * Repo analysis in the /prd work frame: the account, how the reading goes and the list of repos on the left; the
  * repo picked there on the right, one at a time.
  */
-export default function RepoWorkspace({ initialLogin, signedIn }: { initialLogin: string; signedIn: boolean }) {
+export default function RepoWorkspace({ initialLogin, initialRepo, userId, lang }: { initialLogin: string; initialRepo: string | null; userId?: string; lang: Lang }) {
   const [run, setRun] = useState(initialLogin ? { login: initialLogin, id: 1 } : null);
   const [status, setStatus] = useState<SeedStatus | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState(initialRepo);
+  const t = translator(lang);
   const here = (login: string) => `/prd/repo?user=${encodeURIComponent(login)}`;
 
   const ask = (login: string) => {
@@ -88,7 +91,8 @@ export default function RepoWorkspace({ initialLogin, signedIn }: { initialLogin
           {!thinking && !status.needsLogin && !status.savedAt && <p className="mt-3 text-[13px] text-muted">기능 제안은 AI가 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.</p>}
         </Bubble>
       )}
-      {!signedIn && login && !status?.needsLogin && <Bubble role="assistant"><p className="text-[13px] text-muted">로그인 없이도 레포를 읽지만, 기능 제안과 PRD는 로그인한 뒤에 만들어집니다.</p></Bubble>}
+      {!userId && login && !status?.needsLogin && <Bubble role="assistant"><p className="text-[13px] text-muted">로그인 없이도 레포를 읽지만, 기능 제안과 PRD는 로그인한 뒤에 만들어집니다.</p></Bubble>}
+      <Link href="/newsletter-preview?path=new" className="btn-quiet h-11">{t('새로 만들기', 'Build something new')}</Link>
     </>
   );
 
@@ -98,7 +102,7 @@ export default function RepoWorkspace({ initialLogin, signedIn }: { initialLogin
       stages={stages}
       chat={chat}
       composer={<ChatInput id="repo-input" label="GitHub 아이디 또는 주소" placeholder={login ? '다른 계정을 적으면 새로 읽습니다' : '예: torvalds'} onSend={ask} disabled={Boolean(status?.loading)} maxLength={80} />}
-      result={run ? <div id="repo-top" className="mx-auto max-w-[1000px] scroll-mt-6"><SeedAdvisor run={run} onStatus={setStatus} loginNext={here(login)} selected={selected} /></div> : (
+      result={run ? <div id="repo-top" className="mx-auto max-w-[1000px] scroll-mt-6"><SeedAdvisor run={run} onStatus={setStatus} loginNext={here(login)} selected={selected} userId={userId} /></div> : (
         <div className="mx-auto grid min-h-[220px] max-w-[1000px] place-items-center rounded-xl border border-dashed border-outline-strong p-6 text-center text-sm leading-6 text-muted">계정을 적으면 고른 레포의 분석 결과가 여기에 나옵니다.</div>
       )}
       resultLabel="분석 결과"

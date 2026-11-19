@@ -11,6 +11,7 @@ import OpportunityBrowser from '@/components/OpportunityBrowser';
 import OpportunityMap from '@/components/OpportunityMap';
 import SubmitButton from '@/components/SubmitButton';
 import { getAIProducts, getArticleFeedItems, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
+import { parseInsightPath } from '@/lib/newsletter/insight-path';
 import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
@@ -24,6 +25,7 @@ import type { Lang } from '@/lib/i18n';
 import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
+import RecentProjects from './RecentProjects';
 
 export const metadata: Metadata = {
   title: '인사이트',
@@ -31,32 +33,66 @@ export const metadata: Metadata = {
 
 const WEEK_MS = 7 * 24 * 3_600_000;
 const day = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' });
+const insightPath = '/newsletter-preview';
 
-/**
- * Today's signals: the problem list first with the map as a side panel, and this week's issue (exactly what the
- * Monday mail carries) with subscribing and past issues on its own tab (?view=issue).
- */
-export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<{ profile?: string; stage?: string; size?: string; q?: string; all?: string; view?: string }> }) {
+type InsightParams = { profile?: string; stage?: string; size?: string; q?: string; all?: string; view?: string; path?: string | string[] };
+
+export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<InsightParams> }) {
   const params = await searchParams;
+  const path = parseInsightPath(params.path);
+  const [{ opportunities, generatedAt }, lang, user] = await Promise.all([getOpportunities(), getLang(), getCurrentUser()]);
+  const t = translator(lang);
+  const now = issueTime();
+  const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date(now));
+  const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
+
+  return (
+    <>
+      <Header />
+      <main id="main-content" className="page-shell grow">
+        <h1 className="page-intro-title">인사이트</h1>
+        <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
+        <DailyResearchSection research={dailyResearch(opportunities, now)} lang={lang} />
+        <nav className="seg mt-5" aria-label={t('무엇을 만들까요', 'What to build')}>
+          <Link href={{ pathname: insightPath, query: { ...params, path: 'new' } }} scroll={false} aria-current={path === 'new' ? 'page' : undefined} className="min-h-11">
+            {t('새로 만들기', 'Build something new')}
+          </Link>
+          <Link href={{ pathname: insightPath, query: { ...params, path: 'project' } }} scroll={false} aria-current={path === 'project' ? 'page' : undefined} className="min-h-11">
+            {t('내 프로젝트의 다음 기능', 'Next feature for my project')}
+          </Link>
+        </nav>
+        {path === 'project'
+          ? <RecentProjects key={user?.id} userId={user?.id} lang={lang} />
+          : <NewOpportunityContent {...{ params, opportunities, generatedAt, now, lang, user }} />}
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+async function NewOpportunityContent({ params, opportunities, generatedAt, now, lang, user }: {
+  params: InsightParams;
+  opportunities: Opportunity[];
+  generatedAt: string;
+  now: number;
+  lang: Lang;
+  user: Awaited<ReturnType<typeof getCurrentUser>>;
+}) {
   const profile = DEMO_NEWSLETTER_PROFILES.find((item) => item.user_id === params.profile) ?? DEMO_NEWSLETTER_PROFILES[0];
-  const supabase = await createClient();
-  const user = supabase ? await getCurrentUser() : null;
-  const [news, products, repos, projects, papers, { opportunities, generatedAt }, onboarding, dossiers, archive, lang, articles] = await Promise.all([
+  const supabase = user ? await createClient() : null;
+  const [news, products, repos, projects, papers, onboarding, dossiers, archive, articles] = await Promise.all([
     getNewsItems(),
     getAIProducts(),
     getGitHubTrends(),
     getProjectIdeas(),
     getResearchPapers(20),
-    getOpportunities(),
     user && supabase ? onboardingRow<{ newsletter_subscribed?: boolean | null }>(supabase, user.id, 'newsletter_subscribed') : null,
     user && supabase ? savedOpportunitySlugs(supabase) : null,
     newsletterIssues(),
-    getLang(),
     getArticleFeedItems(),
   ]);
 
   const lookbackDays = getLookbackDays(news.length + products.length + repos.length + projects.length + papers.length);
-  const now = issueTime();
   const cutoff = now - lookbackDays * 24 * 3_600_000;
   const items = toNewsletterContentItems({
     news: news.filter((item) => isInLookback(item.published_at, cutoff) && isRecommendableNewsItem(item)),
@@ -75,20 +111,14 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   const points = mapPoints(opportunities, new Date(generatedAt).getTime());
   const quoteCount = opportunities.reduce((sum, item) => sum + item.evidence.length, 0);
   const sourceCount = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.platform))).size;
-  const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
   const showIssue = params.view === 'issue';
+  const newPathQuery = { path: params.path === 'new' ? params.path : undefined };
   const verified = opportunities.filter((item) => item.qualified);
   // Verified problems that gained a quote most recently, so the cards change as the week moves. Crowded ones stay in the full list only.
   const picks = verified.filter((item) => item.status !== 'closed').sort((a, b) => String(b.lastSeenAt ?? b.firstSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? a.firstSeenAt ?? '')) || b.evidence.length - a.evidence.length).slice(0, 4);
-  const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date(now));
 
   return (
     <>
-      <Header />
-      <main id="main-content" className="page-shell grow">
-        <h1 className="page-intro-title">인사이트</h1>
-        <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
-        <DailyResearchSection research={dailyResearch(opportunities, now)} lang={lang} />
         {/* The day's counts as figures, all from the run dated above. */}
         <dl className="mt-5 grid grid-cols-2 overflow-hidden rounded-xl border border-outline-soft sm:grid-cols-4">
           {([
@@ -104,8 +134,8 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
           ))}
         </dl>
         <nav className="tabs mt-5" aria-label="보기">
-          <Link href="/newsletter-preview" aria-current={showIssue ? undefined : 'page'} className="tab">문제 <span className="num">{opportunities.length}</span></Link>
-          <Link href="/newsletter-preview?view=issue" aria-current={showIssue ? 'page' : undefined} className="tab">이번 주 메일</Link>
+          <Link href={{ pathname: insightPath, query: newPathQuery }} aria-current={showIssue ? undefined : 'page'} className="tab">문제 <span className="num">{opportunities.length}</span></Link>
+          <Link href={{ pathname: insightPath, query: { ...newPathQuery, view: 'issue' } }} aria-current={showIssue ? 'page' : undefined} className="tab">이번 주 메일</Link>
         </nav>
 
         {showIssue ? (
@@ -118,7 +148,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
                 <span className="text-sm text-muted">누구 기준으로 볼까요</span>
                 <nav className="seg" aria-label="예시 관심 분야">
                   {DEMO_NEWSLETTER_PROFILES.map((demo) => (
-                    <Link key={demo.user_id} href={`/newsletter-preview?view=issue&profile=${demo.user_id}`} scroll={false} aria-current={demo.user_id === profile.user_id ? 'true' : undefined}>{demo.label}</Link>
+                    <Link key={demo.user_id} href={{ pathname: insightPath, query: { ...newPathQuery, view: 'issue', profile: demo.user_id } }} scroll={false} aria-current={demo.user_id === profile.user_id ? 'true' : undefined}>{demo.label}</Link>
                   ))}
                 </nav>
               </div>
@@ -205,7 +235,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
                 )}
                 <section id="problems" aria-labelledby="all-heading" className="flex min-w-0 scroll-mt-6 flex-col gap-8">
                   <h2 id="all-heading" className="text-[17px] font-bold tracking-[-0.015em]">모든 문제 <span className="num ml-1 text-[15px] font-semibold text-muted">{opportunities.length}</span></h2>
-                  <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath="/newsletter-preview" keep={{ profile: params.profile }} />
+                  <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath={insightPath} keep={{ ...newPathQuery, profile: params.profile }} />
                 </section>
               </div>
 
@@ -218,8 +248,6 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
             </div>
           </>
         )}
-      </main>
-      <Footer />
     </>
   );
 }

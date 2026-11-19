@@ -3,7 +3,7 @@ import type { ModelUsage, StreamEvent } from '../llm';
 import { auditP0Evidence, isTestableCriterion } from './prd-audit';
 import { parsePrdMarkdown } from './prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from './prd-prompt';
-import { normalizeRivals, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';
+import { coverRivals, normalizeRivals, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';
 import type { RawSpec, Spec, SpecFeature, SpecInput, SpecRequirement } from './spec';
 import type { Lang } from '../i18n';
 
@@ -94,7 +94,7 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
     raw = await structurePrd(written.text, options.model, options.onUsage);
   }
   if (!raw) return null;
-  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang, rivals: normalizeRivals(raw.rivals, input.competitors), ...(options.beginner ? { beginner: true } : {}) };
+  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang, rivals: coverRivals(normalizeRivals(raw.rivals, input.competitors), input.competitors, lang), ...(options.beginner ? { beginner: true } : {}) };
   if (!spec.summary || !(spec.requirements.length + (options.idea ? spec.hypotheses.length : 0))) return null;
 
   // One repair pass on what the code check found; kept only when it really has fewer problems.
@@ -221,7 +221,7 @@ ${quotes(input)}`, { maxTokens: 8_000, timeoutMs, title: 'Seedup PRD revise', mo
   const idea = spec.origin === 'idea';
   // A revision keeps the rival comparison unless it returns a new one.
   const rivals = normalizeRivals(raw.rivals, input.competitors);
-  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: rivals.length ? rivals : spec.rivals ?? [] };
+  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: coverRivals(rivals.length ? rivals : spec.rivals ?? [], input.competitors, spec.lang ?? 'ko') };
   if (!revised.summary || !(revised.requirements.length + (idea ? revised.hypotheses.length : 0))) return null;
   return keepUnchanged(spec, revised);
 }

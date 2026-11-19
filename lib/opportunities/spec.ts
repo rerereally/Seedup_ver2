@@ -98,6 +98,16 @@ export function normalizeRivals(raw: unknown, competitors: string[]): SpecRival[
   });
 }
 
+/**
+ * Adds every listed competitor the model left out, marked as not compared yet. The input lists only tools that solve
+ * the same problem, so a PRD that names only the weakest two would read as if the rest did not exist.
+ */
+export function coverRivals(rivals: SpecRival[], competitors: string[], lang: 'ko' | 'en' = 'ko'): SpecRival[] {
+  const named = new Set(rivals.map((row) => row.name.toLowerCase()));
+  const misses = lang === 'en' ? 'Not compared yet: decide what this product does that this tool does not.' : '아직 비교하지 않았습니다. 이 도구와 무엇이 다른지 정해야 합니다.';
+  return [...rivals, ...competitors.filter((name) => !named.has(name.toLowerCase())).map((name) => ({ name, misses, answer: '' }))];
+}
+
 export type SpecInput = {
   title: string;
   problem: string;

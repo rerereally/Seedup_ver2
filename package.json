@@ -13,6 +13,7 @@
     "engine": "tsx --env-file=.env scripts/run-opportunity-engine.ts",
     "smoke": "tsx scripts/smoke.ts",
     "flow": "tsx --env-file=.env scripts/flow-check.ts",
+    "e2e": "playwright test",
     "rls": "tsx --env-file=.env scripts/check-rls.ts",
     "migrations": "tsx scripts/check-migrations.ts",
     "test": "tsx --test \"tests/**/*.test.ts\"",
@@ -30,6 +31,7 @@
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "4.1.11",
     "@types/node": "^20",
     "@types/react": "^19",

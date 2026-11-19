@@ -691,3 +691,23 @@ test('tools that spend a daily limit on a model call are not marked read-only, s
   assert.equal(hint('validate_idea'), false);
   assert.equal(hint('get_next_task'), true);
 });
+
+test('get_next_task fills the chosen feature’s empty readiness slots once and falls back to open questions', async () => {
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Store notes', requirements: [1] }] }, 1);
+  const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
+  const filledSlots = { inputs: ['a note title and body'], rules: [], errors: [], access: ['only the owner reads notes'], data: [], done: [] };
+  const asked: string[] = [];
+  const filled = deps({
+    cachedSpec: async () => ({ input, spec }),
+    fillSlots: async (cached, featureId) => {
+      asked.push(featureId);
+      return { input: cached.input, spec: { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots: filledSlots } : row)) } };
+    },
+  });
+  const task = await toolResult('get_next_task', { slug: 'memory' }, filled);
+  assert.deepEqual(asked, ['F-01']);
+  assert.match(task.text, /only the owner reads notes/);
+
+  const failed = await toolResult('get_next_task', { slug: 'memory' }, deps({ cachedSpec: async () => ({ input, spec }), fillSlots: async () => null }));
+  assert.match(failed.text, /\(open question\)/);
+});

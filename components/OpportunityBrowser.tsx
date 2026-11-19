@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import OpportunityFitControls from '@/components/opportunity-stage/OpportunityFitControls';
 import OpportunityTable from '@/components/opportunity-stage/OpportunityTable';
+import { builtExampleCounts } from '@/lib/db/dossiers';
 import { translator } from '@/lib/i18n';
+import { FIT_TIMES, firstQueryValue, fitParams, parseFitChoice, rankOpportunities } from '@/lib/opportunities/fit';
+import type { FitChoice, FitQuery } from '@/lib/opportunities/fit';
 import { trackRecord, trackRecordSummary } from '@/lib/opportunities/insight';
 import { BUILD_LABELS } from '@/lib/opportunities/types';
 import type { Opportunity } from '@/lib/opportunities/types';
@@ -11,7 +15,7 @@ const PAGE_SIZE = 12;
  * Every problem the engine holds: search, stage filter, the table and the track record.
  * It lives under the weekly issue, so `basePath` and `keep` carry that page's own query along.
  */
-export default function OpportunityBrowser({ opportunities, generatedAt, lang, stage: stageParam, size: sizeParam, q, all, basePath, keep = {} }: {
+export default async function OpportunityBrowser({ opportunities, generatedAt, lang, stage: stageParam, size: sizeParam, q, all, basePath, keep = {}, fitQuery, preferredStack }: {
   opportunities: Opportunity[];
   generatedAt: string;
   lang: 'ko' | 'en';
@@ -21,6 +25,8 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
   all?: string;
   basePath: string;
   keep?: Record<string, string | undefined>;
+  fitQuery: FitQuery;
+  preferredStack?: unknown;
 }) {
   const t = translator(lang);
   const query = q?.trim().toLowerCase() ?? '';
@@ -36,12 +42,28 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
   const filtered = matched
     .filter((item) => (stage === 'verified' ? item.qualified : stage === 'gathering' ? !item.qualified : true))
     .filter((item) => (size ? item.build?.size === size : true));
-  // Verified problems first, then the ones closest to the bar.
-  const sorted = [...filtered].sort((a, b) => Number(b.qualified) - Number(a.qualified) || b.evidence.length - a.evidence.length);
+  const choice = parseFitChoice(fitQuery, preferredStack);
+  const sorted = rankOpportunities(filtered, choice);
   const visible = all ? sorted : sorted.slice(0, PAGE_SIZE);
-  const kept = Object.entries(keep).filter((entry): entry is [string, string] => Boolean(entry[1]));
-  const href = (next: { stage?: string; size?: string; all?: boolean }) => {
-    const params = new URLSearchParams(kept);
+  const counts = await builtExampleCounts(visible.map(({ item }) => item.slug));
+  const timeLabel = FIT_TIMES.find(({ value }) => value === choice.time)?.label[lang === 'en' ? 1 : 0];
+  const reasons = new Map(visible.flatMap(({ item, fit }) => {
+    if (!fit) return [];
+    const timing = fit.timeFit === 'unknown' ? t('기간 추정 없음', 'No time estimate')
+      : fit.timeFit === 'longer' ? t('시간이 더 필요해요', 'Needs more time')
+      : fit.timeFit === 'team' ? t('팀 규모로 예상돼요', 'Team-sized estimate')
+      : choice.time === 'longer' ? t('기간 안에 가능해요', 'Fits the time')
+      : t(`${timeLabel} 안에 가능해요`, `Fits in ${timeLabel?.toLowerCase()}`);
+    const overlap = t(`내 스택과 ${fit.overlap}개 겹침`, `${fit.overlap} stack ${fit.overlap === 1 ? 'match' : 'matches'}`);
+    return [[item.slug, choice.stack.length && item.build ? `${overlap}, ${timing}` : timing] as const];
+  }));
+  const hasFitParams = choice.enabled || firstQueryValue(fitQuery.stack) !== undefined || firstQueryValue(fitQuery.time) !== undefined;
+  const kept = (fit?: FitChoice) => [
+    ...Object.entries(keep).filter((entry): entry is [string, string] => Boolean(entry[1])),
+    ...(fit ? fitParams(fit) : []),
+  ];
+  const href = (next: { stage?: string; size?: string; all?: boolean }, fit = hasFitParams ? choice : undefined) => {
+    const params = new URLSearchParams(kept(fit));
     if (next.stage) params.set('stage', next.stage);
     if (next.size) params.set('size', next.size);
     if (q?.trim()) params.set('q', q.trim());
@@ -49,6 +71,8 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
     const search = params.toString();
     return `${basePath}${search ? `?${search}` : ''}#problems`;
   };
+  const sortFilters = { stage, size, all: Boolean(all) };
+  const fitHref = href(sortFilters, { ...choice, enabled: true });
   const record = trackRecord(opportunities);
   const summary = trackRecordSummary(record, opportunities.length);
   const day = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' });
@@ -58,7 +82,7 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <form action={`${basePath}#problems`} role="search" className="min-w-[240px] flex-1">
-            {kept.map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
+            {kept(hasFitParams ? choice : undefined).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
             {stage && <input type="hidden" name="stage" value={stage} />}
             {size && <input type="hidden" name="size" value={size} />}
             <input type="search" name="q" defaultValue={q ?? ''} aria-label={t('문제 찾기', 'Find problems')} placeholder={t('문제나 키워드로 찾기', 'Search problems or keywords')} className="h-12 w-full border bg-white px-4 text-[15px] text-ink placeholder:text-muted" />
@@ -79,8 +103,9 @@ export default function OpportunityBrowser({ opportunities, generatedAt, lang, s
           </nav>
         )}
 
-        <OpportunityTable opportunities={visible} lang={lang} />
-        {sorted.length > visible.length && <Link href={href({ stage, all: true })} scroll={false} className="link-seed self-start">{t(`${sorted.length - visible.length}개 더 보기`, `Show ${sorted.length - visible.length} more`)}</Link>}
+        <OpportunityFitControls key={`${choice.enabled}:${fitHref}`} choice={choice} defaultHref={href(sortFilters, hasFitParams ? { ...choice, enabled: false } : undefined)} fitHref={fitHref} useRepoStack={!choice.enabled && firstQueryValue(fitQuery.stack) === undefined && !choice.stack.length} lang={lang} />
+        <OpportunityTable opportunities={visible.map(({ item }) => item)} builtCounts={counts} fitReasons={reasons} lang={lang} />
+        {sorted.length > visible.length && <Link href={href({ stage, size, all: true })} scroll={false} className="link-seed self-start">{t(`${sorted.length - visible.length}개 더 보기`, `Show ${sorted.length - visible.length} more`)}</Link>}
         <p className="max-w-[62em] text-[13px] leading-6 text-muted">
           {t(`${day.format(new Date(generatedAt))}에 분석했습니다. 원문은 공개 글에서 찾아 글자 단위로 대조한 문장만 남겼습니다. 기존 도구는 GitHub, npm, Show HN, VS Code 마켓, App Store만 조사했고, 직접 경쟁인지는 무료 AI 모델이 판정했습니다.`, `Analyzed ${new Date(generatedAt).toLocaleDateString('en-US', { dateStyle: 'medium' })}. Every quote was found in a public post and matched to the source character by character. Existing tools come from GitHub, npm, Show HN, the VS Code marketplace and the App Store; a free AI model judged which are direct rivals.`)}
         </p>

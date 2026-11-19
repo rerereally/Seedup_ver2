@@ -686,7 +686,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   </div>
                 </details>
               )}
-              <button type="button" className="btn-quiet h-11" disabled={!ids.length || saveState === 'saving'} onClick={save}>
+              <button type="button" className="btn-quiet h-11" disabled={(!ids.length && !markdown) || saveState === 'saving'} onClick={save}>
                 {saveState === 'saved' ? t('북마크에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('북마크에 저장', 'Save')}
               </button>
               <details className="relative">

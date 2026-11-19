@@ -271,6 +271,8 @@ EXAONE_REASONING_EFFORT=low
 # PRD 무료 모델 우선순위 및 라이브 원문 서명 키
 PRD_FREE_MODELS=baidu/ernie-5.5-flash-preview:free,particle-ai/particle-1:free,nvidia/nemotron-3-ultra-550b-a55b:free
 LIVE_EVIDENCE_SECRET=
+# MCP 토큰 서명 키: 없으면 SUPABASE_SECRET_KEY를 씁니다. 한번 정하면 바꾸지 마세요(바꾸면 기존 MCP 연결이 끊김).
+MCP_TOKEN_SECRET=
 
 # 외부 수집 API
 GITHUB_TOKEN=your-github-token

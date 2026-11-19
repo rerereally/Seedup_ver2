@@ -1,6 +1,6 @@
 // MCP personal tokens. Only a hash is stored; the plain token is derived from the server secret and the issue time,
 // so the same token can be shown again without keeping it. Service key only: a token row is never read by a visitor.
-import { derivedToken, hashToken } from '@/lib/mcp/auth';
+import { derivedToken, hashToken, mcpTokenSecret } from '@/lib/mcp/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -9,7 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
  */
 export async function issueMcpToken(userId: string, rotate: boolean): Promise<{ token: string; reused: boolean } | { error: string } | null> {
   const service = createAdminClient();
-  const key = process.env.SUPABASE_SECRET_KEY?.trim();
+  const key = mcpTokenSecret();
   if (!service || !key) return null;
   if (!rotate) {
     const { data: current } = await service.from('mcp_tokens').select('token_hash,created_at').eq('user_id', userId).maybeSingle();

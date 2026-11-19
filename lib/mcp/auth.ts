@@ -7,11 +7,19 @@ export const hashToken = (token: string) => createHash('sha256').update(token).d
 const todayKst = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
 
 /**
+ * Secret key used to derive personal MCP tokens. Uses `MCP_TOKEN_SECRET` first and falls back to
+ * `SUPABASE_SECRET_KEY` so existing tokens remain valid when `MCP_TOKEN_SECRET` is not set.
+ */
+export function mcpTokenSecret(env: Record<string, string | undefined> = process.env) {
+  return env.MCP_TOKEN_SECRET?.trim() || env.SUPABASE_SECRET_KEY?.trim() || '';
+}
+
+/**
  * The token for one user and issue time, derived with the server secret instead of stored, so connecting a second
  * tool can hand out the same token again instead of replacing it (which would cut off the first tool). Only the
  * hash is kept; rotating the secret makes old tokens underivable, and the next connect then issues a new one.
  */
-export function derivedToken(userId: string, issuedAtMs: number, key: string) {
+export function derivedToken(userId: string, issuedAtMs: number, key = mcpTokenSecret()) {
   return `sdp_${createHmac('sha256', key).update(`mcp:${userId}:${issuedAtMs}`).digest('hex').slice(0, 48)}`;
 }
 

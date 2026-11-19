@@ -62,7 +62,7 @@ test('costs come from reported tokens, and admins come from the setting or Supab
   assert.equal(isAdminUser(null), false);
 });
 
-import { normalizeRivals } from '../lib/opportunities/spec';
+import { coverRivals, normalizeRivals } from '../lib/opportunities/spec';
 
 test('the rival comparison keeps only competitors the input listed, under their listed names', () => {
   const rivals = normalizeRivals([
@@ -71,6 +71,16 @@ test('the rival comparison keeps only competitors the input listed, under their 
     { name: 'litellm', misses: '' },
   ], ['Portkey-AI', 'LiteLLM']);
   assert.deepEqual(rivals, [{ name: 'Portkey-AI', misses: 'no schema mapping', answer: 'maps every provider' }]);
+});
+
+test('every listed competitor stays in the PRD: the ones the model skipped are added as not compared yet', () => {
+  const picked = [{ name: 'MemoriPilot', misses: 'Copilot only', answer: 'works in every tool' }];
+  const covered = coverRivals(picked, ['Cortex', 'memoripilot', 'Memex']);
+  assert.deepEqual(covered.map((row) => row.name), ['MemoriPilot', 'Cortex', 'Memex']);
+  assert.equal(covered[0], picked[0]);
+  assert.match(covered[1].misses, /아직 비교하지 않았습니다/);
+  assert.match(coverRivals([], ['Cortex'], 'en')[0].misses, /Not compared yet/);
+  assert.deepEqual(coverRivals(picked, []), picked);
 });
 
 test('a document-first PRD with no screens yet is not asked to place its features on screens', () => {

@@ -10,6 +10,9 @@ const __dirname = path.dirname(__filename);
 // below may import it: public data, batch jobs, and server code that checks the user itself. Adding a file here is a
 // review decision (escape [ ] in route folders as \\[ \\]); prefer the user's own client (lib/supabase/server) whenever row-level security can do the check.
 const SERVICE_KEY_FILES = [
+  // The data layer and batch collection; app/ and components/ reach the database through these.
+  "lib/db/**",
+  "lib/ingest/**",
   "app/actions/opportunity-digest.ts",
   "app/actions/prd-models.ts",
   "app/actions/product-ratings.ts",

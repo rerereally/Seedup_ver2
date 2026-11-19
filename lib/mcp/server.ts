@@ -11,7 +11,7 @@ import type { Opportunity } from '@/lib/opportunities/types';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
 export const MCP_DAILY_REPORT_LIMIT = 3;
-const SUPPORTED_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
+const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
 export type McpDeps = {
   opportunities: () => Promise<Opportunity[]>;
@@ -298,6 +298,13 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
     }
     case 'ping':
       return reply({});
+    // Tools only, but some clients list these anyway and treat an error as a broken server.
+    case 'resources/list':
+      return reply({ resources: [] });
+    case 'resources/templates/list':
+      return reply({ resourceTemplates: [] });
+    case 'prompts/list':
+      return reply({ prompts: [] });
     case 'tools/list':
       return reply({ tools: TOOLS });
     case 'tools/call': {

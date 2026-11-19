@@ -20,11 +20,12 @@ const unauthorized = () => NextResponse.json(
 /**
  * The MCP endpoint: a personal token, not a Supabase session, says who is calling, so it runs with the service key and
  * every data call below names that user. Streamable HTTP, JSON responses only (no server-sent events).
+ * `pathKey` is the token taken from /api/mcp/<token>, for apps whose connector form has no header field.
  */
-export async function handleMcpRequest(request: Request) {
+export async function handleMcpRequest(request: Request, pathKey?: string) {
   const service = createAdminClient();
   if (!service) return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Server is not configured' } }, { status: 503 });
-  const userId = await userForToken(service, request.headers.get('authorization'));
+  const userId = await userForToken(service, pathKey ? `Bearer ${pathKey}` : request.headers.get('authorization'));
   if (!userId) return unauthorized();
 
   const body = await request.json().catch(() => undefined);

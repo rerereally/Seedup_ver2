@@ -148,6 +148,8 @@ test('disliked items penalize unread items sharing those topics unless explicitl
 test('reasonFor avoids partial-word false positives for English interests', () => {
   assert.equal(reasonFor('JavaScript runtime benchmarks', ['Java'], false), '관심사와 가까움');
   assert.equal(reasonFor('Chain reaction in distributed queues', ['React'], false), '관심사와 가까움');
+  // No interests and nothing kept: the match came from the reader's PRD titles.
+  assert.equal(reasonFor('Queue worker monitoring', [], false), '만들고 있는 PRD와 가까움');
   assert.equal(reasonFor('React Native architecture notes', ['React'], false), '관심 분야 React');
 });
 

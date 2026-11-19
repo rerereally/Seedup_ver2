@@ -61,7 +61,8 @@ export function reasonFor(text: string, interests: string[], hasKept: boolean) {
   };
   const hit = interests.find((word) => word.toLowerCase().split('/').some((part) => mentions(part.trim())));
   if (hit) return `관심 분야 ${hit}`;
-  return hasKept ? '킵한 것과 비슷함' : '관심사와 가까움';
+  // An embedding match with no interests and nothing kept came from the reader's own PRD titles, so it says that.
+  return hasKept ? '킵한 것과 비슷함' : interests.length ? '관심사와 가까움' : '만들고 있는 PRD와 가까움';
 }
 
 /**

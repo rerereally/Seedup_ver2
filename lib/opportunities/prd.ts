@@ -1,5 +1,6 @@
 import { callJsonModel, prdFreeModels, streamText } from '../llm';
 import type { ModelUsage, StreamEvent } from '../llm';
+import { auditP0Evidence, isTestableCriterion } from './prd-audit';
 import { parsePrdMarkdown } from './prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from './prd-prompt';
 import { normalizeRivals, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';
@@ -39,6 +40,9 @@ export function specIssues(spec: Spec, input: SpecInput) {
     // Outside an idea PRD a hypothesis is not built yet, so it has no feature on purpose.
     const buildable = row.evidence.length || spec.origin === 'idea';
     if (buildable && !spec.features.some((feature) => feature.requirementIds.includes(row.id))) issues.push(`${row.id} "${row.title}"을 충족하는 기능이 없습니다.`);
+    if (row.priority === 'P0' && !(row.acceptance ?? []).some(isTestableCriterion)) {
+      issues.push(`${row.id} "${row.title}"(P0)에 테스트 가능한 수락 기준이 없습니다. 숫자나 조건을 포함한 수락 기준을 쓰세요.`);
+    }
   }
   // A document-first PRD has no screens yet; they are designed on request (generateScreens).
   for (const feature of spec.screens.length ? spec.features : []) {
@@ -55,11 +59,12 @@ export function specIssues(spec: Spec, input: SpecInput) {
 const TIME_BUDGET_MS = 150_000;
 const WRITE_BUDGET_MS = 130_000;
 const MIN_REPAIR_MS = 25_000;
+const MIN_AUDIT_MS = 20_000;
 
 /** What the PRD route streams to the page: the model's own events, plus the steps after the text is written. */
-export type PrdEvent = StreamEvent | { type: 'stage'; stage: 'structuring' | 'checking' };
+export type PrdEvent = StreamEvent | { type: 'stage'; stage: 'structuring' | 'checking' | 'auditing' };
 
-export type PrdOptions = { draft?: boolean; lang?: Lang; idea?: boolean; model?: string; onUsage?: (usage: ModelUsage) => void; beginner?: boolean; screens?: boolean; onEvent?: (event: PrdEvent) => void; deadline?: number; repair?: boolean };
+export type PrdOptions = { draft?: boolean; lang?: Lang; idea?: boolean; model?: string; onUsage?: (usage: ModelUsage) => void; beginner?: boolean; screens?: boolean; onEvent?: (event: PrdEvent) => void; deadline?: number; repair?: boolean; auditP0?: boolean; criticModel?: string };
 
 /**
  * Writes the PRD as a Markdown document, streamed as it is written, then reads it back into the evidence-checked
@@ -100,7 +105,21 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
     const repaired = await reviseSpec(input, spec, `다음 문제만 고치세요:\n- ${issues.join('\n- ')}`, options.model, left, options.onUsage).catch(() => null);
     if (repaired && specIssues(repaired, input).length < issues.length) spec = repaired;
   }
-  return { spec, markdown: renderSpecMarkdown(input, spec), agentBrief: renderAgentBrief(input, spec), written: written.text, model: written.model };
+
+  let auditChanges: Awaited<ReturnType<typeof auditP0Evidence>>['changes'] = [];
+  const auditLeft = deadline - Date.now();
+  if (options.auditP0 && auditLeft >= MIN_AUDIT_MS) {
+    options.onEvent?.({ type: 'stage', stage: 'auditing' });
+    const audited = await auditP0Evidence(input, spec, {
+      model: options.criticModel ?? options.model,
+      timeoutMs: Math.min(35_000, auditLeft),
+      onUsage: options.onUsage,
+    }).catch(() => ({ spec, changes: [], audited: false }));
+    spec = audited.spec;
+    auditChanges = audited.changes;
+  }
+
+  return { spec, markdown: renderSpecMarkdown(input, spec), agentBrief: renderAgentBrief(input, spec), written: written.text, model: written.model, auditChanges };
 }
 
 /** The menu's "free model" (or no pick) means the PRD free list; any other pick goes first with that list behind it. */

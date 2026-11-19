@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleRpc, pickNextTask, searchOpportunities } from '../lib/mcp/server';
+import { handleRpc, MCP_MAX_BATCH_SIZE, pickNextTask, searchOpportunities } from '../lib/mcp/server';
 import type { McpDeps } from '../lib/mcp/server';
 import { normalizeFeatureId } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
@@ -467,4 +467,56 @@ test('a feature is done when the acceptance of every requirement it serves and i
   assert.deepEqual(featureCriteria(spec, spec.features[0]), ['a note survives a restart', 'search finds it in 1s', 'saving returns an id']);
   const partial = unmetCriteria(featureCriteria(spec, spec.features[0]), [{ criterion: 1, passed: true, evidence: 'restart.test passed' }, { criterion: 2, passed: true, evidence: '' }, { criterion: 3, passed: true, evidence: 'id.test passed' }, 'junk']);
   assert.deepEqual(partial.unmet.map((row) => row.n), [2]);
+});
+
+test('handleRpc rejects empty batches and batches larger than MCP_MAX_BATCH_SIZE without running tools', async () => {
+  const d = deps();
+  const empty = await handleRpc([], d, '') as { error: { code: number } };
+  assert.equal(empty.error.code, -32600);
+
+  const oversized = Array.from({ length: MCP_MAX_BATCH_SIZE + 1 }, (_, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'ping' }));
+  const rejected = await handleRpc(oversized, d, '') as { error: { code: number; message: string } };
+  assert.equal(rejected.error.code, -32600);
+  assert.match(rejected.error.message, new RegExp(String(MCP_MAX_BATCH_SIZE)));
+  assert.deepEqual(d.calls, []);
+});
+
+test('metered MCP tools refund daily quota when the model fails or throws', async () => {
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1] }], features: [{ title: 'Store notes', requirements: [1] }] }, 3);
+  const refunded: string[] = [];
+  const release = async (feature: string) => { refunded.push(feature); };
+
+  const failedPrd = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), deps({ generate: async () => null, release }), '') as { result: { isError?: boolean } };
+  assert.equal(failedPrd.result.isError, true);
+
+  const failedVerify = await handleRpc(
+    call('verify_feature', { slug: 'memory', feature: 'F-01', diff: '+const x = 1;' }),
+    deps({ cachedSpec: async () => ({ input: {} as never, spec }), verifyFeature: async () => null, release }),
+    '',
+  ) as { result: { isError?: boolean } };
+  assert.equal(failedVerify.result.isError, true);
+
+  const failedReport = await handleRpc(call('validate_idea', { idea: 'automated changelog' }), deps({ validate: async () => null, release }), '') as { result: { isError?: boolean } };
+  assert.equal(failedReport.result.isError, true);
+
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const threwPrd = await handleRpc(
+      call('generate_verified_prd', { slug: 'memory' }),
+      deps({ generate: async () => { throw new Error('boom'); }, release }),
+      '',
+    ) as { result: { isError?: boolean } };
+    assert.equal(threwPrd.result.isError, true);
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.deepEqual(refunded, ['mcp_prd', 'mcp_verify', 'mcp_report', 'mcp_prd']);
+});
+
+test('get_kept_items empty github hint points to /github-trends instead of removed /news?tab=github', async () => {
+  const answer = await handleRpc(call('get_kept_items', { type: 'github' }), deps(), 'https://seedup.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(answer.result.content[0].text, /https:\/\/seedup\.test\/github-trends/);
+  assert.doesNotMatch(answer.result.content[0].text, /tab=github/);
 });

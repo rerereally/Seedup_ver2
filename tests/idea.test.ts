@@ -113,3 +113,24 @@ test('fetchPageText blocks redirects to private or local hosts and follows safe 
   }) as typeof fetch;
   assert.equal(await fetchPageText('https://example.com/start', safeRedirect), 'Hello verified world');
 });
+
+test('fetchPageText stops reading and cancels the stream once the byte cap is reached', async () => {
+  const encoder = new TextEncoder();
+  let pulls = 0;
+  let canceled = false;
+  const oversized: typeof fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls += 1;
+      controller.enqueue(encoder.encode(pulls === 1 ? '<p>start</p>' : 'x'.repeat(100)));
+    },
+    cancel() {
+      canceled = true;
+    },
+  }, { highWaterMark: 0 }), { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch;
+
+  const text = await fetchPageText('https://example.com/huge', oversized, 50);
+  assert.equal(canceled, true);
+  assert.equal(pulls, 2);
+  assert.ok(text?.startsWith('start'));
+  assert.ok((text?.length ?? 0) <= 50);
+});

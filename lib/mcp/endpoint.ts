@@ -10,6 +10,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { addWatch } from '@/lib/db/watches';
+import { onboardingRow } from '@/lib/db/onboarding';
+import { sendWebhook } from '@/lib/newsletter/webhooks';
 import { NextResponse } from 'next/server';
 
 const unauthorized = () => NextResponse.json(
@@ -46,7 +48,13 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       similarity: row.similarity,
     })),
     progress: (slug) => readBuildProgress(service, userId, slug),
-    setProgress: (slug, feature, done, note) => writeBuildProgress(service, userId, slug, feature, done, note),
+    setProgress: (slug, feature, status, note) => writeBuildProgress(service, userId, slug, feature, status, note),
+    notifyBlocked: async (opportunity, feature) => {
+      const settings = await onboardingRow<{ notify_webhook: string | null }>(service, userId, 'notify_webhook');
+      if (settings?.notify_webhook) {
+        await sendWebhook(settings.notify_webhook, `${opportunity.name} · 기능 막힘`, `${feature.id} ${feature.title}\n${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}`);
+      }
+    },
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),
     validate: async (idea) => {
       const { opportunities } = await getOpportunities();

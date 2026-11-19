@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { summarizeFeatureCommits, writeFeatureCommit } from '../lib/opportunities/feature-commits';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { flagBuildProgressForCommit } from '../lib/opportunities/build-progress';
+import type { BuildProgress } from '../lib/opportunities/build-progress';
+import { countUnlinkedCommits, summarizeFeatureCommits, touchedDoneFeatures, unlinkedFeatureCommits, writeFeatureCommit } from '../lib/opportunities/feature-commits';
+
+const row = (n: number, feature_id: string, files: string[], dismissed_at: string | null = null) => ({
+  id: String(n), sha: String(n), feature_id, message: '', files, created_at: String(n), dismissed_at,
+});
 
 test('commit summaries count links and keep distinct files in newest-first order', () => {
-  const row = (n: number, feature_id: string, files: string[]) => ({
-    id: String(n), sha: String(n), feature_id, message: '', files, created_at: String(n),
-  });
   assert.deepEqual(summarizeFeatureCommits([
     row(4, 'F-01', ['new.ts', 'shared.ts']),
     row(3, '', ['unlinked.ts']),
@@ -16,6 +19,51 @@ test('commit summaries count links and keep distinct files in newest-first order
     'F-01': { count: 2, files: ['new.ts', 'shared.ts', 'old.ts'] },
     'F-02': { count: 1, files: ['shared.ts'] },
   });
+});
+
+test('only done features outside the commit’s own features are flagged for shared paths', () => {
+  const progress = (status: BuildProgress[string]['status']) => ({ title: '', status, note: '', updatedAt: '', doneAt: null });
+  assert.deepEqual(touchedDoneFeatures({
+    'F-01': progress('done'),
+    'F-02': progress('done'),
+    'F-03': progress('in_progress'),
+    'F-04': progress('done'),
+    'F-05': progress('needs_recheck'),
+  }, {
+    'F-01': ['shared.ts', 'other.ts'],
+    'F-02': ['shared.ts'],
+    'F-03': ['shared.ts'],
+    'F-04': ['other.ts'],
+    'F-05': ['shared.ts'],
+    'F-06': ['shared.ts'],
+  }, ['shared.ts'], new Set(['F-02'])), [{ id: 'F-01', files: ['shared.ts'] }]);
+});
+
+test('the recheck write supplies the owner, feature, recorded commit and history note to the guarded RPC', async () => {
+  const service = { rpc: async (name: string, args: unknown) => {
+    assert.equal(name, 'flag_build_progress_for_commit');
+    assert.deepEqual(args, { p_user_id: 'user', p_slug: 'memory', p_feature_id: 'F-02', p_sha: 'abc1234', p_note: 'Commit abc1234 touched src/notes.ts.' });
+    return { data: true, error: null };
+  } } as unknown as SupabaseClient;
+  assert.equal(await flagBuildProgressForCommit(service, 'user', 'memory', 'F-02', 'abc1234', 'Commit abc1234 touched src/notes.ts.'), true);
+});
+
+test('the PRD list and checklist count exclude dismissed and linked commits', async () => {
+  const rows = [row(3, '', ['active.ts']), row(2, '', ['dismissed.ts'], 'now'), row(1, 'F-01', ['linked.ts'])];
+  assert.deepEqual(unlinkedFeatureCommits(rows), [rows[0]]);
+
+  const client = createClient('https://example.test', 'test', { global: { fetch: async (url, init) => {
+    const query = new URL(String(url));
+    assert.equal(query.pathname, '/rest/v1/feature_commits');
+    assert.equal(init?.method, 'HEAD');
+    assert.equal(new Headers(init?.headers).get('prefer'), 'count=exact');
+    assert.equal(query.searchParams.get('user_id'), 'eq.user');
+    assert.equal(query.searchParams.get('slug'), 'eq.memory');
+    assert.equal(query.searchParams.get('feature_id'), 'eq.');
+    assert.equal(query.searchParams.get('dismissed_at'), 'is.null');
+    return new Response(null, { headers: { 'content-range': '0-0/1' } });
+  } } });
+  assert.equal(await countUnlinkedCommits(client, 'user', 'memory'), 1);
 });
 
 test('commits without a feature are recorded with an empty id and retries ignore duplicates', async () => {

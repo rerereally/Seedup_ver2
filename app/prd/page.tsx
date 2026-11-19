@@ -7,11 +7,12 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import IdeaComposer from '@/components/IdeaComposer';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import UnlinkedCommits from '@/components/opportunity-stage/UnlinkedCommits';
 import PrdThumb from '@/components/PrdThumb';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress, readBuildProgressHistory } from '@/lib/opportunities/build-progress';
-import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
+import { readFeatureCommits, summarizeFeatureCommits, unlinkedFeatureCommits } from '@/lib/opportunities/feature-commits';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { dossierHref } from '@/lib/opportunities/insight';
 import { prdModels } from '@/lib/opportunities/models';
@@ -153,11 +154,13 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     cachedPrd(pickedIds),
   ]);
   // MCP tracks progress and commits against an opportunity's own PRD.
-  const [progress, progressHistory, featureCommits] = opportunity && user && supabase ? await Promise.all([
+  const [progress, progressHistory, commitRows] = opportunity && user && supabase ? await Promise.all([
     readBuildProgress(supabase, user.id, opportunity.slug),
     readBuildProgressHistory(supabase, user.id, opportunity.slug),
-    readFeatureCommits(supabase, user.id, opportunity.slug).then(summarizeFeatureCommits).catch(() => undefined),
+    readFeatureCommits(supabase, user.id, opportunity.slug).catch(() => undefined),
   ]) : [];
+  const featureCommits = commitRows && summarizeFeatureCommits(commitRows);
+  const unlinkedCommits = commitRows && unlinkedFeatureCommits(commitRows).map(({ id, sha, message, files }) => ({ id, sha, message, files }));
   const ready = meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const slugs = [...new Set(picked.map((item) => item.slug))];
   const lead = opportunity ?? opportunities.find((item) => item.slug === slugs[0]) ?? null;
@@ -181,6 +184,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
           </p>
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
+          {unlinkedCommits?.length ? <UnlinkedCommits key={opportunity?.slug} commits={unlinkedCommits} /> : null}
           {/* MCP builds from the evidence-only PRD of an opportunity, so its start prompt is offered only for one. */}
           <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} progressHistory={progressHistory} featureCommits={featureCommits} models={prdModels(await prdPolicy())} showTitle={false} agentSlug={opportunity?.slug}>
             {/* Before a PRD exists, show the quotes it will stand on and what it will contain. */}

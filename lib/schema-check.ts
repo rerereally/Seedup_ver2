@@ -20,6 +20,7 @@ export const SCHEMA_FILES: Array<{ file: string; tables?: string[]; columns?: Ar
   { file: 'idea_watches_2026_11.sql', tables: ['idea_watches'] },
   { file: 'built_2026_11.sql', columns: [['evidence_dossiers', 'built_url'], ['evidence_dossiers', 'built_at']] },
   { file: 'repo_releases_2026_11.sql', columns: [['github_trends', 'latest_release']] },
+  { file: 'app_errors_2026_11.sql', tables: ['app_errors'] },
 ];
 
 export type ApiSpec = { paths?: Record<string, unknown>; definitions?: Record<string, { properties?: Record<string, unknown> }> };

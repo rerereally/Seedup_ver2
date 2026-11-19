@@ -1,5 +1,35 @@
+/** Fixed 12 problem slugs committed in lib/opportunities/data/snapshot.json (each with >= 2 verified quotes). */
+export const PROBLEM_CASES = [
+  'gif-api-replacement',
+  'llm-provider-schema-normalization',
+  'cross-session-ai-coding-memory',
+  'silent-workflow-failure-detection',
+  'research-paper-backlog-triage',
+  'cron-queue-worker-monitoring',
+  'database-cli-inconsistent-commands',
+  'llm-code-validation',
+  'matrix-homeserver-migration',
+  'international-meeting-time-zone-sync',
+  'resume-data-entry-automation',
+  'unified-ai-conversation-viewer',
+] as const;
+
 /** One case of the PRD evaluation (scripts/eval-prd.ts). */
-export type EvalRow = { id: string; kind: 'problem' | 'idea'; ok: boolean; seconds: number; issues: number; requirements: number; cited: number; firstIssue: string };
+export type EvalRow = {
+  id: string;
+  kind: 'problem' | 'idea';
+  ok: boolean;
+  seconds: number;
+  issues: number;
+  requirements: number;
+  cited: number;
+  firstIssue: string;
+  p0Total?: number;
+  p0Testable?: number;
+  weakP0?: number;
+  openDecisions?: number;
+  auditChanges?: number;
+};
 
 /**
  * The numbers compared between runs: how many PRDs came back, how many passed the code check with nothing to fix,
@@ -19,6 +49,25 @@ export function evalSummary(rows: EvalRow[]) {
     meanIssues: done.length ? Math.round((done.reduce((sum, row) => sum + row.issues, 0) / done.length) * 10) / 10 : 0,
     medianSeconds: seconds.length ? seconds[Math.floor((seconds.length - 1) / 2)] : 0,
     citedShare: requirements ? Math.round((problems.reduce((sum, row) => sum + row.cited, 0) / requirements) * 100) : 0,
+  };
+}
+
+/** Extended PRD evaluation summary adding P0 testability, weak-P0 rate, and open implementation decisions. */
+export function evalQualitySummary(rows: EvalRow[]) {
+  const base = evalSummary(rows);
+  const done = rows.filter((row) => row.ok);
+  const p0Total = done.reduce((sum, row) => sum + Number(row.p0Total ?? 0), 0);
+  const p0Testable = done.reduce((sum, row) => sum + Number(row.p0Testable ?? 0), 0);
+  const totalWeakP0 = done.reduce((sum, row) => sum + Number(row.weakP0 ?? 0), 0);
+  const totalOpenDecisions = done.reduce((sum, row) => sum + Number(row.openDecisions ?? 0), 0);
+  const totalAuditChanges = done.reduce((sum, row) => sum + Number(row.auditChanges ?? 0), 0);
+  return {
+    ...base,
+    p0Total,
+    testableP0Rate: p0Total ? Math.round((p0Testable / p0Total) * 100) : 100,
+    meanWeakP0: done.length ? Math.round((totalWeakP0 / done.length) * 10) / 10 : 0,
+    meanOpenDecisions: done.length ? Math.round((totalOpenDecisions / done.length) * 10) / 10 : 0,
+    totalAuditChanges,
   };
 }
 

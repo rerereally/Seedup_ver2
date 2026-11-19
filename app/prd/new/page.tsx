@@ -1,11 +1,11 @@
+import { prdPolicy } from '@/lib/db/server';
 import type { Metadata } from 'next';
 import Header from '@/components/Header';
 import IdeaWorkspace from '@/components/IdeaWorkspace';
 import type { PoolItem } from '@/components/IdeaWorkspace';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
-import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { prdModels } from '@/lib/opportunities/models';
 import { localizedOpportunity } from '@/lib/opportunities/types';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
@@ -35,7 +35,7 @@ export default async function NewPrdPage({ searchParams }: { searchParams: Promi
     <>
       <Header />
       <main id="main-content" className="grow">
-        <IdeaWorkspace pool={pool} signedIn={Boolean(user)} initialIdea={(idea ?? '').trim().slice(0, 300)} models={prdModels(await loadPrdPolicy(createAdminClient()))} />
+        <IdeaWorkspace pool={pool} signedIn={Boolean(user)} initialIdea={(idea ?? '').trim().slice(0, 300)} models={prdModels(await prdPolicy())} />
       </main>
     </>
   );

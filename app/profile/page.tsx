@@ -8,6 +8,7 @@ import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
 import WorkShell from '@/components/WorkShell';
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
+import { onboardingRow, profileRow } from '@/lib/db/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -42,9 +43,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = data.user;
   if (!user) redirect('/login');
 
-  const [{ data: profile }, { data: onboarding }, params] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-    supabase.from('user_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
+  const [profile, onboarding, params] = await Promise.all([
+    profileRow<{ full_name?: string | null; avatar_url?: string | null }>(supabase, user.id),
+    onboardingRow<{ answers?: unknown; newsletter_subscribed?: boolean | null; notify_webhook?: string | null }>(supabase, user.id),
     searchParams,
   ]);
 

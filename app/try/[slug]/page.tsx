@@ -2,13 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Logo from '@/components/Logo';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { publicPage } from '@/lib/db/idea-pages';
 import WaitlistForm from './WaitlistForm';
 
 async function getPage(slug: string) {
   if (!/^[a-z0-9]{10}$/.test(slug)) return null;
-  const { data } = (await createAdminClient()?.from('idea_pages').select('headline,pitch').eq('slug', slug).maybeSingle()) ?? { data: null };
-  return data;
+  return publicPage(slug);
 }
 
 // Pages are written by people, so search engines are asked not to index them; the builder shares the link.

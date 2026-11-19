@@ -1,3 +1,4 @@
+import { newsletterIssues } from '@/lib/db/server';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -14,12 +15,10 @@ import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
-import { listIssues } from '@/lib/newsletter/issues';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { DEMO_PRD } from '@/lib/opportunities/demo-prd';
 import { trackRecord, trackRecordSummary } from '@/lib/opportunities/insight';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 const WEEK_MS = 7 * 86_400_000;
@@ -72,7 +71,7 @@ export default async function Home() {
   const counted = new Date(generatedAt);
   // The run's own time stands in for "now": the page describes that run, and rendering stays pure.
   const now = counted.getTime();
-  const latest = await cached('landing-issue', async () => (await listIssues(createAdminClient(), 1))[0] ?? null, 10 * 60_000).catch(() => null);
+  const latest = await cached('landing-issue', async () => (await newsletterIssues(1))[0] ?? null, 10 * 60_000).catch(() => null);
   // The archived Monday issue when there is one; otherwise the same builder the Monday job uses, run on today's data.
   const issue = latest?.issue ?? buildOpportunityDigest(opportunities, new Date(now - WEEK_MS).toISOString(), '', 'weekly', now);
   const rows = trackRecord(opportunities);

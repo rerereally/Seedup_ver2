@@ -1,11 +1,10 @@
+import { newsletterIssue } from '@/lib/db/server';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import NewsletterIssue from '@/components/NewsletterIssue';
-import { getIssue } from '@/lib/newsletter/issues';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 const day = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' });
 
@@ -17,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ period: s
 /** A past issue from the archive, as it went out to everyone (without one reader's personal order). */
 export default async function PastIssuePage({ params }: { params: Promise<{ period: string }> }) {
   const { period } = await params;
-  const stored = await getIssue(createAdminClient(), period);
+  const stored = await newsletterIssue(period);
   if (!stored) notFound();
 
   return (

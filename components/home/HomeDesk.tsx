@@ -98,7 +98,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
       {/* The day's one read for this person, first and widest. */}
       {banner && (
         <div className="mt-6">
-          <ArticleLead item={banner.item} isScrapped={kept.has(`${banner.item.type === 'paper' ? 'paper' : 'news'}:${banner.item.id}`)} returnTo="/" reason={banner.reason ? `나에게 맞는 글, ${banner.reason}` : reads.length ? '나에게 맞는 글' : '오늘의 새 글'} />
+          <ArticleLead item={banner.item} isScrapped={kept.has(`${banner.item.type === 'paper' ? 'paper' : 'news'}:${banner.item.id}`)} returnTo="/" reason={banner.reason ? `나에게 맞는 글, ${banner.reason}` : '오늘의 추천'} />
         </div>
       )}
       <div className="page-split mt-10">

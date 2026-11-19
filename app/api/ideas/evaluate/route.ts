@@ -1,4 +1,6 @@
 import { cachedEvaluation, saveEvaluation } from '@/lib/db/evaluations';
+import { prdPolicy } from '@/lib/db/server';
+import { pickPrdModel } from '@/lib/opportunities/models';
 import { applyIdeaEvidencePolicy, evaluateIdea } from '@/lib/ingest/ai';
 import { validateIdeaInput } from '@/lib/ideas/input';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
@@ -65,7 +67,9 @@ export async function POST(request: Request) {
     `URL: ${reference.metadata.url ?? '없음'}`,
     reference.content.slice(0, 700),
   ].join('\n')).join('\n\n');
-  const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext });
+  // The model picked on the /prd menu, if the admin allows it; otherwise the free default.
+  const picked = pickPrdModel(body?.model, await prdPolicy());
+  const { evaluation: rawEvaluation, model, error: evaluationError } = await evaluateIdea({ idea, context: ragContext, model: picked });
   if (!rawEvaluation) {
     await releaseDailyUsage(supabase, 'idea_evaluate');
     return NextResponse.json({ error: evaluationError ?? '평가 모델에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });

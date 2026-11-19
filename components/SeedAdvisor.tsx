@@ -5,8 +5,11 @@ import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
+import { SEEDS_RESULT_KEY } from '@/lib/seeds/saved';
 import { inBatches } from '@/lib/utils';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import { usePrdModel } from '@/components/ModelPicker';
+import type { PrdModel } from '@/lib/opportunities/models';
 
 type RepoCard = {
   name: string;
@@ -21,8 +24,6 @@ type RepoCard = {
   similar: SeedLink[];
 };
 
-
-const STORAGE_KEY = 'seedup:seeds-result';
 
 type Saved = { login: string; at: string; repos: RepoCard[]; ideas: Record<string, SeedIdea>; papers: Record<string, SeedPaper[]> };
 
@@ -139,7 +140,8 @@ export type SeedStatus = { login: string | null; loading: boolean; error: string
  * Reads an account's public repos and, per repo, what to fix, what to add and a PRD. Started by `run` (a login and a
  * number that changes on every ask); without it, the component shows its own form.
  */
-export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null } = {}) {
+export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected, models = [] }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null; models?: PrdModel[] } = {}) {
+  const model = usePrdModel(models);
   const [login, setLogin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -199,7 +201,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
       let idea: SeedIdea | null = null;
       if (!signedOut) {
         try {
-          const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}`);
+          const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}${model ? `&model=${encodeURIComponent(model)}` : ''}`);
           if (response.status === 401) signedOut = true;
           else idea = ((await response.json()) as { idea?: SeedIdea | null }).idea ?? null;
         } catch {
@@ -234,7 +236,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
     const names = new Set(repos.map((repo) => repo.name));
     const saved: Saved = { login: name.toLowerCase(), at: new Date().toISOString(), repos, ideas: Object.fromEntries(Object.entries(keptIdeas).filter(([key]) => names.has(key))), papers: Object.fromEntries(Object.entries(keptPapers).filter(([key]) => names.has(key))) };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      localStorage.setItem(SEEDS_RESULT_KEY, JSON.stringify(saved));
     } catch {
       // Storage can be blocked or full; the result is then simply not remembered.
     }
@@ -251,7 +253,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
   useEffect(() => {
     let saved: Saved | null = null;
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+      const parsed = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
       if (parsed && typeof parsed.login === 'string' && Array.isArray(parsed.repos)) saved = parsed;
     } catch {
       // Nothing usable is stored, or storage is blocked.
@@ -268,7 +270,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
   const ask = useEffectEvent((login: string) => {
     let saved: Saved | null = null;
     try {
-      saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+      saved = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
     } catch {
       // Storage blocked: look again.
     }
@@ -394,6 +396,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
 
             <Section title="PRD·기능 명세 만들기" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
               <PrdBuilder
+                models={models}
                 title={`${repo.name} 역기획`}
                 evidenceIds={[]}
                 ready

@@ -2322,6 +2322,12 @@
     ]
   },
   {
+    "file": "20261119150000_built_example_counts.sql",
+    "functions": [
+      "built_example_counts"
+    ]
+  },
+  {
     "file": "20261119170000_daily_research_mail.sql",
     "columns": [
       [

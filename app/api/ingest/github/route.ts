@@ -296,7 +296,7 @@ async function upsertGitHubTrend(supabase: NonNullable<ReturnType<typeof createA
     delete fallbackPayload[key];
   }
 
-  console.warn('GitHub trend upsert retrying without newsletter metadata columns. Apply supabase/schema.sql to enable full metadata.');
+  console.warn('GitHub trend upsert retrying without newsletter metadata columns. Apply supabase/migrations to enable full metadata.');
   return supabase.from('github_trends').upsert(fallbackPayload, { onConflict: 'repo_full_name' });
 }
 

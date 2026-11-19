@@ -51,7 +51,7 @@ async function getDossiers() {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('evidence_dossiers')
-    // '*' so the page keeps working before the optional `shared` column (dossier_share_2026_11.sql) exists.
+    // '*' so the page keeps working before the optional `shared` column (20261114230205_dossier_share.sql) exists.
     .select('*')
     .order('updated_at', { ascending: false })
     .limit(20);

@@ -1,4 +1,4 @@
--- Remove only the local dummy/seed data inserted by supabase/dummy.sql and supabase/seed.sql.
+-- Remove only the local dummy/seed data inserted by supabase/seed.sql.
 -- Run this after verifying the real RSS/Product Hunt/GitHub ingestion works.
 
 delete from public.project_ideas

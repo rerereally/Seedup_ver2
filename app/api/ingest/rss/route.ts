@@ -394,7 +394,7 @@ async function upsertNewsItem(supabase: NonNullable<ReturnType<typeof createAdmi
     delete fallbackPayload[key];
   }
 
-  console.warn('RSS upsert retrying without recommendation columns. Apply supabase/schema.sql to enable full ranking metadata.');
+  console.warn('RSS upsert retrying without recommendation columns. Apply supabase/migrations to enable full ranking metadata.');
   return supabase.from('news_items').upsert(fallbackPayload, { onConflict: 'original_url' });
 }
 

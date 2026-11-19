@@ -24,7 +24,7 @@ export async function userForToken(service: SupabaseClient, authorization: strin
 
 /**
  * Daily limit for MCP calls, counted in the same ai_usage table as the website.
- * consume_ai_usage_for (supabase/mcp_usage_2026_11.sql) counts in one statement, so two calls in the same instant
+ * consume_ai_usage_for (supabase/migrations/20261118190338_mcp_usage.sql) counts in one statement, so two calls in the same instant
  * cannot both pass at the limit. Until that file is applied, it falls back to a read-then-write count, which still
  * limits but can let a burst through.
  */

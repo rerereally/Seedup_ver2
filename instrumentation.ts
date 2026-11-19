@@ -14,6 +14,6 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     const { createAdminClient } = await import('./lib/supabase/admin');
     await createAdminClient()?.from('app_errors').insert(row);
   } catch {
-    // The table may not exist yet (supabase/app_errors_2026_11.sql); the console line above still reaches the logs.
+    // The table may not exist yet (supabase/migrations/20261119112104_app_errors.sql); the console line above still reaches the logs.
   }
 };

@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import ModelPicker from '@/components/ModelPicker';
 import SeedAdvisor from '@/components/SeedAdvisor';
+import type { PrdModel } from '@/lib/opportunities/models';
 import type { SeedStatus } from '@/components/SeedAdvisor';
 import WorkSplit, { Bubble, ChatInput, showInResult } from '@/components/WorkSplit';
 import type { Stage } from '@/components/WorkSplit';
@@ -14,7 +16,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { dateSty
  * Repo analysis in the /prd work frame: the account, how the reading goes and the list of repos on the left; the
  * repo picked there on the right, one at a time.
  */
-export default function RepoWorkspace({ initialLogin, signedIn }: { initialLogin: string; signedIn: boolean }) {
+export default function RepoWorkspace({ initialLogin, signedIn, models = [] }: { initialLogin: string; signedIn: boolean; models?: PrdModel[] }) {
   const [run, setRun] = useState(initialLogin ? { login: initialLogin, id: 1 } : null);
   const [status, setStatus] = useState<SeedStatus | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -96,9 +98,10 @@ export default function RepoWorkspace({ initialLogin, signedIn }: { initialLogin
     <WorkSplit
       title={login ? `레포 분석, ${login}` : '레포 분석'}
       stages={stages}
+      tools={signedIn ? <ModelPicker models={models} /> : undefined}
       chat={chat}
       composer={<ChatInput id="repo-input" label="GitHub 아이디 또는 주소" placeholder={login ? '다른 계정을 적으면 새로 읽습니다' : '예: torvalds'} onSend={ask} disabled={Boolean(status?.loading)} maxLength={80} />}
-      result={run ? <div id="repo-top" className="mx-auto max-w-[1000px] scroll-mt-6"><SeedAdvisor run={run} onStatus={setStatus} loginNext={here(login)} selected={selected} /></div> : (
+      result={run ? <div id="repo-top" className="mx-auto max-w-[1000px] scroll-mt-6"><SeedAdvisor run={run} onStatus={setStatus} loginNext={here(login)} selected={selected} models={models} /></div> : (
         <div className="mx-auto grid min-h-[220px] max-w-[1000px] place-items-center rounded-xl border border-dashed border-outline-strong p-6 text-center text-sm leading-6 text-muted">계정을 적으면 고른 레포의 분석 결과가 여기에 나옵니다.</div>
       )}
       resultLabel="분석 결과"

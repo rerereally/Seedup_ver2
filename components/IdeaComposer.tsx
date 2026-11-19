@@ -66,7 +66,8 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
       {copy && (
         <div className="mb-8 text-center">
           <h1 id={headingId} className="t-section text-[clamp(30px,3.4vw,44px)]">{copy.title}</h1>
-          <p className="t-lead mx-auto mt-3 max-w-[34em]">{copy.lead}</p>
+          {/* Two lines kept for every tool's line (three on phones), so switching never moves the box below. */}
+          <p className="t-lead mx-auto mt-3 min-h-[3lh] max-w-[34em] sm:min-h-[2lh]">{copy.lead}</p>
         </div>
       )}
       {!compact && (
@@ -75,7 +76,11 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
           <div role="radiogroup" aria-label={t('할 일', 'What to do')} className="inline-flex rounded-lg bg-surface-mid p-1">
             {KINDS.map(([key, ko, en, Icon]) => (
               <button key={key} type="button" role="radio" aria-checked={kind === key} onClick={() => { setKind(key); document.getElementById(id)?.focus(); }} className={`${mode} ${kind === key ? 'bg-white font-semibold text-ink shadow-sm' : 'text-tertiary hover:text-ink'}`}>
-                <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />{t(ko, en)}
+                <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />
+                <span className="grid">
+                  <span className="col-start-1 row-start-1">{t(ko, en)}</span>
+                  <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">{t(ko, en)}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -113,13 +118,13 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
       </form>
       </ViewTransition>
       {!compact && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1 text-left text-[14px] text-muted">
-          <span>{repo ? t('공개 레포 가운데 최근 5개를 읽습니다', 'Reads the 5 most recent public repos') : t('Enter로 시작, Shift+Enter로 줄바꿈', 'Enter to start, Shift+Enter for a new line')}</span>
-          {/* The model writes the PRD, so it is picked here only for the PRD. */}
-          {kind === 'prd' && models && models.length > 1 ? <ModelPicker models={models} /> : <span className="num shrink-0">{text.length}/{limit}</span>}
+        <div className="mt-3 flex min-h-10 items-center justify-between gap-4 px-1 text-left text-[14px] text-muted">
+          <span className="min-w-0 truncate">{repo ? t('공개 레포 가운데 최근 5개를 읽습니다', 'Reads the 5 most recent public repos') : t('Enter로 시작, Shift+Enter로 줄바꿈', 'Enter to start, Shift+Enter for a new line')}</span>
+          {/* Every tool runs on the picked model, so the picker stays put whichever is chosen. */}
+          {models && models.length > 1 ? <span className="shrink-0"><ModelPicker models={models} /></span> : <span className="num shrink-0">{text.length}/{limit}</span>}
         </div>
       )}
-      {examples.length > 0 && !repo && (
+      {examples.length > 0 && (
         <ul className={`examples mt-2 px-1 ${center ? 'justify-center' : ''}`} aria-label={t('예시 아이디어', 'Example ideas')}>
           <li aria-hidden="true">{t('예시', 'Try')}</li>
           {examples.map((example) => (
@@ -129,7 +134,8 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
           ))}
         </ul>
       )}
-      {copy?.after && <div className="mt-4 flex justify-center">{copy.after}</div>}
+      {/* Held open even when this tool has nothing here, so nothing below jumps. */}
+      {intro && !compact && <div className="mt-4 flex h-9 items-center justify-center">{copy?.after}</div>}
     </div>
   );
 }

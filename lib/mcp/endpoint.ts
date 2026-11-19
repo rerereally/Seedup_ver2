@@ -17,7 +17,8 @@ import { buildValidationReport, renderReport } from '@/lib/opportunities/report'
 import { saveDossier, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
 import { createHash } from 'node:crypto';
 import { addWatch } from '@/lib/db/watches';
-import { onboardingRow } from '@/lib/db/onboarding';
+import { onboardingAnswers, onboardingRow } from '@/lib/db/onboarding';
+import { preferredStack } from '@/lib/onboarding';
 import { sendWebhook } from '@/lib/newsletter/webhooks';
 import { clientOf, rateLimited } from '@/lib/throttle';
 import { NextResponse } from 'next/server';
@@ -163,8 +164,8 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     },
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),
     validate: async (idea) => {
-      const { opportunities } = await getOpportunities();
-      const report = await buildValidationReport(idea, opportunities).catch(() => null);
+      const [{ opportunities }, answers] = await Promise.all([getOpportunities(), onboardingAnswers(service, userId)]);
+      const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true }).catch(() => null);
       return report ? renderReport(report, siteUrl) : null;
     },
     watch: async (idea) => typeof (await addWatch(service, userId, idea)) === 'object',

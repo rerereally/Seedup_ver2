@@ -31,7 +31,12 @@ export async function revokeMcpToken(userId: string) {
   return true;
 }
 
+/** The user's token row, or null when they have none: when a tool last called with it. */
+export async function mcpTokenStatus(userId: string) {
+  const { data } = (await createAdminClient()?.from('mcp_tokens').select('last_used_at').eq('user_id', userId).maybeSingle()) ?? { data: null };
+  return data ? { lastUsedAt: (data.last_used_at as string | null) ?? null } : null;
+}
+
 export async function hasMcpToken(userId: string) {
-  const { data } = (await createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', userId).maybeSingle()) ?? { data: null };
-  return Boolean(data);
+  return Boolean(await mcpTokenStatus(userId));
 }

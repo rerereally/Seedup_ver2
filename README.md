@@ -108,7 +108,7 @@ flowchart LR
 - **검증 실험 키트(`/try/[slug]`):** 아이디어 소개 공개 페이지와 대기자 명단, CSV 내려받기. 프로필에서 관리합니다.
 
 ### 5. MCP 연동 (`/agents`)
-- **버튼 한 번 연결:** 'Cursor에 연결', 'VS Code에 연결', 'Claude Code 명령 복사'로 토큰 발급과 연결을 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
+- **도구 9가지 연결:** Claude Code, Claude 앱, Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT마다 맞는 설정을 보여 주고, 복사하거나 열 때 토큰 발급까지 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
 - **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 9개:
 
 | 도구 | 하는 일 |
@@ -314,10 +314,10 @@ DB 설정이 없으면 기회 데이터는 코드에 포함된 예비 데이터(
 
 ---
 
-## 🔌 MCP 서버 연결 (Claude Code · Cursor)
+## 🔌 MCP 서버 연결 (Claude · Codex · Cursor · Antigravity 등)
 
-1. 로그인 후 **MCP 연동(`/agents`)**에서 'Cursor에 연결', 'VS Code에 연결', 'Claude Code 명령 복사' 중 하나를 누릅니다. 토큰 발급까지 한 번에 됩니다.
-2. 직접 설정할 때는 같은 화면의 '직접 설정하기'에서 토큰을 받고 아래처럼 연결합니다.
+1. 로그인 후 **MCP 연동(`/agents`)**에서 쓰는 도구를 고릅니다. Claude Code, Claude 앱(데스크톱·웹), Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT를 지원합니다. 복사하거나 열면 토큰 발급까지 한 번에 됩니다.
+2. 헤더를 넣을 수 있는 도구는 `Authorization: Bearer <토큰>`으로 연결합니다. Claude 앱과 ChatGPT 커넥터처럼 주소만 받는 곳은 `https://seedup.rerereally.com/api/mcp/<토큰>`을 씁니다. 이 주소는 비밀번호처럼 다룹니다. Claude Code 예시:
    ```bash
    claude mcp add --transport http seedup https://seedup.rerereally.com/api/mcp \
      --header "Authorization: Bearer <발급받은_토큰>"

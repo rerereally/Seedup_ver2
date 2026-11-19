@@ -335,7 +335,7 @@ ${evidenceSection(input.evidence, lang)}
 }
 
 /** A brief an AI coding tool follows directly. The three formats share one body so they never drift apart. */
-export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents') {
+export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents', opportunitySlug?: string) {
   if (format === 'prompt') return renderBuilderPrompt(input, spec);
   const intro: Record<Exclude<ExportFormat, 'prompt'>, string> = {
     agents: `# ${input.title}\n\nInstructions for coding agents (Codex and others) working in this repository.`,
@@ -358,7 +358,7 @@ ${spec.summary}
 ## Problem
 ${input.problem}
 
-${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## Build these features, in order
+${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 
 ${spec.screens.length ? `## Screens, in order (a draft, confirm with users)\n${spec.screens.map((screen) => `${screen.id}. ${screen.name}${screen.does ? `: ${screen.does}` : ''} (${screen.featureIds.join(', ')})`).join('\n')}\n\n` : ''}${flow ? `## User flow\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}## Do not build
@@ -369,6 +369,7 @@ ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 
 ${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}## Rules
 - Ship one feature at a time and keep each change small.
+- For a Seedup opportunity, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
 - For a Seedup opportunity, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
 - Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
 - When a readiness slot says "open question", ask instead of guessing.

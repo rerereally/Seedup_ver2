@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import RepoPicks, { rankRepos } from '@/components/RepoPicks';
+import ArticleImage from '@/components/ArticleImage';
 import ContentEngagement from '@/components/ContentEngagement';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
@@ -16,7 +17,8 @@ export const metadata: Metadata = {
   title: '아티클',
 };
 
-const PAGE_SIZE = 10;
+// A lead plus four rows of two cards.
+const PAGE_SIZE = 9;
 
 const CATEGORY_LABELS: Record<string, string> = {
   'AI Agent': 'AI 에이전트',
@@ -89,26 +91,56 @@ function buildHref(params: { tab: string; page?: number; category?: string; q?: 
   return `/news${search ? `?${search}` : ''}`;
 }
 
-/** One row of the feed. The first one on a page is set larger and carries the save and ask actions. */
-function ArticleRow({ item, isScrapped, returnTo, lead, reason }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; lead: boolean; reason?: string }) {
-  const itemType = item.type === 'paper' ? 'paper' : 'news';
+function articleMeta(item: ArticleFeedItem) {
   const section = item.newsletter_section ? NEWSLETTER_SECTION_LABELS[item.newsletter_section] ?? item.newsletter_section : null;
+  return { kind: item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, source: item.source ?? 'Seedup', date: formatDate(item.published_at) };
+}
+
+/** The first article on a page: its picture beside it when the source has one, and the save and ask actions. */
+function ArticleLead({ item, isScrapped, returnTo, reason }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; reason?: string }) {
+  const itemType = item.type === 'paper' ? 'paper' : 'news';
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
-  const meta = [item.type === 'paper' ? '논문 리뷰' : categoryLabel(item.category), section, item.source ?? 'Seedup', formatDate(item.published_at)].filter(Boolean) as string[];
+  const meta = articleMeta(item);
 
   return (
-    <article className={lead ? 'pb-10 pt-2' : 'py-7'}>
-      <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}{meta.map((part) => <span key={part}>{part}</span>)}</p>
-      <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
-        <h2 className={lead ? 'text-[22px] font-bold leading-snug tracking-[-0.025em] text-ink' : 'text-[18px] font-semibold leading-snug tracking-tight text-ink'}>{item.title}</h2>
+    // Two columns only while the picture is there, so a refused picture leaves a full-width text lead.
+    <article className="group grid gap-6 border-b border-outline-soft pb-10 lg:items-center lg:has-[img]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      {item.image_url && <ArticleImage src={item.image_url} href={itemHref(item)} className="aspect-[16/10]" />}
+      <div className="min-w-0">
+        <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}<span className="font-semibold text-ink">{meta.kind}</span>{meta.section && <span>{meta.section}</span>}<span>{meta.source}</span><span>{meta.date}</span></p>
+        <Link href={itemHref(item)} className="mt-2 block underline-offset-4 hover:underline">
+          <h2 className="text-[clamp(22px,2.2vw,28px)] font-bold leading-snug tracking-[-0.025em] text-ink [text-wrap:balance]">{item.title}</h2>
+        </Link>
+        {summary && <p className="mt-3 text-[16px] leading-7 text-tertiary">{clipText(summary, 150)}</p>}
+        {item.why_it_matters && <p className="mt-4 border-l-2 border-outline-strong pl-3 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{clipText(item.why_it_matters, 110)}</p>}
+        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />
+          <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>
+          <Link href="/opportunities" className="link-seed">관련 기회 보기</Link>
+          <span className="ml-auto"><ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} /></span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Every other article: picture on top when there is one, then what it is, the title and two lines. */
+function ArticleCard({ item, returnTo, reason }: { item: ArticleFeedItem; returnTo: string; reason?: string }) {
+  const itemType = item.type === 'paper' ? 'paper' : 'news';
+  const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
+  const meta = articleMeta(item);
+
+  return (
+    <article className="group flex min-w-0 flex-col">
+      {item.image_url && <ArticleImage src={item.image_url} href={itemHref(item)} className="mb-4 aspect-[16/9]" />}
+      <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}<span className="font-semibold text-ink">{meta.kind}</span><span>{meta.source}</span></p>
+      <Link href={itemHref(item)} className="mt-1.5 block underline-offset-4 hover:underline">
+        <h2 className="text-[17px] font-semibold leading-snug tracking-tight text-ink [text-wrap:balance]">{clipText(item.title, 90)}</h2>
       </Link>
-      {summary && <p className={lead ? 'mt-3 text-[17px] leading-8 text-tertiary' : 'mt-3 text-[15px] leading-7 text-muted'}>{clipText(summary, lead ? 150 : 95)}</p>}
-      {lead && item.why_it_matters && <p className="mt-4 text-[15px] leading-7 text-tertiary"><span className="mr-2 font-semibold text-ink">왜 중요한가</span>{clipText(item.why_it_matters, 110)}</p>}
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${lead ? 'mt-6' : 'mt-3'}`}>
-        {lead && <ScrapButton itemType={itemType} itemId={item.id} title={item.title} description={item.summary ?? item.beginner_summary} tag={item.category ?? 'article'} initialSaved={isScrapped} className="btn-quiet" />}
-        {lead && <Link href={itemHref(item)} className="text-sm text-tertiary underline-offset-4 hover:text-ink hover:underline">이 글에 질문하기</Link>}
-        {lead && <Link href="/opportunities" className="link-seed">관련 기회 보기</Link>}
-        <span className={lead ? 'ml-auto' : ''}><ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} /></span>
+      {summary && <p className="mt-2 text-[14px] leading-6 text-muted">{clipText(summary, item.image_url ? 80 : 150)}</p>}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-3 text-[13px] text-muted">
+        <time dateTime={item.published_at ?? undefined}>{meta.date}</time>
+        <ContentEngagement itemType={itemType} itemId={item.id} returnTo={returnTo} views={item.view_count} likes={item.like_count} dislikes={item.dislike_count} />
       </div>
     </article>
   );
@@ -236,12 +268,21 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           ) : paginatedArticles.length ? (
             <>
             {tab === 'for-you' && <p className="mt-6 rounded-xl bg-surface-low px-4 py-3 text-[14px] leading-6 text-tertiary">고른 관심 분야와 킵하거나 좋아요한 글의 주제로 순서를 정했습니다. 킵한 글과 싫어요한 글은 빠집니다. <Link href="/onboarding" className="text-seed underline-offset-4 hover:underline">관심 분야 바꾸기</Link></p>}
-            <div className="mt-8 divide-y divide-outline-soft border-b border-outline-soft">
-              {paginatedArticles.map((item, index) => {
-                const itemType = item.type === 'paper' ? 'paper' : 'news';
-                return <ArticleRow key={item.id} item={item} isScrapped={scrapKeys.has(`${itemType}:${item.id}`)} returnTo={currentHref} lead={index === 0 && currentPage === 1} reason={tab === 'for-you' ? personal.get(`${item.type}:${item.id}`)?.reason : undefined} />;
-              })}
-            </div>
+            {/* One lead with its picture, then the rest as a two-column grid of cards. */}
+            {(() => {
+              const [first, ...rest] = paginatedArticles;
+              const reasonOf = (item: ArticleFeedItem) => (tab === 'for-you' ? personal.get(`${item.type}:${item.id}`)?.reason : undefined);
+              return (
+                <>
+                  <div className="mt-8"><ArticleLead item={first} isScrapped={scrapKeys.has(`${first.type === 'paper' ? 'paper' : 'news'}:${first.id}`)} returnTo={currentHref} reason={reasonOf(first)} /></div>
+                  {rest.length > 0 && (
+                    <div className="mt-10 grid gap-x-8 gap-y-12 border-b border-outline-soft pb-10 sm:grid-cols-2">
+                      {rest.map((item) => <ArticleCard key={item.id} item={item} returnTo={currentHref} reason={reasonOf(item)} />)}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             </>
           ) : (
             <div className="mt-8">

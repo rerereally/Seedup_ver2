@@ -19,7 +19,7 @@ the real thing: real quotes, real counts, a real PRD. It is a precise instrument
 
 ## 2. Tokens
 
-### Colour (light / dark, both first-class; follows the system, the header switch overrides)
+### Colour (dark by default, light through the header switch; the reader's choice is remembered)
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |

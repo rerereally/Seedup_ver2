@@ -9,6 +9,7 @@ import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { dossierHref } from '@/lib/opportunities/insight';
 import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
 import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache, samplePrdSlug } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -17,6 +18,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'PRD' };
+
+type MyPrd = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string };
 
 // One-line ideas to start from: what the workspace finds for them depends on the quotes stored that day.
 // [short name ko, short name en, the idea ko, the idea en]
@@ -50,17 +53,50 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     const service = createAdminClient();
     const sample = await samplePrdSlug(service, [...qualified].sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'))).catch(() => null);
     const saved = new Set((await Promise.all(qualified.map(async (item) => ((await readPrdCache(service, item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
+    // The reader's own PRDs, newest first.
+    const supabase = await createClient();
+    const user = supabase ? await getCurrentUser() : null;
+    const mine = user && supabase
+      ? await supabase.from('evidence_dossiers').select('id,title,opportunity_slug,evidence_ids,prd_markdown,updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20).then(({ data, error }) => (error ? [] : (data ?? []) as MyPrd[]))
+      : [];
+    const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' });
     return (
       <>
         <Header />
         {/* A start screen: one box in the middle, like the landing hero. The common header-plus-side layout does not apply. */}
         <main id="main-content" className="page-shell grow">
-          <section className="mx-auto flex min-h-dvh w-full max-w-[54rem] flex-col justify-center pb-16 text-center" aria-labelledby="prd-start-heading">
+          {/* With PRDs of their own, the box sits higher so the list starts on the first screen. */}
+          <section className={`mx-auto flex w-full max-w-[54rem] flex-col justify-center text-center ${mine.length ? 'pt-[12vh] pb-14' : 'min-h-dvh pb-16'}`} aria-labelledby="prd-start-heading">
             <h1 id="prd-start-heading" className="t-section text-[clamp(30px,3.4vw,44px)]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
             <p className="t-lead mx-auto mt-3 max-w-[34em]">{t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.')}</p>
             <div className="mt-8 w-full text-left"><IdeaComposer center autoFocus examples={IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) }))} /></div>
             {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed mx-auto mt-4">{t('예시 PRD 먼저 보기', 'See an example PRD first')}</Link>}
           </section>
+
+          {mine.length > 0 && (
+            <section className="mx-auto w-full max-w-[54rem] pb-14" aria-labelledby="my-prds">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                <h2 id="my-prds" className="text-[17px] font-bold tracking-[-0.015em]">{t('내 PRD', 'My PRDs')} <span className="num ml-1 text-[15px] font-semibold text-muted">{mine.length}</span></h2>
+                <Link href="/scrap" className="link-seed">{t('북마크에서 관리', 'Manage in bookmarks')}</Link>
+              </div>
+              <ul className="rows mt-3">
+                {mine.map((prd) => {
+                  const opportunity = opportunities.find((item) => item.slug === prd.opportunity_slug);
+                  return (
+                    <li key={prd.id}>
+                      <Link href={dossierHref(prd, opportunities)} className="group flex min-h-16 items-center justify-between gap-6 py-3">
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] font-semibold text-ink underline-offset-4 group-hover:underline">{opportunity ? localizedOpportunity(opportunity, lang).name : prd.title}</span>
+                          <span className="mt-0.5 block text-sm text-muted">{t(`원문 ${prd.evidence_ids.length}건`, `${prd.evidence_ids.length} quotes`)}{!prd.prd_markdown && <>, {t('PRD 아직 없음', 'no PRD yet')}</>}</span>
+                        </span>
+                        <time dateTime={prd.updated_at} className="shrink-0 text-sm text-muted">{date.format(new Date(prd.updated_at))}</time>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           <section className="mx-auto w-full max-w-[54rem] pb-16" aria-labelledby="verified">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">

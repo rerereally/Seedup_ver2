@@ -14,7 +14,10 @@ import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { mapPoints } from '@/lib/opportunities/map';
-import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
+import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
+import type { Opportunity } from '@/lib/opportunities/types';
+import type { Lang } from '@/lib/i18n';
+import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
@@ -71,6 +74,9 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   const sourceCount = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.platform))).size;
   const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
   const showIssue = params.view === 'issue';
+  const verified = opportunities.filter((item) => item.qualified);
+  // Verified problems that gained a quote most recently, so the cards change as the week moves. Crowded ones stay in the full list only.
+  const picks = verified.filter((item) => item.status !== 'closed').sort((a, b) => String(b.lastSeenAt ?? b.firstSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? a.firstSeenAt ?? '')) || b.evidence.length - a.evidence.length).slice(0, 4);
   const today = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }).format(new Date(now));
 
   return (
@@ -79,12 +85,20 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
       <main id="main-content" className="page-shell grow">
         <h1 className="page-intro-title">인사이트</h1>
         <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
-        <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[14px] text-tertiary">
-          <span>원문과 일치한 인용 <b className="num font-semibold text-ink">{quoteCount}</b>건</span>
-          <span>출처 <b className="num font-semibold text-ink">{sourceCount}</b>곳</span>
-          <span>원문 3건, 2곳 이상 확인된 문제 <b className="num font-semibold text-seed">{opportunities.filter((item) => item.qualified).length}</b>개</span>
-          <Link href="/news" className="text-tertiary underline-offset-4 hover:text-ink hover:underline">오늘의 아티클 <b className="num font-semibold text-ink">{articles.length}</b>편</Link>
-        </p>
+        {/* The day's counts as figures, all from the run dated above. */}
+        <dl className="mt-5 grid grid-cols-2 overflow-hidden rounded-xl border border-outline-soft sm:grid-cols-4">
+          {([
+            ['원문과 일치한 인용', quoteCount, '건', null],
+            ['원문이 나온 곳', sourceCount, '곳', null],
+            [`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 넘은 문제`, verified.length, '개', null],
+            ['오늘의 아티클', articles.length, '편', '/news'],
+          ] as const).map(([label, value, unit, href], index) => (
+            <div key={label} className={`border-outline-soft px-5 py-4 ${index % 2 ? 'border-l' : ''} ${index > 1 ? 'border-t sm:border-t-0' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
+              <dt className="text-[13px] text-muted">{href ? <Link href={href} className="underline-offset-4 hover:text-ink hover:underline">{label}</Link> : label}</dt>
+              <dd className="mt-1 text-sm text-muted"><span className={`num mr-1 text-[28px] font-bold leading-none tracking-tight ${index === 2 ? 'text-seed' : 'text-ink'}`}>{value}</span>{unit}</dd>
+            </div>
+          ))}
+        </dl>
         <nav className="tabs mt-5" aria-label="보기">
           <Link href="/newsletter-preview" aria-current={showIssue ? undefined : 'page'} className="tab">문제 <span className="num">{opportunities.length}</span></Link>
           <Link href="/newsletter-preview?view=issue" aria-current={showIssue ? 'page' : undefined} className="tab">이번 주 메일</Link>
@@ -171,24 +185,68 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
           </div>
         ) : (
           <>
-            {/* The map is what this page alone has, so it comes first and large; every problem is listed under it. */}
-            {points.length > 0 && (
-              <section className="mt-6" aria-label="문제 지도">
-                <OpportunityMap points={points} />
-                <p className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[13px] leading-6 text-muted">
-                  <span>원문 {MIN_EVIDENCE}건과 플랫폼 {MIN_PLATFORMS}곳을 넘으면 기준을 통과하고, 주간 신호에 실립니다. <Link href="/prd" className="text-seed underline-offset-4 hover:underline">내 아이디어로 PRD 만들기</Link></span>
-                  <a href="#problems" className="link-seed">문제 목록 보기</a>
-                </p>
-              </section>
-            )}
-            <section id="problems" aria-label="모든 문제" className="mt-12 flex min-w-0 scroll-mt-6 flex-col gap-8">
-              <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath="/newsletter-preview" keep={{ profile: params.profile }} />
-            </section>
+            {/* The problems worth building first as cards, then the full list; the map is a small panel beside them. */}
+            <div className="mt-8 page-split">
+              <div className="flex min-w-0 flex-col gap-12">
+                {picks.length > 0 && (
+                  <section aria-labelledby="picks-heading">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                      <h2 id="picks-heading" className="text-[17px] font-bold tracking-[-0.015em]">지금 만들 만한 문제</h2>
+                      <span className="text-[13px] text-muted">원문 {MIN_EVIDENCE}건, {MIN_PLATFORMS}곳을 넘고 경쟁이 많지 않은 문제, 최근에 원문이 붙은 순서</span>
+                    </div>
+                    <ul className="mt-4 grid gap-4 xl:grid-cols-2">
+                      {picks.map((item) => <li key={item.slug} className="flex"><ProblemCard item={item} lang={lang} /></li>)}
+                    </ul>
+                  </section>
+                )}
+                <section id="problems" aria-labelledby="all-heading" className="flex min-w-0 scroll-mt-6 flex-col gap-8">
+                  <h2 id="all-heading" className="text-[17px] font-bold tracking-[-0.015em]">모든 문제 <span className="num ml-1 text-[15px] font-semibold text-muted">{opportunities.length}</span></h2>
+                  <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath="/newsletter-preview" keep={{ profile: params.profile }} />
+                </section>
+              </div>
+
+              {points.length > 0 && (
+                <aside className="page-side" aria-label="문제 지도">
+                  <OpportunityMap points={points} compact />
+                  <p className="text-[13px] leading-6 text-muted">점을 고르면 위 카드가 바뀝니다. 원문 {MIN_EVIDENCE}건과 플랫폼 {MIN_PLATFORMS}곳을 넘으면 기준을 통과하고, 주간 신호에 실립니다. <Link href="/prd" className="text-seed underline-offset-4 hover:underline">내 아이디어로 PRD 만들기</Link></p>
+                </aside>
+              )}
+            </div>
           </>
         )}
       </main>
       <Footer />
     </>
+  );
+}
+
+/** A verified problem as a card: who said it in their own words, where, and how crowded the space is. */
+function ProblemCard({ item, lang }: { item: Opportunity; lang: Lang }) {
+  const text = localizedOpportunity(item, lang);
+  const quote = [...item.evidence].sort((a, b) => b.score - a.score)[0];
+  const perPlatform = item.platforms.map((platform) => [platform, item.evidence.filter((row) => row.platform === platform).length] as const).sort((a, b) => b[1] - a[1]);
+  return (
+    <article className="card group relative flex w-full flex-col p-5 transition-colors hover:border-outline-strong">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]"><StatusLabel status={item.status} lang={lang} /><span className="text-muted">{item.directCount ? `직접 경쟁 ${item.directCount}개` : '직접 경쟁 없음'}</span></p>
+      <h3 className="mt-2 text-[17px] font-bold leading-snug tracking-tight">
+        {/* The stretched link makes the whole card open the problem; the PRD link below sits above it. */}
+        <Link href={`/opportunities/${item.slug}`} className="underline-offset-4 after:absolute after:inset-0 after:rounded-xl after:content-[''] group-hover:underline">{text.name}</Link>
+      </h3>
+      <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{text.problem}</p>
+      {quote && (
+        <blockquote className="mt-4 border-l-2 border-seed pl-3">
+          <p lang="en" className="line-clamp-3 text-[14px] leading-6 text-ink [overflow-wrap:anywhere]">“{quote.quote}”</p>
+          {lang === 'ko' && quote.quoteKo && <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-muted">{quote.quoteKo}</p>}
+          <footer className="mt-1 text-[12px] text-muted">{PLATFORM_LABELS[quote.platform]}</footer>
+        </blockquote>
+      )}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-5">
+        <ul className="flex flex-wrap gap-1.5" aria-label="원문이 나온 곳">
+          {perPlatform.map(([platform, count]) => <li key={platform} className="chip">{PLATFORM_LABELS[platform]} <span className="num ml-1">{count}</span></li>)}
+        </ul>
+        <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="link-seed relative z-10 text-sm">PRD 만들기</Link>
+      </div>
+    </article>
   );
 }
 

@@ -8,7 +8,7 @@ import { getGitHubTrends, getScrapKeySet, getScraps } from '@/lib/data';
 import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
-import { dossierChanges } from '@/lib/opportunities/insight';
+import { dossierChanges, dossierHref } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import { forYou } from '@/lib/personal';
@@ -138,7 +138,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
                 {dossiers.map((dossier) => (
                   <li key={dossier.id} className="py-3.5">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                      <Link href={dossier.opportunity_slug ? `/prd?opportunity=${encodeURIComponent(dossier.opportunity_slug)}` : '/scrap'} className="text-[15px] font-semibold leading-snug underline-offset-4 hover:underline">
+                      <Link href={dossierHref(dossier, opportunities)} className="text-[15px] font-semibold leading-snug underline-offset-4 hover:underline">
                         {dossier.opportunity ? localizedOpportunity(dossier.opportunity, lang).name : dossier.title}
                       </Link>
                       <span className="flex flex-wrap gap-x-3 text-[13px] text-muted">

@@ -97,6 +97,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
                     title: t('내 레포에서 다음 기능을 찾아요', 'Find the next feature in your repos'),
                     lead: t('GitHub 공개 레포를 읽고, 레포마다 고칠 점과 더할 기능을 짚은 뒤 그 레포의 PRD를 만듭니다.', 'Reads your public GitHub repos, points out fixes and features for each, then makes its PRD.'),
                     examples: ['vercel', 'supabase', 'torvalds'].map((login) => ({ label: login, idea: login })),
+                    after: <Link href="/newsletter-preview?path=new" className="btn-quiet h-11">{t('새로 만들기', 'Build something new')}</Link>,
                   },
                 }}
               />

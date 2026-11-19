@@ -5,7 +5,8 @@ import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
-import { SEEDS_RESULT_KEY } from '@/lib/seeds/saved';
+import { readSavedSeedResult, saveSeedResult } from '@/lib/seeds/saved-result';
+import type { SavedSeedResult } from '@/lib/seeds/saved-result';
 import { inBatches } from '@/lib/utils';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 import { usePrdModel } from '@/components/ModelPicker';
@@ -25,7 +26,7 @@ type RepoCard = {
 };
 
 
-type Saved = { login: string; at: string; repos: RepoCard[]; ideas: Record<string, SeedIdea>; papers: Record<string, SeedPaper[]> };
+type Saved = SavedSeedResult<RepoCard>;
 
 /** Everything a repo was connected to last time, so the next look can point out what is new. */
 function connectionKeys(repos: RepoCard[]) {
@@ -140,7 +141,7 @@ export type SeedStatus = { login: string | null; loading: boolean; error: string
  * Reads an account's public repos and, per repo, what to fix, what to add and a PRD. Started by `run` (a login and a
  * number that changes on every ask); without it, the component shows its own form.
  */
-export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected, models = [] }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null; models?: PrdModel[] } = {}) {
+export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected, userId, models = [] }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null; userId?: string; models?: PrdModel[] } = {}) {
   const model = usePrdModel(models);
   const [login, setLogin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -235,11 +236,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
 
     const names = new Set(repos.map((repo) => repo.name));
     const saved: Saved = { login: name.toLowerCase(), at: new Date().toISOString(), repos, ideas: Object.fromEntries(Object.entries(keptIdeas).filter(([key]) => names.has(key))), papers: Object.fromEntries(Object.entries(keptPapers).filter(([key]) => names.has(key))) };
-    try {
-      localStorage.setItem(SEEDS_RESULT_KEY, JSON.stringify(saved));
-    } catch {
-      // Storage can be blocked or full; the result is then simply not remembered.
-    }
+    saveSeedResult(saved, userId);
   };
 
   // The last result is shown as it was, without spending model calls again until the visitor asks.
@@ -251,32 +248,24 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
     setSavedAt(saved.at);
   });
   useEffect(() => {
-    let saved: Saved | null = null;
-    try {
-      const parsed = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
-      if (parsed && typeof parsed.login === 'string' && Array.isArray(parsed.repos)) saved = parsed;
-    } catch {
-      // Nothing usable is stored, or storage is blocked.
-    }
     if (run) return;
+    const saved = readSavedSeedResult<RepoCard>(userId);
     if (!saved) return;
-    const found = saved;
     // Deferred so the first paint matches the server.
-    const timer = window.setTimeout(() => restore(found), 0);
+    const timer = window.setTimeout(() => restore(saved), 0);
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- the first visit only; `run` takes over after that
 
   // Each new ask from the chat: the stored result if it is the same account, otherwise a fresh look.
   const ask = useEffectEvent((login: string) => {
-    let saved: Saved | null = null;
-    try {
-      saved = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
-    } catch {
-      // Storage blocked: look again.
-    }
+    const owned = readSavedSeedResult<RepoCard>(userId);
+    const saved = owned ?? (userId ? readSavedSeedResult<RepoCard>() : null);
     const name = login.trim().replace(/^@/, '').replace(/^https?:\/\/github\.com\//i, '').split('/')[0].toLowerCase();
-    if (saved && saved.login === name && Array.isArray(saved.repos) && !result) restore(saved);
-    else void look(login);
+    if (saved && saved.login === name && !result) {
+      restore(saved);
+      // Associate the old browser result only when the signed-in user opens that GitHub account.
+      if (userId && !owned) saveSeedResult(saved, userId);
+    } else void look(login);
   });
   useEffect(() => {
     if (!run?.login) return;

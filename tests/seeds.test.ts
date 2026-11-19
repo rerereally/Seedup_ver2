@@ -3,11 +3,42 @@ import test from 'node:test';
 import { matchLinks, nearOpportunities, parseArxivFeed, parseIdeas, repoTerms } from '../lib/seeds/advise';
 import { isGitHubLogin } from '../lib/seeds/github';
 import type { SeedRepo } from '../lib/seeds/github';
+import { parseSavedSeedResult, readSavedSeedResult, saveSeedResult } from '../lib/seeds/saved-result';
 import type { Opportunity } from '../lib/opportunities/types';
 
 const repo: SeedRepo = { name: 'rag-eval-kit', fullName: 'me/rag-eval-kit', url: 'https://github.com/me/rag-eval-kit', description: 'Evaluate retrieval pipelines', language: 'Python', topics: ['rag', 'llm-evaluation'], stars: 3, pushedAt: null, readme: 'Switching models means rewriting code for every provider schema.' };
 
 const opportunity = (slug: string, keywords: string[]): Opportunity => ({ slug, name: slug, problem: 'p', gap: 'g', keywords, status: 'open', qualified: true, platforms: ['hn'], evidence: [{ id: 'e1', platform: 'hn', quote: 'q', quoteKo: '인용', url: 'https://example.com', score: 1, postedAt: null }], supply: [], directCount: 0, firstSeenAt: null, followersAfterSignal: 0 });
+
+const saved = { login: 'me', at: '2026-11-19T00:00:00Z', repos: [repo], ideas: {}, papers: {} };
+
+test('saved repo results keep their order and reject unreadable snapshots', () => {
+  assert.deepEqual(parseSavedSeedResult(JSON.stringify(saved)), saved);
+  assert.equal(parseSavedSeedResult(null), null);
+  assert.equal(parseSavedSeedResult('{'), null);
+  assert.equal(parseSavedSeedResult(JSON.stringify({ ...saved, login: '../me' })), null);
+  assert.equal(parseSavedSeedResult(JSON.stringify({ ...saved, repos: [null] })), null);
+});
+
+test('repo snapshots stay scoped to the account that saved them', (context) => {
+  const storage = new Map<string, string>();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => storage.get(key) ?? null, setItem: storage.set.bind(storage) },
+  });
+  context.after(() => {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+
+  saveSeedResult(saved);
+  assert.equal(readSavedSeedResult('account-a'), null);
+  saveSeedResult(saved, 'account-a');
+  assert.deepEqual(readSavedSeedResult('account-a'), saved);
+  assert.equal(readSavedSeedResult('account-b'), null);
+  assert.deepEqual(readSavedSeedResult(), saved);
+});
 
 test('GitHub logins are validated before they reach a URL', () => {
   assert.equal(isGitHubLogin('torvalds'), true);

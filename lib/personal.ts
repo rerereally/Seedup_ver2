@@ -4,7 +4,7 @@ import type { ScrapItem } from './data';
 import { loadReadCandidates } from './newsletter/reads';
 import { behaviorSignals, buildRecommendationProfile, scoreNewsletterItems } from './recommendations';
 import type { ScoredNewsletterItem } from './recommendations';
-import { createEmbedding } from './opportunities/llm';
+import { createEmbedding } from './llm';
 import { cosineSimilarity } from './opportunities/rules';
 import type { Opportunity } from './opportunities/types';
 import { createAdminClient } from './supabase/admin';

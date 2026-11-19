@@ -4,6 +4,7 @@
 //   npx tsx --env-file=.env scripts/judge-prd.ts eval-old.json eval-new.json [--judge anthropic/claude-sonnet-5.5]
 // Costs about US$0.01 per PRD with the default judge.
 import { readFileSync } from 'node:fs';
+import { OPENROUTER_BASE } from '../lib/llm';
 
 const RUBRIC = `You review product requirement documents (PRDs) for developer tools. The PRD below is in Korean or English and ends with the source quotes it was built on (E-1, E-2, ...). Score it strictly; a 3 is an ordinary draft, a 5 is what a senior PM would sign off without edits.
 
@@ -26,7 +27,7 @@ function arg(name: string, fallback: string) {
 
 async function judge(doc: string, model: string): Promise<Score | null> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, 'x-title': 'Seedup PRD judge' },
       body: JSON.stringify({ model, temperature: 0, max_tokens: model.endsWith(":free") ? 16_000 : 400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: RUBRIC }, { role: 'user', content: `<prd>\n${doc.slice(0, 24_000)}\n</prd>` }] }),

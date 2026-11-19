@@ -1,3 +1,4 @@
+import { OPENROUTER_BASE } from '@/lib/llm';
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -6,7 +7,7 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
+const OPENROUTER_MODELS_URL = `${OPENROUTER_BASE}/models`;
 const FETCH_TIMEOUT_MS = 18_000;
 
 type RankingKind = 'popular' | 'intelligence' | 'arena';

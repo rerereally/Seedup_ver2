@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { callJsonModel } from './llm';
-import type { ModelUsage } from './llm';
+import { callJsonModel } from '../llm';
+import type { ModelUsage } from '../llm';
 import { isCompleteQuote, isVerbatimQuote } from './rules';
 import { cleanText, searchDemand } from './actors';
 import { fetchPageText, safeSourceUrl } from './web';

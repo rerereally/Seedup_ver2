@@ -1,6 +1,6 @@
 import { clampScore, containsHangul, ensureKoreanTitle } from './ai-shared';
 import type { NewsAnalysis, ProductAnalysis, RepoAnalysis } from './ai-types';
-import { callOpenRouter, getPreprocessModels } from './openrouter-client';
+import { callOpenRouter, getPreprocessModels } from '../llm';
 import { fallbackSummary, truncate } from './text';
 
 export type * from './ai-types';

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ModelUsage } from './llm';
+import type { ModelUsage } from '../llm';
 import { estimateCost } from './models';
 
 export type PrdRunKind = 'prd' | 'revise' | 'slots';

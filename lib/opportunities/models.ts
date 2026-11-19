@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cached, forget } from '../cache';
-import { isFreeOpenRouterModel } from '../ingest/openrouter-models';
+import { isFreeOpenRouterModel } from '../llm';
 
 /** Menu id for LG K-EXAONE 2.5, called on LG's own API with its own key instead of through OpenRouter. */
 export const EXAONE_ID = 'exaone';

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { enforceFreeOnlyModels } from '@/lib/ingest/openrouter-models';
-import { fitEmbedding } from '@/lib/opportunities/llm';
+import { embedTexts } from '@/lib/llm';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export type RagReference = {
@@ -25,7 +24,6 @@ type RagDocument = {
   content_hash: string;
 };
 
-const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small';
 // Keep evaluation requests bounded. New embeddings are synced lazily, so a
 // large historical table should not consume the whole request timeout.
 const MAX_DOCUMENTS_PER_SOURCE = 18;
@@ -51,7 +49,7 @@ export async function retrieveIdeaContext(
       const documents = await loadRagDocuments(supabase, MAX_DOCUMENTS_PER_SOURCE);
       await syncMissingEmbeddings(supabase, apiKey, documents, options?.maxSyncDocuments ?? 8);
     }
-    const [queryEmbedding] = await createEmbeddings(apiKey, [idea]);
+    const [queryEmbedding] = await embedTexts(apiKey, [idea]);
     if (!queryEmbedding?.length) throw new Error('No embedding for the idea');
 
     const { data, error } = await supabase.rpc('match_seedup_content', {
@@ -205,7 +203,7 @@ async function syncMissingEmbeddings(
   for (let index = 0; index < selected.length; index += 20) {
     const batch = selected.slice(index, index + 20);
     // One failed batch (free-model timeout) is counted and skipped; the next run retries it.
-    const embeddings = await createEmbeddings(apiKey, batch.map((item) => item.content), 3).catch((error) => {
+    const embeddings = await embedTexts(apiKey, batch.map((item) => item.content), 3).catch((error) => {
       console.error('RAG embedding batch failed', error);
       return [] as number[][];
     });
@@ -219,33 +217,3 @@ async function syncMissingEmbeddings(
   return { missing: missing.length, embedded, failed: selected.length - embedded, remaining: missing.length - embedded };
 }
 
-async function createEmbeddings(apiKey: string, input: string[], retries = 0): Promise<number[][]> {
-  const [model] = enforceFreeOnlyModels([EMBEDDING_MODEL]);
-  for (let attempt = 0; ; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`,
-          'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
-          'x-title': 'Seedup',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({ model, input }),
-      });
-      // Free models allow a few requests a minute; batch syncs wait and try again instead of skipping the batch.
-      if (response.status === 429 && attempt < retries) {
-        await new Promise((done) => setTimeout(done, (Number(response.headers.get('retry-after')) || 20) * 1_000));
-        continue;
-      }
-      if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
-      const json = await response.json() as { data?: Array<{ embedding?: number[] }> };
-      return (json.data ?? []).map((item) => fitEmbedding(item.embedding));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-}

@@ -1,5 +1,5 @@
 import type { ArticleQuestionAnswer } from './ai-types';
-import { callOpenRouter, getWritingModels } from './openrouter-client';
+import { callOpenRouter, getWritingModels } from '../llm';
 import { truncate } from './text';
 
 export async function answerArticleQuestion(input: {

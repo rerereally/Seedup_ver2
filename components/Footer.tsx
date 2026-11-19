@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Logo from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
-import { saveLang, useLang } from '@/components/LangProvider';
+import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
 const COLUMNS = [
@@ -33,7 +32,6 @@ const COLUMNS = [
 export default function Footer() {
   const lang = useLang();
   const t = translator(lang);
-  const router = useRouter();
   return (
     <footer className="site-footer mt-auto border-t border-outline-soft pt-14 pb-8">
       <div className="mx-auto grid w-full max-w-[1280px] gap-x-10 gap-y-10 px-5 sm:px-6 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] md:px-8">
@@ -56,15 +54,6 @@ export default function Footer() {
         <span>© Seedup</span>
         <span className="ml-auto inline-flex items-center gap-1">
           <ThemeToggle />
-          <button
-            type="button"
-            lang={lang === 'en' ? 'ko' : 'en'}
-            onClick={() => { saveLang(lang === 'en' ? 'ko' : 'en'); router.refresh(); }}
-            aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}
-            className="inline-flex h-11 items-center px-2 text-[13px] transition-colors hover:text-ink"
-          >
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
         </span>
       </div>
     </footer>

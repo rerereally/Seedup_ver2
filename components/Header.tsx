@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bookmark, Compass, FileText, House, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, X } from 'lucide-react';
+import { Bookmark, ChevronsUpDown, Compass, FileText, House, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, UserRound, X } from 'lucide-react';
 import { signOut } from '@/app/actions/profile';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
 import Logo from '@/components/Logo';
 import { createClient } from '@/lib/supabase/client';
-import { saveLang, useLang } from '@/components/LangProvider';
+import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
 type NavItem = { name: string; en: string; href: string; match: string[]; icon: LucideIcon };
@@ -25,11 +25,12 @@ const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', mat
 
 const GROUPS: Array<{ name: string; en: string; items: NavItem[] }> = [
   { name: '리서치', en: 'Research', items: [SIGNALS, READS, EXPLORE] },
-  { name: '기획', en: 'Plan', items: [PRD, AGENT] },
-  { name: '내 작업', en: 'My work', items: [SCRAP] },
+  { name: '기획', en: 'Plan', items: [PRD] },
 ];
+// The reader's own things sit behind their name at the bottom of the sidebar, not in the main menu.
+const PERSONAL: NavItem[] = [SCRAP, AGENT, { name: '프로필', en: 'Profile', href: '/profile', match: ['/profile'], icon: UserRound }];
 // Phones: the four places used most, the rest is in the drawer.
-const TABS = [HOME, SIGNALS, PRD, SCRAP];
+const TABS = [HOME, SIGNALS, READS, PRD];
 
 // The desk is the signed-in front page; it lights only on exactly "/".
 const isOn = (pathname: string | null, item: NavItem) =>
@@ -81,19 +82,65 @@ export default function Header({ variant = 'app' }: { variant?: 'app' | 'site' }
   return variant === 'site' ? <SiteHeader /> : <AppShell />;
 }
 
-function LangButton({ className }: { className: string }) {
-  const lang = useLang();
-  const router = useRouter();
+/**
+ * The signed-in name at the bottom of the sidebar opens the reader's own places: bookmarks, MCP and the profile, plus
+ * sign out. `rail` is the folded sidebar, where only the initial shows and the menu opens to the side.
+ */
+function ProfileMenu({ email, pathname, rail = false }: { email: string; pathname: string | null; rail?: boolean }) {
+  const t = translator(useLang());
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  // Closes on a click outside, Escape, or a page change.
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', key); };
+  }, [open]);
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
+    setOpen(false);
+  }
+  const inside = PERSONAL.some((entry) => isOn(pathname, entry));
+  const initial = <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-seed-soft text-[13px] font-semibold text-seed">{email[0].toUpperCase()}</span>;
   return (
-    <button
-      type="button"
-      onClick={() => { saveLang(lang === 'en' ? 'ko' : 'en'); router.refresh(); }}
-      lang={lang === 'en' ? 'ko' : 'en'}
-      aria-label={lang === 'en' ? '한국어로 보기' : 'View in English'}
-      className={className}
-    >
-      {lang === 'en' ? '한국어' : 'EN'}
-    </button>
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={rail ? t(`${email} 메뉴`, `${email} menu`) : undefined}
+        title={rail ? email : undefined}
+        className={rail
+          ? `inline-flex h-10 w-10 items-center justify-center rounded-lg hover:bg-surface-low ${inside ? 'bg-surface-mid' : ''}`
+          : `flex h-10 w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 text-left text-[14px] text-ink hover:bg-surface-low ${inside || open ? 'bg-surface-low' : ''}`}
+      >
+        {initial}
+        {!rail && <><span className="min-w-0 flex-1 truncate">{email}</span><ChevronsUpDown aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" /></>}
+      </button>
+      {open && (
+        <div role="menu" aria-label={t('내 메뉴', 'My menu')} className={`absolute z-50 w-56 rounded-xl border border-outline-soft bg-white p-1.5 shadow-[0_12px_40px_-12px_var(--color-glow)] ${rail ? 'bottom-0 left-12' : 'inset-x-0 bottom-12'}`}>
+          {rail && <p className="truncate px-2.5 pb-1.5 pt-1 text-[12px] text-muted">{email}</p>}
+          {PERSONAL.map((entry) => (
+            <Link key={entry.href} href={entry.href} role="menuitem" aria-current={isOn(pathname, entry) ? 'page' : undefined} className={`flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-[14px] hover:bg-surface-low ${isOn(pathname, entry) ? 'bg-surface-mid font-semibold text-ink' : 'text-tertiary'}`}>
+              <entry.icon aria-hidden="true" className="h-4 w-4" />
+              {t(entry.name, entry.en)}
+            </Link>
+          ))}
+          <div className="my-1 border-t border-outline-soft" />
+          <form action={signOut}>
+            <button type="submit" role="menuitem" className="flex h-10 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[14px] text-tertiary hover:bg-surface-low hover:text-ink">
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              {t('로그아웃', 'Sign out')}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -180,17 +227,7 @@ function AppShell() {
       </nav>
       <div className="shrink-0 border-t border-outline-soft p-3">
         {email ? (
-          <div className="flex items-center gap-1">
-            <Link href="/profile" className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 text-[14px] text-ink hover:bg-surface-low">
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-seed-soft text-[13px] font-semibold text-seed">{email[0].toUpperCase()}</span>
-              <span className="min-w-0 truncate">{email}</span>
-            </Link>
-            <form action={signOut}>
-              <button type="submit" aria-label={t('로그아웃', 'Sign out')} title={t('로그아웃', 'Sign out')} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink">
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </form>
-          </div>
+          <ProfileMenu email={email} pathname={pathname} />
         ) : (
           <div className="flex gap-2">
             <Link href="/login" className="btn-quiet h-9 flex-1">{t('로그인', 'Sign in')}</Link>
@@ -199,7 +236,6 @@ function AppShell() {
         )}
         <div className="mt-2 flex items-center gap-1">
           <ThemeToggle />
-          <LangButton className="inline-flex h-11 items-center px-2 text-[13px] text-tertiary hover:text-ink" />
         </div>
       </div>
     </>
@@ -218,6 +254,7 @@ function AppShell() {
             </Link>
           ))}
           <span className="mt-auto"><ThemeToggle /></span>
+          {email && <ProfileMenu email={email} pathname={pathname} rail />}
         </aside>
       ) : (
         <aside style={{ viewTransitionName: 'app-sidebar' }} className="app-sidebar fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-outline-soft bg-white lg:flex">{nav}</aside>

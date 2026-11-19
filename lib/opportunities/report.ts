@@ -4,6 +4,7 @@ import { findLiveEvidence } from './live-evidence';
 import { callJsonModel } from '../llm';
 import { matchOpportunities } from './match';
 import { firstUserSources, meetsEvidenceBar } from './rules';
+import { MAX_RESEARCHED, researchRivals, rivalAgentEnabled } from './rival-research';
 import { PLATFORM_LABELS } from './types';
 import type { BuildEstimate, Evidence, Opportunity, SupplyItem } from './types';
 import { searchWebSupply, webSearchEnabled } from './web';
@@ -73,7 +74,14 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
     const lists = await Promise.all([searchSupply(query).catch(() => []), webSearchEnabled() ? searchWebSupply(query).catch(() => []) : Promise.resolve([])]);
     for (const item of lists.flat()) if (item.name && !found.has(item.url)) found.set(item.url, item);
   }
-  const { rivals, gap } = await labelRivals(idea, [...found.values()].slice(0, 16));
+  const agent = rivalAgentEnabled();
+  if (agent) {
+    await researchRivals(idea, found, {
+      ask: (prompt) => callJsonModel<{ queries?: unknown }>(prompt, { maxTokens: 300, timeoutMs: 20_000, title: 'Seedup rival research' }),
+      search: async (query) => (await Promise.all([searchSupply(query).catch(() => []), webSearchEnabled() ? searchWebSupply(query).catch(() => []) : Promise.resolve([])])).flat(),
+    });
+  }
+  const { rivals, gap } = await labelRivals(idea, [...found.values()].slice(0, agent ? MAX_RESEARCHED : 16));
 
   const match = matchOpportunities(idea, opportunities);
   const relatedItems = opportunities.filter((item) => match.slugs.includes(item.slug)).slice(0, 3);

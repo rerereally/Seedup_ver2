@@ -19,7 +19,9 @@ function reference(input: SpecInput) {
     title: input.title,
     problem: input.problem,
     gap: input.gap,
-    quotes: input.evidence.map(({ quote, url, platform, postedAt }, index) => ({ id: `E-${index + 1}`, quote, url, platform, postedAt })),
+    quotes: input.evidence.map(({ quote, quoteKo, url, platform, postedAt }, index) => ({
+      id: `E-${index + 1}`, quote, translation: quoteKo || undefined, url, platform, postedAt,
+    })),
     directCompetitors: input.competitors,
     competitorDescriptions: input.competitorNotes,
   };

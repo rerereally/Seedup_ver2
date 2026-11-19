@@ -4,7 +4,10 @@ import { judgePair, summarizeComparisons } from '../scripts/ab-prd';
 import { prdEvalCases } from '../scripts/prd-eval-cases';
 import type { SpecInput } from '../lib/opportunities/spec';
 
-const input: SpecInput = { title: 'Test product', problem: 'Test problem', gap: '', evidence: [], competitors: ['Existing Tool'] };
+const input: SpecInput = {
+  title: 'Test product', problem: 'Test problem', gap: '', competitors: ['Existing Tool'],
+  evidence: [{ id: 'quote-1', quote: 'I have to enter that twice.', quoteKo: '같은 내용을 두 번 입력해야 합니다.', platform: 'hn', url: 'https://example.com/quote', score: 0, postedAt: null }],
+};
 const verdict = (side: 'A' | 'B' | 'tie') => ({
   competition: side, grounding: side, factuality: side, actionability: side, overall: side, reason: 'Example',
 });
@@ -30,6 +33,9 @@ test('pairwise judging can use either order and hides labels and model IDs', asy
   assert.match(JSON.parse(prompts[0]).A, /first draft/);
   assert.match(JSON.parse(prompts[1]).A, /Second draft/);
   assert.deepEqual(JSON.parse(prompts[0]).reference.directCompetitors, ['Existing Tool']);
+  assert.deepEqual(JSON.parse(prompts[0]).reference.quotes.map(({ quote, translation }: { quote: string; translation: string }) => [quote, translation]), [
+    ['I have to enter that twice.', '같은 내용을 두 번 입력해야 합니다.'],
+  ]);
 });
 
 test('win rate uses the shuffled side, includes ties, and reports missing judgments and run spread', () => {

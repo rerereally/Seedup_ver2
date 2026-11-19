@@ -51,17 +51,28 @@ export async function checkIdeaWatches(service: SupabaseClient, opportunities: O
     const known = watch.known_urls ?? [];
     const found = newFindings(report, known);
     const urls = [...new Set([...known, ...report.quotes.map((row) => row.url), ...report.rivals.map((row) => row.url)])].slice(-500);
-    await service.from('idea_watches').update({ known_urls: urls, checked_at: new Date().toISOString() }).eq('id', watch.id);
+    // What was found is saved as known only once the reader has it (or there is nothing to send), so a failed mail is
+    // retried on the next run instead of being marked as seen.
+    const remember = () => service.from('idea_watches').update({ known_urls: urls, checked_at: new Date().toISOString() }).eq('id', watch.id);
     const first = !watch.checked_at;
     log(`watch ${watch.id}: ${first ? 'baseline' : `new quotes ${found.quotes.length}, new rivals ${found.rivals.length}`}`);
-    if (first || !canMail || !(found.quotes.length + found.rivals.length)) continue;
+    if (first || !canMail || !(found.quotes.length + found.rivals.length)) {
+      await remember();
+      continue;
+    }
 
     const { data: account } = await service.auth.admin.getUserById(watch.user_id);
     const email = account.user?.email;
-    if (!email) continue;
+    if (!email) {
+      await remember();
+      continue;
+    }
     const period = `${new Date().toISOString().slice(0, 10)}:${watch.id}`;
     const claim = await claimSend(service, 'idea-watch', period, watch.user_id);
-    if (claim === 'duplicate') continue;
+    if (claim === 'duplicate') {
+      await remember();
+      continue;
+    }
     const message = watchMail(watch.idea, found, mail.siteUrl);
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -69,8 +80,13 @@ export async function checkIdeaWatches(service: SupabaseClient, opportunities: O
       body: JSON.stringify({ from: mail.from, to: email, subject: message.subject, text: message.text }),
       signal: AbortSignal.timeout(30_000),
     }).catch(() => null);
-    if (response?.ok) mailed += 1;
-    else if (claim === 'claimed') await releaseSend(service, 'idea-watch', period, watch.user_id);
+    if (response?.ok) {
+      mailed += 1;
+      await remember();
+    } else {
+      log(`watch ${watch.id}: mail failed (${response?.status ?? 'no response'}), will retry next run`);
+      if (claim === 'claimed') await releaseSend(service, 'idea-watch', period, watch.user_id);
+    }
   }
   return { checked: (data ?? []).length, mailed };
 }

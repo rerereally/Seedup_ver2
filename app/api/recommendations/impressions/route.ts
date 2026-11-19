@@ -1,10 +1,16 @@
 import { recordImpressions } from '@/lib/db/recommendations';
 import { createClient } from '@/lib/supabase/server';
+import { clientOf, rateLimited } from '@/lib/throttle';
 import { NextResponse } from 'next/server';
 
 const ALLOWED_TYPES = new Set(['news', 'paper', 'github', 'project', 'ai_product']);
+// Anyone, signed in or not, can write here, so each visitor gets a per-minute budget (RL_30 binding).
+const REQUESTS_PER_MINUTE = 30;
 
 export async function POST(request: Request) {
+  if (await rateLimited(`impressions:${clientOf(request)}`, REQUESTS_PER_MINUTE)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': '60' } });
+  }
   const body = await request.json().catch(() => null) as {
     surface?: string;
     eventType?: 'impression' | 'click';
@@ -24,7 +30,7 @@ export async function POST(request: Request) {
     .map((item) => ({
       user_id: userData.user?.id ?? null,
       item_type: String(item.itemType),
-      item_id: String(item.itemId),
+      item_id: String(item.itemId).slice(0, 120),
       surface,
       event_type: eventType,
       position: Number.isFinite(item.position) ? item.position : null,

@@ -2,6 +2,18 @@
 // sentence appears in the post word for word; nothing is posted anywhere else.
 const MENU_ID = 'seedup-save-quote';
 
+// The personal token goes to this address, so only HTTPS (or a local dev server) and only its origin is used.
+function normalizeSiteUrl(value) {
+  try {
+    const url = new URL(String(value).trim());
+    const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (url.protocol === 'https:' || (local && url.protocol === 'http:')) return url.origin;
+  } catch {
+    // Not a URL at all.
+  }
+  return null;
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({ id: MENU_ID, title: 'Seedup에 원문으로 담기', contexts: ['selection'] });
 });
@@ -18,8 +30,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     chrome.runtime.openOptionsPage();
     return;
   }
+  const origin = normalizeSiteUrl(site);
+  if (!origin) {
+    notify('확장 설정의 Seedup 주소가 https가 아니라서 토큰을 보내지 않았습니다. 주소를 고쳐 주세요.');
+    chrome.runtime.openOptionsPage();
+    return;
+  }
   try {
-    const response = await fetch(`${site.replace(/\/+$/, '')}/api/quotes`, {
+    const response = await fetch(`${origin}/api/quotes`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ url: info.pageUrl, quote: info.selectionText ?? '', title: tab?.title ?? '' }),

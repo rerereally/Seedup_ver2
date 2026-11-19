@@ -101,7 +101,7 @@ async function loadRagDocuments(supabase: NonNullable<ReturnType<typeof createAd
   const [news, products, repos, papers, ideas] = await Promise.all([
     supabase.from('news_items').select('id,title,short_summary,summary,why_it_matters,project_idea,topic_tags,skill_tags,source,source_url,original_url,published_at').order('published_at', { ascending: false }).limit(perSource),
     supabase.from('ai_products').select('id,name,short_summary,description,use_cases,related_project_ideas,category,website_url,product_hunt_url,created_at').order('created_at', { ascending: false }).limit(perSource),
-    supabase.from('github_trends').select('id,repo_full_name,short_summary,beginner_summary,description,project_idea,topics,language,repo_url,stars,stars_delta_7d,last_seen_at').order('last_seen_at', { ascending: false }).limit(perSource),
+    supabase.from('github_trends').select('id,repo_full_name,short_summary,beginner_summary,description,project_idea,topics,language,repo_url,last_seen_at').order('last_seen_at', { ascending: false }).limit(perSource),
     supabase.from('research_papers').select('id,title,beginner_summary,expert_summary,abstract,implementation_idea,service_idea,categories,related_skills,paper_url,published_at').order('published_at', { ascending: false }).limit(perSource),
     supabase.from('project_ideas').select('id,title,description,level,duration_days,stack,related_trend,target_user_level,portfolio_value,created_at').order('created_at', { ascending: false }).limit(perSource),
   ]);
@@ -126,7 +126,8 @@ async function loadRagDocuments(supabase: NonNullable<ReturnType<typeof createAd
       `설명: ${item.short_summary ?? item.beginner_summary ?? item.description ?? ''}`,
       `프로젝트 연결: ${item.project_idea ?? ''}`,
       `기술: ${(item.topics ?? []).join(', ')} ${item.language ?? ''}`,
-      `스타: ${item.stars ?? 0}, 7일 증가: ${item.stars_delta_7d ?? 0}`,
+      // Star counts are left out: they change daily without changing what the repo is about, and every change made a
+      // new content hash, so a fresh vector for the same repo every day.
     ], { title: item.repo_full_name, url: item.repo_url, source: 'GitHub', published_at: item.last_seen_at })),
     ...(papers.data ?? []).map((item) => document('research_papers', item.id, [
       `논문: ${item.title}`,
@@ -211,7 +212,14 @@ async function syncMissingEmbeddings(
     if (rows.length) {
       const { error } = await supabase.from('content_embeddings').upsert(rows, { onConflict: 'source_table,source_id,content_hash' });
       if (error) console.error('RAG embedding upsert failed', error);
-      else embedded += rows.length;
+      else {
+        embedded += rows.length;
+        // A source's text changed, so its older vectors describe something it no longer says: only the newest stays.
+        for (const row of rows) {
+          const { error: pruneError } = await supabase.from('content_embeddings').delete().eq('source_table', row.source_table).eq('source_id', row.source_id).neq('content_hash', row.content_hash);
+          if (pruneError) console.error('RAG stale embedding cleanup failed', row.source_table, row.source_id, pruneError.message);
+        }
+      }
     }
   }
   return { missing: missing.length, embedded, failed: selected.length - embedded, remaining: missing.length - embedded };

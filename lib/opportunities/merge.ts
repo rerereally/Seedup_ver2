@@ -32,6 +32,17 @@ function point(item: Opportunity, at: string): OpportunityPoint {
 
 const samePoint = (a: OpportunityPoint, b: OpportunityPoint) => a.evidence === b.evidence && a.platforms === b.platforms && a.direct === b.direct && a.status === b.status && a.qualified === b.qualified;
 
+/**
+ * The item with its current counts recorded at `at`: a point already at that time is replaced (the same run changed it
+ * again), an unchanged state adds nothing. Used after merge by anything that changes a problem in the same run.
+ */
+export function withHistoryPoint(item: Opportunity, at: string): Opportunity {
+  const latest = point(item, at);
+  const history = (item.history ?? []).filter((row) => row.at !== at);
+  const last = history[history.length - 1];
+  return { ...item, history: (last && samePoint(last, latest) ? history : [...history, latest]).slice(-MAX_HISTORY) };
+}
+
 function unionEvidence(older: Evidence[], newer: Evidence[]) {
   const byUrl = new Map<string, Evidence>();
   // The newer copy wins, except that a translation already made is never thrown away.

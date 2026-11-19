@@ -117,7 +117,7 @@ flowchart LR
 | `get_opportunity` | 문제 · 빈틈 · 원문(`E-n`) · 경쟁 도구 상세 |
 | `generate_verified_prd` | 근거 추적 PRD를 `AGENTS.md` 등 원하는 형식으로 생성(하루 10회, 같은 근거면 캐시) |
 | `get_build_checklist` | PRD 기능(`F-n`)별 완료 기준과 완료 여부 |
-| `mark_feature_done` | 완료 기준을 통과한 기능을 완료로 표시(사이트 PRD에 반영) |
+| `mark_feature_done` | 기능의 수락 기준마다 통과한 확인(테스트나 명령과 결과)을 받아야 완료로 표시(사이트 PRD에 반영) |
 | `get_kept_items` | 보관함에 킵한 저장소 · 아티클 · 논문 · 제품 |
 | `find_related_content` | 아이디어와 의미가 가까운 뉴스 · 논문 · 저장소 · 제품 |
 | `validate_idea` | 아이디어 검증 리포트(하루 3회) |

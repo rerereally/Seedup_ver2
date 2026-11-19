@@ -92,6 +92,7 @@ jobs:
             '/api/ingest/external-trends' \
             '/api/ingest/trends' \
             '?/api/ingest/article-drafts?mode=daily&limit=12' \
+            '?/api/ingest/project-ideas?limit=5' \
             '/api/ingest/embeddings?perSource=40&max=60'
           do
             # A leading "?" marks an optional step: it runs every day, but its failure does not fail the day.

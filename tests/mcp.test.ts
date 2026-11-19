@@ -118,9 +118,18 @@ test('the checklist needs a PRD, lists done criteria, and marking a feature show
   assert.match(before.result.content[0].text, /0\/2 done/);
   assert.match(before.result.content[0].text, /- \[ \] F-01 Store notes[\s\S]*saving a note returns its id/);
 
-  const marked = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass' }), withSpec, '') as { result: { content: Array<{ text: string }> } };
+  // Saying it works is not enough: every numbered criterion needs a passing check with evidence.
+  const unproven = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass' }), withSpec, '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+  assert.equal(unproven.result.isError, true);
+  assert.match(unproven.result.content[0].text, /1\. saving a note returns its id/);
+  assert.ok(!('F-01' in progress));
+  const failing = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', checks: [{ criterion: 1, passed: false, evidence: 'notes.test.ts: 1 failing' }] }), withSpec, '') as { result: { isError?: boolean } };
+  assert.equal(failing.result.isError, true);
+
+  const marked = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass', checks: [{ criterion: 1, passed: true, evidence: 'notes.test.ts: save returns id, passed' }] }), withSpec, '') as { result: { content: Array<{ text: string }> } };
   assert.match(marked.result.content[0].text, /1\/2 done/);
   assert.match(marked.result.content[0].text, /- \[x\] F-01/);
+  assert.match(progress['F-01'].note, /checks 1\/1 \(1: notes\.test\.ts: save returns id, passed\)/);
 
   const wrong = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F9' }), withSpec, '') as { result: { isError?: boolean } };
   assert.equal(wrong.result.isError, true);
@@ -204,4 +213,13 @@ test('watch_idea starts a watch and refuses an empty idea', async () => {
   assert.match(answer.result.content[0].text, /Watching/);
   const empty = await handleRpc(call('watch_idea', { idea: '' }), deps(), 'https://x.test') as { result: { isError?: boolean } };
   assert.equal(empty.result.isError, true);
+});
+
+test('a feature is done when the acceptance of every requirement it serves and its own done slot are all checked', async () => {
+  const { featureCriteria, unmetCriteria } = await import('../lib/mcp/server');
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1], acceptance: ['a note survives a restart', 'search finds it in 1s'] }, { title: 'Forget', evidence: [1], acceptance: ['delete removes it'] }], features: [{ title: 'Store', requirements: [1] }] }, 3);
+  spec.features[0].slots = { inputs: [], rules: [], errors: [], access: [], data: [], done: ['search finds it in 1s', 'saving returns an id'] };
+  assert.deepEqual(featureCriteria(spec, spec.features[0]), ['a note survives a restart', 'search finds it in 1s', 'saving returns an id']);
+  const partial = unmetCriteria(featureCriteria(spec, spec.features[0]), [{ criterion: 1, passed: true, evidence: 'restart.test passed' }, { criterion: 2, passed: true, evidence: '' }, { criterion: 3, passed: true, evidence: 'id.test passed' }, 'junk']);
+  assert.deepEqual(partial.unmet.map((row) => row.n), [2]);
 });

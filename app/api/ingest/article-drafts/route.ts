@@ -1,3 +1,4 @@
+import { mapLimit } from '@/lib/utils';
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { generateArticleDraft, validateGeneratedArticleDraft } from '@/lib/ingest/ai';
 import {
@@ -14,7 +15,6 @@ import {
   inferClusterDifficulty,
   inferRelatedRoles,
   isDuplicateCluster,
-  mapWithConcurrency,
   meetsPublicationThreshold,
   normalizeDailyNewsletterSection,
   selectDailyClusters,
@@ -146,7 +146,7 @@ async function ingest(request: Request) {
   const skipReasons: string[] = [];
   const upsertedTrackCounts = Object.fromEntries(DAILY_TRACKS.map((track) => [track, 0])) as Record<ArticleTrack, number>;
 
-  await mapWithConcurrency(selectedClusters, mode === 'daily' ? 3 : 1, async (cluster) => {
+  await mapLimit(selectedClusters, mode === 'daily' ? 3 : 1, async (cluster) => {
     if (isDuplicateCluster(cluster, recentItems)) {
       skipped += 1;
       skipReasons.push(`${cluster.track}:duplicate_cluster`);

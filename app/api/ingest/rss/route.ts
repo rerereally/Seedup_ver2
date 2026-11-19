@@ -1,3 +1,4 @@
+import { mapLimit } from '@/lib/utils';
 import { assertIngestAuth } from '@/lib/ingest/auth';
 import { analyzeNews } from '@/lib/ingest/ai';
 import { getRunStatus, recordIngestRun } from '@/lib/ingest/runs';
@@ -44,7 +45,7 @@ async function ingest(request: Request) {
   const url = new URL(request.url);
   const limitPerSource = Number(url.searchParams.get('limit') ?? MAX_ITEMS_PER_SOURCE);
   const minScore = Number(url.searchParams.get('minScore') ?? 45);
-  const results = await mapWithConcurrency(RSS_SOURCES, SOURCE_CONCURRENCY, async (source) => {
+  const results = await mapLimit(RSS_SOURCES, SOURCE_CONCURRENCY, async (source) => {
     let inserted = 0;
     let skipped = 0;
     let errors = 0;
@@ -58,7 +59,7 @@ async function ingest(request: Request) {
       recent = recentItems.length;
       const items = recentItems.slice(0, limitPerSource);
 
-      const outcomes = await mapWithConcurrency(items, ITEM_CONCURRENCY, (item) => ingestItem({ item, minScore, source, supabase }));
+      const outcomes = await mapLimit(items, ITEM_CONCURRENCY, (item) => ingestItem({ item, minScore, source, supabase }));
       for (const outcome of outcomes) {
         if (outcome === 'inserted') inserted += 1;
         if (outcome === 'skipped') skipped += 1;
@@ -532,21 +533,6 @@ async function recordRejection(
   }
 }
 
-async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
-  const results: R[] = [];
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await mapper(items[index]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
-  return results;
-}
 
 function extractImageUrl(item: Parser.Item) {
   const enclosureUrl = item.enclosure?.url;

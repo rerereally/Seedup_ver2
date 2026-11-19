@@ -11,7 +11,7 @@ const PER_MINUTE = 6;
 
 /** Planning questions for one idea. `questions: null` means the page should use its fixed list. */
 export async function POST(request: Request) {
-  if (rateLimited(`questions:${clientOf(request)}`, PER_MINUTE)) return NextResponse.json({ questions: null, reason: 'throttled' }, { status: 429 });
+  if (await rateLimited(`questions:${clientOf(request)}`, PER_MINUTE)) return NextResponse.json({ questions: null, reason: 'throttled' }, { status: 429 });
   const body = await request.json().catch(() => null);
   const idea = typeof body?.idea === 'string' ? body.idea.trim().slice(0, 300) : '';
   if (idea.length < 4) return NextResponse.json({ error: '아이디어를 한 줄로 적어 주세요.' }, { status: 400 });

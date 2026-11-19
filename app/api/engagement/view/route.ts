@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (!ALLOWED_TYPES.has(itemType) || !UUID.test(itemId)) return NextResponse.json({ error: 'Invalid view' }, { status: 400 });
   const client = clientOf(request);
   // A repeat is answered as fine but not counted: the page has nothing to do about it.
-  if (rateLimited(`view:${client}`, VIEWS_PER_MINUTE) || rateLimited(`view:${client}:${itemType}:${itemId}`, 1)) return NextResponse.json({ ok: true, counted: false });
+  if (await rateLimited(`view:${client}`, VIEWS_PER_MINUTE) || await rateLimited(`view:${client}:${itemType}:${itemId}`, 1)) return NextResponse.json({ ok: true, counted: false });
   await incrementContentView(itemType, itemId);
   return NextResponse.json({ ok: true });
 }

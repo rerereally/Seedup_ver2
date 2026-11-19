@@ -137,3 +137,16 @@ test('top-up search phrases pair up English keywords and skip Korean ones', () =
   assert.deepEqual(searchPhrases({ keywords: ['cron', '크론', 'queue', 'worker', 'monitoring', 'node.js', 'jobs', 'x'] }), ['cron queue', 'worker monitoring', 'node.js jobs']);
   assert.deepEqual(searchPhrases({ keywords: ['크론', '큐'] }), []);
 });
+
+
+test('quotes added by the top-up are recorded in the history, so the change mail sees the problem pass the bar', () => {
+  const before = { at: DAY1, evidence: 2, platforms: 1, direct: 0, status: 'open' as const, qualified: false };
+  // The merge already wrote a point for this run (DAY2); the top-up changes the same run's point instead of adding one.
+  const item = opp('memory', [ev(1), ev(2)], { history: [before, { ...before, at: DAY2 }] });
+  const grown = addEvidence(item, [ev(3, 'github')], DAY2);
+  assert.equal(grown.history?.length, 2);
+  assert.deepEqual(grown.history?.at(-1), { at: DAY2, evidence: 3, platforms: 2, direct: 0, status: 'open', qualified: true });
+  const line = changeSince(grown, DAY1);
+  assert.equal(line?.important, true);
+  assert.match(line?.note ?? '', /기준을 통과했습니다/);
+});

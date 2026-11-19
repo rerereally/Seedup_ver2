@@ -5,7 +5,7 @@ import { inputFromBody } from '@/lib/opportunities/idea';
 import { pickPrdModel } from '@/lib/opportunities/models';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { normalizeSlots } from '@/lib/opportunities/spec';
+import { normalizeRivals, normalizeSlots } from '@/lib/opportunities/spec';
 import type { Priority, Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -21,7 +21,7 @@ const list = (value: unknown, limit: number) => (Array.isArray(value) ? value : 
 const ids = (value: unknown) => list(value, 12).filter((item): item is string => typeof item === 'string' && /^[RHFS]-\d{2}$/.test(item));
 
 /** The client sends its current spec back; only its shape is trusted, never its evidence. */
-function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec | null {
+function readSpec(value: unknown, evidenceCount: number, draft: boolean, competitors: string[]): Spec | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
   const requirement = (row: unknown): SpecRequirement => {
@@ -61,7 +61,8 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean): Spec |
     ...(raw.beginner === true ? { beginner: true } : {}),
     ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
     lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
-    ...(Array.isArray(raw.rivals) ? { rivals: list(raw.rivals, 8).map((row) => { const item = (row ?? {}) as Record<string, unknown>; return { name: clip(item.name, 120), misses: clip(item.misses, 240), answer: clip(item.answer, 240) }; }).filter((row) => row.name && row.misses) } : {}),
+    // Only rivals the server itself found for these quotes; a name the client adds is dropped, like evidence numbers.
+    ...(Array.isArray(raw.rivals) ? { rivals: normalizeRivals(raw.rivals, competitors) } : {}),
     ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
 }
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
   if (!resolved) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
   const { input, picked } = resolved;
   const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
-  const current = readSpec(body?.spec, input.evidence.length, draft);
+  const current = readSpec(body?.spec, input.evidence.length, draft, input.competitors);
   if (!current || !(current.requirements.length + (current.origin === 'idea' ? current.hypotheses.length : 0))) return NextResponse.json({ error: '고칠 PRD가 없습니다.' }, { status: 400 });
 
   if (!(await consumeDailyUsage(supabase, 'prd_revise', DAILY_REVISE_LIMIT))) {

@@ -1,3 +1,4 @@
+import { withHistoryPoint } from './merge';
 import { findLiveEvidence } from './live-evidence';
 import { callJsonModel } from '../llm';
 import { mapLimit } from '../utils';
@@ -20,7 +21,8 @@ export function addEvidence(item: Opportunity, quotes: Evidence[], now: string):
   const evidence = [...item.evidence, ...fresh].slice(0, MAX_EVIDENCE);
   const platforms = [...new Set(evidence.map((row) => row.platform))];
   const dates = evidence.flatMap((row) => (row.postedAt ? [row.postedAt] : [])).sort();
-  return { ...item, evidence, platforms, qualified: meetsEvidenceBar(evidence.length, platforms.length), firstSeenAt: dates[0] ?? item.firstSeenAt, lastSeenAt: now };
+  // Recorded in the history too: the change mail and the problem's growth chart read the last point, not these fields.
+  return withHistoryPoint({ ...item, evidence, platforms, qualified: meetsEvidenceBar(evidence.length, platforms.length), firstSeenAt: dates[0] ?? item.firstSeenAt, lastSeenAt: now }, now);
 }
 
 /**

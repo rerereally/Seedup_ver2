@@ -60,7 +60,7 @@ flowchart TB
   end
 
   subgraph C["기술 큐레이션 · RAG 파이프라인"]
-    RAG["pgvector 1536차원 임베딩<br/>맞춤 추천 · 데일리 아티클 · 글 도우미 챗봇"]
+    RAG["pgvector 1536차원 임베딩<br/>아이디어 평가 · MCP 관련 자료 · 맞춤 추천"]
   end
 
   subgraph L["3. Living Spec (/prd)"]
@@ -170,7 +170,7 @@ flowchart TB
 
 ### 7. 아티클 · 트렌드 (`/news`, `/papers/[id]`, `/trends`, `/github-trends`, `/ai-products`)
 - 트랙별 데일리 아티클(원문 3개 이상, 소스 종류 2개 이상 모인 묶음만 발행)과 문장별 출처 구분(원문 근거 / 추론 / 배경지식).
-- 글 · 논문 상세 오른쪽의 **글 도우미 챗봇**(`POST /api/articles/ask`).
+- 글 · 논문 상세 오른쪽의 **글 도우미 챗봇**(`POST /api/articles/ask`): 벡터 검색 없이 그 글의 본문을 근거로 답합니다.
 - GitHub 급상승 저장소, AI 제품 레이더(별점 · 리뷰), 모델 리더보드.
 
 ### 8. 알림 · 개인화

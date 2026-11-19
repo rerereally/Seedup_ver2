@@ -8,7 +8,6 @@ const TABS = [
   { name: '오픈소스', href: '/github-trends' },
   { name: 'AI 제품', href: '/ai-products' },
   { name: 'AI 모델', href: '/trends?tab=models' },
-  { name: '논문', href: '/news?tab=paper' },
 ];
 
 /** Heading and tabs shared by every explore page, so they read as one place. `current` names a tab that lives behind a query string. */

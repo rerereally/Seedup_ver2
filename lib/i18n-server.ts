@@ -1,6 +1,7 @@
-import { cookies } from 'next/headers';
-import { LANG_COOKIE, toLang } from './i18n';
+import type { Lang } from './i18n';
 
-export async function getLang() {
-  return toLang((await cookies()).get(LANG_COOKIE)?.value);
+// shortcut: Korean only while the English switch is off; a `seedup_lang` cookie left from it is ignored.
+// To bring English back, read that cookie here again (toLang(cookies().get(LANG_COOKIE)?.value)) and restore the switch.
+export async function getLang(): Promise<Lang> {
+  return 'ko';
 }

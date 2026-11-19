@@ -1,5 +1,5 @@
 import { MIN_EVIDENCE, MIN_PLATFORMS } from './types';
-import type { MemoryPain, OpportunityStatus, ReadMemory, SupplyItem } from './types';
+import type { Evidence, MemoryPain, OpportunityStatus, ReadMemory, SupplyItem } from './types';
 
 export function normalizeForMatch(value: string) {
   return value.toLowerCase().replace(/[`"'“”‘’*_>]/g, '').replace(/\s+/g, ' ').trim();
@@ -20,6 +20,12 @@ export function uniqueQuotes<T extends { quote: string }>(items: T[]) {
     seen.add(key);
     return true;
   });
+}
+
+/** The people who described the problem, one candidate per source post. */
+export function firstUserSources(quotes: Evidence[], limit = 10) {
+  const seen = new Set<string>();
+  return quotes.filter((row) => !seen.has(row.url) && seen.add(row.url)).slice(0, limit);
 }
 
 // shortcut: 30 days picked by eye; after that a post is read again in case it gained replies. Tune once runs show how fast the pool turns over.

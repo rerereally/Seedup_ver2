@@ -78,3 +78,14 @@ test('rule picks name the matching interest, and never claim one the reader has 
   assert.equal(cold.kind, '저장소');
   assert.equal(cold.reason, '프로젝트로 확장 가능');
 });
+
+import { leadRead } from '../lib/personal';
+
+test('the banner is the best-scored pick that is in the article list, with its reason', () => {
+  const items = [{ type: 'news', id: 'a' }, { type: 'paper', id: 'b' }];
+  const row = (id: string, score: number, reason: string) => ({ content: { id }, score, reasons: [reason] }) as unknown as Parameters<typeof leadRead>[1][number];
+  const picked = leadRead(items, [row('repo:x', 99, '저장소'), row('news:a', 40, '관심 분야: AI'), row('paper:b', 70, '킵한 것과 비슷함')]);
+  assert.equal(picked?.item.id, 'b');
+  assert.equal(picked?.reason, '킵한 것과 비슷함');
+  assert.equal(leadRead(items, [row('repo:x', 99, '저장소')]), null);
+});

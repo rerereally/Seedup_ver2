@@ -157,3 +157,13 @@ async function embeddedPicks(userId: string, input: { answers: unknown; keptTitl
   // Embedded problems alone are not a reading list; with no content matches the rule picks take over.
   return content.length ? [...problems, ...content] : [];
 }
+
+/**
+ * The reader's best-scored read that is in `items` (article feed rows), with the scorer's reason: the lead of the
+ * article page and the home banner. Null when none of their picks is in the list.
+ */
+export function leadRead<T extends { type: string; id: string }>(items: T[], reads: ScoredNewsletterItem[]): { item: T; reason?: string } | null {
+  const byKey = new Map(items.map((item) => [`${item.type}:${item.id}`, item]));
+  const best = [...reads].sort((a, b) => b.score - a.score).find((row) => byKey.has(row.content.id));
+  return best ? { item: byKey.get(best.content.id)!, reason: best.reasons[0] } : null;
+}

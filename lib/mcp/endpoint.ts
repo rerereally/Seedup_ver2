@@ -8,13 +8,14 @@ import { countUnlinkedCommits, featureFiles, writeFeatureCommit } from '@/lib/op
 import { generatePrd } from '@/lib/opportunities/prd';
 import { readLatestPrdCacheForTitle, readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
-import { normalizeSpec } from '@/lib/opportunities/spec';
+import { normalizeSpec, renderSpecMarkdown } from '@/lib/opportunities/spec';
 import type { Evidence } from '@/lib/opportunities/types';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
-import { userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { saveDossier, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { createHash } from 'node:crypto';
 import { addWatch } from '@/lib/db/watches';
 import { onboardingRow } from '@/lib/db/onboarding';
 import { sendWebhook } from '@/lib/newsletter/webhooks';
@@ -77,6 +78,19 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         }
       }
       return readLatestPrdCacheForTitle(service, opportunity.name);
+    },
+    pin: async (slug, result, replace) => {
+      if (!replace && await userPinnedDossierForSlug(service, userId, slug)) return;
+      const ids = result.input.evidence.map((item) => item.id);
+      await saveDossier(service, {
+        user_id: userId,
+        dossier_key: createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 32),
+        title: result.input.title,
+        opportunity_slug: slug,
+        evidence_ids: ids,
+        evidence: result.input.evidence,
+        prd_markdown: renderSpecMarkdown(result.input, result.spec),
+      });
     },
     myPrds: async (limit): Promise<SavedPrdSummary[]> => {
       const rows = await userPrds(service, userId, limit);

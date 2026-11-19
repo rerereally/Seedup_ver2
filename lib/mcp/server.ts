@@ -36,6 +36,8 @@ export type McpDeps = {
   cachedSpec: (evidenceIds: string[]) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /** Fallback pinned PRD for an opportunity slug (user dossier or latest cached PRD) when daily evidence shifts. */
   pinnedSpec?: (slug: string, opportunity: Opportunity) => Promise<{ input: SpecInput; spec: Spec } | null>;
+  /** Saves this PRD as the user's pinned one for the slug; keeps an existing pin unless `replace`. */
+  pin?: (slug: string, result: { input: SpecInput; spec: Spec }, replace: boolean) => Promise<void>;
   /** Saved personal and problem PRDs owned by this user. */
   myPrds?: (limit: number) => Promise<SavedPrdSummary[]>;
   /** One saved PRD owned by this user, with its markdown and evidence. */
@@ -183,7 +185,7 @@ export const TOOLS = [
       properties: { slug: { type: 'string' }, feature: { type: 'string' }, diff: { type: 'string' } },
       required: ['slug', 'feature', 'diff'],
     },
-    annotations: READ_ONLY,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
     name: 'get_kept_items',
@@ -207,7 +209,7 @@ export const TOOLS = [
     name: 'validate_idea',
     description: 'Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
     name: 'watch_idea',
@@ -467,9 +469,10 @@ function normalizeRepoPath(path: string) {
  * break an active build session.
  */
 async function resolveSpecForSlug(opportunity: Opportunity, deps: McpDeps): Promise<{ input: SpecInput; spec: Spec } | null> {
-  const exact = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
-  if (exact) return exact;
-  return deps.pinnedSpec ? deps.pinnedSpec(opportunity.slug, opportunity) : null;
+  // The user's pinned PRD comes first: a PRD regenerated after a new quote has different feature numbers.
+  const pinned = deps.pinnedSpec ? await deps.pinnedSpec(opportunity.slug, opportunity) : null;
+  if (pinned) return pinned;
+  return deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
 }
 
 function renderSavedPrdList(items: SavedPrdSummary[], siteUrl: string) {
@@ -662,6 +665,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       }
       result = { input, spec };
     }
+    // The PRD an agent builds from is pinned to this user, so tomorrow's engine run cannot shift its feature numbers.
+    await deps.pin?.(slug, result, Boolean(args.fresh)).catch(() => undefined);
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format, slug);
     return { ...text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }

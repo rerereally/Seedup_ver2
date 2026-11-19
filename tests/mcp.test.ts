@@ -665,3 +665,29 @@ test('get_kept_items empty github hint points to /github-trends instead of remov
   assert.match(answer.result.content[0].text, /https:\/\/seedup\.test\/github-trends/);
   assert.doesNotMatch(answer.result.content[0].text, /tab=github/);
 });
+
+test('a pinned PRD wins over a newer PRD cached for the current quotes, so feature numbers stay put', async () => {
+  const pinned = normalizeSpec({ summary: 'pinned', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Pinned feature', requirements: [1] }] }, 1);
+  const newer = normalizeSpec({ summary: 'newer', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Regenerated feature', requirements: [1] }] }, 1);
+  const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
+  const used = deps({ cachedSpec: async () => ({ input, spec: newer }), pinnedSpec: async () => ({ input, spec: pinned }) });
+  const checklist = await toolResult('get_build_checklist', { slug: 'memory' }, used);
+  assert.match(checklist.text, /Pinned feature/);
+  assert.doesNotMatch(checklist.text, /Regenerated feature/);
+});
+
+test('generate_verified_prd pins the PRD for the user, replacing an existing pin only when asked for a fresh one', async () => {
+  const pins: boolean[] = [];
+  const used = deps({ pin: async (_slug, _result, replace) => { pins.push(replace); } });
+  await toolResult('generate_verified_prd', { slug: 'memory' }, used);
+  await toolResult('generate_verified_prd', { slug: 'memory', fresh: true }, used);
+  assert.deepEqual(pins, [false, true]);
+});
+
+test('tools that spend a daily limit on a model call are not marked read-only, so clients ask before running them', async () => {
+  const listed = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, deps(), 'https://x.test') as { result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }> } };
+  const hint = (name: string) => listed.result.tools.find((tool) => tool.name === name)?.annotations?.readOnlyHint;
+  assert.equal(hint('verify_feature'), false);
+  assert.equal(hint('validate_idea'), false);
+  assert.equal(hint('get_next_task'), true);
+});

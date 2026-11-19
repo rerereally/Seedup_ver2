@@ -419,7 +419,7 @@ test('get_kept_items lists what the user kept, filtered by type, with links an a
   assert.match(empty.result.content[0].text, /Nothing kept yet/);
 });
 
-import { derivedToken, hashToken } from '../lib/mcp/auth';
+import { derivedToken, hashToken, mcpTokenSecret } from '../lib/mcp/auth';
 
 test('derived MCP tokens come back the same for one issue time, so a second tool does not cut off the first', () => {
   const issued = new Date('2026-11-18T10:00:00.123Z').getTime();
@@ -431,6 +431,31 @@ test('derived MCP tokens come back the same for one issue time, so a second tool
   assert.notEqual(derivedToken('user-1', issued + 1, 'secret'), token);
   assert.notEqual(derivedToken('user-2', issued, 'secret'), token);
   assert.notEqual(derivedToken('user-1', issued, 'other'), token);
+});
+
+test('mcpTokenSecret prefers MCP_TOKEN_SECRET and falls back to SUPABASE_SECRET_KEY without breaking existing tokens', () => {
+  const issued = new Date('2026-11-18T10:00:00.123Z').getTime();
+  const fallbackKey = mcpTokenSecret({ SUPABASE_SECRET_KEY: 'sb-secret-123' });
+  assert.equal(fallbackKey, 'sb-secret-123');
+  assert.equal(
+    derivedToken('user-1', issued, mcpTokenSecret({ MCP_TOKEN_SECRET: '', SUPABASE_SECRET_KEY: 'sb-secret-123' })),
+    derivedToken('user-1', issued, 'sb-secret-123'),
+  );
+  assert.equal(
+    derivedToken('user-1', issued, mcpTokenSecret({ MCP_TOKEN_SECRET: '   ', SUPABASE_SECRET_KEY: 'sb-secret-123' })),
+    derivedToken('user-1', issued, 'sb-secret-123'),
+  );
+
+  const dedicatedKey = mcpTokenSecret({ MCP_TOKEN_SECRET: 'mcp-dedicated-secret', SUPABASE_SECRET_KEY: 'sb-secret-123' });
+  assert.equal(dedicatedKey, 'mcp-dedicated-secret');
+  assert.equal(
+    derivedToken('user-1', issued, dedicatedKey),
+    derivedToken('user-1', issued, 'mcp-dedicated-secret'),
+  );
+  assert.notEqual(
+    derivedToken('user-1', issued, dedicatedKey),
+    derivedToken('user-1', issued, fallbackKey),
+  );
 });
 
 test('validate_idea checks the daily limit before making a report, and refuses a missing idea', async () => {

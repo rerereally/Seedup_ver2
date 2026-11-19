@@ -17,3 +17,31 @@ export async function claimSend(service: SupabaseClient, kind: string, periodKey
 export async function releaseSend(service: SupabaseClient, kind: string, periodKey: string, userId: string) {
   await service.from('newsletter_sends').delete().match({ kind, period_key: periodKey, user_id: userId });
 }
+
+type DigestMail = {
+  kind: string;
+  period: string;
+  userId: string;
+  email: string;
+  resendKey: string;
+  from: string;
+  mail: { subject: string; html: string; text: string };
+  allowUnclaimed?: boolean;
+};
+
+export async function sendDigestMail(service: SupabaseClient, { kind, period, userId, email, resendKey, from, mail, allowUnclaimed }: DigestMail) {
+  const claim = await claimSend(service, kind, period, userId);
+  if (claim === 'duplicate') return 'duplicates';
+  if (claim === 'unavailable' && !allowUnclaimed) return 'failed';
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `${kind}-${period}-${userId}` },
+    body: JSON.stringify({ from, to: email, subject: mail.subject, html: mail.html, text: mail.text }),
+    signal: AbortSignal.timeout(30_000),
+  }).catch(() => null);
+  const result = response?.ok ? 'sent' : response?.status === 409 ? 'duplicates' : 'failed';
+  if (result === 'failed' && claim === 'claimed') await releaseSend(service, kind, period, userId);
+  await new Promise((done) => setTimeout(done, 600));
+  return result;
+}

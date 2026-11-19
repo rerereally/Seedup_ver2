@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { signOut, updateNewsletterSubscription, updateNotifyWebhook, updateProfileSettings } from '@/app/actions/profile';
+import { signOut, updateDailyResearchSubscription, updateNewsletterSubscription, updateNotifyWebhook, updateProfileSettings } from '@/app/actions/profile';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import IdeaPages from '@/components/IdeaPages';
@@ -23,6 +23,8 @@ function notice(status?: string) {
   if (status === 'saved') return '프로필이 저장되었습니다.';
   if (status === 'subscribed') return '주간 신호 구독을 신청했습니다.';
   if (status === 'unsubscribed') return '주간 신호 구독을 해지했습니다.';
+  if (status === 'daily-mail-saved') return '매일 리서치 메일 설정을 저장했습니다.';
+  if (status === 'daily-mail-failed') return '매일 리서치 메일 설정을 저장하지 못했습니다.';
   if (status === 'webhook-saved') return '채팅 알림을 저장했습니다. 다음 알림부터 그 채널로도 갑니다.';
   if (status === 'webhook-cleared') return '채팅 알림을 껐습니다.';
   if (status === 'webhook-invalid') return '디스코드나 슬랙의 웹훅 주소만 넣을 수 있습니다.';
@@ -45,13 +47,14 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
   const [profile, onboarding, params] = await Promise.all([
     profileRow<{ full_name?: string | null; avatar_url?: string | null }>(supabase, user.id),
-    onboardingRow<{ answers?: unknown; newsletter_subscribed?: boolean | null; notify_webhook?: string | null }>(supabase, user.id),
+    onboardingRow<{ answers?: unknown; completed_at?: string | null; newsletter_subscribed?: boolean | null; daily_research_subscribed?: boolean | null; notify_webhook?: string | null }>(supabase, user.id),
     searchParams,
   ]);
 
   const fullName = profile?.full_name ?? user.user_metadata?.full_name ?? '';
   const avatarUrl = profile?.avatar_url ?? user.user_metadata?.avatar_url ?? null;
   const newsletterSubscribed = onboarding?.newsletter_subscribed ?? true;
+  const dailyResearchSubscribed = onboarding?.daily_research_subscribed === true;
   const onboardingAnswers = (onboarding?.answers ?? {}) as OnboardingAnswers;
   const statusNotice = notice(params.status);
 
@@ -99,7 +102,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
           <section className="border-t border-outline-soft pt-8">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="text-[17px] font-semibold text-ink">맞춤 추천 설정 <span className="text-sm font-normal text-muted">{onboarding ? '설정 완료' : '설정 필요'}</span></h2>
+              <h2 className="text-[17px] font-semibold text-ink">맞춤 추천 설정 <span className="text-sm font-normal text-muted">{onboarding?.completed_at ? '설정 완료' : '설정 필요'}</span></h2>
               <Link href="/onboarding" className="link-seed">다시 설정하기</Link>
             </div>
             <p className="mt-1 text-sm text-muted">관심 분야와 목표를 기준으로 인사이트와 주간 신호를 맞춥니다.</p>
@@ -121,6 +124,17 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <form action={updateNewsletterSubscription}>
               <input type="hidden" name="subscribed" value={newsletterSubscribed ? 'false' : 'true'} />
               <SubmitButton pendingText={newsletterSubscribed ? '해지 중' : '신청 중'} className={newsletterSubscribed ? 'btn-quiet' : 'btn'}>{newsletterSubscribed ? '구독 해지' : '구독하기'}</SubmitButton>
+            </form>
+          </section>
+
+          <section className="flex flex-wrap items-center justify-between gap-4 border-t border-outline-soft pt-8">
+            <div>
+              <h2 id="daily-research-mail" className="text-[17px] font-semibold text-ink">매일 리서치 메일</h2>
+              <p className="mt-1 text-sm text-muted">아침에 달라진 신호와 추천 문제 하나를 받습니다.</p>
+            </div>
+            <form action={updateDailyResearchSubscription} aria-labelledby="daily-research-mail" className="seg">
+              <button type="submit" name="subscribed" value="false" aria-pressed={!dailyResearchSubscribed}>끔</button>
+              <button type="submit" name="subscribed" value="true" aria-pressed={dailyResearchSubscribed}>켬</button>
             </form>
           </section>
 

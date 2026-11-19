@@ -17,7 +17,7 @@ const STATUS_WORDS: Record<OpportunityStatus, string> = { open: '경쟁 적음',
 const MAX_LINES: Record<DigestKind, number> = { changes: 8, weekly: 5 };
 const MAX_TOP = 3;
 
-const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+export const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** One subscriber's signals: opportunities they saved evidence from, and their onboarding interest words. */
 export type DigestReader = { slugs: string[]; keywords: string[] };
@@ -94,7 +94,7 @@ export function buildOpportunityDigest(opportunities: Opportunity[], since: stri
 }
 
 const absolute = (base: string, href: string) => (href.startsWith('/') ? `${base}${href}` : href);
-const opportunityUrl = (base: string, slug: string) => `${base}/opportunities/${encodeURIComponent(slug)}`;
+export const opportunityUrl = (base: string, slug: string) => `${base}/opportunities/${encodeURIComponent(slug)}`;
 
 /**
  * The mail in the site's own look: white page, one green accent, quotes set off by a green rule, no badges.

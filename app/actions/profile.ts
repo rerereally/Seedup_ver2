@@ -2,7 +2,7 @@
 
 import { webhookKind } from '@/lib/newsletter/webhooks';
 import { createClient } from '@/lib/supabase/server';
-import { setNewsletter, setNotifyWebhook, updateProfileName } from '@/lib/db/onboarding';
+import { setDailyResearchMail, setNewsletter, setNotifyWebhook, updateProfileName } from '@/lib/db/onboarding';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -35,6 +35,18 @@ export async function updateNewsletterSubscription(formData: FormData) {
 
   revalidatePath('/profile');
   redirect(`/profile?status=${subscribed ? 'subscribed' : 'unsubscribed'}`);
+}
+
+export async function updateDailyResearchSubscription(formData: FormData) {
+  const supabase = await createClient();
+  if (!supabase) redirect('/login');
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) redirect('/login');
+  const subscribed = formData.get('subscribed');
+  if (subscribed !== 'true' && subscribed !== 'false') redirect('/profile?status=daily-mail-failed');
+  const { error } = await setDailyResearchMail(supabase, data.user, subscribed === 'true');
+  revalidatePath('/profile');
+  redirect(`/profile?status=${error ? 'daily-mail-failed' : 'daily-mail-saved'}`);
 }
 
 /** Saves or clears the Discord/Slack webhook that gets the weekly signals and change alerts. */

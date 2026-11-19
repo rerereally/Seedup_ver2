@@ -2341,5 +2341,14 @@
         "dismissed_at"
       ]
     ]
+  },
+  {
+    "file": "20261119170000_daily_research_mail.sql",
+    "columns": [
+      [
+        "user_onboarding",
+        "daily_research_subscribed"
+      ]
+    ]
   }
 ]

@@ -1,6 +1,37 @@
-import { enforceFreeOnlyModels, isFreeOpenRouterModel, outputTokenCap } from '../ingest/openrouter-models';
+// Every call to a language model goes through this file: OpenRouter and LG EXAONE endpoints, the free-model policy
+// (OPENROUTER_FREE_ONLY, output token floor), timeouts, fallbacks, retries, usage counting and embeddings. Code
+// elsewhere imports from here and never names a provider URL (eslint.config.mjs enforces it), so a fix to how models
+// are called is made once.
 
-const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+import { fixtureJson, fixtureProse, fixturesOn } from './llm-fixtures';
+
+// ---- Model policy ----
+export function isFreeOpenRouterModel(model: string) {
+  return model.endsWith(':free') || model === 'openrouter/free';
+}
+
+// Free models are mostly reasoning models that count their thinking inside max_tokens and cannot switch it off;
+// some think 6-8k tokens on every call, so below this floor they return an empty answer.
+const FREE_MIN_TOKENS = 16_000;
+
+/** max_tokens for one call: what the caller asked for, raised to the floor for free (thinking) models. */
+export function outputTokenCap(model: string, requested: number, thinks = isFreeOpenRouterModel(model)) {
+  return thinks ? Math.max(requested, FREE_MIN_TOKENS) : requested;
+}
+
+// With OPENROUTER_FREE_ONLY=true, a paid model can never be called, even as a fallback.
+export function enforceFreeOnlyModels(models: string[]) {
+  if (process.env.OPENROUTER_FREE_ONLY?.trim() !== 'true') return models;
+
+  const freeModels = models.filter(isFreeOpenRouterModel);
+  if (!freeModels.length) {
+    throw new Error(`OPENROUTER_FREE_ONLY blocked paid models: ${models.join(', ')}`);
+  }
+  return freeModels;
+}
+
+// ---- Opportunity engine, PRD and embeddings ----
+export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const MIN_CALL_INTERVAL_MS = 3_100; // Free tier allows 20 requests per minute.
 const CALL_TIMEOUT_MS = 120_000;
 
@@ -43,11 +74,13 @@ function endpointFor(model: string, json = true): Endpoint | null {
 
 /**
  * Free models that write a PRD well and fast, best first (measured 2026-11-18 with the PRD prompt: ernie 33 s and the
- * most specific text; nemotron ultra 61 s; the default nemotron super thinks for ~45 s before writing).
+ * most specific text; nemotron ultra 61 s; the default nemotron super thinks for ~45 s before writing). particle-1
+ * scored the same on 20 PRDs (7.2 vs 7.4, better grounding) and starts writing sooner, so it is the first fallback
+ * when ernie is slow (2026-11-19); nemotron ultra timed out under load the same day.
  * PRD_FREE_MODELS overrides it, since free and preview models come and go.
  */
 export function prdFreeModels() {
-  const listed = (process.env.PRD_FREE_MODELS ?? 'baidu/ernie-5.5-flash-preview:free,nvidia/nemotron-3-ultra-550b-a55b:free').split(',').map((model) => model.trim()).filter(Boolean);
+  const listed = (process.env.PRD_FREE_MODELS ?? 'baidu/ernie-5.5-flash-preview:free,particle-ai/particle-1:free,nvidia/nemotron-3-ultra-550b-a55b:free').split(',').map((model) => model.trim()).filter(Boolean);
   return [...new Set([...listed, ...configuredModels()])];
 }
 
@@ -75,6 +108,7 @@ function extractJson(content: string) {
 }
 
 export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: number; timeoutMs?: number; title?: string; model?: string; models?: string[]; system?: string; deadline?: number; reasoning?: 'low' | 'medium' | 'high'; attempts?: number; onUsage?: (usage: ModelUsage) => void }): Promise<T | null> {
+  if (fixturesOn()) return fixtureJson(options?.title) as T | null;
   // A model chosen on the PRD menu goes first, with the free models behind it as fallbacks. The menu's admin policy is
   // what allows a paid model there, so free-only does not apply to it; every other caller (collection, ingest) has no
   // way to pass a model and stays on the free list.
@@ -169,6 +203,11 @@ export type StreamOptions = {
  * count as life but are not part of the text.
  */
 export async function streamText(prompt: string, options: StreamOptions = {}): Promise<{ text: string; model: string; cut?: boolean } | null> {
+  if (fixturesOn()) {
+    const text = fixtureProse();
+    for (const piece of text.match(/[\s\S]{1,400}/g) ?? []) options.onEvent?.({ type: 'delta', text: piece });
+    return { text, model: 'fixture' };
+  }
   const firstTokenMs = options.firstTokenMs ?? 15_000;
   const idleMs = options.idleMs ?? 25_000;
   const deadline = options.deadline ?? Date.now() + CALL_TIMEOUT_MS;
@@ -259,7 +298,7 @@ export async function streamText(prompt: string, options: StreamOptions = {}): P
   return null;
 }
 
-/** Must match the vector(1536) columns in supabase/schema.sql. */
+/** Must match the vector(1536) columns in supabase/migrations. */
 export const EMBEDDING_DIMENSIONS = 1536;
 
 /**
@@ -296,4 +335,246 @@ export async function createEmbedding(input: string, options?: { timeoutMs?: num
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Embeddings for several texts in one request, fitted to the database's 1536 dimensions. Throws on failure so a
+ * batch sync can count it; free models allow a few requests a minute, so a 429 waits and tries again `retries` times.
+ */
+export async function embedTexts(apiKey: string, input: string[], retries = 0, model = process.env.RAG_EMBEDDING_MODEL ?? 'openai/text-embedding-3-small'): Promise<number[][]> {
+  const [allowed] = enforceFreeOnlyModels([model]);
+  for (let attempt = 0; ; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(`${OPENROUTER_BASE}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
+          'x-title': 'Seedup',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({ model: allowed, input }),
+      });
+      // Free models allow a few requests a minute; batch syncs wait and try again instead of skipping the batch.
+      if (response.status === 429 && attempt < retries) {
+        await new Promise((done) => setTimeout(done, (Number(response.headers.get('retry-after')) || 20) * 1_000));
+        continue;
+      }
+      if (!response.ok) throw new Error(`Embedding request failed: ${response.status}`);
+      const json = await response.json() as { data?: Array<{ embedding?: number[] }> };
+      return (json.data ?? []).map((item) => fitEmbedding(item.embedding));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+// ---- Collection (articles, papers, projects, idea scores) ----
+// OpenRouter chat call with model fallback, and lenient parsing of the JSON the models return.
+const DEFAULT_WRITING_MODEL = 'anthropic/claude-sonnet-5';
+const DEFAULT_PREPROCESS_MODEL = 'google/gemini-3.5-flash';
+const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
+export const ARTICLE_OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_ARTICLE_TIMEOUT_MS ?? 75_000);
+const FREE_MODEL_MIN_TIMEOUT_MS = 45_000;
+
+export async function callOpenRouter<T>(
+  apiKey: string,
+  messages: Array<{ role: 'system' | 'user'; content: string }>,
+  options?: {
+    maxTokens?: number;
+    timeoutMs?: number;
+    models?: string[];
+    temperature?: number;
+    jsonMode?: boolean;
+    jsonSchema?: { name: string; schema: Record<string, unknown> };
+  },
+) {
+  const models = enforceFreeOnlyModels(options?.models?.length ? options.models : getWritingModels());
+  const errors: string[] = [];
+  const maxTokens = options?.maxTokens ?? 2400;
+
+  for (const model of models) {
+    const controller = new AbortController();
+    const isFreeModel = isFreeOpenRouterModel(model);
+    const timeoutMs = options?.timeoutMs ?? OPENROUTER_TIMEOUT_MS;
+    const timeout = setTimeout(() => controller.abort(), isFreeModel ? Math.max(timeoutMs, FREE_MODEL_MIN_TIMEOUT_MS) : timeoutMs);
+
+    try {
+      const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'http-referer': process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001',
+          'x-title': 'Seedup',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: options?.temperature ?? 0.2,
+          max_tokens: outputTokenCap(model, maxTokens),
+          ...(options?.jsonSchema
+            ? {
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: options.jsonSchema.name,
+                    strict: true,
+                    schema: options.jsonSchema.schema,
+                  },
+                },
+              }
+            : options?.jsonMode
+              ? { response_format: { type: 'json_object' } }
+              : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`OpenRouter request failed: ${response.status} ${body}`);
+      }
+
+      const json = await response.json();
+
+      // OpenRouter sometimes returns 200 OK with an error object (quota/rate-limit)
+      if (json.error) {
+        throw new Error(`OpenRouter API error: ${json.error.message ?? JSON.stringify(json.error)}`);
+      }
+
+      const rawContent = json.choices?.[0]?.message?.content;
+      const content = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((part: unknown) => typeof part === 'string' ? part : (part && typeof part === 'object' && 'text' in part ? String((part as { text?: unknown }).text ?? '') : '')).join('')
+          : '';
+      if (!content) throw new Error('OpenRouter returned empty content');
+
+      try {
+        return { result: parseJsonResponse<T>(content), model };
+      } catch (parseError) {
+        const preview = content.slice(0, 500).replace(/\s+/g, ' ');
+        console.warn('OpenRouter JSON parse failed preview:', { model, preview });
+        throw parseError;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${model}: ${message}`);
+      console.warn('OpenRouter model failed, trying fallback if available', { model, message });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new Error(`All OpenRouter models failed. ${errors.join(' | ')}`);
+}
+
+function parseModelList(value: string | undefined) {
+  return (value ?? '')
+    .split(',')
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+export function getWritingModels() {
+  const primary = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_WRITING_MODEL;
+  return [...new Set([primary, ...parseModelList(process.env.OPENROUTER_FALLBACK_MODELS)])];
+}
+
+export function getPreprocessModels() {
+  const configured = parseModelList(process.env.OPENROUTER_PREPROCESS_MODELS);
+  if (configured.length) return [...new Set(configured)];
+
+  // A free writing model means a test setup, so never fall through to the paid default.
+  const writingModels = getWritingModels();
+  return isFreeOpenRouterModel(writingModels[0]) ? writingModels : [DEFAULT_PREPROCESS_MODEL];
+}
+
+export function getIdeaEvaluationModels() {
+  // Keep an interactive request bounded: the primary writing model plus one
+  // configured fallback. callOpenRouter tries them sequentially.
+  return getWritingModels().slice(0, 2);
+}
+
+export function parseJsonResponse<T>(content: string) {
+  // Log a short preview when parsing fails to help debugging without dumping the full model output.
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const stripped = content
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
+
+  // Detect HTML responses (rate-limit pages, error pages from provider)
+  if (/^<!DOCTYPE|^<html/i.test(stripped)) {
+    const preview = stripped.slice(0, 120).replace(/\s+/g, ' ');
+    console.warn('OpenRouter returned HTML instead of JSON:', preview);
+    throw new Error('OpenRouter returned HTML (rate-limit or quota exceeded)');
+  }
+
+  // Log first 200 chars when parsing fails to help debugging
+  try {
+    return JSON.parse(stripped) as T;
+  } catch {
+    const start = stripped.indexOf('{');
+    if (start === -1) {
+      console.warn('OpenRouter non-JSON preview:', stripped.slice(0, 500));
+      throw new Error('OpenRouter returned non-JSON content');
+    }
+
+    // Models occasionally append a second JSON object or a short explanation.
+    // Parse only the first balanced object instead of combining it with the tail.
+    const candidate = extractFirstJsonObject(stripped.slice(start));
+    if (!candidate) {
+      console.warn('OpenRouter incomplete JSON preview:', stripped.slice(0, 500));
+      throw new Error('OpenRouter returned incomplete JSON content');
+    }
+    try {
+      return JSON.parse(candidate) as T;
+    } catch {
+      return JSON.parse(repairJsonCandidate(candidate)) as T;
+    }
+  }
+}
+
+function extractFirstJsonObject(value: string) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return value.slice(0, index + 1);
+    }
+  }
+
+  return null;
+}
+
+function repairJsonCandidate(value: string) {
+  return value
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/[\u0000-\u0019]+/g, ' ')
+    .trim();
 }

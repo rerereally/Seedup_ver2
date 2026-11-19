@@ -1,3 +1,4 @@
+import { onboardingAnswers } from '@/lib/db/onboarding';
 import type { Metadata } from 'next';
 import ScrapButton from '@/components/ScrapButton';
 import RepoPicks, { rankRepos } from '@/components/RepoPicks';
@@ -190,8 +191,8 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   // For a signed-in reader: their onboarding answers plus what they kept, liked or disliked, scored without embeddings.
   const personal = new Map<string, { score: number; reason?: string }>();
   if (user && supabase && tab === 'for-you') {
-    const [{ data: onboarding }, kept] = await Promise.all([supabase.from('user_onboarding').select('answers').eq('user_id', user.id).maybeSingle(), getScraps()]);
-    for (const row of await ruleReads(user.id, onboarding?.answers ?? null, kept).catch(() => [])) personal.set(row.content.id, { score: row.score, reason: row.reasons[0] });
+    const [answers, kept] = await Promise.all([onboardingAnswers(supabase, user.id), getScraps()]);
+    for (const row of await ruleReads(user.id, answers as Parameters<typeof ruleReads>[1], kept).catch(() => [])) personal.set(row.content.id, { score: row.score, reason: row.reasons[0] });
   }
   const repos = rankRepos(trends);
   const repoQuery = (repo: GitHubTrend) => !params.q || [repo.repo_full_name, repo.description, repo.short_summary, repo.language, ...(repo.topics ?? [])].some((value) => value?.toLowerCase().includes(params.q!.trim().toLowerCase()));

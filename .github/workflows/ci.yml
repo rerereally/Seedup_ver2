@@ -19,10 +19,60 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Migration names and order, and lib/schema-manifest.json in step with the SQL (the schema check must parse it).
+      - run: npm run migrations
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Applies every migration and supabase/seed.sql to an empty local Supabase database, so SQL that only worked on the
+  # live database fails here rather than in `supabase db push`. Runs beside `check`, so it adds no time to it.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.2.0
+      - run: supabase db start
+      - name: Every migration is applied
+        run: |
+          supabase migration list | tee list.txt
+          for file in supabase/migrations/*.sql; do
+            version=$(basename "$file" | cut -d_ -f1)
+            grep -qE "$version.*\|.*$version" list.txt || { echo "::error::$file was not applied"; exit 1; }
+          done
+
+  # The core flow in a real browser (idea → questions → PRD → AGENTS.md) on a build started in this runner, with fixed
+  # model answers (LLM_FIXTURES=1), signed in as the test account. Needs the Supabase secrets, so forks skip it.
+  e2e:
+    needs: check
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-trace
+          path: test-results/
+          retention-days: 7
 
   # Each pull request from this repository gets its own preview address: the build is uploaded as a Worker version
   # under a "pr-N" alias without becoming the live version. It runs with the live Worker's secrets, so it reads and
@@ -67,7 +117,7 @@ jobs:
 
   # Every push to main that passes the checks above goes live on Cloudflare.
   deploy:
-    needs: check
+    needs: [check, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -34,3 +34,19 @@ test('idea page helpers: slug shape, email check, default headline, safe CSV', (
   assert.equal(pageCopy('idea', '키 유출 알림', 'pitch').headline, '키 유출 알림');
   assert.equal(signupsCsv([{ email: '=cmd@x.io', created_at: '2026-11-18' }]), 'email,signed_up_at\n"\'=cmd@x.io","2026-11-18"');
 });
+
+test('mapLimit keeps each result at its index and never runs more than the limit at once', async () => {
+  const { mapLimit } = await import('../lib/utils');
+  let running = 0;
+  let peak = 0;
+  const out = await mapLimit([30, 5, 20, 1, 10], 2, async (ms, index) => {
+    running += 1;
+    peak = Math.max(peak, running);
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    running -= 1;
+    return `${index}:${ms}`;
+  });
+  assert.deepEqual(out, ['0:30', '1:5', '2:20', '3:1', '4:10']);
+  assert.equal(peak, 2);
+  assert.deepEqual(await mapLimit([], 3, async () => 1), []);
+});

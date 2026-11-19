@@ -1,6 +1,6 @@
 import { clientOf, rateLimited } from '@/lib/throttle';
 import { getOpportunityEmbeddings } from '@/lib/opportunities/data';
-import { createEmbedding } from '@/lib/opportunities/llm';
+import { createEmbedding } from '@/lib/llm';
 import { rankBySimilarity } from '@/lib/opportunities/match';
 import { cosineSimilarity } from '@/lib/opportunities/rules';
 import { NextResponse } from 'next/server';
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const cached = queryCache.get(cacheKey);
   if (cached) return NextResponse.json({ slugs: cached });
 
-  if (rateLimited(`match:${clientOf(request)}`, REQUESTS_PER_MINUTE)) return NextResponse.json({ slugs: null, reason: 'throttled' }, { status: 429 });
+  if (await rateLimited(`match:${clientOf(request)}`, REQUESTS_PER_MINUTE)) return NextResponse.json({ slugs: null, reason: 'throttled' }, { status: 429 });
 
   // The page keeps its keyword result whenever this cannot answer, so failures are not user-facing.
   const embedding = await createEmbedding(query, { timeoutMs: 7_000 });

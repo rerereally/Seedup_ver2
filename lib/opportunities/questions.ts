@@ -2,7 +2,7 @@
 // target the decisions the idea leaves open, with options drawn from it and from the quotes, instead of one fixed
 // list for every idea. A fixed list remains the fallback when no model answers in time.
 import type { Lang } from '../i18n';
-import { callJsonModel, prdFreeModels } from './llm';
+import { callJsonModel, prdFreeModels } from '../llm';
 
 export type PlanQuestion = { key: string; question: string; why: string; options: string[] };
 

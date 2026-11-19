@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin';
+import { refreshProductRating, saveProductRating } from '@/lib/db/products';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
@@ -19,29 +19,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const user = userData.user;
   if (!user) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
 
-  const { error: upsertError } = await supabase.from('ai_product_ratings').upsert(
-    { user_id: user.id, product_id: productId, rating, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,product_id' },
-  );
+  const { error: upsertError } = await saveProductRating(supabase, user.id, productId, rating);
   if (upsertError) return NextResponse.json({ error: '평점을 저장하지 못했습니다.' }, { status: 500 });
 
-  const admin = createAdminClient();
-  if (!admin) return NextResponse.json({ error: '평점 집계 설정이 없습니다.' }, { status: 503 });
-  const { data: ratings, error: ratingsError } = await admin
-    .from('ai_product_ratings')
-    .select('rating')
-    .eq('product_id', productId);
-  if (ratingsError) return NextResponse.json({ error: '평점 집계를 읽지 못했습니다.' }, { status: 500 });
-
-  const count = ratings.length;
-  const sum = ratings.reduce((total, item) => total + Number(item.rating ?? 0), 0);
-  const average = count ? Number((sum / count).toFixed(2)) : 0;
-  const { error: aggregateError } = await admin.from('ai_products').update({
-    user_rating_average: average,
-    user_score_sum: sum,
-    rating_count: count,
-  }).eq('id', productId);
-  if (aggregateError) return NextResponse.json({ error: '평점 집계를 저장하지 못했습니다.' }, { status: 500 });
+  const refreshed = await refreshProductRating(productId);
+  if (!refreshed) return NextResponse.json({ error: '평점 집계 설정이 없습니다.' }, { status: 503 });
+  if (refreshed.error === 'read') return NextResponse.json({ error: '평점 집계를 읽지 못했습니다.' }, { status: 500 });
+  if (refreshed.error) return NextResponse.json({ error: '평점 집계를 저장하지 못했습니다.' }, { status: 500 });
+  const { average, count } = refreshed;
 
   revalidatePath('/ai-products');
   revalidatePath(`/ai-products/${productId}`);

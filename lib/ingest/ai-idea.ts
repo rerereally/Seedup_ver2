@@ -8,7 +8,7 @@ import type {
   RecommendedTechnology,
   ScoreBreakdown,
 } from './ai-types';
-import { callOpenRouter, getIdeaEvaluationModels } from './openrouter-client';
+import { callOpenRouter, getIdeaEvaluationModels } from '../llm';
 import { truncate } from './text';
 
 export async function evaluateIdea(input: { idea: string; context?: string }) {

@@ -15,7 +15,10 @@ import { forYou } from '@/lib/personal';
 import NotInterestedButton from '@/components/NotInterestedButton';
 import { recentReleases } from '@/lib/ingest/kept-repos';
 import type { RepoRelease } from '@/lib/ingest/kept-repos';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { recentDossiers } from '@/lib/db/dossiers';
+import { hasMcpToken } from '@/lib/db/mcp-tokens';
+import { onboardingAnswers } from '@/lib/db/onboarding';
+import { repoReleases } from '@/lib/db/repos';
 import { createClient } from '@/lib/supabase/server';
 
 type Dossier = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string };
@@ -45,9 +48,9 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     getScraps(),
     getScrapKeySet(),
     getGitHubTrends(),
-    supabase ? supabase.from('evidence_dossiers').select('*').order('updated_at', { ascending: false }).limit(6).then(({ data, error }) => (error ? [] : (data ?? []) as Dossier[])) : Promise.resolve([] as Dossier[]),
-    createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data }) => Boolean(data)) ?? Promise.resolve(false),
-    supabase ? supabase.from('user_onboarding').select('answers').eq('user_id', user.id).maybeSingle().then(({ data }) => (data?.answers ?? null) as unknown) : Promise.resolve(null),
+    recentDossiers<Dossier>(supabase, 6),
+    hasMcpToken(user.id),
+    supabase ? onboardingAnswers(supabase, user.id) : Promise.resolve(null),
     getOpportunityEmbeddings().catch(() => ({} as Record<string, number[]>)),
   ]);
 
@@ -72,7 +75,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
   const repos = rankRepos(trends);
   const keptRepoIds = scraps.filter((item) => item.item_type === 'github' && item.item_id).map((item) => String(item.item_id));
   const keptRepoRows = keptRepoIds.length && supabase
-    ? await supabase.from('github_trends').select('id,repo_full_name,latest_release').in('id', keptRepoIds).then(({ data, error }) => (error ? [] : (data ?? []) as Array<{ id: string; repo_full_name: string; latest_release: RepoRelease | null }>))
+    ? await repoReleases<RepoRelease>(supabase, keptRepoIds)
     : [];
   const releases = recentReleases(keptRepoRows).slice(0, 4);
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });

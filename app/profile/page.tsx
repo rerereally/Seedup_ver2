@@ -8,6 +8,7 @@ import PageIntro from '@/components/PageIntro';
 import SubmitButton from '@/components/SubmitButton';
 import WorkShell from '@/components/WorkShell';
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
+import { onboardingRow, profileRow } from '@/lib/db/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -25,7 +26,7 @@ function notice(status?: string) {
   if (status === 'webhook-saved') return '채팅 알림을 저장했습니다. 다음 알림부터 그 채널로도 갑니다.';
   if (status === 'webhook-cleared') return '채팅 알림을 껐습니다.';
   if (status === 'webhook-invalid') return '디스코드나 슬랙의 웹훅 주소만 넣을 수 있습니다.';
-  if (status === 'webhook-failed') return '채팅 알림을 저장하지 못했습니다. DB 설정(notify_webhook_2026_11.sql)을 확인하세요.';
+  if (status === 'webhook-failed') return '채팅 알림을 저장하지 못했습니다. DB 설정(20261118121507_notify_webhook.sql)을 확인하세요.';
   return null;
 }
 
@@ -42,9 +43,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = data.user;
   if (!user) redirect('/login');
 
-  const [{ data: profile }, { data: onboarding }, params] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-    supabase.from('user_onboarding').select('*').eq('user_id', user.id).maybeSingle(),
+  const [profile, onboarding, params] = await Promise.all([
+    profileRow<{ full_name?: string | null; avatar_url?: string | null }>(supabase, user.id),
+    onboardingRow<{ answers?: unknown; newsletter_subscribed?: boolean | null; notify_webhook?: string | null }>(supabase, user.id),
     searchParams,
   ]);
 

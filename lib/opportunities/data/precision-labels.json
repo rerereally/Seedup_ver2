@@ -649,6 +649,112 @@
    "quote": "When I tried to figure out what happened, I had scattered logs across services with no way to prove what the agents actually said.",
    "relevant": true,
    "by": "claude-draft"
+  },
+  "ev_49b59b29c8c90f44": {
+   "slug": "research-paper-backlog-triage",
+   "quote": "I feel paralyzed by the size of this pile.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_da06f2a5a1c63733": {
+   "slug": "research-paper-backlog-triage",
+   "quote": "There are far too many papers to read all of them.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_af9d467519695990": {
+   "slug": "research-paper-backlog-triage",
+   "quote": "In many fields it isn't possible to read them all, so you need someone to make a selection of what is useful.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_5efaedff8a220fd4": {
+   "slug": "agent-context-knowledge-sharing",
+   "quote": "The major time cost for me is to re-explaining context and past decisions, client rules, that we already do.",
+   "relevant": false,
+   "note": "AI에게 맥락을 다시 설명하는 부담이지, 에이전트마다 컨텍스트 폴더를 관리하는 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "lv_e09a5abcd9640c0a": {
+   "slug": "agent-context-knowledge-sharing",
+   "quote": "We became increasingly frustrated with having to re-explain our tasks, workflows, common mistake patterns, etc. anytime we switched agents.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_68f7ab03a6784ad9": {
+   "slug": "cross-session-ai-coding-memory",
+   "quote": "The biggest pain point though is remembering to force it to do that between sessions (man is that contextual memory unreliable sometimes).",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e3c85f8494e337fb": {
+   "slug": "cross-session-ai-coding-memory",
+   "quote": "I started building a structured way to store context between chats",
+   "relevant": false,
+   "note": "자기 도구를 만들기 시작했다는 소개",
+   "by": "claude-draft"
+  },
+  "ev_3dc3c38555400cee": {
+   "slug": "cross-session-ai-coding-memory",
+   "quote": "Same codebase, same team, same decisions — explained from scratch every morning.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_551d3b908cf7a321": {
+   "slug": "cross-session-ai-coding-memory",
+   "quote": "I was tired of my agents losing their work between sessions — research reports, project docs, client records, all gone.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_fd900d5e383b9733": {
+   "slug": "cross-session-ai-coding-memory",
+   "quote": "I have to manually copy-paste context or re-explain everything when I switch to Claude Code.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_642ffd5d19ed6f23": {
+   "slug": "silent-workflow-failure-detection",
+   "quote": "The logs show \"success\" — exit code 0, no exceptions — but the actual results are wrong.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "lv_86c133bca53bcf43": {
+   "slug": "silent-workflow-failure-detection",
+   "quote": "we kept hitting the same recurring reliability issues: inconsistent shared state, silent failures, agents diverging from each other",
+   "relevant": false,
+   "note": "여러 에이전트 시스템의 신뢰성 문제로, 업무 흐름이 조용히 멈추는 문제와 다르다",
+   "by": "claude-draft"
+  },
+  "lv_78de430b1f67ecd8": {
+   "slug": "silent-workflow-failure-detection",
+   "quote": "Most agent failures are silent. Most failures occur in components that showed zero issues during testing.",
+   "relevant": false,
+   "note": "일반적인 주장이지 본인이 겪는 문제가 아니다",
+   "by": "claude-draft"
+  },
+  "ev_c48cccf5f93078a9": {
+   "slug": "dashboard-card-conditional-styling",
+   "quote": "Today there is no good way to do it.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_e5b1e1f5638a58eb": {
+   "slug": "dashboard-card-conditional-styling",
+   "quote": "Now I have to go into yaml and do some coding.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_c46387e2a779017f": {
+   "slug": "llm-codebase-context-loss",
+   "quote": "I'm really not learning the code base well at all.",
+   "relevant": true,
+   "by": "claude-draft"
+  },
+  "ev_2d7b561811f98917": {
+   "slug": "llm-codebase-context-loss",
+   "quote": "I've realized that the agent doesn't write 'good' code, instead my vague understanding of what I expect makes me think it does.",
+   "relevant": true,
+   "by": "claude-draft"
   }
  }
 }

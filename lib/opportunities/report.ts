@@ -1,7 +1,7 @@
 import { searchSupply } from './actors';
 import { estimateBuild } from './build';
 import { findLiveEvidence } from './live-evidence';
-import { callJsonModel } from './llm';
+import { callJsonModel } from '../llm';
 import { matchOpportunities } from './match';
 import { meetsEvidenceBar } from './rules';
 import { PLATFORM_LABELS } from './types';

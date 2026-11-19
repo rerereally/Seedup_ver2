@@ -5,7 +5,7 @@ import type {
   ArticleSourceBundleItem,
   GeneratedArticleDraft,
 } from './ai-types';
-import { ARTICLE_OPENROUTER_TIMEOUT_MS, callOpenRouter, getWritingModels } from './openrouter-client';
+import { ARTICLE_OPENROUTER_TIMEOUT_MS, callOpenRouter, getWritingModels } from '../llm';
 import { fallbackSummary, truncate } from './text';
 
 export async function generateArticleDraft(input: {

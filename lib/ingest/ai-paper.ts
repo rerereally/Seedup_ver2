@@ -1,6 +1,6 @@
 import { clampScore, containsHangul } from './ai-shared';
 import type { PaperAnalysis, PaperAnalysisResult } from './ai-types';
-import { callOpenRouter, getPreprocessModels } from './openrouter-client';
+import { callOpenRouter, getPreprocessModels } from '../llm';
 import { truncate } from './text';
 
 export async function analyzePaper(input: {

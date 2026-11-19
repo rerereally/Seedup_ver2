@@ -490,7 +490,7 @@ test('a quote cut off on a colon or comma is not evidence', async () => {
 });
 
 test('free thinking models always get room to answer, paid models get what was asked', async () => {
-  const { outputTokenCap } = await import('../lib/ingest/openrouter-models');
+  const { outputTokenCap } = await import('../lib/llm');
   assert.equal(outputTokenCap('baidu/ernie-5.5-flash-preview:free', 2_400), 16_000);
   assert.equal(outputTokenCap('baidu/ernie-5.5-flash-preview:free', 20_000), 20_000);
   assert.equal(outputTokenCap('anthropic/claude-sonnet-5', 2_400), 2_400);

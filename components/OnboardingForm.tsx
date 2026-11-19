@@ -2,6 +2,7 @@
 
 import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/client';
+import { saveOnboarding } from '@/lib/db/onboarding';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -66,16 +67,7 @@ export default function OnboardingForm({
       return;
     }
 
-    const { error } = await supabase.from('user_onboarding').upsert(
-      {
-        user_id: userId,
-        email,
-        answers,
-        newsletter_subscribed: newsletterSubscribed,
-        completed_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    );
+    const { error } = await saveOnboarding(supabase, { user_id: userId, email, answers, newsletter_subscribed: newsletterSubscribed, completed_at: new Date().toISOString() });
 
     if (error) {
       setStatus('error');

@@ -117,7 +117,7 @@ flowchart LR
 | `get_opportunity` | 문제 · 빈틈 · 원문(`E-n`) · 경쟁 도구 상세 |
 | `generate_verified_prd` | 근거 추적 PRD를 `AGENTS.md` 등 원하는 형식으로 생성(하루 10회, 같은 근거면 캐시) |
 | `get_build_checklist` | PRD 기능(`F-n`)별 완료 기준과 완료 여부 |
-| `mark_feature_done` | 완료 기준을 통과한 기능을 완료로 표시(사이트 PRD에 반영) |
+| `mark_feature_done` | 기능의 수락 기준마다 통과한 확인(테스트나 명령과 결과)을 받아야 완료로 표시(사이트 PRD에 반영) |
 | `get_kept_items` | 보관함에 킵한 저장소 · 아티클 · 논문 · 제품 |
 | `find_related_content` | 아이디어와 의미가 가까운 뉴스 · 논문 · 저장소 · 제품 |
 | `validate_idea` | 아이디어 검증 리포트(하루 3회) |
@@ -250,33 +250,50 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 ### 4. 데이터베이스(Supabase)
 
-Supabase Dashboard의 **SQL Editor**에서 실행합니다. 모든 파일은 여러 번 실행해도 안전합니다.
+DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<이름>.sql`로, 적용 순서대로 쌓습니다. 첫 파일(`20261101000000_initial.sql`)이 전체 테이블 · 인덱스 · RLS이고, 나머지는 운영에 적용했던 순서의 증분 변경입니다. 모든 파일은 여러 번 실행해도 안전합니다. 테스트용 더미 데이터는 마이그레이션이 아니라 [supabase/seed.sql](supabase/seed.sql)(로컬 `supabase db reset` 때만 들어감)이고, 지우는 SQL은 [supabase/delete_dummy.sql](supabase/delete_dummy.sql)입니다.
 
-1. **새 프로젝트:** [supabase/schema.sql](supabase/schema.sql) 하나에 전체 테이블 · 인덱스 · RLS가 들어 있습니다.
-2. **운영 중인 프로젝트의 증분 변경:**
+1. **새 프로젝트:** `npx supabase link --project-ref <ref>` 후 `npx supabase db push`. 로컬 DB(Docker 필요)는 `npx supabase start` 또는 `npx supabase db reset`.
+2. **새 변경 추가:** `supabase/migrations/`에 다음 시각 접두사로 파일을 만들고 `npx tsx scripts/check-migrations.ts --write`로 `lib/schema-manifest.json`(관리자 화면의 'DB 변경 확인'이 쓰는 목록)을 갱신합니다. CI가 파일 이름 · 순서와 이 목록이 SQL과 맞는지 확인합니다. 운영 적용은 `npx supabase db push`(또는 SQL 편집기에 붙여 넣기).
+3. **운영 DB를 마이그레이션 기록에 맞추기(한 번만):** 운영 DB에는 아래 파일이 모두 SQL 편집기로 이미 적용되어 있지만 CLI의 적용 기록(`supabase_migrations.schema_migrations`)은 비어 있습니다. `db push`가 처음부터 다시 실행하지 않도록, DB 접근 권한이 있는 사람이 한 번 실행합니다.
+
+```bash
+npx supabase link --project-ref <운영 project ref>
+```
+
+```bash
+npx supabase migration repair --status applied 20261101000000 20261109211638 20261110155444 20261111090932 20261114222837 20261114223012 20261114225830 20261114230113 20261114230205 20261116172120 20261116181543 20261117111335 20261118120720 20261118120947 20261118121344 20261118121507 20261118121746 20261118121957 20261118190338 20261119112104
+```
+
+```bash
+npx supabase migration list
+```
+
+`migration list`에서 Local과 Remote 열이 모두 같으면 끝입니다. 그 뒤로는 새 마이그레이션만 `db push`로 올라갑니다.
 
 | 파일 | 하는 일 |
 | :--- | :--- |
-| [opportunities_2026_11.sql](supabase/opportunities_2026_11.sql) | 기회 엔진(`opportunities`), 증언 도시에(`evidence_dossiers`), 일일 AI 쿼터(`ai_usage`, `consume_ai_usage`) |
-| [hardening_2026_11.sql](supabase/hardening_2026_11.sql) | 수집 로그 서버 전용 제한, 아이디어 평가 RLS 강화 |
-| [view_count_2026_11.sql](supabase/view_count_2026_11.sql) | 조회수 원자적 증가(`increment_content_view`) |
-| [usage_refund_2026_11.sql](supabase/usage_refund_2026_11.sql) | 생성 실패 시 쿼터 반환(`release_ai_usage`) |
-| [mcp_usage_2026_11.sql](supabase/mcp_usage_2026_11.sql) | MCP 호출 쿼터 원자적 차감(`consume_ai_usage_for`) |
-| [mcp_tokens_2026_11.sql](supabase/mcp_tokens_2026_11.sql) | 개인 MCP 토큰(`mcp_tokens`) |
-| [prd_models_2026_11.sql](supabase/prd_models_2026_11.sql) | PRD 허용 모델(`app_settings`), 실행 기록(`prd_runs`) |
-| [prd_cache_2026_11.sql](supabase/prd_cache_2026_11.sql) | 같은 근거 PRD 캐시(`prd_cache`) |
-| [build_progress_2026_11.sql](supabase/build_progress_2026_11.sql) | MCP 구현 완료 체크리스트(`build_progress`) |
-| [dossier_share_2026_11.sql](supabase/dossier_share_2026_11.sql) | PRD 공개 공유 링크(`/spec/[id]`) |
-| [built_2026_11.sql](supabase/built_2026_11.sql) | 공유 PRD "만들었어요" 링크 · 메모 |
-| [newsletter_issues_2026_11.sql](supabase/newsletter_issues_2026_11.sql) | 주간 뉴스레터 웹 보관(`newsletter_issues`) |
-| [newsletter_sends_2026_11.sql](supabase/newsletter_sends_2026_11.sql) | 메일 중복 발송 방지(`newsletter_sends`) |
-| [repo_releases_2026_11.sql](supabase/repo_releases_2026_11.sql) | 킵한 저장소 최신 릴리스(`github_trends.latest_release`) |
-| [notify_webhook_2026_11.sql](supabase/notify_webhook_2026_11.sql) | 디스코드 · 슬랙 웹훅(`user_onboarding.notify_webhook`) |
-| [idea_watches_2026_11.sql](supabase/idea_watches_2026_11.sql) | 아이디어 지켜보기(`idea_watches`) |
-| [saved_quotes_2026_11.sql](supabase/saved_quotes_2026_11.sql) | 크롬 확장으로 담은 원문(`saved_quotes`) |
-| [idea_pages_2026_11.sql](supabase/idea_pages_2026_11.sql) | 검증 실험 키트 페이지 · 대기자 명단(`idea_pages`, `waitlist_signups`) |
+| 20261101000000_initial.sql | 전체 테이블 · 인덱스 · RLS(아래 변경이 모두 반영된 상태) |
+| 20261109211638_hardening.sql | 수집 로그 서버 전용 제한, 아이디어 평가 RLS 강화 |
+| 20261110155444_opportunities.sql | 기회 엔진(`opportunities`), 증언 도시에(`evidence_dossiers`), 일일 AI 쿼터(`ai_usage`, `consume_ai_usage`) |
+| 20261111090932_newsletter_sends.sql | 메일 중복 발송 방지(`newsletter_sends`) |
+| 20261114222837_view_count.sql | 조회수 원자적 증가(`increment_content_view`) |
+| 20261114223012_usage_refund.sql | 생성 실패 시 쿼터 반환(`release_ai_usage`) |
+| 20261114225830_prd_cache.sql | 같은 근거 PRD 캐시(`prd_cache`) |
+| 20261114230113_mcp_tokens.sql | 개인 MCP 토큰(`mcp_tokens`) |
+| 20261114230205_dossier_share.sql | PRD 공개 공유 링크(`/spec/[id]`) |
+| 20261116172120_newsletter_issues.sql | 주간 뉴스레터 웹 보관(`newsletter_issues`) |
+| 20261116181543_build_progress.sql | MCP 구현 완료 체크리스트(`build_progress`) |
+| 20261117111335_prd_models.sql | PRD 허용 모델(`app_settings`), 실행 기록(`prd_runs`) |
+| 20261118120720_repo_releases.sql | 킵한 저장소 최신 릴리스(`github_trends.latest_release`) |
+| 20261118120947_built.sql | 공유 PRD "만들었어요" 링크 · 메모 |
+| 20261118121344_idea_watches.sql | 아이디어 지켜보기(`idea_watches`) |
+| 20261118121507_notify_webhook.sql | 디스코드 · 슬랙 웹훅(`user_onboarding.notify_webhook`) |
+| 20261118121746_saved_quotes.sql | 크롬 확장으로 담은 원문(`saved_quotes`) |
+| 20261118121957_idea_pages.sql | 검증 실험 키트 페이지 · 대기자 명단(`idea_pages`, `waitlist_signups`) |
+| 20261118190338_mcp_usage.sql | MCP 호출 쿼터 원자적 차감(`consume_ai_usage_for`) |
+| 20261119112104_app_errors.sql | 서버 오류 기록(`app_errors`) |
 
-빠진 변경이 있는지는 `npx tsx --env-file=.env scripts/check-schema.ts` 또는 관리자 화면에서 확인할 수 있습니다.
+빠진 변경이 있는지는 `npx tsx --env-file=.env scripts/check-schema.ts` 또는 관리자 화면에서 확인할 수 있습니다. 다른 사람의 행을 읽거나 쓸 수 없는지(RLS)는 `npm run rls`로 확인합니다.
 
 3. **OAuth Redirect URL 등록** (`Authentication > URL Configuration`):
    - `http://localhost:3000/auth/callback`

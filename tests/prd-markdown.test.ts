@@ -118,3 +118,12 @@ test('a revision that leaves fields out keeps them from the version before', asy
   assert.equal(kept.requirements[1].priority, before.requirements[1].priority);
   assert.equal(kept.hypotheses[0].check, before.hypotheses[0].check);
 });
+
+test('the end-to-end fixture PRD parses cleanly, so the test never depends on a repair call', async () => {
+  const { fixtureProse } = await import('../lib/llm-fixtures');
+  const { specIssues } = await import('../lib/opportunities/prd');
+  const spec = normalizeSpec(parsePrdMarkdown(fixtureProse())!, 0, true, { idea: true });
+  assert.equal(spec.hypotheses.length, 3);
+  assert.equal(spec.features.length, 3);
+  assert.deepEqual(specIssues(spec, { title: '', problem: '', gap: '', evidence: [], competitors: [] }), []);
+});

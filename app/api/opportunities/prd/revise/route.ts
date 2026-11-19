@@ -1,9 +1,8 @@
+import { prdPolicy, prdRun } from '@/lib/db/server';
 import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
-import { loadPrdPolicy, pickPrdModel } from '@/lib/opportunities/models';
-import { prdRunLog } from '@/lib/opportunities/prd-runs';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { pickPrdModel } from '@/lib/opportunities/models';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeSlots } from '@/lib/opportunities/spec';
@@ -88,9 +87,8 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'prd_revise', DAILY_REVISE_LIMIT))) {
     return NextResponse.json({ error: `대화형 수정은 하루 ${DAILY_REVISE_LIMIT}번까지 할 수 있습니다.` }, { status: 429 });
   }
-  const service = createAdminClient();
-  const model = pickPrdModel(body?.model, await loadPrdPolicy(service));
-  const run = prdRunLog(service, data.user, 'revise', model ?? 'default');
+  const model = pickPrdModel(body?.model, await prdPolicy());
+  const run = prdRun(data.user, 'revise', model ?? 'default');
   const work = screensOnly
     ? generateScreens(input, current, model, run.onUsage).then((screens) => (screens ? { ...current, screens } : null))
     : reviseSpec(input, current, instruction, model, undefined, run.onUsage);

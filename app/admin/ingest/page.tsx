@@ -222,10 +222,10 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
               <p className="mt-2 text-sm text-muted">DB 구조 설명을 읽지 못해 확인하지 못했습니다.</p>
             ) : schemaGaps.length ? (
               <ul className="mt-3 grid gap-2 text-sm">
-                {schemaGaps.map((gap) => <li key={gap.file} className="text-red-700"><code className="font-mono">supabase/{gap.file}</code>를 Supabase SQL 편집기에서 실행하세요. 빠진 것: {gap.missing.join(', ')}</li>)}
+                {schemaGaps.map((gap) => <li key={gap.file} className="text-red-700"><code className="font-mono">supabase/migrations/{gap.file}</code>를 적용하세요(npx supabase db push 또는 SQL 편집기). 빠진 것: {gap.missing.join(', ')}</li>)}
               </ul>
             ) : (
-              <p className="mt-2 text-sm text-muted">supabase 폴더의 날짜별 SQL 변경이 모두 적용되어 있습니다.</p>
+              <p className="mt-2 text-sm text-muted">supabase/migrations의 변경이 모두 적용되어 있습니다.</p>
             )}
           </section>
 
@@ -267,7 +267,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">모든 계정이 PRD를 만들 때 고를 수 있는 모델입니다. 체크를 끄면 그 모델을 고른 요청도 무료 모델로 만들어집니다. 수집·처리 엔진은 이 설정과 관계없이 항상 무료 모델만 씁니다. 저장 후 30초 안에 반영됩니다.</p>
             {params.prdModels && (
               <p className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.prdModels === 'saved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
-                {params.prdModels === 'saved' ? '저장했습니다.' : params.prdModels === 'missing-service-key' ? '서버 키가 없어 저장하지 못했습니다.' : '저장하지 못했습니다. supabase/prd_models_2026_11.sql을 실행했는지 확인하세요.'}
+                {params.prdModels === 'saved' ? '저장했습니다.' : params.prdModels === 'missing-service-key' ? '서버 키가 없어 저장하지 못했습니다.' : '저장하지 못했습니다. supabase/migrations/20261117111335_prd_models.sql을 실행했는지 확인하세요.'}
               </p>
             )}
             <form action={savePrdModelPolicy} className="mt-5">
@@ -343,7 +343,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 </div>
               </>
             ) : (
-              <p className="mt-4 text-sm text-muted">아직 기록이 없습니다. supabase/prd_models_2026_11.sql을 실행한 뒤부터 쌓입니다.</p>
+              <p className="mt-4 text-sm text-muted">아직 기록이 없습니다. supabase/migrations/20261117111335_prd_models.sql을 실행한 뒤부터 쌓입니다.</p>
             )}
           </section>
 

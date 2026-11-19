@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { usageFunnel } from '../lib/metrics';
-import { missingSchema } from '../lib/schema-check';
+import { missingSchema, schemaFromMigrations, SCHEMA_FILES } from '../lib/schema-check';
 
 test('the usage funnel counts people per step inside the window, and a second active day as returning', () => {
   const since = '2026-11-10T00:00:00.000Z';
@@ -40,6 +40,28 @@ test('the schema check names the SQL file for each missing table, column or func
     { file: 'c.sql', columns: [['evidence_dossiers', 'shared']] },
   ]);
   assert.deepEqual(gaps, [{ file: 'b.sql', missing: ['prd_runs', 'consume_ai_usage()'] }, { file: 'c.sql', missing: ['evidence_dossiers.shared'] }]);
+});
+
+test('the schema check reads tables, columns and functions from migrations, and forgets what a later one drops', () => {
+  const files = schemaFromMigrations([
+    {
+      file: '1_init.sql',
+      sql: `-- it's a comment with a quote; create table public.not_real (x int);
+        create table if not exists public.notes (id uuid primary key default gen_random_uuid(), body text not null default 'a, b; c', tags text[] default '{}', constraint body_len check (length(body) < 10), unique (body));
+        create table auth.other (id uuid);
+        alter table public.notes enable row level security;
+        create or replace function public.touch() returns trigger language plpgsql as $$ begin new.body := 'x;'; return new; end $$;
+        create or replace function public.count_notes(p text) returns int language sql as $fn$ select 1; $fn$;`,
+    },
+    { file: '2_more.sql', sql: 'alter table public.notes add column if not exists shared boolean not null default false, add column old text, add constraint c unique (old);' },
+    { file: '3_drop.sql', sql: 'alter table public.notes drop column if exists old; drop function if exists public.count_notes(text);' },
+  ]);
+  assert.deepEqual(files, [
+    { file: '1_init.sql', tables: ['notes'], columns: [['notes', 'id'], ['notes', 'body'], ['notes', 'tags']] },
+    { file: '2_more.sql', columns: [['notes', 'shared']] },
+  ]);
+  // The real migrations parse, and every file that adds something is listed in the committed manifest.
+  assert.ok(SCHEMA_FILES.some((entry) => entry.tables?.includes('evidence_dossiers')));
 });
 
 import { evalSummary } from '../lib/opportunities/eval';

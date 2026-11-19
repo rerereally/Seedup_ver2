@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     if (query.length < 3) return NextResponse.json({ papers: [] });
     const cached = paperCache.get(query);
     if (cached) return NextResponse.json({ papers: cached });
-    if (isThrottled(client, 'papers')) return tooMany();
+    if (await isThrottled(client, 'papers')) return tooMany();
     const papers = await searchPapers(query);
     if (papers.length) remember(paperCache, query, papers);
     return NextResponse.json({ papers });
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
     if (!supabase || !data.user) return NextResponse.json({ idea: null, error: '로그인 후 AI 기능 제안을 볼 수 있습니다.' }, { status: 401 });
-    if (isThrottled(client, 'ideas')) return tooMany();
+    if (await isThrottled(client, 'ideas')) return tooMany();
     if (!(await consumeDailyUsage(supabase, 'seed_ideas', DAILY_IDEA_LIMIT))) {
       return NextResponse.json({ idea: null, error: `AI 기능 제안은 하루 ${DAILY_IDEA_LIMIT}개 레포까지 볼 수 있습니다.` }, { status: 429 });
     }
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ idea });
   }
 
-  if (!repoCache.has(login) && isThrottled(client, 'repos')) return tooMany();
+  if (!repoCache.has(login) && await isThrottled(client, 'repos')) return tooMany();
   let repos: SeedRepo[];
   try {
     repos = await loadRepos(login);

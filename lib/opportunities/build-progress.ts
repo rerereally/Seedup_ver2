@@ -13,7 +13,7 @@ export function normalizeFeatureId(value: string) {
 export async function readBuildProgress(client: SupabaseClient | null, userId: string, slug: string): Promise<BuildProgress> {
   if (!client) return {};
   const { data, error } = await client.from('build_progress').select('feature_id,feature_title,note,done_at').eq('user_id', userId).eq('slug', slug);
-  // Before supabase/build_progress_2026_11.sql is run the table is missing, and the PRD simply shows no progress.
+  // Before supabase/migrations/20261116181543_build_progress.sql is run the table is missing, and the PRD simply shows no progress.
   if (error) return {};
   return Object.fromEntries((data ?? []).map((row) => [String(row.feature_id), { title: String(row.feature_title ?? ''), note: String(row.note ?? ''), doneAt: String(row.done_at) }]));
 }

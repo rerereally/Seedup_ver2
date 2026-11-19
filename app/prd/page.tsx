@@ -1,3 +1,5 @@
+import { myPrds } from '@/lib/db/dossiers';
+import { cachedPrd, prdPolicy, samplePrd } from '@/lib/db/server';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -10,11 +12,10 @@ import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { dossierHref } from '@/lib/opportunities/insight';
-import { loadPrdPolicy, prdModels } from '@/lib/opportunities/models';
-import { PRD_MAX_EVIDENCE as MAX_EVIDENCE, readPrdCache, samplePrdSlug } from '@/lib/opportunities/prd-cache';
+import { prdModels } from '@/lib/opportunities/models';
+import { PRD_MAX_EVIDENCE as MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'PRD' };
@@ -50,15 +51,12 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
   if (!params.opportunity && !params.evidence) {
     const qualified = opportunities.filter((item) => item.qualified);
     // Saved PRDs open at once for anyone, so the list says which ones are ready to read.
-    const service = createAdminClient();
-    const sample = await samplePrdSlug(service, [...qualified].sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'))).catch(() => null);
-    const saved = new Set((await Promise.all(qualified.map(async (item) => ((await readPrdCache(service, item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
+    const sample = await samplePrd([...qualified].sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'))).catch(() => null);
+    const saved = new Set((await Promise.all(qualified.map(async (item) => ((await cachedPrd(item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
     // The reader's own PRDs, newest first.
     const supabase = await createClient();
     const user = supabase ? await getCurrentUser() : null;
-    const mine = user && supabase
-      ? await supabase.from('evidence_dossiers').select('id,title,opportunity_slug,evidence_ids,prd_markdown,updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20).then(({ data, error }) => (error ? [] : (data ?? []) as MyPrd[]))
-      : [];
+    const mine = user && supabase ? await myPrds<MyPrd>(supabase, user.id, 20) : [];
     const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' });
     return (
       <>
@@ -142,7 +140,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
   const supabase = await createClient();
   const [user, saved] = await Promise.all([
     supabase ? getCurrentUser() : null,
-    readPrdCache(createAdminClient(), pickedIds),
+    cachedPrd(pickedIds),
   ]);
   // What a coding agent marked done through MCP. Only an opportunity's own PRD has it, since that is what MCP builds from.
   const progress = opportunity && user ? await readBuildProgress(supabase, user.id, opportunity.slug) : undefined;
@@ -170,7 +168,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
           {/* MCP builds from the evidence-only PRD of an opportunity, so its start prompt is offered only for one. */}
-          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} models={prdModels(await loadPrdPolicy(createAdminClient()))} showTitle={false} agentSlug={opportunity?.slug}>
+          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} models={prdModels(await prdPolicy())} showTitle={false} agentSlug={opportunity?.slug}>
             {/* Before a PRD exists, show the quotes it will stand on and what it will contain. */}
             <div className="mt-8 grid max-w-[52rem] gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_20rem]">
               <section aria-labelledby="prd-sources">

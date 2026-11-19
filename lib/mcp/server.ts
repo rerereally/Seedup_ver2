@@ -79,6 +79,19 @@ export const TOOLS = [
         feature: { type: 'string', description: 'Feature id, e.g. F-01' },
         done: { type: 'boolean', description: 'Default true; false clears the mark' },
         note: { type: 'string', description: 'One line on what was built or how it was checked' },
+        checks: {
+          type: 'array',
+          description: 'One entry per done criterion listed for this feature by get_build_checklist (numbered from 1). A feature is marked done only when every criterion has a passing check with evidence.',
+          items: {
+            type: 'object',
+            properties: {
+              criterion: { type: 'number', description: 'The criterion number from get_build_checklist' },
+              passed: { type: 'boolean' },
+              evidence: { type: 'string', description: 'How it was checked: the test name and its result, or the command and its output, in one line' },
+            },
+            required: ['criterion', 'passed', 'evidence'],
+          },
+        },
       },
       required: ['slug', 'feature'],
     },
@@ -130,12 +143,38 @@ function describe(item: Opportunity, siteUrl: string) {
 }
 
 /** The checklist an agent works through: one box per feature, its done criteria under it. Pure, for tests. */
+/**
+ * What "done" means for one feature: the acceptance criteria of every requirement it serves, then its own readiness
+ * "done" slot. The numbering here is what mark_feature_done's checks refer to.
+ */
+export function featureCriteria(spec: Spec, feature: Spec['features'][number]) {
+  const served = [...spec.requirements, ...spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
+  return [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter(Boolean))];
+}
+
+type Check = { criterion: number; passed: boolean; evidence: string };
+
+/**
+ * Which criteria still lack a passing check with evidence. An agent's word that a feature works is not enough: each
+ * criterion needs its own passing check, so the mark on the PRD page means the criteria were actually tried.
+ */
+export function unmetCriteria(criteria: string[], raw: unknown) {
+  const checks = (Array.isArray(raw) ? raw : []).flatMap((row): Check[] => {
+    const item = (row ?? {}) as Record<string, unknown>;
+    const evidence = String(item.evidence ?? '').trim();
+    return Number.isInteger(item.criterion) && evidence.length >= 3 ? [{ criterion: Number(item.criterion), passed: item.passed === true, evidence: evidence.slice(0, 200) }] : [];
+  });
+  const passing = new Map(checks.filter((check) => check.passed).map((check) => [check.criterion, check]));
+  return { unmet: criteria.map((line, index) => ({ n: index + 1, line })).filter(({ n }) => !passing.has(n)), passing: [...passing.values()] };
+}
+
 export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string) {
   const done = spec.features.filter((feature) => progress[feature.id]).length;
   const lines = spec.features.map((feature) => {
     const mark = progress[feature.id];
-    const criteria = feature.slots?.done.length
-      ? feature.slots.done.map((line) => `    - ${line}`).join('\n')
+    const list = featureCriteria(spec, feature);
+    const criteria = list.length
+      ? list.map((line, index) => `    ${index + 1}. ${line}`).join('\n')
       : '    - (no done criteria yet: fill the blanks for this feature on the PRD page, or write tests that prove the detail above)';
     return `- [${mark ? 'x' : ' '}] ${feature.id} ${feature.title} (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
@@ -143,7 +182,7 @@ export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: 
 ${criteria}${mark?.note ? `\n  Note: ${mark.note}` : ''}`;
   });
   return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}
-Work on one unchecked feature at a time. When its criteria pass, call mark_feature_done with its id.
+Work on one unchecked feature at a time. When its criteria pass, call mark_feature_done with its id and one check per numbered criterion (passed, and the test or command that proved it).
 PRD page: ${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}
 
 ${lines.join('\n\n') || 'This PRD has no features.'}`;
@@ -197,7 +236,16 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       const id = normalizeFeatureId(String(args.feature ?? ''));
       const feature = id ? cached.spec.features.find((row) => row.id === id) : undefined;
       if (!feature) return text(`Unknown feature "${String(args.feature ?? '')}". Features: ${cached.spec.features.map((row) => row.id).join(', ') || 'none'}.`, true);
-      await deps.setProgress(slug, feature, args.done !== false, String(args.note ?? '').trim());
+      const note = String(args.note ?? '').trim();
+      if (args.done === false) {
+        await deps.setProgress(slug, feature, false, note);
+      } else {
+        const criteria = featureCriteria(cached.spec, feature);
+        const { unmet, passing } = unmetCriteria(criteria, args.checks);
+        if (unmet.length) return text(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.\n${unmet.map(({ n, line }) => `  ${n}. ${line}`).join('\n')}\nCheck each one (a test or a command), then call mark_feature_done again with checks: [{ criterion, passed: true, evidence }].`, true);
+        const proof = passing.map((check) => `${check.criterion}: ${check.evidence}`).join('; ');
+        await deps.setProgress(slug, feature, true, [note, proof && `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ').slice(0, 600));
+      }
     }
     return text(renderChecklist(opportunity, cached.spec, await deps.progress(slug), siteUrl));
   }

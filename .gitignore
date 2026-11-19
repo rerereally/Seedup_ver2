@@ -45,3 +45,10 @@ graphify-out/
 
 # agent worktrees (local)
 .claude/worktrees/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+e2e/.auth.json
+test-results/
+playwright-report/

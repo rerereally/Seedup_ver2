@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { EMBEDDING_DIMENSIONS, fitEmbedding } from '../lib/opportunities/llm';
+import { EMBEDDING_DIMENSIONS, fitEmbedding } from '../lib/llm';
 
 test('fitEmbedding cuts a longer vector to the column size and keeps it at length 1', () => {
   const vector = fitEmbedding(Array.from({ length: 2048 }, (_, index) => (index % 7) - 3));

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
 import { safeSourceUrl } from '@/lib/opportunities/live-evidence';
+import { deleteDossier, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -29,20 +30,15 @@ export async function POST(request: Request) {
   const dossierKey = createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 32);
   const prd = typeof body?.prdMarkdown === 'string' ? body.prdMarkdown.slice(0, MAX_PRD_LENGTH) : null;
 
-  const { data: saved, error } = await supabase
-    .from('evidence_dossiers')
-    .upsert({
-      user_id: data.user.id,
-      dossier_key: dossierKey,
-      title,
-      opportunity_slug: lead?.slug ?? null,
-      evidence_ids: evidenceIds,
-      evidence: picked.map((item) => item.evidence),
-      ...(prd ? { prd_markdown: prd } : {}),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,dossier_key' })
-    .select('id')
-    .single();
+  const { data: saved, error } = await saveDossier(supabase, {
+    user_id: data.user.id,
+    dossier_key: dossierKey,
+    title,
+    opportunity_slug: lead?.slug ?? null,
+    evidence_ids: evidenceIds,
+    evidence: picked.map((item) => item.evidence),
+    ...(prd ? { prd_markdown: prd } : {}),
+  });
 
   if (error) {
     console.error('Dossier save failed', error.message);
@@ -62,7 +58,7 @@ export async function DELETE(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: '지울 근거를 찾지 못했습니다.' }, { status: 400 });
 
   // RLS already limits this to the user's own rows; the user_id filter keeps it safe if that policy ever changes.
-  const { error } = await supabase.from('evidence_dossiers').delete().eq('id', id).eq('user_id', data.user.id);
+  const { error } = await deleteDossier(supabase, data.user.id, id);
   if (error) {
     console.error('Dossier delete failed', error.message);
     return NextResponse.json({ error: '지우지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
@@ -88,7 +84,7 @@ export async function PATCH(request: Request) {
     const patch = built && url
       ? { built_url: url.toString(), built_note: String(built.note ?? '').trim().slice(0, 200) || null, built_at: new Date().toISOString(), shared: true }
       : { built_url: null, built_note: null, built_at: null };
-    const { data: row, error } = await supabase.from('evidence_dossiers').update(patch).eq('id', id).eq('user_id', data.user.id).not('prd_markdown', 'is', null).select('id').maybeSingle();
+    const { data: row, error } = await updateSavedPrd(supabase, data.user.id, id, patch);
     if (error || !row) {
       if (error) console.error('Dossier built update failed', error.message);
       return NextResponse.json({ error: 'PRD가 저장된 항목에만 만든 것을 붙일 수 있습니다.' }, { status: error ? 503 : 404 });
@@ -98,14 +94,7 @@ export async function PATCH(request: Request) {
 
   const shared = body?.shared === true;
 
-  const { data: row, error } = await supabase
-    .from('evidence_dossiers')
-    .update({ shared })
-    .eq('id', id)
-    .eq('user_id', data.user.id)
-    .not('prd_markdown', 'is', null)
-    .select('id')
-    .maybeSingle();
+  const { data: row, error } = await updateSavedPrd(supabase, data.user.id, id, { shared });
   if (error || !row) {
     if (error) console.error('Dossier share toggle failed', error.message);
     return NextResponse.json({ error: '공유 설정을 바꾸지 못했습니다. PRD가 저장된 항목만 공유할 수 있습니다.' }, { status: error ? 503 : 404 });

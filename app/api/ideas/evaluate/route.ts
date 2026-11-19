@@ -1,3 +1,4 @@
+import { cachedEvaluation, saveEvaluation } from '@/lib/db/evaluations';
 import { applyIdeaEvidencePolicy, evaluateIdea } from '@/lib/ingest/ai';
 import { validateIdeaInput } from '@/lib/ideas/input';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
@@ -33,29 +34,7 @@ export async function POST(request: Request) {
 
   if (supabase && user) {
     const cacheAfter = new Date(Date.now() - EVALUATION_CACHE_HOURS * 60 * 60 * 1000).toISOString();
-    const cacheByKey = await supabase
-      .from('idea_evaluations')
-      .select('id,result')
-      .eq('user_id', user.id)
-      .eq('evaluation_key', key)
-      .eq('status', 'completed')
-      .gte('created_at', cacheAfter)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const cacheByText = cacheByKey.error
-      ? await supabase
-          .from('idea_evaluations')
-          .select('id,result')
-          .eq('user_id', user.id)
-          .eq('idea_text', idea)
-          .eq('status', 'completed')
-          .gte('created_at', cacheAfter)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : null;
-    const cached = cacheByKey.data ?? cacheByText?.data;
+    const cached = await cachedEvaluation(supabase, user.id, key, idea, cacheAfter);
 
     if (cached?.result && typeof cached.result === 'object') {
       const cachedResult = cached.result as { model?: string | null; evaluation?: unknown; references?: unknown };
@@ -113,22 +92,10 @@ export async function POST(request: Request) {
         references,
       },
     };
-    const { data: insertedRow, error } = await supabase
-      .from('idea_evaluations')
-      .insert(evaluationRecord)
-      .select('id')
-      .single();
-
+    const { data: insertedRow, error } = await saveEvaluation(supabase, evaluationRecord);
     if (error) {
-      const { evaluation_key: _evaluationKey, ...legacyRecord } = evaluationRecord;
-      const { data: legacyRow, error: legacyError } = await supabase.from('idea_evaluations').insert(legacyRecord).select('id').single();
-      if (legacyError) {
-        console.error('Failed to save idea evaluation', legacyError);
-        saveError = legacyError.message;
-      } else {
-        saved = true;
-        savedId = legacyRow?.id ?? null;
-      }
+      console.error('Failed to save idea evaluation', error);
+      saveError = error.message;
     } else {
       saved = true;
       savedId = insertedRow?.id ?? null;

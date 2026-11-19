@@ -1,5 +1,5 @@
 import { findLiveEvidence } from './live-evidence';
-import { callJsonModel } from './llm';
+import { callJsonModel } from '../llm';
 import { meetsEvidenceBar } from './rules';
 import type { Evidence, Opportunity } from './types';
 

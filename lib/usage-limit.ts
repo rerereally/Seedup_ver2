@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fixturesOn } from '@/lib/llm-fixtures';
 
 /**
  * Whether a failed limit check lets the call through. In production it does not: a missing migration or a database
@@ -14,6 +15,9 @@ export function usageLimitFailsOpen(env: Record<string, string | undefined> = pr
 
 /** Counts one use of a paid-for feature. Returns false once today's limit is used up. */
 export async function consumeDailyUsage(supabase: SupabaseClient, feature: string, dailyLimit: number) {
+  // Fixture runs (e2e, LLM_FIXTURES=1) call no model, so they spend nothing; counting them let a busy CI day use up the
+  // test account's real limit and fail every later run.
+  if (fixturesOn()) return true;
   const { data, error } = await supabase.rpc('consume_ai_usage', { p_feature: feature, p_daily_limit: dailyLimit });
   if (error) {
     const open = usageLimitFailsOpen();
@@ -25,6 +29,7 @@ export async function consumeDailyUsage(supabase: SupabaseClient, feature: strin
 
 /** Gives back one use when the model call behind it failed, so an outage does not eat the user's limit. */
 export async function releaseDailyUsage(supabase: SupabaseClient, feature: string) {
+  if (fixturesOn()) return;
   const { error } = await supabase.rpc('release_ai_usage', { p_feature: feature });
   if (error) console.error('Usage refund failed', feature, error.message);
 }

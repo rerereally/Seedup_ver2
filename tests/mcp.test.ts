@@ -122,7 +122,7 @@ test('the checklist needs a PRD, lists done criteria, and marking a feature show
   const unproven = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass' }), withSpec, '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
   assert.equal(unproven.result.isError, true);
   assert.match(unproven.result.content[0].text, /1\. saving a note returns its id/);
-  assert.equal(progress['F-01'], undefined);
+  assert.ok(!('F-01' in progress));
   const failing = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', checks: [{ criterion: 1, passed: false, evidence: 'notes.test.ts: 1 failing' }] }), withSpec, '') as { result: { isError?: boolean } };
   assert.equal(failing.result.isError, true);
 

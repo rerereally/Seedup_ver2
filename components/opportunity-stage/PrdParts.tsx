@@ -138,11 +138,13 @@ const PHASES: Record<LivePhase, [string, string]> = {
  * What the reader sees while the PRD is made: the real step the server reports, and the document itself as the model
  * writes it. A generator that does not stream (live is null) shows only the step and the time.
  */
-export function LivePrd({ live, elapsed, lang }: { live: { text: string; phase: LivePhase; restarted: boolean } | null; elapsed: number; lang: 'ko' | 'en' }) {
+export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; phase: LivePhase; restarted: boolean } | null; elapsed: number; lang: 'ko' | 'en'; title?: string }) {
   const t = translator(lang);
   const phase = live?.phase ?? 'writing';
   return (
-    <div className="mt-5 max-w-[52em]" role="status" aria-live="polite" aria-busy="true">
+    <div className="rise-in max-w-[52em]" role="status" aria-live="polite" aria-busy="true">
+      {/* The title stays where the draft had it, so starting to write does not move the page. */}
+      {title && <h2 className="mb-5 text-2xl font-bold tracking-tight">{title}</h2>}
       <div className="flex items-baseline justify-between gap-4 rounded-xl border border-outline-soft bg-white px-4 py-3">
         <p className="flex items-center gap-2 text-[15px] font-semibold">
           <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />
@@ -157,7 +159,19 @@ export function LivePrd({ live, elapsed, lang }: { live: { text: string; phase: 
           <MarkdownContent content={live.text.replace(/^# /gm, '## ')} />
         </div>
       ) : (
-        <p className="mt-3 text-[13px] text-muted">{phase === 'thinking' ? t('무료 모델은 쓰기 전에 잠시 생각합니다. 글이 나오기 시작하면 여기에 바로 보입니다.', 'Free models think for a while before writing. The text shows up here as soon as it starts.') : t('곧 문서가 여기에 쓰이기 시작합니다.', 'The document will start appearing here shortly.')}</p>
+        <>
+          <p className="mt-3 text-[13px] text-muted">{phase === 'thinking' ? t('무료 모델은 쓰기 전에 잠시 생각합니다. 글이 나오기 시작하면 여기에 바로 보입니다.', 'Free models think for a while before writing. The text shows up here as soon as it starts.') : t('곧 문서가 여기에 쓰이기 시작합니다.', 'The document will start appearing here shortly.')}</p>
+          {/* The outline of what is coming, in the place the text will fill, instead of an empty page. */}
+          <div aria-hidden="true" className="mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-5">
+            {[t('한 줄 요약', 'Summary'), t('배경', 'Background'), t('요구사항', 'Requirements'), t('기능', 'Features')].map((heading) => (
+              <div key={heading} className="mb-5 last:mb-0">
+                <p className="text-[15px] font-semibold text-muted">{heading}</p>
+                <div className="mt-2.5 h-3 w-full animate-pulse rounded bg-surface-mid motion-reduce:animate-none" />
+                <div className="mt-2 h-3 w-4/5 animate-pulse rounded bg-surface-mid motion-reduce:animate-none" />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

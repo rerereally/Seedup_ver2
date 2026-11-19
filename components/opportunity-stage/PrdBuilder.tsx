@@ -628,9 +628,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
           {!ready && !customSource && evidenceIds.length > 0 && <p className="mt-3 text-[13px] text-muted">{t('원문이 기준(원문 3건, 플랫폼 2곳)에 못 미쳐, 모든 내용을 검증 전 가설로 표시한 초안으로 만듭니다.', 'The evidence is below the bar (3 quotes, 2 platforms), so this becomes a draft labeled as unverified.')}</p>}
         </div>
       )}
-      {status === 'loading' && <LivePrd live={live} elapsed={elapsed} lang={lang} />}
-      {/* What the parent shows before a PRD exists (the live draft, the quotes it will use); the PRD replaces it. */}
-      {!spec && children}
+      {status === 'loading' && <LivePrd live={live} elapsed={elapsed} lang={lang} title={showTitle && !spec ? title : undefined} />}
+      {/* What the parent shows before a PRD exists (the live draft, the quotes it will use). While the PRD is being
+          written the writing takes its place, so the old draft never sits under the new document. */}
+      {!spec && status !== 'loading' && children}
       <div aria-live="polite" className="text-sm text-muted [&>p]:mt-3">
         {needsLogin && <p><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">{t('로그인', 'Sign in')}</Link>{t('하면 담은 근거를 유지한 채 이어갑니다.', ' to continue with the evidence you collected.')}</p>}
         {error && <p className="text-red-700">{error}</p>}
@@ -638,7 +639,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       </div>
 
       {input && spec && (
-        <section className="mt-6" aria-label={t('생성된 PRD', 'Generated PRD')}>
+        <section className="rise-in mt-6" aria-label={t('생성된 PRD', 'Generated PRD')}>
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
             <div className="min-w-0">
               {showTitle && <h2 className="text-2xl font-bold tracking-tight">{input.title}</h2>}

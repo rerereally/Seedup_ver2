@@ -89,8 +89,8 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
   const setupLeft = setup.filter((step) => !step.done).length;
   const actions = [
     { icon: FileText, label: t('아이디어로 PRD', 'PRD from an idea'), href: '/prd' },
-    { icon: GitBranch, label: t('레포 분석', 'Repo analysis'), href: '/seeds' },
-    { icon: Lightbulb, label: t('아이디어 검증', 'Idea validation'), href: '/ideas' },
+    { icon: GitBranch, label: t('레포 분석', 'Repo analysis'), href: '/prd?mode=repo' },
+    { icon: Lightbulb, label: t('아이디어 검증', 'Idea validation'), href: '/prd?mode=validate' },
     { icon: Bot, label: token ? t('MCP 연동됨', 'MCP connected') : t('MCP 연동', 'MCP'), href: '/agents' },
   ];
 

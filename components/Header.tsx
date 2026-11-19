@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bookmark, Compass, FileText, GitBranch, House, Lightbulb, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, X } from 'lucide-react';
+import { Bookmark, Compass, FileText, House, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, X } from 'lucide-react';
 import { signOut } from '@/app/actions/profile';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -19,16 +19,14 @@ const HOME: NavItem = { name: '홈', en: 'Home', href: '/', match: [], icon: Hou
 const SIGNALS: NavItem = { name: '인사이트', en: 'Insights', href: '/newsletter-preview', match: ['/newsletter-preview', '/opportunities'], icon: Mail };
 const READS: NavItem = { name: '아티클', en: 'Articles', href: '/news', match: ['/news', '/papers'], icon: List };
 const EXPLORE: NavItem = { name: '트렌드', en: 'Trends', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
-const PRD: NavItem = { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec'], icon: FileText };
-const IDEAS: NavItem = { name: '아이디어 검증', en: 'Idea validation', href: '/ideas', match: ['/ideas'], icon: Lightbulb };
+const PRD: NavItem = { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec', '/ideas', '/seeds'], icon: FileText };
 const AGENT: NavItem = { name: 'MCP 연동', en: 'MCP', href: '/agents', match: ['/agents'], icon: Plug };
 const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', match: ['/scrap'], icon: Bookmark };
-const REPO: NavItem = { name: '레포 분석', en: 'Repo analysis', href: '/seeds', match: ['/seeds'], icon: GitBranch };
 
 const GROUPS: Array<{ name: string; en: string; items: NavItem[] }> = [
   { name: '리서치', en: 'Research', items: [SIGNALS, READS, EXPLORE] },
-  { name: '기획', en: 'Plan', items: [PRD, IDEAS, AGENT] },
-  { name: '내 작업', en: 'My work', items: [SCRAP, REPO] },
+  { name: '기획', en: 'Plan', items: [PRD, AGENT] },
+  { name: '내 작업', en: 'My work', items: [SCRAP] },
 ];
 // Phones: the four places used most, the rest is in the drawer.
 const TABS = [HOME, SIGNALS, PRD, SCRAP];
@@ -105,8 +103,9 @@ function AppShell() {
   const t = translator(useLang());
   const { email, isAdmin } = useAccount();
   const [open, setOpen] = useState(false);
-  // The idea workspace needs the bottom of a phone screen for its own make action.
-  const workspace = pathname?.startsWith('/prd/new') ?? false;
+  // The /prd work screens (PRD, idea check, repo analysis): two panes, so the sidebar starts folded on wide screens
+  // and phones give the bottom of the screen to the chat box instead of the tab bar.
+  const workspace = ['/prd/new', '/prd/validate', '/prd/repo'].some((path) => pathname?.startsWith(path));
   // Wide screens: the sidebar folds to an icon rail and back, pushing the page. The PRD workspace starts folded.
   const [folded, setFoldedState] = useState<boolean | null>(remembered.folded);
   const setFolded = (value: boolean) => {
@@ -264,7 +263,6 @@ const SITE_TABS: Array<[string, string, string]> = [
   ['아티클', 'Articles', '/news'],
   ['트렌드', 'Trends', '/trends'],
   ['PRD', 'PRD', '/prd'],
-  ['레포 분석', 'Repo analysis', '/seeds'],
 ];
 
 function SiteHeader() {

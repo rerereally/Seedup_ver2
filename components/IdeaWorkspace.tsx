@@ -6,6 +6,7 @@ import { ArrowUp, Check, RotateCcw } from 'lucide-react';
 import IdeaComposer from '@/components/IdeaComposer';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import ModelPicker from '@/components/ModelPicker';
+import { Bubble, Stages } from '@/components/WorkSplit';
 import PrdBuilder, { forgetStoredPrd } from '@/components/opportunity-stage/PrdBuilder';
 import type { PrdModel } from '@/lib/opportunities/models';
 import { useLang } from '@/components/LangProvider';
@@ -338,17 +339,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     <div className="flex flex-col lg:h-dvh">
       <div className="flex min-h-14 items-center gap-4 border-b border-outline-soft bg-white px-4 sm:px-5">
         <p className="min-w-0 flex-1 truncate text-[15px] font-semibold md:hidden" title={idea}>{idea}</p>
-        <ol className="hidden min-w-0 flex-1 items-center gap-1 md:flex" aria-label={t('진행 단계', 'Progress')}>
-          {stages.map((stage, index) => (
-            <li key={stage.label} className="flex items-center gap-1">
-              {index > 0 && <span aria-hidden="true" className="h-px w-4 bg-outline-strong" />}
-              <span aria-current={stage.state === 'now' ? 'step' : undefined} className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] ${stage.state === 'now' ? 'bg-seed-soft font-semibold text-seed' : stage.state === 'done' ? 'text-ink' : 'text-muted'}`}>
-                {stage.state === 'done' && <Check aria-hidden="true" className="h-3.5 w-3.5 text-seed" strokeWidth={2.5} />}
-                {stage.label}
-              </span>
-            </li>
-          ))}
-        </ol>
+        <Stages stages={stages} label={t('진행 단계', 'Progress')} />
         {/* The model is chosen before anything is written, so it sits in the bar for the whole session. */}
         {signedIn && <div className="hidden shrink-0 sm:block"><ModelPicker models={models} /></div>}
         {/* Phones see one pane at a time, so the make action also sits here, reachable from the chat. */}
@@ -641,16 +632,6 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
           {saved.length === 0 && <p className="text-[13px] leading-5 text-muted">{t('읽던 글에서 바로 문장을 담으려면 ', 'To save sentences straight from a page you are reading, ')}<Link href="/guide#extension" className="font-semibold text-seed underline-offset-4 hover:underline">{t('브라우저 확장 설치', 'install the browser extension')}</Link></p>}
         </div>
       )}
-    </div>
-  );
-}
-
-function Bubble({ role, children, onEdit, editLabel }: { role: 'user' | 'assistant'; children: React.ReactNode; onEdit?: () => void; editLabel?: string }) {
-  if (role === 'assistant') return <div className="text-[15px] leading-7 text-tertiary">{children}</div>;
-  return (
-    <div className="group flex flex-col items-end gap-1">
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-surface-mid px-4 py-2.5 text-[15px] leading-6 text-ink [overflow-wrap:anywhere]">{children}</div>
-      {onEdit && <button type="button" onClick={onEdit} className="text-xs text-muted opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover:opacity-100">{editLabel}</button>}
     </div>
   );
 }

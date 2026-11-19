@@ -115,6 +115,16 @@ jobs:
         with:
           path: engine-memory.json
           key: engine-memory-${{ github.run_id }}
+      - name: Mail daily research
+        continue-on-error: true
+        env:
+          DAILY_MAIL_ENABLED: ${{ vars.DAILY_MAIL_ENABLED }}
+        run: |
+          if [ "$DAILY_MAIL_ENABLED" = "true" ] && [ -n "$RESEND_API_KEY" ]; then
+            npx tsx scripts/send-daily-research.ts
+          else
+            npx tsx scripts/send-daily-research.ts --dry-run
+          fi
       # Citation precision on the labeled quotes, and how many new quotes still need a label. Measurement only.
       - name: Measure citation precision
         continue-on-error: true

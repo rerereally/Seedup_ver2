@@ -108,10 +108,12 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
 
   let auditChanges: Awaited<ReturnType<typeof auditP0Evidence>>['changes'] = [];
   const auditLeft = deadline - Date.now();
-  if (options.auditP0 && auditLeft >= MIN_AUDIT_MS) {
+  // On by default: a P0 that only cites a quote, without the quote backing it, must not stay a verified requirement.
+  if ((options.auditP0 ?? true) && auditLeft >= MIN_AUDIT_MS) {
     options.onEvent?.({ type: 'stage', stage: 'auditing' });
     const audited = await auditP0Evidence(input, spec, {
-      model: options.criticModel ?? options.model,
+      // A different model checks the writer's work, so it does not just agree with itself.
+      model: options.criticModel ?? prdFreeModels().find((row) => row !== written.model) ?? options.model,
       timeoutMs: Math.min(35_000, auditLeft),
       onUsage: options.onUsage,
     }).catch(() => ({ spec, changes: [], audited: false }));

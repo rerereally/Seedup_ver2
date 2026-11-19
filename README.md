@@ -93,7 +93,7 @@ flowchart TB
 |---|---|---|
 | 1. 원문 글자 대조 | 모델이 뽑은 인용이 원문에 글자 그대로 있을 때만 근거로 채택 | `isVerbatimQuote` (`lib/opportunities/rules.ts`) |
 | 2. 구조 검사 | 요구사항, 기능, 화면의 참조를 강제하고 원문이 없는 요구사항은 가설(`H-n`)로 분리 | `normalizeSpec` (`lib/opportunities/spec.ts`) |
-| 3. P0 점검 | P0마다 테스트 가능한 수락 기준이 있는지 검사하고 없으면 한 번 수정. 원문 대비 범위 비약을 보는 P0 Critic은 평가 실험에서 켜서 비교 중 | `specIssues`, `prd-audit.ts` |
+| 3. P0 점검 | P0마다 테스트 가능한 수락 기준이 있는지 검사하고 없으면 한 번 수정. 이어서 작성 모델과 다른 모델(P0 Critic)이 P0마다 인용 원문이 정말 뒷받침하는지 보고, 과장은 줄이고 뒷받침하지 않으면 가설(H-n)로 내림 | `specIssues`, `prd-audit.ts` |
 | 4. 정량 평가 | 같은 20건을 고정해 PRD 품질을 반복 측정 | `scripts/eval-prd.ts`, `scripts/judge-prd.ts` |
 
 비슷한 불만을 한 문제로 묶을 때는 임베딩 군집을 두 번 돌립니다. 한 번 묶은 뒤 모든 글을 최종 중심과 다시 비교해, 입력 순서 때문에 동떨어진 글이 줄줄이 붙는 것을 막습니다(`clusterByEmbedding`).

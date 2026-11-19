@@ -1,6 +1,6 @@
 // PRD quality evaluation: makes a PRD for 20 fixed cases with one model and scores each with the same code check the
 // site uses (specIssues + P0 audit/readiness metrics). Run it before and after changing a model or a prompt.
-//   npx tsx scripts/eval-prd.ts [--model <id>] [--audit-p0] [--critic-model <id>] [--out eval.json]
+//   npx tsx scripts/eval-prd.ts [--model <id>] [--no-audit-p0] [--critic-model <id>] [--out eval.json]
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { specInputFor } from '../lib/opportunities/context';
@@ -35,7 +35,7 @@ function hasFlag(name: string) {
 
 async function main() {
   const model = arg('--model');
-  const auditP0 = hasFlag('--audit-p0');
+  const auditP0 = !hasFlag('--no-audit-p0');
   const criticModel = arg('--critic-model');
   const out = arg('--out') ?? 'prd-eval.json';
   const snapshot = JSON.parse(readFileSync(resolve(process.cwd(), 'lib/opportunities/data/snapshot.json'), 'utf8')) as OpportunitySnapshot;

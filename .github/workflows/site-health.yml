@@ -1,0 +1,49 @@
+name: Site health
+
+# Every six hours: the main pages and APIs must answer, and the server must not have recorded errors since the last
+# check. Either failure opens (or adds to) one issue, so a broken screen is known within hours, not when a user says so.
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SMOKE_BASE_URL: ${{ vars.SITE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Main pages and APIs answer
+        id: smoke
+        continue-on-error: true
+        run: npm run smoke 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: No server errors since the last check
+        id: errors
+        continue-on-error: true
+        run: npx tsx scripts/check-app-errors.ts --hours 6 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Report in an issue
+        if: steps.smoke.outcome == 'failure' || steps.errors.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="사이트 점검 실패"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          body="화면·API 응답: ${{ steps.smoke.outcome }}, 서버 오류 기록: ${{ steps.errors.outcome }}. 자세한 내용: $RUN_URL"
+          if [ -n "$number" ]; then gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"; fi
+          exit 1

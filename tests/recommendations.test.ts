@@ -88,4 +88,6 @@ test('the banner is the best-scored pick that is in the article list, with its r
   assert.equal(picked?.item.id, 'b');
   assert.equal(picked?.reason, '킵한 것과 비슷함');
   assert.equal(leadRead(items, [row('repo:x', 99, '저장소')]), null);
+  // A reason about the article itself is not a personal one.
+  assert.equal(leadRead(items, [row('news:a', 40, '프로젝트로 확장 가능')])?.reason, undefined);
 });

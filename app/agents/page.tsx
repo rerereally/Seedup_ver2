@@ -41,25 +41,30 @@ export default async function AgentsPage() {
       <WorkShell>
         <PageIntro title="MCP 연동" description="MCP는 AI 코딩 도구가 바깥 서비스의 데이터를 직접 꺼내 쓰게 하는 연결 방식입니다. 연결하면 Claude Code, Cursor 같은 도구가 Seedup의 기회와 검증된 PRD를 직접 가져갑니다." />
 
-        <div className="flex max-w-[860px] flex-col gap-10">
-          <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} connected={connected} />
+        {/* Connecting is the work on the left; what the connection gives sits beside it, like the other app screens. */}
+        <div className="page-split">
+          <div className="min-w-0">
+            <McpConnect siteUrl={process.env.NEXT_PUBLIC_SITE_URL || 'https://seedup.rerereally.com'} connected={connected} />
+          </div>
 
-          <section>
-            <h2 className="text-[17px] font-semibold text-ink">쓸 수 있는 도구 <span className="num font-normal text-muted">{TOOLS.length}개</span></h2>
-            <dl className="rows mt-3">
-              {TOOLS.map(([name, detail]) => (
-                <div key={name} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-4">
-                  <dt className="font-mono text-sm text-ink">{name}</dt>
-                  <dd className="text-[15px] text-muted">{detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
+          <aside className="page-side">
+            <section aria-labelledby="tools-heading">
+              <h2 id="tools-heading" className="text-[15px] font-semibold text-ink">쓸 수 있는 도구 <span className="num ml-1 font-semibold text-muted">{TOOLS.length}</span></h2>
+              <dl className="rows mt-3">
+                {TOOLS.map(([name, detail]) => (
+                  <div key={name} className="py-3">
+                    <dt className="font-mono text-[13px] text-ink [overflow-wrap:anywhere]">{name}</dt>
+                    <dd className="mt-0.5 text-sm leading-6 text-muted">{detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
 
-          <section className="border-t border-outline-soft pt-8">
-            <h2 className="text-[17px] font-semibold text-ink">브라우저 확장</h2>
-            <p className="mt-2 text-[15px] leading-7 text-muted">읽던 글에서 문장을 골라 바로 원문으로 담는 크롬 확장도 위 &quot;직접 설정하기&quot;의 같은 토큰을 씁니다. <Link href="/guide#extension" className="text-seed underline-offset-4 hover:underline">설치 방법</Link></p>
-          </section>
+            <section aria-labelledby="extension-heading">
+              <h2 id="extension-heading" className="text-[15px] font-semibold text-ink">브라우저 확장</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">읽던 글에서 문장을 골라 바로 원문으로 담는 크롬 확장도 &quot;직접 설정하기&quot;의 같은 토큰을 씁니다. <Link href="/guide#extension" className="text-seed underline-offset-4 hover:underline">설치 방법</Link></p>
+            </section>
+          </aside>
         </div>
       </WorkShell>
       <Footer />

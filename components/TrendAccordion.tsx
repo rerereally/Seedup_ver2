@@ -75,6 +75,13 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit' }).format(date);
 }
 
+/** The largest source and how many others, for a row: the full mix sits in the opened detail. */
+function shortMix(trend: Trend) {
+  const rows = signalRows(trend).sort((a, b) => b.count - a.count);
+  if (!rows.length) return '신호 집계 중';
+  return `${rows[0].type} ${rows[0].count}${rows.length > 1 ? ` 외 ${rows.length - 1}곳` : ''}`;
+}
+
 function compactMix(trend: Trend) {
   const sourceMix = trend.source_mix ?? {};
   const richMix = [
@@ -96,6 +103,54 @@ function compactMix(trend: Trend) {
     numberValue(trend.product_count) ? `제품 ${trend.product_count}` : null,
     numberValue(trend.paper_count) ? `논문 ${trend.paper_count}` : null,
   ].filter(Boolean).join(', ') || '신호 집계 중';
+}
+
+/** Score change across the stored daily snapshots: real, dated numbers, unlike the generated `bars`. */
+function scoreChange(snapshots: TrendSnapshot[]) {
+  if (snapshots.length < 2) return null;
+  const first = snapshots[0];
+  const last = snapshots[snapshots.length - 1];
+  return { delta: last.score - first.score, title: `${formatDate(first.date)} ${first.score}점에서 ${formatDate(last.date)} ${last.score}점` };
+}
+
+function Change({ snapshots }: { snapshots: TrendSnapshot[] }) {
+  const change = scoreChange(snapshots);
+  if (!change || change.delta === 0) return null;
+  return <span title={change.title} className={`num ${change.delta > 0 ? 'text-ink' : 'text-muted'}`}>{change.delta > 0 ? '▲' : '▼'} {Math.abs(change.delta)}<span className="sr-only">점, {change.title}</span></span>;
+}
+
+/** The daily score on a fixed 0 to 100 axis, so a one-point wobble looks like one point. */
+function Sparkline({ snapshots, className }: { snapshots: TrendSnapshot[]; className: string }) {
+  if (snapshots.length < 2) return null;
+  const points = snapshots.map((item, index) => `${(index / (snapshots.length - 1)) * 100},${30 - (Math.min(100, Math.max(0, item.score)) / 100) * 28}`).join(' ');
+  return (
+    <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true" className={className}>
+      <line x1="0" x2="100" y1="30" y2="30" className="stroke-outline-soft" vectorEffect="non-scaling-stroke" />
+      <polyline points={points} fill="none" className="stroke-tertiary" strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+// Grey steps for the source mix: the bar shows proportions, not evidence, so it stays out of green.
+const MIX_SHADES = ['bg-ink', 'bg-tertiary', 'bg-muted', 'bg-outline-strong', 'bg-surface-high'];
+
+function SourceMix({ trend }: { trend: Trend }) {
+  const rows = signalRows(trend).sort((a, b) => b.count - a.count);
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  if (!total) return null;
+  const shown = rows.slice(0, 4);
+  const rest = rows.slice(4).reduce((sum, row) => sum + row.count, 0);
+  const parts = rest ? [...shown, { type: '기타', count: rest }] : shown;
+  return (
+    <div>
+      <div aria-hidden="true" className="flex h-1.5 overflow-hidden rounded-full bg-surface-high">
+        {parts.map((row, index) => <span key={row.type} className={MIX_SHADES[index]} style={{ width: `${(row.count / total) * 100}%` }} />)}
+      </div>
+      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-muted" aria-label="신호가 나온 곳">
+        {parts.map((row, index) => <li key={row.type} className="inline-flex items-center gap-1.5"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${MIX_SHADES[index]}`} />{row.type} <span className="num text-tertiary">{row.count}</span></li>)}
+      </ul>
+    </div>
+  );
 }
 
 function isMeaningfulTrend(trend: Trend) {
@@ -164,7 +219,8 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
   const sources = trend.detected_sources ?? trend.source_refs ?? [];
   const extraSources = Math.max(0, sources.length - 5);
   const signals = signalRows(trend);
-  const related = [...(trend.related_skills ?? []), ...(trend.related_tools ?? [])].slice(0, 14);
+  // Skills and tools can name the same thing, so the list is de-duplicated before it is cut.
+  const related = [...new Set([...(trend.related_skills ?? []), ...(trend.related_tools ?? [])])].slice(0, 14);
   const reasons = (trend.why_trending?.length ? trend.why_trending : ['여러 출처에 얼마나 겹쳐 나왔는지, 얼마나 최근인지를 합쳐 점수를 냈습니다.']).slice(0, 5);
   const roles = trend.target_roles?.length ? trend.target_roles : ['AI 앱 빌더', '풀스택 개발자'];
   // An idea that only repeats the topic's own name says nothing, so those are dropped before falling back.
@@ -259,9 +315,40 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
   }, [ranked]);
   const visibleTrends = useMemo(() => ranked.filter((trend) => category === ALL || categoryOf(trend) === category).slice(0, 30), [category, ranked]);
   const top = Math.max(1, ...visibleTrends.map(scoreOf));
+  const leaders = ranked.slice(0, 3);
+  const openFromCard = (trend: Trend) => {
+    setCategory(ALL);
+    setOpenId(trend.id);
+    requestAnimationFrame(() => document.getElementById(`trend-${trend.id}`)?.scrollIntoView({ block: 'nearest' }));
+  };
 
   return (
     <section className="grid gap-5">
+      {leaders.length > 0 && (
+        <div>
+          <h2 className="text-[17px] font-bold tracking-[-0.015em]">점수 상위 3개</h2>
+          <ol className="mt-3 grid gap-4 md:grid-cols-3">
+            {leaders.map((trend, index) => {
+              const snapshots = trend.recent_snapshots ?? [];
+              return (
+                <li key={trend.id} className="flex">
+                  <button type="button" onClick={() => openFromCard(trend)} aria-controls={`trend-${trend.id}`} className="card flex w-full flex-col p-5 text-left transition-colors hover:border-outline-strong">
+                    <span className="flex items-baseline justify-between gap-3 text-[13px] text-muted"><span>{index + 1}위, {categoryOf(trend)}</span><Change snapshots={snapshots} /></span>
+                    <span className="mt-1.5 line-clamp-2 text-[17px] font-bold leading-snug tracking-tight text-ink">{trend.display_name ?? trend.keyword}</span>
+                    <span className="mt-3 flex items-end justify-between gap-4">
+                      <span className="num text-[32px] font-bold leading-none tracking-tight text-ink">{scoreOf(trend)}<span className="ml-1 text-sm font-normal text-muted">점</span></span>
+                      <Sparkline snapshots={snapshots} className="h-10 w-28 shrink-0" />
+                    </span>
+                    {snapshots.length > 1 && <span className="mt-1 self-end text-[12px] text-muted">{formatDate(snapshots[0].date)}부터 기록 {snapshots.length}개</span>}
+                    <span className="mt-4 block border-t border-outline-soft pt-4"><SourceMix trend={trend} /></span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
       <div className="seg justify-self-start">
         {CATEGORY_TABS.map((item) => (
           <button
@@ -282,12 +369,13 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
       {visibleTrends.length ? (
         <ol className="rows">
           <li aria-hidden="true" className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] gap-x-3 px-2 py-3 text-[13px] text-muted md:grid-cols-[2.25rem_minmax(0,1fr)_auto]">
-            <span>순위</span><span>주제</span><span className="pr-7">점수</span>
+            <span>순위</span><span>주제</span><span className="pr-7">최근 기록과 점수</span>
           </li>
           {visibleTrends.map((trend, index) => {
             const isOpen = openId === trend.id;
-            const growth = Math.round(numberValue(trend.weekly_growth_rate));
-            const status = STATUS[String(trend.status ?? 'watch').toLowerCase()] ?? STATUS.watch;
+            const statusKey = String(trend.status ?? 'watch').toLowerCase();
+            // Every topic is stored as "new" today, so the label says something only when it differs.
+            const status = statusKey === 'new' ? null : STATUS[statusKey] ?? STATUS.watch;
             const score = scoreOf(trend);
             const detailId = `trend-${trend.id}`;
             return (
@@ -303,13 +391,14 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
                   <span className="min-w-0">
                     <span className="block truncate text-[15px] font-semibold leading-snug text-ink">{trend.display_name ?? trend.keyword}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted">
-                      <span className="inline-flex items-center gap-1.5 text-tertiary"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>
-                      {trend.trend_direction !== 'new' && growth !== 0 && <span className="num">{growth > 0 ? '▲' : '▼'} {Math.abs(growth)}%</span>}
+                      {status && <span className="inline-flex items-center gap-1.5 text-tertiary"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>}
+                      <Change snapshots={trend.recent_snapshots ?? []} />
                       {category === ALL && <span>{categoryOf(trend)}</span>}
-                      <span className="truncate">{compactMix(trend)}</span>
+                      <span className="truncate" title={compactMix(trend)}>{shortMix(trend)}</span>
                     </span>
                   </span>
                   <span className="flex items-center gap-3 md:gap-4">
+                    <Sparkline snapshots={trend.recent_snapshots ?? []} className="hidden h-7 w-20 md:block" />
                     <span aria-hidden="true" className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-surface-high sm:block">
                       <span className={`block h-full rounded-full ${index === 0 ? 'bg-seed' : 'bg-outline-strong'}`} style={{ width: `${Math.max(4, Math.round((score / top) * 100))}%` }} />
                     </span>

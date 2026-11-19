@@ -163,7 +163,7 @@ export default function Ideas() {
 
   const isIdle = !activeRun && status !== 'saving' && status !== 'error';
   const composer = (
-    <div className="max-w-[760px]">
+    <div>
       <label htmlFor="idea-chat-input" className="text-sm font-semibold text-ink">만들고 싶은 것</label>
       <textarea id="idea-chat-input" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="누가 겪는 어떤 문제를 어떻게 풀지 적어 주세요.&#10;예: 데이터베이스마다 다른 CLI 명령을 하나로 통일해 주는 도구" className="mt-2 block h-28 w-full resize-y border bg-white px-4 py-3 text-[15px] leading-7 text-ink placeholder:text-muted focus:border-seed focus:outline-none" onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void handleSubmit(); }} />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -179,49 +179,63 @@ export default function Ideas() {
       <WorkShell>
         <PageIntro title="아이디어 검증" description="아이디어 한 줄로, 이 문제를 실제로 겪는 사람들의 글과 이미 있는 도구, 첫 사용자 후보를 찾아 만들 가치를 검증합니다. 담는 문장은 모두 원문과 글자 그대로 대조합니다." />
 
-        {composer}
+        {/* The work on the left; past evaluations and what each check means beside it, like the other app screens. */}
+        <div className="page-split">
+          <div className="flex min-w-0 flex-col gap-6">
+            {composer}
 
-        {isIdle && (
-          <ul className="examples -mt-4 md:-mt-6" aria-label="예시 아이디어">
-            <li aria-hidden="true">예시</li>
-            {EXAMPLE_IDEAS.map((example) => (
-              <li key={example.title}>
-                <button type="button" onClick={() => setIdea(example.description)} title={example.description} className="example">{example.short}</button>
-              </li>
-            ))}
-          </ul>
-        )}
+            {isIdle && (
+              <ul className="examples -mt-3" aria-label="예시 아이디어">
+                <li aria-hidden="true">예시</li>
+                {EXAMPLE_IDEAS.map((example) => (
+                  <li key={example.title}>
+                    <button type="button" onClick={() => setIdea(example.description)} title={example.description} className="example">{example.short}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
-        {status === 'saving' && <div className="card flex min-h-[220px] max-w-[760px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-seed" /><p className="mt-4 font-semibold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
-        {status === 'error' && <div role="alert" className="card flex min-h-[220px] max-w-[760px] items-center justify-center p-6 text-center"><div><p className="font-semibold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
+            {status === 'saving' && <div className="card flex min-h-[220px] items-center justify-center text-center"><div><Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin text-seed" /><p className="mt-4 font-semibold text-ink">아이디어를 분석하고 있습니다</p><p className="mt-1.5 text-sm text-muted">1분 가까이 걸릴 수 있습니다.</p></div></div>}
+            {status === 'error' && <div role="alert" className="card flex min-h-[220px] items-center justify-center p-6 text-center"><div><p className="font-semibold text-ink">{errorMessage}</p><button type="button" onClick={handleSubmit} className="btn mt-4">다시 시도</button></div></div>}
 
-        {/* The evidence check is the page's main answer; the model's score below is a second opinion. */}
-        {idea.trim().length >= 4 && <ValidationReportPanel idea={idea} isLoggedIn={isLoggedIn} />}
+            {/* The evidence check is the page's main answer; the model's score below is a second opinion. */}
+            {idea.trim().length >= 4 && <ValidationReportPanel idea={idea} isLoggedIn={isLoggedIn} />}
 
-        {activeRun && status !== 'saving' && <div className="card max-w-[760px] p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
-
-        <section className="max-w-[760px]">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-ink">최근 평가</h2>
-            <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
+            {activeRun && status !== 'saving' && <div className="card p-6 md:p-7"><EvaluationPanel run={activeRun} /></div>}
           </div>
-          {recentIdeas.length ? (
-            <ul className="rows mt-3">
-              {recentIdeas.slice(0, 3).map((item) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-3 py-3 text-left">
-                    <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
-                    <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm leading-6 text-muted">{isLoggedIn ? '아직 검증한 아이디어가 없습니다.' : '로그인하면 검증한 아이디어가 여기에 남습니다.'}</p>
-          )}
-          {recentIdeas.length > 3 && <button type="button" onClick={() => setIsRecentModalOpen(true)} className="link-seed mt-2">전체 {recentIdeas.length}개 보기 ›</button>}
-          <p className="mt-4 text-[13px] leading-6 text-muted">점수는 참고용입니다. 근거로 삼은 자료가 없으면 결과 아래에 그렇게 적습니다.</p>
-        </section>
+
+          <aside className="page-side">
+            <section aria-labelledby="recent-heading">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="recent-heading" className="text-[15px] font-semibold text-ink">최근 평가</h2>
+                <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink"><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />새로 시작</button>
+              </div>
+              {recentIdeas.length ? (
+                <ul className="rows mt-3">
+                  {recentIdeas.slice(0, 3).map((item) => (
+                    <li key={item.id}>
+                      <button type="button" onClick={() => openRecent(item)} className="group flex w-full items-baseline gap-3 py-3 text-left">
+                        <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-6 text-ink group-hover:underline group-hover:underline-offset-4">{item.idea_text}</span>
+                        <span className="num shrink-0 text-sm text-muted">{item.score ?? '–'}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-muted">{isLoggedIn ? '아직 검증한 아이디어가 없습니다.' : '로그인하면 검증한 아이디어가 여기에 남습니다.'}</p>
+              )}
+              {recentIdeas.length > 3 && <button type="button" onClick={() => setIsRecentModalOpen(true)} className="link-seed mt-2">전체 {recentIdeas.length}개 보기 ›</button>}
+            </section>
+
+            <section aria-labelledby="checks-heading">
+              <h2 id="checks-heading" className="text-[15px] font-semibold text-ink">두 가지 검증</h2>
+              <dl className="mt-3 grid gap-3 text-sm leading-6">
+                <div><dt className="font-semibold text-ink">AI 참고 점수</dt><dd className="text-muted">모아 둔 글, 논문, 오픈소스, 제품에 비춘 AI의 참고 점수입니다. 근거로 삼은 자료가 없으면 결과 아래에 그렇게 적습니다.</dd></div>
+                <div><dt className="font-semibold text-ink">검증 리포트</dt><dd className="text-muted">GitHub, Hacker News, Stack Overflow에서 이 문제를 겪는 사람의 글을 찾아, 원문과 글자 그대로 맞는 문장만 담습니다. 아이디어를 4자 넘게 적으면 열립니다.</dd></div>
+              </dl>
+            </section>
+          </aside>
+        </div>
 
         {isRecentModalOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="recent-evaluations-title">

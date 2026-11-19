@@ -168,7 +168,7 @@ test('a draft spec is labeled as a hypothesis draft in every export', () => {
   assert.match(renderAgentBrief(input, spec), /HYPOTHESIS DRAFT/);
 });
 
-import { dossierChanges, koreaLens, scoreOpportunity, stackFit, trackRecord, whyNow } from '../lib/opportunities/insight';
+import { dossierChanges, dossierHref, koreaLens, scoreOpportunity, stackFit, trackRecord, whyNow } from '../lib/opportunities/insight';
 import { describeChange } from '../lib/opportunities/merge';
 import type { Opportunity } from '../lib/opportunities/types';
 
@@ -234,6 +234,13 @@ test('dossier changes report added and removed evidence and later status moves',
   assert.equal(changes.removed, 1);
   assert.equal(changes.notes.length, 3);
   assert.equal(dossierChanges(['a', 'b', 'c'], '2026-10-25T00:00:00Z', sample({ history }), describeChange).notes.length, 0);
+});
+
+test('a saved PRD reopens its opportunity, else its surviving quotes, else bookmarks', () => {
+  const list = [sample()];
+  assert.equal(dossierHref({ opportunity_slug: 's', evidence_ids: [] }, list), '/prd?opportunity=s');
+  assert.equal(dossierHref({ opportunity_slug: 'gone', evidence_ids: ['a', 'x', 'c'] }, list), `/prd?evidence=${encodeURIComponent('a,c')}`);
+  assert.equal(dossierHref({ opportunity_slug: null, evidence_ids: ['x'] }, list), '/scrap');
 });
 
 test('a PRD built from quotes of several opportunities carries all of their context, led by the most-picked one', () => {

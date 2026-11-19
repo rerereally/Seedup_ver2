@@ -8,28 +8,21 @@ import { translator } from '@/lib/i18n';
 /** Where the reader's choice is kept; the inline script in the root layout reads the same key before paint. */
 const THEME_KEY = 'seedup:theme';
 const CHANGED = 'seedup-theme';
-const DARK_QUERY = '(prefers-color-scheme: dark)';
 
+// Dark unless the reader picked light (globals.css applies the dark tokens on the same rule).
 function currentTheme(): 'light' | 'dark' {
-  const picked = document.documentElement.dataset.theme;
-  if (picked === 'light' || picked === 'dark') return picked;
-  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 
 function subscribe(onChange: () => void) {
-  const media = window.matchMedia(DARK_QUERY);
-  media.addEventListener('change', onChange);
   window.addEventListener(CHANGED, onChange);
-  return () => {
-    media.removeEventListener('change', onChange);
-    window.removeEventListener(CHANGED, onChange);
-  };
+  return () => window.removeEventListener(CHANGED, onChange);
 }
 
 /** One button: shows the theme you would switch to, and remembers the choice in this browser. */
 export default function ThemeToggle() {
   const t = translator(useLang());
-  const theme = useSyncExternalStore(subscribe, currentTheme, () => 'light' as const);
+  const theme = useSyncExternalStore(subscribe, currentTheme, () => 'dark' as const);
   const next = theme === 'dark' ? 'light' : 'dark';
 
   const toggle = () => {

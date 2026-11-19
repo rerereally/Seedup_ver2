@@ -24,6 +24,12 @@ export async function recentDossiers<T>(supabase: SupabaseClient | null, limit: 
   return error ? [] : ((data ?? []) as T[]);
 }
 
+/** The user's saved PRDs, newest first. */
+export async function myPrds<T>(supabase: SupabaseClient, userId: string, limit: number): Promise<T[]> {
+  const { data, error } = await supabase.from('evidence_dossiers').select('id,title,opportunity_slug,evidence_ids,prd_markdown,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit);
+  return error ? [] : ((data ?? []) as T[]);
+}
+
 /** The problems this user already saved evidence for. */
 export function savedOpportunitySlugs(supabase: SupabaseClient) {
   return supabase.from('evidence_dossiers').select('opportunity_slug').not('opportunity_slug', 'is', null).limit(50);

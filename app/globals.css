@@ -57,12 +57,12 @@
 }
 
 /*
- * Dark mode: the same tokens, darker values. It follows the system unless the reader picked a theme,
- * which the inline script in the root layout writes to <html data-theme> before the first paint.
+ * Dark mode is the default: the same tokens, darker values, unless the reader picked light, which the inline script
+ * in the root layout writes to <html data-theme> before the first paint.
  * The green brightens so text and lines stay readable on dark grey; filled green then takes dark text (on-seed).
  */
 @layer base {
-  :root[data-theme="dark"] {
+  :root:not([data-theme="light"]) {
     --color-white: #17181b;
     --color-on-seed: #04140c;
     --color-seed-deep: #17402e;
@@ -93,41 +93,6 @@
     --color-emerald-700: #7ee0b0;
     --color-glow: rgb(62 207 142 / 0.12);
     color-scheme: dark;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --color-white: #17181b;
-      --color-on-seed: #04140c;
-      --color-seed-deep: #17402e;
-      --color-ink: #ececef;
-      --color-brand-primary: #ececef;
-      --color-brand-secondary: #b9bdc6;
-      --color-brand-surface: #1c1d21;
-      --color-brand-border: #2a2b30;
-      --color-surface: #0f1012;
-      --color-surface-lowest: #17181b;
-      --color-surface-low: #1c1d21;
-      --color-surface-mid: #232429;
-      --color-surface-high: #2c2d33;
-      --color-muted: #9096a0;
-      --color-outline-soft: #2a2b30;
-      --color-outline-strong: #43444c;
-      --color-field: #7a7d86;
-      --color-tertiary: #b9bdc6;
-      --color-seed: #3ecf8e;
-      --color-seed-soft: #0f241a;
-      --color-hot: #3ecf8e;
-      --color-red-50: #2a1414;
-      --color-red-200: #5c2323;
-      --color-red-700: #f58a8a;
-      --color-emerald-50: #0f241a;
-      --color-emerald-200: #24533c;
-      --color-emerald-500: #3ecf8e;
-      --color-emerald-700: #7ee0b0;
-      --color-glow: rgb(62 207 142 / 0.12);
-      color-scheme: dark;
-    }
   }
 
   html {

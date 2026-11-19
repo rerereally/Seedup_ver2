@@ -2326,5 +2326,20 @@
     "functions": [
       "built_example_counts"
     ]
+  },
+  {
+    "file": "20261119160000_feature_recheck.sql",
+    "functions": [
+      "flag_build_progress_for_commit"
+    ]
+  },
+  {
+    "file": "20261119160100_commit_dismiss.sql",
+    "columns": [
+      [
+        "feature_commits",
+        "dismissed_at"
+      ]
+    ]
   }
 ]

@@ -55,7 +55,7 @@ export default async function SharedSpecPage({ params }: { params: Promise<{ id:
             {spec.opportunity_slug && <Link href={`/opportunities/${spec.opportunity_slug}`} className="link-seed mt-3">이 기회의 원문 보기</Link>}
           </aside>
         </div>
-        <p className="mt-12 text-[13px] text-muted">Seedup으로 만들었습니다, <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">다른 기회 살펴보기</Link></p>
+        <p className="mt-12 text-[13px] text-muted">Seedup으로 만들었습니다, <Link href="/opportunities" className="text-seed underline-offset-4 hover:underline">다른 기회 살펴보기</Link>, <Link href="/spec" className="text-seed underline-offset-4 hover:underline">다른 공개 PRD 보기</Link></p>
       </main>
       <Footer />
     </>

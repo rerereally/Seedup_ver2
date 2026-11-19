@@ -2350,5 +2350,14 @@
         "daily_research_subscribed"
       ]
     ]
+  },
+  {
+    "file": "20261120090000_public_prds.sql",
+    "columns": [
+      [
+        "evidence_dossiers",
+        "listed"
+      ]
+    ]
   }
 ]

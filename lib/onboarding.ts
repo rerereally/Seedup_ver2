@@ -1,3 +1,7 @@
+import type { ExportFormat } from '@/lib/opportunities/spec';
+
+export const ONBOARDING_TOOL_STORAGE_KEY = 'seedup:onboarding-tool';
+
 export const onboardingQuestions = [
   {
     id: 'interests',
@@ -10,6 +14,12 @@ export const onboardingQuestions = [
     title: '현재 개발 수준은 어디에 가장 가까운가요?',
     type: 'single',
     options: ['입문자: 개발을 막 시작했어요', '초보자: 간단한 프로젝트는 만들 수 있어요', '중급자: 서비스 구조와 배포까지 어느 정도 알아요', '실무자: 실무 관점의 깊은 내용을 원해요', '잘 모르겠음'],
+  },
+  {
+    id: 'preferred_tool',
+    title: '주로 쓰는 AI 코딩 도구는 무엇인가요?',
+    type: 'single',
+    options: ['Cursor', 'Claude Code', 'Codex · Antigravity · VS Code', 'Lovable · Bolt · v0', '아직 없음'],
   },
   {
     id: 'goals',
@@ -43,4 +53,46 @@ export type OnboardingAnswers = Record<string, string | string[]>;
 export function isBeginner(answers: unknown) {
   const level = (answers as Record<string, unknown> | null | undefined)?.level;
   return [level].flat().some((value) => /^(입문자|초보자)/.test(String(value ?? '')));
+}
+
+const DEFAULT_EXPORT_ORDER: ExportFormat[] = ['agents', 'claude', 'cursor', 'prompt'];
+
+/** Maps an onboarding tool answer (e.g. "Cursor", "Claude Code", "Lovable · Bolt · v0") to a PRD export format. */
+export function preferredExportFormat(answers: unknown): ExportFormat | null {
+  if (!answers) return null;
+  const values: string[] = [];
+  if (typeof answers === 'string') {
+    values.push(answers);
+  } else if (typeof answers === 'object') {
+    const record = answers as Record<string, unknown>;
+    for (const key of ['preferred_tool', 'coding_tool', 'tool', 'tools', 'preferred_stack']) {
+      const entry = record[key];
+      if (typeof entry === 'string') values.push(entry);
+      else if (Array.isArray(entry)) values.push(...entry.map(String));
+    }
+  }
+  for (const raw of values) {
+    const text = raw.trim();
+    if (!text || text === '아직 없음' || text === '잘 모르겠음') continue;
+    if (/\bcursor\b/i.test(text)) return 'cursor';
+    if (/\bclaude\b/i.test(text)) return 'claude';
+    if (/lovable|bolt|\bv0\b|prompt/i.test(text)) return 'prompt';
+    if (/codex|antigravity|vs\s*code|agents\.md|\bagents\b|gemini|windsurf/i.test(text)) return 'agents';
+  }
+  return null;
+}
+
+/** Returns the primary export format and the folded "other tools" list, preserving the default order when none was picked. */
+export function exportFormatOrder(preferred?: ExportFormat | null): {
+  primary: ExportFormat;
+  others: ExportFormat[];
+  hasPreference: boolean;
+} {
+  const valid = preferred && DEFAULT_EXPORT_ORDER.includes(preferred) ? preferred : null;
+  const primary: ExportFormat = valid ?? 'agents';
+  return {
+    primary,
+    others: DEFAULT_EXPORT_ORDER.filter((format) => format !== primary),
+    hasPreference: valid !== null,
+  };
 }

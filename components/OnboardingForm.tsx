@@ -1,12 +1,12 @@
 'use client';
 
-import { onboardingQuestions, type OnboardingAnswers } from '@/lib/onboarding';
+import { ONBOARDING_TOOL_STORAGE_KEY, onboardingQuestions, preferredExportFormat, type OnboardingAnswers } from '@/lib/onboarding';
 import { createClient } from '@/lib/supabase/client';
 import { saveOnboarding } from '@/lib/db/onboarding';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function OnboardingForm({
   userId,
@@ -42,6 +42,16 @@ export default function OnboardingForm({
   const setSingle = (id: string, value: string) => {
     setAnswers((current) => ({ ...current, [id]: value }));
   };
+
+  useEffect(() => {
+    try {
+      const tool = preferredExportFormat(answers);
+      if (tool) window.localStorage.setItem(ONBOARDING_TOOL_STORAGE_KEY, tool);
+      else if ('preferred_tool' in answers) window.localStorage.removeItem(ONBOARDING_TOOL_STORAGE_KEY);
+    } catch {
+      // Storage unavailable.
+    }
+  }, [answers]);
 
   const toggleMulti = (id: string, value: string) => {
     setAnswers((current) => {

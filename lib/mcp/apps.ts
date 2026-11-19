@@ -6,7 +6,7 @@ import type { Opportunity } from '@/lib/opportunities/types';
 
 export const APP_URI = 'ui://seedup/card';
 export const APP_MIME = 'text/html;profile=mcp-app';
-const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done']);
+const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'update_feature_status']);
 
 /** The tool list with the card linked to the tools that have one. */
 export function withAppMeta<T extends { name: string }>(tools: readonly T[]) {
@@ -66,7 +66,7 @@ export function checklistCard(opportunity: Opportunity, spec: Spec, progress: Bu
     kind: 'checklist',
     slug: opportunity.slug,
     name: opportunity.name,
-    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, done: Boolean(progress[feature.id]), criteria: criteria(feature).length, note: progress[feature.id]?.note ?? '' })),
+    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progress[feature.id]?.note ?? '' })),
     url: page(siteUrl, opportunity.slug),
   };
 }
@@ -98,6 +98,7 @@ button:disabled{opacity:.5;cursor:default}
 (function(){
   var ko = !/^en/i.test(navigator.language || 'ko');
   var T = function(k, e){ return ko ? k : e; };
+  var STATUS = { in_progress: T('작업 중', 'In progress'), improving: T('개선 중', 'Improving'), blocked: T('막힘', 'Blocked'), needs_recheck: T('다시 확인 필요', 'Recheck') };
   var root = document.getElementById('root');
   var seq = 0, waiting = {};
   function post(m){ window.parent.postMessage(m, '*'); }
@@ -147,10 +148,10 @@ button:disabled{opacity:.5;cursor:default}
       h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(done / total * 100) + '%' })),
       h('div', { class: 'list' }, ...data.features.map(function(f){
         return h('div', { class: 'feat' }, h('span', { class: f.done ? 'check done' : 'check', 'aria-label': f.done ? T('완료', 'Done') : T('남음', 'To do'), text: f.done ? '✓' : '' }),
-          h('div', null, h('div', null, h('span', { class: 'id', text: f.id }), f.title), h('div', { class: 'muted', text: f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass')) })));
+          h('div', null, h('div', null, h('span', { class: 'id', text: f.id }), f.title), h('div', { class: 'muted', text: (f.status && f.status !== 'todo' && f.status !== 'done' ? (STATUS[f.status] || f.status) + ' · ' : '') + (f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass'))) })));
       })),
       h('div', { class: 'actions' }, h('button', { text: T('웹에서 보기', 'Open on the web'), on: function(){ open(data.url); } })),
-      h('p', { class: 'muted', text: T('완료 표시는 에이전트가 기준을 확인한 뒤 mark_feature_done으로 합니다.', 'The agent marks a feature done with mark_feature_done after checking its criteria.') })];
+      h('p', { class: 'muted', text: T('상태는 에이전트가 update_feature_status로 보고합니다. 완료는 기준을 모두 확인해야 기록됩니다.', 'The agent reports status with update_feature_status; done needs every criterion checked.') })];
   }
   function render(data){
     if (!data || !data.kind) return;

@@ -1,8 +1,8 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
 import { appResource, checklistCard, opportunitiesCard, prdCard, readAppResource, withAppMeta } from '@/lib/mcp/apps';
-import { normalizeFeatureId } from '@/lib/opportunities/build-progress';
-import type { BuildProgress } from '@/lib/opportunities/build-progress';
+import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
+import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -21,9 +21,10 @@ export type McpDeps = {
   generate: (input: SpecInput, draft: boolean) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
-  /** This user's done features for one opportunity. */
   progress: (slug: string) => Promise<BuildProgress>;
-  setProgress: (slug: string, feature: { id: string; title: string }, done: boolean, note: string) => Promise<void>;
+  /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
+  setProgress: (slug: string, feature: { id: string; title: string }, status: AgentFeatureStatus, note: string) => Promise<boolean>;
+  notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
   /** What this user kept on the site (repos, articles, papers, products), newest first. */
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
   /** A validation report for one idea, as Markdown; null when it could not be made. */
@@ -40,6 +41,24 @@ type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: stri
 type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean; structuredContent?: Record<string, unknown> };
 
 const text = (value: string, isError = false): ToolResult => ({ content: [{ type: 'text', text: value }], ...(isError ? { isError } : {}) });
+
+const progressProperties = {
+  slug: { type: 'string' },
+  note: { type: 'string', description: 'One line on what changed or what is blocking work' },
+  checks: {
+    type: 'array',
+    description: 'Required for done. One passing check with evidence per numbered criterion from get_build_checklist.',
+    items: {
+      type: 'object',
+      properties: {
+        criterion: { type: 'number', description: 'The criterion number from get_build_checklist' },
+        passed: { type: 'boolean' },
+        evidence: { type: 'string', description: 'How it was checked: the test name and its result, or the command and its output, in one line' },
+      },
+      required: ['criterion', 'passed', 'evidence'],
+    },
+  },
+};
 
 export const TOOLS = [
   {
@@ -67,32 +86,31 @@ export const TOOLS = [
   },
   {
     name: 'get_build_checklist',
-    description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its done criteria and whether it is already marked done. Build one feature at a time and check it against these criteria.',
+    description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its current status and done criteria.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
   },
   {
-    name: 'mark_feature_done',
-    description: 'Mark one PRD feature as done (or not done) once its done criteria pass. The progress shows on the PRD page of the Seedup site.',
+    name: 'update_feature_status',
+    description: 'Report the current status of a PRD feature. Use in_progress when starting, and done with checks or blocked when ending.',
     inputSchema: {
       type: 'object',
       properties: {
-        slug: { type: 'string' },
+        ...progressProperties,
+        feature_id: { type: 'string', description: 'Feature id, e.g. F-01' },
+        status: { type: 'string', enum: AGENT_FEATURE_STATUSES },
+      },
+      required: ['slug', 'feature_id', 'status'],
+    },
+  },
+  {
+    name: 'mark_feature_done',
+    description: 'Compatibility alias for reporting done with checks or returning a feature to todo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...progressProperties,
         feature: { type: 'string', description: 'Feature id, e.g. F-01' },
-        done: { type: 'boolean', description: 'Default true; false clears the mark' },
-        note: { type: 'string', description: 'One line on what was built or how it was checked' },
-        checks: {
-          type: 'array',
-          description: 'One entry per done criterion listed for this feature by get_build_checklist (numbered from 1). A feature is marked done only when every criterion has a passing check with evidence.',
-          items: {
-            type: 'object',
-            properties: {
-              criterion: { type: 'number', description: 'The criterion number from get_build_checklist' },
-              passed: { type: 'boolean' },
-              evidence: { type: 'string', description: 'How it was checked: the test name and its result, or the command and its output, in one line' },
-            },
-            required: ['criterion', 'passed', 'evidence'],
-          },
-        },
+        done: { type: 'boolean', description: 'Default true; false sets todo' },
       },
       required: ['slug', 'feature'],
     },
@@ -143,14 +161,11 @@ function describe(item: Opportunity, siteUrl: string) {
   return `${item.name} (${item.slug}) — ${item.qualified ? 'verified' : 'below evidence bar'}, ${item.evidence.length} quotes on ${item.platforms.join(', ')}, ${item.directCount} direct competitors, status ${item.status}\n  ${item.problem}\n  ${siteUrl}/opportunities/${item.slug}`;
 }
 
-/** The checklist an agent works through: one box per feature, its done criteria under it. Pure, for tests. */
-/**
- * What "done" means for one feature: the acceptance criteria of every requirement it serves, then its own readiness
- * "done" slot. The numbering here is what mark_feature_done's checks refer to.
- */
+/** Use the same numbered criteria in the checklist and in the tools that record completion. */
 export function featureCriteria(spec: Spec, feature: Spec['features'][number]) {
   const served = [...spec.requirements, ...spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
-  return [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter(Boolean))];
+  const criteria = [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter(Boolean))];
+  return criteria.length ? criteria : ['Confirm the feature works with a test or command.'];
 }
 
 type Check = { criterion: number; passed: boolean; evidence: string };
@@ -170,20 +185,18 @@ export function unmetCriteria(criteria: string[], raw: unknown) {
 }
 
 export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string) {
-  const done = spec.features.filter((feature) => progress[feature.id]).length;
+  const done = spec.features.filter((feature) => progress[feature.id]?.status === 'done').length;
   const lines = spec.features.map((feature) => {
     const mark = progress[feature.id];
-    const list = featureCriteria(spec, feature);
-    const criteria = list.length
-      ? list.map((line, index) => `    ${index + 1}. ${line}`).join('\n')
-      : '    - (no done criteria yet: fill the blanks for this feature on the PRD page, or write tests that prove the detail above)';
-    return `- [${mark ? 'x' : ' '}] ${feature.id} ${feature.title} (serves ${feature.requirementIds.join(', ') || '-'})
+    const status = mark?.status ?? 'todo';
+    const criteria = featureCriteria(spec, feature).map((line, index) => `    ${index + 1}. ${line}`).join('\n');
+    return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}] (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
   Done when:
 ${criteria}${mark?.note ? `\n  Note: ${mark.note}` : ''}`;
   });
   return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}
-Work on one unchecked feature at a time. When its criteria pass, call mark_feature_done with its id and one check per numbered criterion (passed, and the test or command that proved it).
+Work on one feature at a time. Call update_feature_status with in_progress when starting and done or blocked when ending. For done, include one passing check with evidence per numbered criterion.
 PRD page: ${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}
 
 ${lines.join('\n\n') || 'This PRD has no features.'}`;
@@ -206,7 +219,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
-  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done'].includes(name)) {
+  const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
+  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist'].includes(name) || updatesProgress) {
     if (!opportunity) return text(`Unknown opportunity "${slug}". Call search_opportunities first.`, true);
   }
   if (name === 'get_opportunity' && opportunity) {
@@ -231,22 +245,35 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format);
     return { ...text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }
-  if ((name === 'get_build_checklist' || name === 'mark_feature_done') && opportunity) {
+  if ((name === 'get_build_checklist' || updatesProgress) && opportunity) {
     const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
     if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
-    if (name === 'mark_feature_done') {
-      const id = normalizeFeatureId(String(args.feature ?? ''));
+    if (updatesProgress) {
+      const alias = name === 'mark_feature_done';
+      const rawStatus = alias ? (args.done === false ? 'todo' : 'done') : args.status;
+      if (rawStatus === 'needs_recheck') return text('Status "needs_recheck" is server-only.', true);
+      const status = AGENT_FEATURE_STATUSES.find((value) => value === rawStatus);
+      if (!status) return text(`Invalid status. Use one of: ${AGENT_FEATURE_STATUSES.join(', ')}.`, true);
+
+      const rawId = String((alias ? args.feature : args.feature_id) ?? '');
+      const id = normalizeFeatureId(rawId);
       const feature = id ? cached.spec.features.find((row) => row.id === id) : undefined;
-      if (!feature) return text(`Unknown feature "${String(args.feature ?? '')}". Features: ${cached.spec.features.map((row) => row.id).join(', ') || 'none'}.`, true);
-      const note = String(args.note ?? '').trim();
-      if (args.done === false) {
-        await deps.setProgress(slug, feature, false, note);
-      } else {
+      if (!feature) return text(`Unknown feature "${rawId}". Features: ${cached.spec.features.map((row) => row.id).join(', ') || 'none'}.`, true);
+      let note = String(args.note ?? '').trim();
+      if (status === 'done') {
         const criteria = featureCriteria(cached.spec, feature);
         const { unmet, passing } = unmetCriteria(criteria, args.checks);
-        if (unmet.length) return text(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.\n${unmet.map(({ n, line }) => `  ${n}. ${line}`).join('\n')}\nCheck each one (a test or a command), then call mark_feature_done again with checks: [{ criterion, passed: true, evidence }].`, true);
+        if (unmet.length) return text(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.\n${unmet.map(({ n, line }) => `  ${n}. ${line}`).join('\n')}\nCheck each one (a test or a command), then call ${name} again with checks: [{ criterion, passed: true, evidence }].`, true);
         const proof = passing.map((check) => `${check.criterion}: ${check.evidence}`).join('; ');
-        await deps.setProgress(slug, feature, true, [note, proof && `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ').slice(0, 600));
+        note = [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
+      }
+      const enteredBlocked = await deps.setProgress(slug, feature, status, note);
+      if (status === 'blocked' && enteredBlocked) {
+        try {
+          await deps.notifyBlocked(opportunity, feature);
+        } catch {
+          // The progress update has already been saved.
+        }
       }
     }
     const progress = await deps.progress(slug);
@@ -296,7 +323,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 'seedup', version: '1.0.0' },
-        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. Then call get_build_checklist, build one feature at a time, and call mark_feature_done when its done criteria pass.',
+        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. Call get_build_checklist and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending.',
       });
     }
     case 'ping':

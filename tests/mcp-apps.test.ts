@@ -16,7 +16,8 @@ const deps = (over: Partial<McpDeps> = {}): McpDeps => ({
   consume: async () => true,
   related: async () => [],
   progress: async () => ({}),
-  setProgress: async () => undefined,
+  setProgress: async () => false,
+  notifyBlocked: async () => undefined,
   kept: async () => [],
   validate: async () => null,
   watch: async () => true,
@@ -28,7 +29,7 @@ const call = (name: string, args: Record<string, unknown>, over: Partial<McpDeps
 test('the card tools link the card resource, the others do not', async () => {
   const tools = (await rpc('tools/list')).result.tools as Array<{ name: string; _meta?: { ui?: { resourceUri: string } } }>;
   const linked = tools.filter((tool) => tool._meta?.ui?.resourceUri === APP_URI).map((tool) => tool.name);
-  assert.deepEqual(linked.sort(), ['generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'search_opportunities']);
+  assert.deepEqual(linked.sort(), ['generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'search_opportunities', 'update_feature_status']);
 });
 
 test('the card is served as an MCP App resource and unknown resources are errors', async () => {

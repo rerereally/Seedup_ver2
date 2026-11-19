@@ -21,6 +21,13 @@ export function webhookPayload(kind: 'discord' | 'slack', subject: string, text:
   return kind === 'discord' ? { content: body.length > 1990 ? `${body.slice(0, 1989)}…` : body } : { text: `*${subject}*\n\n${text}` };
 }
 
+export async function sendWebhook(url: string, subject: string, text: string) {
+  const kind = webhookKind(url);
+  if (!kind) return false;
+  const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(webhookPayload(kind, subject, text)), signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  return response?.ok === true;
+}
+
 /** Posts one digest to every person who added a webhook, once per issue (claimed in newsletter_sends). */
 export async function sendWebhookDigest(service: SupabaseClient, kind: string, period: string, subject: string, text: string) {
   const { data, error } = await service.from('user_onboarding').select('user_id,notify_webhook').not('notify_webhook', 'is', null).limit(5000);
@@ -28,13 +35,11 @@ export async function sendWebhookDigest(service: SupabaseClient, kind: string, p
   let sent = 0;
   let failed = 0;
   for (const row of data ?? []) {
-    const type = webhookKind(row.notify_webhook);
-    if (!type) continue;
+    if (!webhookKind(row.notify_webhook)) continue;
     const userId = String(row.user_id);
     const claim = await claimSend(service, `webhook-${kind}`, period, userId);
     if (claim === 'duplicate') continue;
-    const response = await fetch(String(row.notify_webhook), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(webhookPayload(type, subject, text)), signal: AbortSignal.timeout(15_000) }).catch(() => null);
-    if (response?.ok) sent += 1;
+    if (await sendWebhook(String(row.notify_webhook), subject, text)) sent += 1;
     else {
       failed += 1;
       if (claim === 'claimed') await releaseSend(service, `webhook-${kind}`, period, userId);

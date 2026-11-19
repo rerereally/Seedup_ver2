@@ -106,6 +106,8 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   const answer = await handleRpc(call('generate_verified_prd', { slug: 'memory', format: 'claude' }), d, 'https://x.test') as { result: { content: Array<{ text: string }> } };
   assert.match(answer.result.content[0].text, /Save as CLAUDE\.md/);
   assert.match(answer.result.content[0].text, /F-01\. Store notes/);
+  assert.match(answer.result.content[0].text, /inputs: 확인 필요:/);
+  assert.match(answer.result.content[0].text, /F-01\(Store notes\) 기능은 어떤 화면에서 쓰나요/);
   assert.match(answer.result.content[0].text, /update_feature_status.*in_progress.*done.*blocked/);
   assert.match(answer.result.content[0].text, /Implements F-03/);
   assert.match(answer.result.content[0].text, /link_commit after each commit.*git diff --name-only HEAD~1/);
@@ -116,9 +118,12 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
 });
 
 test('a cached PRD is returned without spending the daily limit; a used-up limit is a tool error', async () => {
-  const cachedSpec = normalizeSpec({ summary: 'cached', requirements: [{ title: 'Old', evidence: [1] }] }, 3);
+  const cachedSpec = normalizeSpec({ summary: 'cached', requirements: [{ title: 'Old', evidence: [1] }], features: [{ title: 'Saved feature', requirements: [1] }] }, 3);
+  delete cachedSpec.requirements[0].priority; // A row cached before auto-priority.
   const cached = deps({ cachedSpec: async () => ({ input: { title: 'T', problem: 'P', gap: '', evidence: list[0].evidence, competitors: [] }, spec: cachedSpec }) });
-  await handleRpc(call('generate_verified_prd', { slug: 'memory' }), cached, '');
+  const answer = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), cached, '') as { result: { content: Array<{ text: string }> } };
+  assert.match(answer.result.content[0].text, /done: 확인 필요:/);
+  assert.equal(cachedSpec.features[0].slots, null);
   assert.deepEqual(cached.calls, []);
   const limited = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), deps({ consume: async () => false }), '') as { result: { isError?: boolean } };
   assert.equal(limited.result.isError, true);

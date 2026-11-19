@@ -45,10 +45,11 @@ A CLI that finds the broken package.
 **F1. Bisect (R1)**
 Takes two lockfiles and returns one package.`);
   assert.ok(raw);
+  assert.equal((raw.requirements as Array<{ priority?: string }>)[0].priority, 'P1');
   const spec = normalizeSpec(raw, 3, false);
   assert.equal(spec.summary, 'A CLI that finds the broken package.');
   assert.deepEqual(spec.requirements[0].evidence, [2]);
-  assert.equal(spec.requirements[0].priority, 'P1');
+  assert.equal(spec.requirements[0].priority, 'P0');
   assert.deepEqual(spec.requirements[0].acceptance, ['shows it within 5 minutes']);
   assert.deepEqual(spec.features[0].requirementIds, ['R-01']);
 });

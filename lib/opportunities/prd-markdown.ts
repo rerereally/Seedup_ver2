@@ -141,3 +141,16 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     open_questions: list(buckets.get('openQuestions') ?? []),
   };
 }
+
+export type PrdGlance = { requirements: Array<{ title: string; priority?: string }>; features: number };
+
+/** What a saved PRD holds, read back from its markdown for a thumbnail: the requirement lines and how many features. */
+export function prdGlance(markdown: string | null): PrdGlance | null {
+  const spec = markdown ? parsePrdMarkdown(markdown) : null;
+  if (!spec) return null;
+  const requirements = (Array.isArray(spec.requirements) ? spec.requirements : []) as Array<{ title?: unknown; priority?: unknown }>;
+  return {
+    requirements: requirements.map((row) => ({ title: String(row.title ?? ''), priority: row.priority ? String(row.priority) : undefined })).filter((row) => row.title),
+    features: Array.isArray(spec.features) ? spec.features.length : 0,
+  };
+}

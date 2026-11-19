@@ -75,7 +75,7 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
   const tags = [...new Set([...(item.skill_tags ?? []), ...(item.topic_tags ?? []), ...(item.intent_tags ?? [])])].slice(0, 6);
   const meta = [item.category ?? '글', newsletterLabel, item.source ?? 'Seedup', publishedAt, item.difficulty].filter(Boolean);
   const nextActions = [
-    { label: item.project_idea ? '이 아이디어 검증하기' : '아이디어로 바꿔 평가하기', href: `/ideas?idea=${encodeURIComponent(projectPrompt)}` },
+    { label: item.project_idea ? '이 아이디어 검증하기' : '아이디어로 바꿔 평가하기', href: `/prd/validate?idea=${encodeURIComponent(projectPrompt)}` },
     { label: '관련 기회 살펴보기', href: '/opportunities' },
     { label: item.category ? `${item.category} 글 더 읽기` : '글 더 읽기', href: categoryQuery },
   ];

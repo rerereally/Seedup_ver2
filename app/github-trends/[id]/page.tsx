@@ -89,7 +89,7 @@ export default async function GitHubTrendDetailPage({ params }: { params: Promis
               <section className="card p-5 md:p-6">
                 <h2 className="label">따라 만들어 볼 것</h2>
                 <p className="mt-2 text-[15px] leading-7 text-ink">{projectTitle}</p>
-                <Link href={`/ideas?idea=${encodeURIComponent(projectTitle)}`} className="btn mt-5 w-full">
+                <Link href={`/prd/validate?idea=${encodeURIComponent(projectTitle)}`} className="btn mt-5 w-full">
                   이 아이디어 검증하기
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Link>

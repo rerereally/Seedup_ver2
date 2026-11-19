@@ -7,12 +7,14 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import IdeaComposer from '@/components/IdeaComposer';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import PrdThumb from '@/components/PrdThumb';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { dossierHref } from '@/lib/opportunities/insight';
 import { prdModels } from '@/lib/opportunities/models';
+import { prdGlance } from '@/lib/opportunities/prd-markdown';
 import { PRD_MAX_EVIDENCE as MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
@@ -30,6 +32,13 @@ const IDEAS: Array<[string, string, string, string]> = [
   ['GIF 검색 API', 'GIF search API', 'Tenor 대신 쓸 GIF 검색 API', 'A GIF search API to replace Tenor'],
 ];
 
+// Ideas to check, for the idea validation switch: [short name ko, short name en, the idea ko, the idea en]
+const CHECKS: Array<[string, string, string, string]> = [
+  ['데일리 이슈 리포트 봇', 'Daily issue bot', '저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구', 'A bot that sums up repo issues to the team Slack every day'],
+  ['논문 구현 아이디어', 'Paper to project', '논문 초록을 넣으면 작은 실험과 구현 가능한 프로젝트로 바꿔 주는 웹앱', 'A web app that turns a paper abstract into small experiments and projects'],
+  ['DB CLI 통합', 'One DB CLI', '데이터베이스마다 다른 CLI 명령을 하나로 묶는 개발자 도구', 'One CLI for every database'],
+];
+
 // What every PRD holds: [Korean name, Korean note, English name, English note].
 const CONTENTS: Array<[string, string, string, string]> = [
   ['요구사항', '원문이 받쳐 주는 것만 근거로, 나머지는 가설로', 'Requirements', 'Backed by quotes, or marked as hypotheses'],
@@ -40,9 +49,9 @@ const CONTENTS: Array<[string, string, string, string]> = [
 
 /**
  * The PRD workspace at full width: one opportunity (?opportunity=slug) or quotes collected elsewhere
- * (?evidence=id1,id2). With neither, it lists the problems that are ready for a PRD.
+ * (?evidence=id1,id2). With neither, it is the start box and, signed in, the reader's own PRDs.
  */
-export default async function PrdPage({ searchParams }: { searchParams: Promise<{ opportunity?: string; evidence?: string }> }) {
+export default async function PrdPage({ searchParams }: { searchParams: Promise<{ opportunity?: string; evidence?: string; mode?: string }> }) {
   const params = await searchParams;
   const lang = await getLang();
   const t = translator(lang);
@@ -52,7 +61,6 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     const qualified = opportunities.filter((item) => item.qualified);
     // Saved PRDs open at once for anyone, so the list says which ones are ready to read.
     const sample = await samplePrd([...qualified].sort((a, b) => Number(b.slug === 'llm-provider-schema-normalization') - Number(a.slug === 'llm-provider-schema-normalization'))).catch(() => null);
-    const saved = new Set((await Promise.all(qualified.map(async (item) => ((await cachedPrd(item.evidence.slice(0, MAX_EVIDENCE).map((row) => row.id))) ? item.slug : null)))).filter(Boolean));
     // The reader's own PRDs, newest first.
     const supabase = await createClient();
     const user = supabase ? await getCurrentUser() : null;
@@ -64,65 +72,66 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
         {/* A start screen: one box in the middle, like the landing hero. The common header-plus-side layout does not apply. */}
         <main id="main-content" className="page-shell grow">
           {/* With PRDs of their own, the box sits higher so the list starts on the first screen. */}
-          <section className={`mx-auto flex w-full max-w-[54rem] flex-col justify-center text-center ${mine.length ? 'pt-[12vh] pb-14' : 'min-h-dvh pb-16'}`} aria-labelledby="prd-start-heading">
-            <h1 id="prd-start-heading" className="t-section text-[clamp(30px,3.4vw,44px)]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
-            <p className="t-lead mx-auto mt-3 max-w-[34em]">{t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.')}</p>
-            <div className="mt-8 w-full text-left"><IdeaComposer center autoFocus examples={IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) }))} /></div>
-            {sample && <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed mx-auto mt-4">{t('예시 PRD 먼저 보기', 'See an example PRD first')}</Link>}
+          <section className={`mx-auto flex w-full max-w-[54rem] flex-col justify-center text-center ${user ? 'pt-[12vh] pb-14' : 'min-h-dvh pb-16'}`} aria-labelledby="prd-start-heading">
+            <div className="w-full text-left">
+              <IdeaComposer
+                center
+                autoFocus
+                headingId="prd-start-heading"
+                models={user ? prdModels(await prdPolicy()) : undefined}
+                initialKind={params.mode === 'validate' || params.mode === 'repo' ? params.mode : 'prd'}
+                intro={{
+                  prd: {
+                    title: t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD'),
+                    lead: t('짧은 질문 몇 개에 답하면, 실제 개발자 원문을 근거로 PRD 초안을 만듭니다.', 'Answer a few short questions and get a PRD draft grounded in real developer quotes.'),
+                    examples: IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) })),
+                    after: sample ? <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed">{t('예시 PRD 먼저 보기', 'See an example PRD first')}</Link> : undefined,
+                  },
+                  validate: {
+                    title: t('만들기 전에 아이디어부터 봐요', 'Check the idea before you build'),
+                    lead: t('시장성, 차별성, 구현 난이도를 점수로 매기고, 이 문제를 실제로 겪는 개발자의 글을 찾아 붙입니다.', 'Scores market, differentiation and difficulty, and finds posts from developers who have this problem.'),
+                    examples: CHECKS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) })),
+                  },
+                  repo: {
+                    title: t('내 레포에서 다음 기능을 찾아요', 'Find the next feature in your repos'),
+                    lead: t('GitHub 공개 레포를 읽고, 레포마다 고칠 점과 더할 기능을 짚은 뒤 그 레포의 PRD를 만듭니다.', 'Reads your public GitHub repos, points out fixes and features for each, then makes its PRD.'),
+                  },
+                }}
+              />
+            </div>
           </section>
 
-          {mine.length > 0 && (
-            <section className="mx-auto w-full max-w-[54rem] pb-14" aria-labelledby="my-prds">
+          {user && (
+            <section className="mx-auto w-full max-w-[54rem] pb-16" aria-labelledby="my-prds">
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                <h2 id="my-prds" className="text-[17px] font-bold tracking-[-0.015em]">{t('내 PRD', 'My PRDs')} <span className="num ml-1 text-[15px] font-semibold text-muted">{mine.length}</span></h2>
-                <Link href="/scrap" className="link-seed">{t('북마크에서 관리', 'Manage in bookmarks')}</Link>
+                <h2 id="my-prds" className="text-[17px] font-bold tracking-[-0.015em]">{t('내가 만든 PRD', 'My PRDs')} <span className="num ml-1 text-[15px] font-semibold text-muted">{mine.length}</span></h2>
+                {mine.length > 0 && <Link href="/scrap" className="link-seed">{t('북마크에서 관리', 'Manage in bookmarks')}</Link>}
               </div>
-              <ul className="rows mt-3">
-                {mine.map((prd) => {
-                  const opportunity = opportunities.find((item) => item.slug === prd.opportunity_slug);
-                  return (
-                    <li key={prd.id}>
-                      <Link href={dossierHref(prd, opportunities)} className="group flex min-h-16 items-center justify-between gap-6 py-3">
-                        <span className="min-w-0">
-                          <span className="block truncate text-[15px] font-semibold text-ink underline-offset-4 group-hover:underline">{opportunity ? localizedOpportunity(opportunity, lang).name : prd.title}</span>
-                          <span className="mt-0.5 block text-sm text-muted">{t(`원문 ${prd.evidence_ids.length}건`, `${prd.evidence_ids.length} quotes`)}{!prd.prd_markdown && <>, {t('PRD 아직 없음', 'no PRD yet')}</>}</span>
-                        </span>
-                        <time dateTime={prd.updated_at} className="shrink-0 text-sm text-muted">{date.format(new Date(prd.updated_at))}</time>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+              {mine.length ? (
+                <ul className="mt-4 grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+                  {mine.map((prd) => {
+                    const opportunity = opportunities.find((item) => item.slug === prd.opportunity_slug);
+                    const name = opportunity ? localizedOpportunity(opportunity, lang).name : prd.title;
+                    const glance = prdGlance(prd.prd_markdown);
+                    return (
+                      <li key={prd.id}>
+                        <Link href={dossierHref(prd, opportunities)} className="group block">
+                          <PrdThumb title={name} glance={glance} />
+                          <span className="mt-3 block truncate text-[15px] font-semibold text-ink underline-offset-4 group-hover:underline">{name}</span>
+                          <span className="mt-0.5 flex flex-wrap gap-x-3 text-[13px] text-muted">
+                            {glance ? <span>{t(`요구사항 ${glance.requirements.length}개, 기능 ${glance.features}개`, `${glance.requirements.length} requirements, ${glance.features} features`)}</span> : <span>{prd.prd_markdown ? t(`원문 ${prd.evidence_ids.length}건`, `${prd.evidence_ids.length} quotes`) : t('PRD 아직 없음', 'No PRD yet')}</span>}
+                            <time dateTime={prd.updated_at}>{date.format(new Date(prd.updated_at))}</time>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="empty-state mt-4">{t('아직 만든 PRD가 없습니다. 위에 한 줄 아이디어를 적으면 여기에 쌓입니다.', 'No PRDs yet. Type a one-line idea above and they collect here.')}</p>
+              )}
             </section>
           )}
-
-          <section className="mx-auto w-full max-w-[54rem] pb-16" aria-labelledby="verified">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <h2 id="verified" className="scroll-mt-6 text-[17px] font-bold tracking-[-0.015em]">{t('또는 검증된 문제로 시작하기', 'Or start from a verified problem')}</h2>
-              <Link href="/newsletter-preview" className="link-seed">{t('인사이트 전체 보기', 'See all insights')}</Link>
-            </div>
-            <p className="text-[13px] text-muted">{t('원문 3건, 플랫폼 2곳을 넘은 문제입니다. 저장된 PRD가 있으면 바로 열립니다.', 'Problems with 3+ quotes from 2+ sites. A saved PRD opens right away.')}</p>
-            {qualified.length ? (
-              <ul className="rows mt-3">
-                {qualified.map((item) => {
-                  const text = localizedOpportunity(item, lang);
-                  return (
-                    <li key={item.slug}>
-                      <Link href={`/prd?opportunity=${encodeURIComponent(item.slug)}`} className="group flex min-h-16 items-center justify-between gap-6 py-3">
-                        <span className="min-w-0">
-                          <span className="block text-[15px] font-semibold text-ink underline-offset-4 group-hover:underline">{text.name}</span>
-                          <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{text.problem}</span>
-                        </span>
-                        <span className="shrink-0 text-right text-sm text-muted">{t(`원문 ${item.evidence.length}건`, `${item.evidence.length} quotes`)}{saved.has(item.slug) && <span className="mt-0.5 block font-semibold text-seed">{t('PRD 바로 보기', 'Read the PRD')}</span>}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="empty-state mt-4">{t('아직 기준을 통과한 문제가 없습니다.', 'No problem has passed the bar yet.')}</p>
-            )}
-          </section>
         </main>
         <Footer />
       </>

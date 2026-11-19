@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ownEvidence } from '../lib/opportunities/idea';
-import { citedQuotes, parsePrdMarkdown } from '../lib/opportunities/prd-markdown';
+import { citedQuotes, parsePrdMarkdown, prdGlance } from '../lib/opportunities/prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from '../lib/opportunities/prd-prompt';
 import { normalizeQuestions } from '../lib/opportunities/questions';
 import { normalizeSpec, renderSpecMarkdown } from '../lib/opportunities/spec';
@@ -126,4 +126,13 @@ test('the end-to-end fixture PRD parses cleanly, so the test never depends on a 
   assert.equal(spec.hypotheses.length, 3);
   assert.equal(spec.features.length, 3);
   assert.deepEqual(specIssues(spec, { title: '', problem: '', gap: '', evidence: [], competitors: [] }), []);
+});
+
+test('a saved PRD reads back as requirement lines and a feature count for its thumbnail', () => {
+  const glance = prdGlance('## 요구사항\n### R1. [P0] 사용자는 원인 패키지를 찾을 수 있어야 한다 [E1]\n### R2. [P1] 사용자는 변경 기록을 볼 수 있어야 한다\n\n## 기능\n### F1. lock 파일 비교 (R1)\n### F2. 변경 기록 링크 (R2)\n');
+  assert.equal(glance?.requirements.length, 2);
+  assert.equal(glance?.requirements[0].priority, 'P0');
+  assert.equal(glance?.features, 2);
+  assert.equal(prdGlance(null), null);
+  assert.equal(prdGlance('그냥 메모'), null);
 });

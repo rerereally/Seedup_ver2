@@ -43,7 +43,7 @@ export default async function ScrapDetailPage({ params }: { params: Promise<{ id
 
           <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-outline-soft pt-6">
             <Link href={contentHref} className="btn">원본 열기</Link>
-            <Link href={`/ideas?idea=${encodeURIComponent(ideaPrompt)}`} className="btn-quiet">아이디어 검증</Link>
+            <Link href={`/prd/validate?idea=${encodeURIComponent(ideaPrompt)}`} className="btn-quiet">아이디어 검증</Link>
             <form action={deleteScrap} className="ml-auto">
               <input type="hidden" name="id" value={item.id} />
               <button type="submit" className="inline-flex h-10 items-center px-2 text-sm text-muted hover:text-red-700">북마크에서 제거</button>

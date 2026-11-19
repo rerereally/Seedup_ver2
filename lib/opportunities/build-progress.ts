@@ -53,3 +53,11 @@ export async function writeBuildProgress(service: SupabaseClient, userId: string
   if (error) throw new Error(`build_progress write failed: ${error.message}`);
   return data === true;
 }
+
+export async function flagBuildProgressForCommit(service: SupabaseClient, userId: string, slug: string, featureId: string, sha: string, note: string) {
+  const { data, error } = await service.rpc('flag_build_progress_for_commit', {
+    p_user_id: userId, p_slug: slug, p_feature_id: featureId, p_sha: sha, p_note: note,
+  });
+  if (error) throw new Error(`build_progress recheck failed: ${error.message}`);
+  return data === true;
+}

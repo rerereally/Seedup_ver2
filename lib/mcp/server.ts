@@ -3,6 +3,7 @@
 import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, readAppResource, withAppMeta } from '@/lib/mcp/apps';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
+import { touchedDoneFeatures } from '@/lib/opportunities/feature-commits';
 import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -23,7 +24,9 @@ export type McpDeps = {
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
   progress: (slug: string) => Promise<BuildProgress>;
   linkCommit(slug: string, link: { sha: string; message: string; files: string[]; featureIds: string[] }): Promise<void>;
-  featureFiles(slug: string): Promise<Record<string, string[]>>;
+  featureFiles(slug: string, beforeSha?: string): Promise<Record<string, string[]>>;
+  flagRecheck(slug: string, featureId: string, sha: string, note: string): Promise<boolean>;
+  unlinkedCommitCount(slug: string): Promise<number>;
   verifyFeature: (prompt: string) => Promise<unknown>;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
   setProgress: (slug: string, feature: { id: string; title: string }, status: AgentFeatureStatus, note: string) => Promise<boolean>;
@@ -300,7 +303,7 @@ export function unmetCriteria(criteria: string[], raw: unknown) {
   return { unmet: criteria.map((line, index) => ({ n: index + 1, line })).filter(({ n }) => !passing.has(n)), passing: [...passing.values()] };
 }
 
-export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string) {
+export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string, unlinkedCount?: number) {
   const done = spec.features.filter((feature) => progress[feature.id]?.status === 'done').length;
   const lines = spec.features.map((feature) => {
     const mark = progress[feature.id];
@@ -311,7 +314,7 @@ export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: 
   Done when:
 ${criteria}${mark?.note ? `\n  Note: ${mark.note}` : ''}`;
   });
-  return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}
+  return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}${unlinkedCount === undefined ? '' : `\nUnlinked commits: ${unlinkedCount}.`}
 Work on one feature at a time. Call update_feature_status with in_progress when starting and done or blocked when ending. For done, include one passing check with evidence per numbered criterion.
 PRD page: ${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}
 
@@ -391,8 +394,27 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       }
       if (unknown.size) return unknownFeatures([...unknown], cached.spec);
     }
-    await deps.linkCommit(slug, { sha: sha.toLowerCase(), message, files, featureIds: [...featureIds] });
-    return text(featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.');
+    const commitSha = sha.toLowerCase();
+    await deps.linkCommit(slug, { sha: commitSha, message, files, featureIds: [...featureIds] });
+    const lines = [featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.'];
+    if (!files.length) return text(lines[0]);
+
+    try {
+      const [progress, linkedFiles] = await Promise.all([deps.progress(slug), deps.featureFiles(slug, commitSha)]);
+      for (const feature of touchedDoneFeatures(progress, linkedFiles, files, featureIds)) {
+        try {
+          const flagged = await deps.flagRecheck(slug, feature.id, commitSha, `Commit ${commitSha} touched ${feature.files.join(', ')}.`);
+          if (flagged) lines.push(`${feature.id} is now needs_recheck: re-run its done criteria (get_build_checklist), then update_feature_status done with checks.`);
+        } catch (error) {
+          console.error('MCP feature recheck write failed', error);
+          lines.push(`Could not flag ${feature.id} for recheck. Retry link_commit.`);
+        }
+      }
+    } catch (error) {
+      console.error('MCP feature recheck lookup failed', error);
+      lines.push('Could not check for affected features. Retry link_commit.');
+    }
+    return text(lines.join('\n'));
   }
   if (needsPrd && opportunity) {
     const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
@@ -449,9 +471,12 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
         }
       }
     }
-    const progress = await deps.progress(slug);
+    const [progress, unlinkedCount] = await Promise.all([
+      deps.progress(slug),
+      name === 'get_build_checklist' ? deps.unlinkedCommitCount(slug) : undefined,
+    ]);
     if (name === 'get_next_task') return nextTaskResult(opportunity, cached, progress, deps);
-    return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
+    return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
   }
   if (name === 'get_kept_items') {
     const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;

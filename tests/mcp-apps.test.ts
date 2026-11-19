@@ -20,6 +20,8 @@ const deps = (over: Partial<McpDeps> = {}): McpDeps => ({
   progress: async () => ({}),
   linkCommit: async () => {},
   featureFiles: async () => ({}),
+  flagRecheck: async () => false,
+  unlinkedCommitCount: async () => 0,
   verifyFeature: async () => null,
   setProgress: async () => false,
   notifyBlocked: async () => undefined,

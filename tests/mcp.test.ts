@@ -31,6 +31,8 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     progress: async () => ({}),
     linkCommit: async () => {},
     featureFiles: async () => ({}),
+    flagRecheck: async () => false,
+    unlinkedCommitCount: async () => 0,
     verifyFeature: async () => null,
     setProgress: async () => false,
     notifyBlocked: async () => {},
@@ -222,6 +224,44 @@ test('link_commit parses feature ids, honors explicit overrides, and keeps commi
     assert.equal(result.isError, undefined, result.text);
     assert.deepEqual(writes.pop(), ['memory', { sha: 'abc1234', message, files: commitArgs.files, featureIds }]);
   }
+});
+
+test('link_commit records first, then flags the touched done feature and tells the agent how to recheck it', async () => {
+  let recorded = false;
+  const { withSpec, progress } = progressFixture({
+    linkCommit: async () => { recorded = true; },
+    featureFiles: async (slug, beforeSha) => {
+      assert.equal(slug, 'memory');
+      assert.equal(beforeSha, 'abc1234');
+      assert.equal(recorded, true);
+      return { 'F-01': ['src/notes.ts'], 'F-02': ['src/search.ts', 'src/notes.ts'] };
+    },
+    flagRecheck: async (slug, id, sha, note) => {
+      assert.deepEqual([slug, id, sha, note], ['memory', 'F-02', 'abc1234', 'Commit abc1234 touched src/notes.ts.']);
+      progress[id] = { ...progress[id], status: 'needs_recheck', note };
+      return true;
+    },
+  });
+  progress['F-01'] = progressRow('done');
+  progress['F-02'] = progressRow('done');
+
+  const result = await toolResult('link_commit', commitArgs, withSpec);
+  assert.equal(result.isError, undefined);
+  assert.match(result.text, /F-02 is now needs_recheck: re-run its done criteria \(get_build_checklist\), then update_feature_status done with checks\./);
+  assert.equal(progress['F-02'].status, 'needs_recheck');
+  assert.equal(progress['F-01'].status, 'done');
+
+  const retry = await toolResult('link_commit', commitArgs, withSpec);
+  assert.equal(retry.text, 'Recorded commit for F-01.');
+});
+
+test('get_build_checklist includes the count of unlinked commits for its opportunity', async () => {
+  const { withSpec } = progressFixture({ unlinkedCommitCount: async (slug) => {
+    assert.equal(slug, 'memory');
+    return 2;
+  } });
+  const result = await toolResult('get_build_checklist', { slug: 'memory' }, withSpec);
+  assert.match(result.text, /Unlinked commits: 2\./);
 });
 
 test('link_commit rejects invalid input and lists valid features for unknown ids', async () => {

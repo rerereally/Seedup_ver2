@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Opportunity, OpportunitySnapshot } from '@/lib/opportunities/types';
+import { scoreOpportunity, stackFit } from '@/lib/opportunities/insight';
+import { dailyResearch } from '@/lib/opportunities/research';
 import { tidyOpportunities } from '@/lib/opportunities/review';
+import { onboardingQuestions } from '@/lib/onboarding';
+import { renderDailyResearchMail } from './daily-research';
 import { buildOpportunityDigest } from './opportunity-digest';
 import type { DigestIssue, DigestKind, DigestLine, DigestRead } from './opportunity-digest';
 import { behaviorSignals, buildRecommendationProfile, scoreNewsletterItems } from '@/lib/recommendations';
@@ -10,11 +14,10 @@ import type { NewsletterContentItem } from '@/lib/recommendations';
 import { selectInChunks } from '@/lib/supabase/chunks';
 import { saveIssue } from './issues';
 import { loadReadCandidates, pickReads } from './reads';
-import { claimSend, releaseSend } from './sends';
+import { sendDigestMail } from './sends';
 import { sendWebhookDigest } from './webhooks';
 
 const WINDOW_HOURS: Record<DigestKind, number> = { changes: 26, weekly: 7 * 24 };
-const SEND_INTERVAL_MS = 600;
 
 export type OpportunityDigestOutcome =
   | { status: 'empty'; since: string }
@@ -33,14 +36,15 @@ export type OpportunityDigestInput = {
 
 export const digestSiteUrl = () => process.env.SEEDUP_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
 
+async function loadPublishedOpportunities(service: SupabaseClient) {
+  const { data, error } = await service.from('opportunities').select('data').eq('published', true);
+  if (error) throw new Error(`could not read opportunities: ${error.message}`);
+  return tidyOpportunities((data ?? []).map((row) => row.data as Opportunity));
+}
+
 /** Builds the opportunity digest and, unless dryRun, mails it to every subscriber once per issue. */
 export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, resendKey, from }: OpportunityDigestInput): Promise<OpportunityDigestOutcome> {
-  let opportunities: Opportunity[] = [];
-  if (service) {
-    const { data, error } = await service.from('opportunities').select('data').eq('published', true);
-    if (error) throw new Error(`could not read opportunities: ${error.message}`);
-    opportunities = tidyOpportunities((data ?? []).map((row) => row.data as Opportunity));
-  }
+  let opportunities = service ? await loadPublishedOpportunities(service) : [];
   const snapshotFile = resolve(process.cwd(), 'lib/opportunities/data/snapshot.json');
   if (!opportunities.length && existsSync(snapshotFile)) opportunities = tidyOpportunities((JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot).opportunities);
 
@@ -91,9 +95,7 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
     const behavior = behaviorSignals(scraps.filter((row) => row.user_id === userId), reactions.filter((row) => row.user_id === userId), candidates);
     return pickReads(scoreNewsletterItems(candidates, { ...buildRecommendationProfile(answers, behavior.liked), ...behavior }));
   };
-  let sent = 0;
-  let duplicates = 0;
-  let failed = 0;
+  const counts = { sent: 0, duplicates: 0, failed: 0 };
   for (const subscriber of subscribers ?? []) {
     const userId = String(subscriber.user_id);
     // Addresses come from Supabase Auth because users can edit their own user_onboarding row.
@@ -106,24 +108,63 @@ export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, re
       return (Array.isArray(value) ? value : value ? [value] : []).map(String);
     });
     const mail = buildOpportunityDigest(opportunities, since, siteUrl, kind, Date.now(), { slugs: savedSlugs.get(userId) ?? [], keywords }, readsFor(userId, answers)) ?? digest;
-    const claim = await claimSend(service, `opportunity-${kind}`, period, userId);
-    if (claim === 'duplicate') {
-      duplicates += 1;
+    const result = await sendDigestMail(service, { kind: `opportunity-${kind}`, period, userId, email, resendKey, from, mail, allowUnclaimed: true });
+    counts[result] += 1;
+  }
+  return { status: 'sent', subject: digest.subject, text: digest.text, lines: digest.lines, ...counts };
+}
+
+type DailyResearchInput = Omit<OpportunityDigestInput, 'kind' | 'service'> & { service: SupabaseClient };
+type DailySubscriber = { user_id: string; answers: Record<string, unknown> | null };
+const DAILY_STACK_OPTIONS = onboardingQuestions.find(({ id }) => id === 'preferred_stack')?.options ?? [];
+
+async function loadDailySubscribers(service: SupabaseClient) {
+  const subscribers: DailySubscriber[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await service.from('user_onboarding').select('user_id,answers')
+      .eq('daily_research_subscribed', true).order('user_id').range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`could not read daily research subscribers: ${error.message}`);
+    subscribers.push(...(data ?? []));
+    if (!data || data.length < pageSize) return subscribers;
+  }
+}
+
+export async function sendDailyResearchMail({ service, dryRun, siteUrl, resendKey, from }: DailyResearchInput, now = Date.now()) {
+  const delivery = resendKey && from && /^https:\/\//.test(siteUrl) ? { resendKey, from } : null;
+  if (!dryRun && !delivery) {
+    throw new Error('Daily research mail requires RESEND_API_KEY, NEWSLETTER_FROM_EMAIL and an https SEEDUP_SITE_URL.');
+  }
+
+  const [opportunities, subscribers] = await Promise.all([loadPublishedOpportunities(service), loadDailySubscribers(service)]);
+  const research = dailyResearch(opportunities, now);
+  const counts = { recipients: subscribers.length, sent: 0, duplicates: 0, failed: 0 };
+  if (!research.changeCount) return { ...counts, mail: null };
+
+  const ranked = opportunities.map((item) => ({ item, score: scoreOpportunity(item, now).total }))
+    .sort((a, b) => Number(b.item.qualified) - Number(a.item.qualified) || b.score - a.score || a.item.slug.localeCompare(b.item.slug))
+    .map(({ item }) => item);
+  const base = siteUrl || 'http://localhost:3000';
+  const mail = renderDailyResearchMail(research, ranked[0], base);
+  if (!mail || dryRun || !delivery) return { ...counts, mail };
+
+  const period = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+  const candidates = ranked[0].qualified ? ranked.filter((item) => item.qualified) : ranked;
+  for (const { user_id: userId, answers } of subscribers) {
+    const { data: account, error } = await service.auth.admin.getUserById(userId);
+    if (error) {
+      counts.failed += 1;
       continue;
     }
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `opportunity-${kind}-${period}-${userId}` },
-      body: JSON.stringify({ from, to: email, subject: mail.subject, html: mail.html, text: mail.text }),
-      signal: AbortSignal.timeout(30_000),
-    }).catch(() => null);
-    if (response?.ok) sent += 1;
-    else if (response?.status === 409) duplicates += 1;
-    else {
-      failed += 1;
-      if (claim === 'claimed') await releaseSend(service, `opportunity-${kind}`, period, userId);
-    }
-    await new Promise((done) => setTimeout(done, SEND_INTERVAL_MS));
+    const email = account.user?.email;
+    if (!email) continue;
+    const preferences = [answers?.preferred_stack].flat();
+    const stack = DAILY_STACK_OPTIONS.filter((name) => preferences.includes(name));
+    const recommendation = stack.length ? candidates.map((item) => ({ item, matches: stackFit(item, stack).matched.length }))
+      .sort((a, b) => b.matches - a.matches)[0].item : ranked[0];
+    const personalized = recommendation === ranked[0] ? mail : renderDailyResearchMail(research, recommendation, base) ?? mail;
+    const result = await sendDigestMail(service, { kind: 'opportunity-daily', period, userId, email, mail: personalized, ...delivery });
+    counts[result] += 1;
   }
-  return { status: 'sent', subject: digest.subject, text: digest.text, lines: digest.lines, sent, duplicates, failed };
+  return { ...counts, mail };
 }

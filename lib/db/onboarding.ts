@@ -25,6 +25,15 @@ export async function setNewsletter(supabase: SupabaseClient, user: User, subscr
   return supabase.from('user_onboarding').upsert({ user_id: user.id, email: user.email ?? null, answers: answers ?? {}, newsletter_subscribed: subscribed, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
 }
 
+export async function setDailyResearchMail(supabase: SupabaseClient, user: User, subscribed: boolean) {
+  const change = { daily_research_subscribed: subscribed, updated_at: new Date().toISOString() };
+  // A reader who skipped onboarding was never on the weekly mailing list.
+  const inserted = await supabase.from('user_onboarding')
+    .upsert({ user_id: user.id, email: user.email ?? null, newsletter_subscribed: false, ...change }, { onConflict: 'user_id', ignoreDuplicates: true })
+    .select('user_id');
+  return inserted.error || inserted.data?.length ? inserted : supabase.from('user_onboarding').update(change).eq('user_id', user.id);
+}
+
 /** Saves or clears the Discord/Slack webhook. Someone who skipped onboarding has no row yet; it is created. */
 export async function setNotifyWebhook(supabase: SupabaseClient, user: User, value: string | null) {
   const now = new Date().toISOString();

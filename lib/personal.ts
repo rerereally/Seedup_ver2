@@ -48,8 +48,17 @@ export function profileText(answers: unknown, keptTitles: string[], planTitles: 
 /** Why one item is here, in words the person recognises: an interest it mentions, else the kind of thing it resembles. */
 export function reasonFor(text: string, interests: string[], hasKept: boolean) {
   const lower = text.toLowerCase();
-  // "AI/LLM" matches on either part; short Latin words need a word boundary so "ai" does not match "maintain".
-  const mentions = (part: string) => (/^[a-z0-9.+#-]{1,3}$/.test(part) ? new RegExp(`\\b${part.replace(/[.+#-]/g, '\\$&')}\\b`).test(lower) : part.length >= 2 && lower.includes(part));
+  // "AI/LLM" matches on either part; ASCII tokens need boundaries so "java" does not match "javascript" and "react" does not match "reaction".
+  const mentions = (part: string) => {
+    if (!part) return false;
+    if (/^[\x20-\x7e]+$/.test(part)) {
+      const escaped = part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const start = /^[a-z0-9]/i.test(part) ? '(?:^|[^a-z0-9])' : '(?:^|\\s)';
+      const end = /[a-z0-9]$/i.test(part) ? '(?:$|[^a-z0-9])' : '(?:$|\\s)';
+      return new RegExp(`${start}${escaped}${end}`, 'i').test(lower);
+    }
+    return part.length >= 2 && lower.includes(part);
+  };
   const hit = interests.find((word) => word.toLowerCase().split('/').some((part) => mentions(part.trim())));
   if (hit) return `관심 분야 ${hit}`;
   return hasKept ? '킵한 것과 비슷함' : '관심사와 가까움';
@@ -159,6 +168,88 @@ async function embeddedPicks(userId: string, input: { answers: unknown; keptTitl
 }
 
 /**
+ * Picks banner reads from the unified recommendation stack: embedding-ranked articles first (matching the
+ * "For you" section below), topped up by rule-ranked articles, without two consecutive items from the same source.
+ */
+export function pickBannerReads<T extends { type: string; id: string; source?: string | null }>(
+  items: T[],
+  embedded: ForYouItem[],
+  reads: ScoredNewsletterItem[],
+  count: number,
+): Array<{ item: T; reason?: string }> {
+  const byKey = new Map(items.map((item) => [`${item.type}:${item.id}`, item]));
+  const seen = new Set<string>();
+  const combined: Array<{ item: T; reason?: string }> = [];
+
+  for (const row of [...embedded].sort((a, b) => b.score - a.score)) {
+    const type = row.target?.type;
+    if (type !== 'news' && type !== 'paper') continue;
+    const key = `${type}:${row.target?.id}`;
+    const item = byKey.get(key);
+    if (!item || seen.has(key)) continue;
+    seen.add(key);
+    combined.push({ item, reason: row.reason });
+  }
+
+  for (const row of [...reads].sort((a, b) => b.score - a.score)) {
+    const item = byKey.get(row.content.id);
+    if (!item || seen.has(row.content.id)) continue;
+    seen.add(row.content.id);
+    combined.push({ item, reason: row.reasons.find((reason) => !ITEM_REASONS.has(reason)) });
+  }
+
+  return interleaveSources(combined, count);
+}
+
+/**
+ * Computes both the home banner reads and the "For you" feed from a single embedding-first,
+ * rule-fallback pass so both sections on the home page agree on the same engine.
+ */
+export async function homeRecommendations<T extends { type: string; id: string; source?: string | null }>(
+  userId: string,
+  input: {
+    answers: unknown;
+    kept: KeptRow[];
+    keptKeys: Set<string>;
+    planTitles: string[];
+    opportunities: Opportunity[];
+    opportunityEmbeddings: Record<string, number[]>;
+    articles: T[];
+  },
+  options: { forYouLimit?: number; bannerLimit?: number } = {},
+): Promise<{ picks: ForYouItem[]; banner: Array<{ item: T; reason?: string }> }> {
+  const forYouLimit = options.forYouLimit ?? 8;
+  const bannerLimit = options.bannerLimit ?? 5;
+  const keptTitles = input.kept.map((item) => item.title);
+  const interests = interestTokens(input.answers);
+  const hasKept = keptTitles.length > 0;
+
+  const embedded = await embeddedPicks(userId, { ...input, keptTitles }, interests, hasKept).catch(() => []);
+  const embeddedArticleCount = pickBannerReads(input.articles, embedded, [], bannerLimit).length;
+  const reads = !embedded.length || embeddedArticleCount < bannerLimit
+    ? await ruleReads(userId, input.answers, input.kept).catch(() => [])
+    : [];
+
+  const picks = embedded.length
+    ? mixByKind(embedded, forYouLimit)
+    : mixByKind(reads.map((row) => ruleItem(row, interests, hasKept)), forYouLimit);
+  const banner = pickBannerReads(input.articles, embedded, reads, bannerLimit);
+
+  return { picks, banner };
+}
+
+function interleaveSources<T extends { source?: string | null }>(ranked: Array<{ item: T; reason?: string }>, count: number) {
+  const pool = [...ranked];
+  const picked: Array<{ item: T; reason?: string }> = [];
+  while (picked.length < count && pool.length) {
+    const last = picked[picked.length - 1]?.item.source;
+    const next = pool.findIndex((row) => !last || row.item.source !== last);
+    picked.push(...pool.splice(next < 0 ? 0 : next, 1));
+  }
+  return picked;
+}
+
+/**
  * The reader's best-scored reads that are in `items` (article feed rows), each with the scorer's reason about the
  * reader: the article page's lead and the home banner. Two reads from the same source never sit side by side.
  */
@@ -169,13 +260,7 @@ export function pickReads<T extends { type: string; id: string; source?: string 
     // Only a reason about the reader (interests, keeps, likes) counts; one about the article itself does not make it theirs.
     return item ? [{ item, reason: row.reasons.find((reason) => !ITEM_REASONS.has(reason)) }] : [];
   });
-  const picked: typeof ranked = [];
-  while (picked.length < count && ranked.length) {
-    const last = picked[picked.length - 1]?.item.source;
-    const next = ranked.findIndex((row) => !last || row.item.source !== last);
-    picked.push(...ranked.splice(next < 0 ? 0 : next, 1));
-  }
-  return picked;
+  return interleaveSources(ranked, count);
 }
 
 /** The single best read, for the article page's lead. */

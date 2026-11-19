@@ -1,12 +1,12 @@
 // Signal extraction, candidate scoring, and trend ranking helpers for /api/ingest/trends.
-type TrendCategory =
+export type TrendCategory =
   | '개발 워크플로우'
   | 'AI 도구·모델'
   | '구현 패턴'
   | '오픈소스 프로젝트'
   | '빌드 아이디어';
 
-type TrendEntityType =
+export type TrendEntityType =
   | 'workflow'
   | 'tool'
   | 'model'
@@ -20,7 +20,7 @@ type TrendStatus = 'hot' | 'rising' | 'steady' | 'new' | 'cooling' | 'watch';
 type TrendDirection = 'up' | 'down' | 'flat' | 'new';
 type TrendSourceType = 'github' | 'npm' | 'huggingface' | 'devto' | 'stackoverflow' | 'product_hunt' | 'hackernews' | 'rss' | 'paper';
 
-type TrendCandidate = {
+export type TrendCandidate = {
   keyword: string;
   normalizedName: string;
   displayName: string;
@@ -78,7 +78,7 @@ const SOURCE_WEIGHTS: Record<TrendSourceType, number> = {
   paper: 1.14,
 };
 
-const GENERIC_TITLE_BLOCKLIST = new Set([
+export const GENERIC_TITLE_BLOCKLIST = new Set([
   'ai',
   'llm',
   'agent',
@@ -97,12 +97,17 @@ const GENERIC_TITLE_BLOCKLIST = new Set([
   'react',
   'next.js',
   'nextjs',
+  'node.js',
+  'nodejs',
+  'node',
+  'rust',
   'supabase',
   'api',
   'github',
   'open source',
   'rag',
   'mcp',
+  'mcp server',
   'automation',
   'workflow',
   'dashboard',
@@ -110,9 +115,40 @@ const GENERIC_TITLE_BLOCKLIST = new Set([
   'starter',
   'boilerplate',
   'framework',
+  'cli',
+  'core',
+  'sdk',
+  'utils',
+  'util',
+  'common',
+  'shared',
+  'types',
+  'client',
+  'server',
+  'observability',
+  'runtime',
+  'lib',
+  'package',
+  'plugin',
+  'module',
+  'config',
+  'helper',
+  'helpers',
+  'index',
+  'main',
+  'web',
+  'ui',
+  'kit',
+  'tui',
+  'benchmark',
+  'search',
+  'saas',
+  'productivity',
+  'news',
+  'paper',
 ]);
 
-const TOOL_MODEL_NAMES = [
+export const TOOL_MODEL_NAMES = [
   'Codex',
   'Claude Code',
   'Cursor',
@@ -138,7 +174,7 @@ const TOOL_MODEL_NAMES = [
   'Flowise',
 ];
 
-const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
+export const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
   [/spec[-\s]?driven|specification driven|명세/i, 'Spec-driven Development'],
   [/\bprd\b|product requirement|requirements? to code|기획서.*코드/i, 'PRD to Code'],
   [/code review|pull request review|pr review|코드 리뷰/i, 'AI Code Review'],
@@ -155,7 +191,7 @@ const WORKFLOW_PATTERNS: Array<[RegExp, string]> = [
   [/pull request|github pr|pr summary|pr 요약/i, 'GitHub PR 요약'],
 ];
 
-const IMPLEMENTATION_PATTERNS: Array<[RegExp, string, TrendEntityType]> = [
+export const IMPLEMENTATION_PATTERNS: Array<[RegExp, string, TrendEntityType]> = [
   [/\bmcp\b|model context protocol/i, 'MCP Server Design', 'architecture'],
   [/\brag\b|retrieval augmented|retrieval-augmented/i, 'RAG Evaluation', 'pattern'],
   [/agent memory|long[-\s]term memory|memory layer/i, 'Agent Memory', 'pattern'],
@@ -466,7 +502,7 @@ export function isTrendCandidateStrongEnough(candidate: TrendCandidate) {
   if (candidate.category === '개발 워크플로우') {
     return candidate.entityType === 'workflow' && sourceCount >= 1 && candidate.score >= 30;
   }
-  return candidate.entityType === 'build_idea' && sourceCount >= 2 && sourceDiversity >= 2 && candidate.score >= 36;
+  return candidate.entityType === 'build_idea' && sourceCount >= 2 && candidate.score >= 32;
 }
 
 function normalizeEntityName(value: string | null | undefined) {
@@ -478,27 +514,48 @@ function normalizeEntityName(value: string | null | undefined) {
     .slice(0, 64);
 }
 
-function normalizeNameKey(value: string) {
+export function normalizeNameKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9가-힣]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function isAllowedEntityTitle(value: string, category: TrendCategory) {
+export function isAllowedEntityTitle(value: string, category: TrendCategory) {
   const normalized = normalizeNameKey(value);
   if (!normalized || isGenericTitle(value)) return false;
   if (/(이\s*저장소|이\s*프로젝트|활용하여|참고하여|핵심\s*기능\s*만들어보기|this repository|this project)/i.test(value)) return false;
   if (category === '구현 패턴') return /design|evaluation|memory|calling|search|observability|caching|streaming|output|automation|workflow|loop|pipeline|queue|limit|pattern|architecture|설계|평가|검색|파이프라인|캐싱|자동화/i.test(value);
-  if (category === '빌드 아이디어') return /(봇|대시보드|앱|도구|에이전트|분석기|추천기|검색|모니터링|workflow|bot|dashboard|app|agent|monitor|tracker|builder)/i.test(value);
+  if (category === '빌드 아이디어') return /(봇|대시보드|앱|도구|에이전트|분석기|추천기|검색|모니터링|서버|만들기|워크플로우|생성기|빌더|workflow|bot|dashboard|app|agent|monitor|tracker|builder|server)/i.test(value);
   if (category === '개발 워크플로우') return /development|review|q&a|generation|code|programming|debugging|documentation|workflow|refactoring|qa|prd|figma|prompt|문서화|디버깅|리뷰|요약/i.test(value);
   return true;
 }
 
 export function isGenericTitle(value: string) {
   const normalized = normalizeNameKey(value);
+  if (!normalized) return true;
   if (GENERIC_TITLE_BLOCKLIST.has(normalized)) return true;
-  return /^(ai|llm|agent|coding agent|ai agent|developer tool|rag|mcp|workflow|automation|dashboard|template|starter|boilerplate|framework)$/i.test(value.trim());
+  if (/^ai\s+(search|tool|tools|product|products|app|apps|software|service|services)$/i.test(normalized)) return true;
+  return /^(ai|llm|agent|coding agent|ai agent|developer tool|rag|mcp|mcp-server|workflow|automation|dashboard|template|starter|boilerplate|framework|cli|core|sdk|utils?|common|shared|types|client|server|observability|runtime)$/i.test(value.trim());
 }
 
-function extractBuildIdeas(value: string | null | undefined) {
+/**
+ * Preserves scoped npm package identities like `@ai-sdk/core` instead of stripping them down
+ * to generic names (`core`), while filtering out unscoped generic package names (`cli`, `sdk`).
+ */
+export function normalizePackageLikeName(value: string) {
+  const trimmed = normalizeEntityName(value);
+  if (!trimmed) return '';
+  if (/^@[a-z0-9._-]+\/[a-z0-9._-]+$/i.test(trimmed)) {
+    return trimmed.length <= 48 ? trimmed : '';
+  }
+  const name = trimmed
+    .split('/')
+    .pop()
+    ?.replace(/^hf[-_]/i, '')
+    .trim() ?? '';
+  if (!name || name.length > 48 || isGenericTitle(name)) return '';
+  return normalizeEntityName(name);
+}
+
+export function extractBuildIdeas(value: string | null | undefined) {
   if (!value) return [];
   const text = value.toLowerCase();
   const ideas = new Set<string>();
@@ -583,7 +640,7 @@ export function normalizeDisplayScore(rawScore: number, maxScore: number) {
 }
 
 export function getWeeklyGrowthRate(recent: number, previous: number) {
-  if (!previous) return recent > 0 ? 100 : 0;
+  if (!previous || previous <= 0) return 0;
   return Math.round(((recent - previous) / previous) * 100);
 }
 
@@ -607,7 +664,8 @@ export function buildSummary(candidate: TrendCandidate) {
   return `${candidate.displayName}는 ${candidate.category} 카테고리에서 감지된 구체 트렌드입니다. GitHub ${candidate.sourceMix.github ?? 0}개, Product Hunt ${candidate.sourceMix.product_hunt ?? 0}개, RSS/HN/커뮤니티 ${candidate.news}개, 논문 ${candidate.papers}개 신호를 조합해 점수화했습니다.`;
 }
 
-export function buildWhyTrending(candidate: TrendCandidate, growth: number) {
+export function buildWhyTrending(candidate: TrendCandidate, growth: number, isNew = false) {
+  const hasPreviousBaseline = candidate.previousSourceKeys.size > 0;
   return [
     candidate.category === '오픈소스 프로젝트' ? '실제 GitHub 프로젝트 신호를 기준으로만 집계했습니다.' : null,
     candidate.sourceMix.github ? `GitHub 구현/활동 신호 ${candidate.sourceMix.github}개가 있습니다.` : null,
@@ -615,7 +673,8 @@ export function buildWhyTrending(candidate: TrendCandidate, growth: number) {
     candidate.sourceMix.huggingface ? `Hugging Face 모델/데모 신호 ${candidate.sourceMix.huggingface}개가 있습니다.` : null,
     candidate.news ? `뉴스/커뮤니티/튜토리얼 신호 ${candidate.news}개와 연결됩니다.` : null,
     candidate.papers ? `논문 ${candidate.papers}개가 구현 패턴 근거를 보강합니다.` : null,
-    growth >= 30 ? `최근 7일 관심도가 ${growth}% 상승했습니다.` : null,
+    !isNew && hasPreviousBaseline && growth >= 30 ? `최근 7일 관심도가 ${growth}% 상승했습니다.` : null,
+    isNew && candidate.recentSourceKeys.size > 0 ? '최근 7일 새로 등장한 주제입니다.' : null,
   ].filter(Boolean) as string[];
 }
 
@@ -639,7 +698,20 @@ export function inferTargetRoles(category: TrendCategory, entityType: TrendEntit
   return ['창업자/메이커', '풀스택 개발자', 'AI 앱 빌더'];
 }
 
-export function buildBars(score: number) {
-  return [0.42, 0.5, 0.58, 0.68, 0.78, 0.9, 1].map((ratio) => Math.max(10, Math.round(score * ratio)));
+/**
+ * Only returns real multi-day snapshot scores (never fabricates a synthetic upward slope from one score).
+ */
+export function buildBars(snapshotScores: number[] = []) {
+  const valid = snapshotScores
+    .filter((value) => Number.isFinite(value) && value >= 0)
+    .slice(-7)
+    .map((value) => Math.max(0, Math.min(100, Math.round(value))));
+  return valid.length >= 2 ? valid : [];
+}
+
+/** Keywords stored in `trends` from previous runs that are no longer in the current ranked set. */
+export function staleTrendKeywords(existingKeywords: string[], activeKeywords: Iterable<string>) {
+  const active = new Set(activeKeywords);
+  return existingKeywords.filter((keyword) => !active.has(keyword));
 }
 

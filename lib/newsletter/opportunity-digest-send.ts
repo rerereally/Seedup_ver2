@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Opportunity, OpportunitySnapshot } from '@/lib/opportunities/types';
 import { scoreOpportunity, stackFit } from '@/lib/opportunities/insight';
 import { dailyResearch } from '@/lib/opportunities/research';
-import { tidyOpportunities } from '@/lib/opportunities/review';
+import { reviewOpportunities } from '@/lib/opportunities/review';
 import { onboardingQuestions } from '@/lib/onboarding';
 import { renderDailyResearchMail } from './daily-research';
 import { buildOpportunityDigest } from './opportunity-digest';
@@ -39,14 +39,14 @@ export const digestSiteUrl = () => process.env.SEEDUP_SITE_URL || process.env.NE
 async function loadPublishedOpportunities(service: SupabaseClient) {
   const { data, error } = await service.from('opportunities').select('data').eq('published', true);
   if (error) throw new Error(`could not read opportunities: ${error.message}`);
-  return tidyOpportunities((data ?? []).map((row) => row.data as Opportunity));
+  return reviewOpportunities((data ?? []).map((row) => row.data as Opportunity), service);
 }
 
 /** Builds the opportunity digest and, unless dryRun, mails it to every subscriber once per issue. */
 export async function sendOpportunityDigest({ service, kind, dryRun, siteUrl, resendKey, from }: OpportunityDigestInput): Promise<OpportunityDigestOutcome> {
   let opportunities = service ? await loadPublishedOpportunities(service) : [];
   const snapshotFile = resolve(process.cwd(), 'lib/opportunities/data/snapshot.json');
-  if (!opportunities.length && existsSync(snapshotFile)) opportunities = tidyOpportunities((JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot).opportunities);
+  if (!opportunities.length && existsSync(snapshotFile)) opportunities = await reviewOpportunities((JSON.parse(readFileSync(snapshotFile, 'utf8')) as OpportunitySnapshot).opportunities, service);
 
   const since = new Date(Date.now() - WINDOW_HOURS[kind] * 3_600_000).toISOString();
   const period = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });

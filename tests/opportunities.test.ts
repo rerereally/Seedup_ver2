@@ -431,7 +431,8 @@ test('the for-you list takes the best of each kind in turn', () => {
   assert.deepEqual(mixed.map((item) => item.key), ['repo0.9', 'read0.4', 'problem0.25', 'repo0.8']);
 });
 
-import { tidyOpportunities } from '../lib/opportunities/review';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { reviewOpportunities, tidyOpportunities } from '../lib/opportunities/review';
 test('a reviewed list hides rejected problems, drops filed-wrong quotes, and counts one sentence once', () => {
   const quote = (n: number, platform: Evidence['platform'], text = `a distinct complaint number ${n}`): Evidence => ({ ...evidence(n), platform, quote: text });
   const make = (slug: string, items: Evidence[]): Opportunity => ({ name: 'x', problem: '', gap: '', keywords: [], status: 'open', qualified: true, supply: [], directCount: 0, firstSeenAt: null, followersAfterSignal: 0, slug, evidence: items, platforms: [...new Set(items.map((item) => item.platform))] });
@@ -447,6 +448,48 @@ test('a reviewed list hides rejected problems, drops filed-wrong quotes, and cou
   assert.equal(repeated.evidence.length, 2);
   assert.equal(repeated.qualified, false);
   assert.deepEqual(repeated.platforms, ['hn']);
+});
+
+test('reviewOpportunities applies DB review rows when present and falls back to constants when DB read fails', async () => {
+  const quote = (n: number, platform: Evidence['platform'], text = `a distinct complaint number ${n}`): Evidence => ({ ...evidence(n), platform, quote: text });
+  const make = (slug: string, items: Evidence[]): Opportunity => ({ name: 'x', problem: '', gap: '', keywords: [], status: 'open', qualified: true, supply: [], directCount: 0, firstSeenAt: null, followersAfterSignal: 0, slug, evidence: items, platforms: [...new Set(items.map((item) => item.platform))] });
+
+  const dbRows = [
+    { slug: 'custom-hidden-slug', kind: 'hide', quote: '', reason: 'vendor request' },
+    { slug: 'custom-problem', kind: 'drop_quote', quote: 'Off-topic quote to drop', reason: 'wrong problem' },
+  ];
+  const okService = {
+    from: () => ({
+      select: () => ({
+        order: async () => ({ data: dbRows, error: null }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+
+  const reviewedFromDb = await reviewOpportunities([
+    make('custom-hidden-slug', [quote(1, 'github'), quote(2, 'hn'), quote(3, 'stackoverflow')]),
+    make('custom-problem', [quote(1, 'github', 'Off-topic quote to drop'), quote(2, 'hn'), quote(3, 'github'), quote(4, 'stackoverflow')]),
+  ], okService);
+  assert.equal(reviewedFromDb.length, 1);
+  assert.equal(reviewedFromDb[0].slug, 'custom-problem');
+  assert.equal(reviewedFromDb[0].evidence.length, 3);
+  assert.ok(!reviewedFromDb[0].evidence.some((item) => item.quote === 'Off-topic quote to drop'));
+
+  const failingService = {
+    from: () => ({
+      select: () => ({
+        order: async () => ({ data: null, error: { message: 'db unavailable' } }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+
+  const fallbackReviewed = await reviewOpportunities([
+    make('milvus-missing-now-function', [quote(1, 'github'), quote(2, 'hn'), quote(3, 'stackoverflow')]),
+    make('ai-agent-guardrails', [quote(1, 'github', 'WHEN ASKED TO REBOOT A SERVER IT WENT BACK ON THE SERVER'), quote(2, 'hn'), quote(3, 'github'), quote(4, 'hn')]),
+  ], failingService);
+  assert.equal(fallbackReviewed.length, 1);
+  assert.equal(fallbackReviewed[0].slug, 'ai-agent-guardrails');
+  assert.equal(fallbackReviewed[0].evidence.length, 3);
 });
 
 import { READ_MEMORY_DAYS, rememberRun } from '../lib/opportunities/rules';

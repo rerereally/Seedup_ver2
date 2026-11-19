@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { cached } from '@/lib/cache';
+import { readOpportunityReviews } from '@/lib/db/opportunity-reviews';
 import { createAdminClient } from '@/lib/supabase/admin';
 import bundledSnapshot from './data/snapshot.json';
 import { tidyOpportunities } from './review';
@@ -18,8 +19,9 @@ type OpportunitySource = {
 export const getOpportunities = cache(() => cached('opportunities', loadOpportunities));
 
 async function loadOpportunities(): Promise<OpportunitySource> {
-  const fallback = { generatedAt: snapshotFile.generatedAt, opportunities: tidyOpportunities(snapshotFile.opportunities), live: false };
   const supabase = createAdminClient();
+  const reviews = await readOpportunityReviews(supabase);
+  const fallback = { generatedAt: snapshotFile.generatedAt, opportunities: tidyOpportunities(snapshotFile.opportunities, reviews), live: false };
   if (!supabase) return fallback;
 
   const { data, error } = await supabase
@@ -32,7 +34,7 @@ async function loadOpportunities(): Promise<OpportunitySource> {
   if (error || !data?.length) return fallback;
   return {
     generatedAt: String(data[0].generated_at),
-    opportunities: tidyOpportunities(data.map((row) => row.data as Opportunity)),
+    opportunities: tidyOpportunities(data.map((row) => row.data as Opportunity), reviews),
     live: true,
   };
 }

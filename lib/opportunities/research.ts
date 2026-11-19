@@ -65,3 +65,26 @@ function researchInWindow(opportunities: readonly Opportunity[], now: number, wi
     fieldTrend: [...fields.values()].sort((a, b) => b.growth - a.growth),
   };
 }
+
+export type DailyTotal = { at: string; quotes: number; problems: number; qualified: number };
+
+/**
+ * Totals across every problem at the end of each of the last `days` days, oldest first, read from the engine's
+ * history points: quotes found, problems tracked and problems past the bar. A problem counts from its first point.
+ */
+export function dailyTotals(opportunities: readonly Opportunity[], now: number, days = 7): DailyTotal[] {
+  return Array.from({ length: days }, (_, index) => {
+    const at = now - (days - 1 - index) * DAY_MS;
+    let quotes = 0;
+    let problems = 0;
+    let qualified = 0;
+    for (const item of opportunities) {
+      const point = historyPointAt(item.history ?? [], at);
+      if (!point) continue;
+      problems += 1;
+      quotes += point.evidence;
+      if (point.qualified) qualified += 1;
+    }
+    return { at: new Date(at).toISOString(), quotes, problems, qualified };
+  });
+}

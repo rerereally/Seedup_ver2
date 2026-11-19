@@ -79,3 +79,15 @@ test('reports no signals for missing, empty, stale, or future history', () => {
     windowDays: 7, changeCount: 0, newProblems: [], demandRising: [], newlyQualified: [], gapClosing: [], fieldTrend: [],
   });
 });
+
+import { dailyTotals } from '../lib/opportunities/research';
+
+test('daily totals read each problem at the end of each day, counting it from its first point', () => {
+  const totals = dailyTotals([
+    problem('old', [point('2026-11-10T00:00:00Z', { evidence: 2 }), point(RECENT, { evidence: 4, qualified: true })]),
+    problem('new', [point(RECENT, { evidence: 3 })]),
+    problem('none'),
+  ], NOW, 2);
+  assert.deepEqual(totals.map(({ quotes, problems, qualified }) => [quotes, problems, qualified]), [[2, 1, 0], [7, 2, 1]]);
+  assert.equal(totals[1].at, new Date(NOW).toISOString());
+});

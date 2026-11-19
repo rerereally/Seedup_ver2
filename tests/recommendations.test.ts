@@ -91,3 +91,13 @@ test('the banner is the best-scored pick that is in the article list, with its r
   // A reason about the article itself is not a personal one.
   assert.equal(leadRead(items, [row('news:a', 40, '프로젝트로 확장 가능')])?.reason, undefined);
 });
+
+import { pickReads } from '../lib/personal';
+
+test('the banner takes the top reads in score order without two from the same source in a row', () => {
+  const items = [{ type: 'news', id: 'a', source: 'HN' }, { type: 'news', id: 'b', source: 'HN' }, { type: 'news', id: 'c', source: 'arXiv' }];
+  const row = (id: string, score: number) => ({ content: { id }, score, reasons: ['관심 분야와 일치'] }) as unknown as Parameters<typeof pickReads>[1][number];
+  const picked = pickReads(items, [row('news:a', 90), row('news:b', 80), row('news:c', 10)], 3);
+  assert.deepEqual(picked.map((pick) => pick.item.id), ['a', 'c', 'b']);
+  assert.equal(pickReads(items, [row('news:a', 90)], 3).length, 1);
+});

@@ -159,14 +159,28 @@ async function embeddedPicks(userId: string, input: { answers: unknown; keptTitl
 }
 
 /**
- * The reader's best-scored read that is in `items` (article feed rows), with the scorer's reason: the lead of the
- * article page and the home banner. Null when none of their picks is in the list.
+ * The reader's best-scored reads that are in `items` (article feed rows), each with the scorer's reason about the
+ * reader: the article page's lead and the home banner. Two reads from the same source never sit side by side.
  */
-export function leadRead<T extends { type: string; id: string }>(items: T[], reads: ScoredNewsletterItem[]): { item: T; reason?: string } | null {
+export function pickReads<T extends { type: string; id: string; source?: string | null }>(items: T[], reads: ScoredNewsletterItem[], count: number): Array<{ item: T; reason?: string }> {
   const byKey = new Map(items.map((item) => [`${item.type}:${item.id}`, item]));
-  const best = [...reads].sort((a, b) => b.score - a.score).find((row) => byKey.has(row.content.id));
-  // Only a reason about the reader (interests, keeps, likes) counts; one about the article itself does not make it theirs.
-  return best ? { item: byKey.get(best.content.id)!, reason: best.reasons.find((reason) => !ITEM_REASONS.has(reason)) } : null;
+  const ranked = [...reads].sort((a, b) => b.score - a.score).flatMap((row) => {
+    const item = byKey.get(row.content.id);
+    // Only a reason about the reader (interests, keeps, likes) counts; one about the article itself does not make it theirs.
+    return item ? [{ item, reason: row.reasons.find((reason) => !ITEM_REASONS.has(reason)) }] : [];
+  });
+  const picked: typeof ranked = [];
+  while (picked.length < count && ranked.length) {
+    const last = picked[picked.length - 1]?.item.source;
+    const next = ranked.findIndex((row) => !last || row.item.source !== last);
+    picked.push(...ranked.splice(next < 0 ? 0 : next, 1));
+  }
+  return picked;
+}
+
+/** The single best read, for the article page's lead. */
+export function leadRead<T extends { type: string; id: string; source?: string | null }>(items: T[], reads: ScoredNewsletterItem[]): { item: T; reason?: string } | null {
+  return pickReads(items, reads, 1)[0] ?? null;
 }
 
 // Reasons the scorer gives about the content alone (lib/recommendations.ts recommendationProfileReasons).

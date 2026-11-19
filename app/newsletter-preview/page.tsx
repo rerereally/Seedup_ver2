@@ -16,7 +16,8 @@ import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { mapPoints } from '@/lib/opportunities/map';
-import { dailyResearch } from '@/lib/opportunities/research';
+import { dailyResearch, dailyTotals } from '@/lib/opportunities/research';
+import type { DailyTotal } from '@/lib/opportunities/research';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import type { Opportunity } from '@/lib/opportunities/types';
 import { translator } from '@/lib/i18n';
@@ -74,7 +75,6 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   const watched = opportunities.filter((item) => watchedSlugs.has(item.slug));
   const points = mapPoints(opportunities, new Date(generatedAt).getTime());
   const quoteCount = opportunities.reduce((sum, item) => sum + item.evidence.length, 0);
-  const sourceCount = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.platform))).size;
   const updated = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(new Date(generatedAt));
   const showIssue = params.view === 'issue';
   const verified = opportunities.filter((item) => item.qualified);
@@ -88,21 +88,13 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
       <main id="main-content" className="page-shell grow">
         <h1 className="page-intro-title">인사이트</h1>
         <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
-        <DailyResearchSection research={dailyResearch(opportunities, now)} lang={lang} />
-        {/* The day's counts as figures, all from the run dated above. */}
-        <dl className="mt-5 grid grid-cols-2 overflow-hidden rounded-xl border border-outline-soft sm:grid-cols-4">
-          {([
-            ['원문과 일치한 인용', quoteCount, '건', null],
-            ['원문이 나온 곳', sourceCount, '곳', null],
-            [`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 넘은 문제`, verified.length, '개', null],
-            ['오늘의 아티클', articles.length, '편', '/news'],
-          ] as const).map(([label, value, unit, href], index) => (
-            <div key={label} className={`border-outline-soft px-5 py-4 ${index % 2 ? 'border-l' : ''} ${index > 1 ? 'border-t sm:border-t-0' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
-              <dt className="text-[13px] text-muted">{href ? <Link href={href} className="underline-offset-4 hover:text-ink hover:underline">{label}</Link> : label}</dt>
-              <dd className="mt-1 text-sm text-muted"><span className={`num mr-1 text-[28px] font-bold leading-none tracking-tight ${index === 2 ? 'text-seed' : 'text-ink'}`}>{value}</span>{unit}</dd>
-            </div>
-          ))}
-        </dl>
+        <TodayChanges
+          research={dailyResearch(opportunities, now)}
+          totals={dailyTotals(opportunities, now, 7)}
+          opportunities={opportunities}
+          tiles={{ quotes: quoteCount, problems: opportunities.length, qualified: verified.length, articles: articles.length }}
+          lang={lang}
+        />
         <nav className="tabs mt-5" aria-label="보기">
           <Link href="/newsletter-preview" aria-current={showIssue ? undefined : 'page'} className="tab">문제 <span className="num">{opportunities.length}</span></Link>
           <Link href="/newsletter-preview?view=issue" aria-current={showIssue ? 'page' : undefined} className="tab">이번 주 메일</Link>
@@ -224,73 +216,108 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   );
 }
 
-function DailyResearchSection({ research, lang }: { research: ReturnType<typeof dailyResearch>; lang: Lang }) {
+/** A tiny 7-day line on a 0-based axis for one tile: the engine's own daily totals, nothing estimated. */
+function MiniTrend({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const top = Math.max(1, ...values);
+  const points = values.map((value, index) => `${(index / (values.length - 1)) * 100},${30 - (value / top) * 26}`).join(' ');
+  return (
+    <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true" className="mt-3 h-8 w-full">
+      <polyline points={points} fill="none" className="stroke-tertiary" strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+const CHANGE_LABELS = { new: '새 문제', rising: '원문 늘어남', qualified: '기준 통과', gap: '경쟁 늘어남' } as const;
+
+/**
+ * What changed, at the top of Insights: the day's totals with how much each moved since yesterday and a 7-day line,
+ * then only the problems that actually changed, as cards with a quote. Nothing is shown for a kind with no change.
+ */
+function TodayChanges({ research, totals, opportunities, tiles, lang }: { research: ReturnType<typeof dailyResearch>; totals: DailyTotal[]; opportunities: Opportunity[]; tiles: { quotes: number; problems: number; qualified: number; articles: number }; lang: Lang }) {
   const t = translator(lang);
-  const groups = [
-    {
-      title: t('새로 찾은 문제', 'New problems'),
-      items: research.newProblems.map((item) => ({ ...item, detail: t(`원문 ${item.evidence}건`, `Quotes ${item.evidence}`) })),
-    },
-    {
-      title: t('수요 상승', 'Rising demand'),
-      items: research.demandRising.map((item) => ({ ...item, detail: t(`원문 +${item.growth}건`, `Quotes +${item.growth}`) })),
-    },
-    {
-      title: t('검증 기준 통과', 'Passed the evidence bar'),
-      items: research.newlyQualified.map((item) => ({ ...item, detail: t(`원문 ${item.evidence}건, 플랫폼 ${item.platforms}곳`, `Quotes ${item.evidence}, platforms ${item.platforms}`) })),
-    },
-    {
-      title: t('빈틈 줄어듦', 'Closing gaps'),
-      items: research.gapClosing.map((item) => ({
-        ...item,
-        detail: item.directGrowth > 0 ? t(`직접 경쟁 +${item.directGrowth}개`, `Direct rivals +${item.directGrowth}`) : t('경쟁 늘어남', 'Competition increased'),
-      })),
-    },
+  const last = totals[totals.length - 1];
+  const before = totals[totals.length - 2];
+  const delta = (key: 'quotes' | 'problems' | 'qualified') => (last && before ? last[key] - before[key] : 0);
+  const cells = [
+    { label: t('원문과 일치한 인용', 'Verbatim quotes'), value: tiles.quotes, unit: t('건', ''), key: 'quotes' as const },
+    { label: t('추적 중인 문제', 'Problems tracked'), value: tiles.problems, unit: t('개', ''), key: 'problems' as const },
+    { label: t(`원문 ${MIN_EVIDENCE}건, ${MIN_PLATFORMS}곳 넘은 문제`, 'Past the bar'), value: tiles.qualified, unit: t('개', ''), key: 'qualified' as const, seed: true },
   ];
 
+  // One card per problem, with every kind of change it had in the window.
+  const changes = new Map<string, { slug: string; kinds: string[]; detail: string }>();
+  const add = (slug: string, kind: keyof typeof CHANGE_LABELS, detail: string) => {
+    const row = changes.get(slug) ?? { slug, kinds: [], detail };
+    row.kinds.push(CHANGE_LABELS[kind]);
+    changes.set(slug, row);
+  };
+  research.newProblems.forEach((item) => add(item.slug, 'new', `원문 ${item.evidence}건`));
+  research.demandRising.forEach((item) => add(item.slug, 'rising', `원문 +${item.growth}건`));
+  research.newlyQualified.forEach((item) => add(item.slug, 'qualified', `원문 ${item.evidence}건, ${item.platforms}곳`));
+  research.gapClosing.forEach((item) => add(item.slug, 'gap', item.directGrowth > 0 ? `직접 경쟁 +${item.directGrowth}` : '경쟁 늘어남'));
+  const cards = [...changes.values()].flatMap((row) => {
+    const item = opportunities.find((problem) => problem.slug === row.slug);
+    return item ? [{ ...row, item }] : [];
+  });
+
   return (
-    <section aria-labelledby="daily-research-heading" className="card mt-5 p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="daily-research-heading" className="text-[17px] font-bold tracking-tight">{t('오늘 달라진 것', 'What changed today')}</h2>
-        <p className="label">{research.windowDays === 1 ? t('최근 1일', 'Past day') : t('변화가 적어 최근 7일', 'Few changes, showing the past 7 days')}</p>
-      </div>
-      {research.changeCount ? (
-        <>
-          <p className="num mt-1 text-sm text-muted">{t(`신호 ${research.changeCount}건`, `Signals ${research.changeCount}`)}</p>
-          <div className="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
-            {groups.map(({ title, items }) => (
-              <div key={title} className="min-w-0">
-                <h3 className="text-sm font-semibold">{title}</h3>
-                {items.length ? (
-                  <ul className="rows mt-2">
-                    {items.map((item) => (
-                      <li key={item.slug}>
-                        <Link href={`/opportunities/${encodeURIComponent(item.slug)}`} prefetch={false} className="link-seed w-full min-h-11 flex-wrap justify-between gap-x-3 py-2">
-                          <span className="min-w-0 [overflow-wrap:anywhere]">{t(item.name, item.nameEn || item.name)}</span>
-                          <span className="num font-normal text-muted">{item.detail}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : <p className="mt-2 text-sm text-muted">{t('변화 없음', 'No changes')}</p>}
-              </div>
-            ))}
+    <section aria-labelledby="today-heading" className="mt-5">
+      <h2 id="today-heading" className="sr-only">{t('오늘 달라진 것', 'What changed today')}</h2>
+      <dl className="grid grid-cols-2 overflow-hidden rounded-xl border border-outline-soft sm:grid-cols-4">
+        {cells.map((cell, index) => {
+          const moved = delta(cell.key);
+          return (
+            <div key={cell.key} className={`border-outline-soft px-5 py-4 ${index % 2 ? 'border-l' : ''} ${index > 1 ? 'border-t sm:border-t-0' : ''} ${index === 2 ? 'sm:border-l' : ''}`}>
+              <dt className="text-[13px] text-muted">{cell.label}</dt>
+              <dd className="mt-1 text-sm text-muted">
+                <span className={`num mr-1 text-[28px] font-bold leading-none tracking-tight ${cell.seed ? 'text-seed' : 'text-ink'}`}>{cell.value}</span>{cell.unit}
+                <span className={`num ml-2 text-[13px] ${moved > 0 ? 'text-ink' : 'text-muted'}`}>{moved > 0 ? t(`+${moved} 오늘`, `+${moved} today`) : moved < 0 ? t(`${moved} 오늘`, `${moved} today`) : t('어제와 같음', 'Same as yesterday')}</span>
+                <MiniTrend values={totals.map((day) => day[cell.key])} />
+              </dd>
+            </div>
+          );
+        })}
+        <div className="border-l border-t border-outline-soft px-5 py-4 sm:border-t-0">
+          <dt className="text-[13px] text-muted"><Link href="/news" className="underline-offset-4 hover:text-ink hover:underline">{t('오늘의 아티클', 'Today’s articles')}</Link></dt>
+          <dd className="mt-1 text-sm text-muted"><span className="num mr-1 text-[28px] font-bold leading-none tracking-tight text-ink">{tiles.articles}</span>{t('편', '')}</dd>
+        </div>
+      </dl>
+
+      {cards.length > 0 ? (
+        <div className="mt-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <h3 className="text-[15px] font-semibold">{t(`달라진 문제 ${cards.length}개`, `${cards.length} problems changed`)}</h3>
+            <span className="text-[13px] text-muted">{research.windowDays === 1 ? t('최근 1일', 'Past day') : t('조용한 날이라 최근 7일', 'A quiet day, so the past 7 days')}</span>
           </div>
-          <div className="mt-4 border-t border-outline-soft pt-4">
-            <h3 className="text-sm font-semibold">{t('분야별 원문 증가', 'Quote growth by field')}</h3>
-            {research.fieldTrend.length ? (
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {research.fieldTrend.map((field) => (
-                  <li key={field.label} className="chip max-w-full gap-2 text-[13px]">
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{t(field.label, field.labelEn || field.label)}</span>
-                    <span className="num shrink-0">+{field.growth}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="mt-2 text-sm text-muted">{t('집계할 분야가 없습니다.', 'No fields to report.')}</p>}
-          </div>
-        </>
-      ) : <p className="mt-3 text-sm text-muted">{t('최근 7일 동안 달라진 신호가 없습니다.', 'No signals changed in the past 7 days.')}</p>}
+          <ul className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [scrollbar-width:thin] lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
+            {cards.map(({ slug, kinds, detail, item }) => {
+              const quote = [...item.evidence].sort((a, b) => b.score - a.score)[0];
+              return (
+                <li key={slug} className="flex w-72 shrink-0 snap-start lg:w-auto">
+                  <Link href={`/opportunities/${encodeURIComponent(slug)}`} prefetch={false} className="card flex w-full flex-col p-4 transition-colors hover:border-outline-strong">
+                    <span className="flex flex-wrap items-center gap-1.5 text-[12px]">
+                      {kinds.map((kind) => <span key={kind} className="chip">{kind}</span>)}
+                      <span className="num ml-auto text-muted">{detail}</span>
+                    </span>
+                    <span className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-ink">{localizedOpportunity(item, lang).name}</span>
+                    {quote && <span lang="en" className="mt-2 line-clamp-2 border-l-2 border-seed pl-2.5 text-[13px] leading-5 text-tertiary">“{quote.quote}”</span>}
+                    <span className="mt-auto pt-3 text-[12px] text-muted">{item.platforms.map((platform) => PLATFORM_LABELS[platform]).join(', ')}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {research.fieldTrend.length > 0 && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-muted">
+              {t('원문이 는 분야', 'Fields gaining quotes')}
+              {research.fieldTrend.slice(0, 6).map((field) => <span key={field.label} className="chip">{t(field.label, field.labelEn || field.label)} <span className="num ml-1">+{field.growth}</span></span>)}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted">{t('최근 7일 동안 달라진 문제는 없습니다. 위 숫자는 매일 아침 분석으로 갱신됩니다.', 'No problem changed in the past 7 days. The figures above update with each morning run.')}</p>
+      )}
     </section>
   );
 }

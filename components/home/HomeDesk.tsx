@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import { Check } from 'lucide-react';
 import { ArticleLead } from '@/components/ArticleCards';
+import ReadCarousel from '@/components/home/ReadCarousel';
 import RepoPicks, { rankRepos } from '@/components/RepoPicks';
 import { getContentHref } from '@/lib/content-targets';
 import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, getScraps } from '@/lib/data';
@@ -9,7 +10,7 @@ import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
-import { forYou, leadRead, ruleReads } from '@/lib/personal';
+import { forYou, pickReads, ruleReads } from '@/lib/personal';
 import NotInterestedButton from '@/components/NotInterestedButton';
 import { recentReleases } from '@/lib/ingest/kept-repos';
 import type { RepoRelease } from '@/lib/ingest/kept-repos';
@@ -32,6 +33,8 @@ const TYPE_LABELS: Record<string, [string, string]> = {
 };
 
 const h2 = 'text-[17px] font-bold tracking-[-0.015em]';
+// How many reads the home banner turns through.
+const BANNER_SIZE = 5;
 
 /**
  * The signed-in front page: the one read picked for this person first and widest, then what they kept and more picks.
@@ -74,10 +77,11 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     ? await repoReleases<RepoRelease>(supabase, keptRepoIds)
     : [];
   const releases = recentReleases(keptRepoRows).slice(0, 4);
-  // The banner: the reader's best-scored article, or the newest one while there is nothing to go on.
+  // The banner: the reader's five best-scored articles, topped up with the newest while there is little to go on.
   const reads = await ruleReads(user.id, answers, scraps).catch(() => []);
-  const newest = [...articles].sort((a, b) => String(b.published_at ?? '').localeCompare(String(a.published_at ?? '')))[0];
-  const banner = leadRead(articles, reads) ?? (newest ? { item: newest, reason: undefined } : null);
+  const picked = pickReads(articles, reads, BANNER_SIZE);
+  const newest = [...articles].sort((a, b) => String(b.published_at ?? '').localeCompare(String(a.published_at ?? ''))).filter((item) => !picked.some((pick) => pick.item === item));
+  const banner = [...picked, ...newest.slice(0, BANNER_SIZE - picked.length).map((item) => ({ item, reason: undefined }))];
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });
   const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' });
   const kept = new Set(keptKeys);
@@ -96,9 +100,13 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
         <p className="mt-1 text-[13px] text-muted">{day.format(new Date(generatedAt))}</p>
       </header>
       {/* The day's one read for this person, first and widest. */}
-      {banner && (
-        <div className="mt-6">
-          <ArticleLead item={banner.item} isScrapped={kept.has(`${banner.item.type === 'paper' ? 'paper' : 'news'}:${banner.item.id}`)} returnTo="/" reason={banner.reason ? `나에게 맞는 글, ${banner.reason}` : '오늘의 추천'} />
+      {banner.length > 0 && (
+        <div className="-mt-9">
+          <ReadCarousel label={t('오늘 읽을 글', 'Today’s reads')}>
+            {banner.map(({ item, reason }) => (
+              <ArticleLead key={`${item.type}:${item.id}`} plain item={item} isScrapped={kept.has(`${item.type === 'paper' ? 'paper' : 'news'}:${item.id}`)} returnTo="/" reason={reason ? `나에게 맞는 글, ${reason}` : '오늘의 추천'} />
+            ))}
+          </ReadCarousel>
         </div>
       )}
       <div className="page-split mt-10">

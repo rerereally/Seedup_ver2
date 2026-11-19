@@ -49,14 +49,14 @@ function articleMeta(item: ArticleFeedItem) {
 }
 
 /** The first article on a page: its picture beside it when the source has one, and the save and ask actions. */
-export function ArticleLead({ item, isScrapped, returnTo, reason }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; reason?: string }) {
+export function ArticleLead({ item, isScrapped, returnTo, reason, plain = false }: { item: ArticleFeedItem; isScrapped: boolean; returnTo: string; reason?: string; plain?: boolean }) {
   const itemType = item.type === 'paper' ? 'paper' : 'news';
   const summary = item.short_summary ?? item.summary ?? item.beginner_summary;
   const meta = articleMeta(item);
 
   return (
     // Two columns only while the picture is there, so a refused picture leaves a full-width text lead.
-    <article className="group grid gap-6 border-b border-outline-soft pb-10 lg:items-center lg:has-[img]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+    <article className={`group grid gap-6 lg:items-center lg:has-[img]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] ${plain ? '' : 'border-b border-outline-soft pb-10'}`}>
       {item.image_url && <ArticleImage src={item.image_url} href={itemHref(item)} className="aspect-[16/10]" />}
       <div className="min-w-0">
         <p className="flex flex-wrap gap-x-3 text-[13px] text-muted">{reason && <span className="font-semibold text-seed">{reason}</span>}<span className="font-semibold text-ink">{meta.kind}</span>{meta.section && <span>{meta.section}</span>}<span>{meta.source}</span><span>{meta.date}</span></p>

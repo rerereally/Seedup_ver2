@@ -46,23 +46,29 @@ jobs:
           done
 
   # The core flow in a real browser (idea → questions → PRD → AGENTS.md) on a build started in this runner, with fixed
-  # model answers (LLM_FIXTURES=1), signed in as the test account. Needs the Supabase secrets, so forks skip it.
+  # model answers (LLM_FIXTURES=1), signed in as the test account against a local Supabase instance.
   e2e:
     needs: check
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       NEXT_PUBLIC_SITE_URL: http://localhost:3100
     steps:
       - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.2.0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Start local Supabase
+        run: |
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor
+          eval "$(supabase status -o env)"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL:-http://127.0.0.1:54321}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SECRET_KEY=${SECRET_KEY:-$SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build

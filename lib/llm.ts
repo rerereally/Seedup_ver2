@@ -3,6 +3,8 @@
 // elsewhere imports from here and never names a provider URL (eslint.config.mjs enforces it), so a fix to how models
 // are called is made once.
 
+import { fixtureJson, fixtureProse, fixturesOn } from './llm-fixtures';
+
 // ---- Model policy ----
 export function isFreeOpenRouterModel(model: string) {
   return model.endsWith(':free') || model === 'openrouter/free';
@@ -106,6 +108,7 @@ function extractJson(content: string) {
 }
 
 export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: number; timeoutMs?: number; title?: string; model?: string; models?: string[]; system?: string; deadline?: number; reasoning?: 'low' | 'medium' | 'high'; attempts?: number; onUsage?: (usage: ModelUsage) => void }): Promise<T | null> {
+  if (fixturesOn()) return fixtureJson(options?.title) as T | null;
   // A model chosen on the PRD menu goes first, with the free models behind it as fallbacks. The menu's admin policy is
   // what allows a paid model there, so free-only does not apply to it; every other caller (collection, ingest) has no
   // way to pass a model and stays on the free list.
@@ -200,6 +203,11 @@ export type StreamOptions = {
  * count as life but are not part of the text.
  */
 export async function streamText(prompt: string, options: StreamOptions = {}): Promise<{ text: string; model: string; cut?: boolean } | null> {
+  if (fixturesOn()) {
+    const text = fixtureProse();
+    for (const piece of text.match(/[\s\S]{1,400}/g) ?? []) options.onEvent?.({ type: 'delta', text: piece });
+    return { text, model: 'fixture' };
+  }
   const firstTokenMs = options.firstTokenMs ?? 15_000;
   const idleMs = options.idleMs ?? 25_000;
   const deadline = options.deadline ?? Date.now() + CALL_TIMEOUT_MS;

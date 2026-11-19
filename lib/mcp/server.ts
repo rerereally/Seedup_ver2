@@ -22,6 +22,9 @@ export type McpDeps = {
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
   progress: (slug: string) => Promise<BuildProgress>;
+  linkCommit(slug: string, link: { sha: string; message: string; files: string[]; featureIds: string[] }): Promise<void>;
+  featureFiles(slug: string): Promise<Record<string, string[]>>;
+  verifyFeature: (prompt: string) => Promise<unknown>;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
   setProgress: (slug: string, feature: { id: string; title: string }, status: AgentFeatureStatus, note: string) => Promise<boolean>;
   notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
@@ -113,6 +116,30 @@ export const TOOLS = [
         done: { type: 'boolean', description: 'Default true; false sets todo' },
       },
       required: ['slug', 'feature'],
+    },
+  },
+  {
+    name: 'link_commit',
+    description: 'Record a commit and its changed file paths for a PRD. Use only when the user has enabled commit uploads for this project. Features default to the F-n ids in the commit message.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string' },
+        sha: { type: 'string', pattern: '^[a-fA-F0-9]{7,40}$' },
+        message: { type: 'string', maxLength: 500 },
+        files: { type: 'array', maxItems: 200, items: { type: 'string', maxLength: 300, description: 'Repository-relative path' } },
+        features: { type: 'array', items: { type: 'string' }, description: 'Override feature ids from the commit message' },
+      },
+      required: ['slug', 'sha', 'message', 'files'],
+    },
+  },
+  {
+    name: 'verify_feature',
+    description: 'Get a model opinion on whether a diff meets each PRD done criterion. Uses the first 20,000 characters of the diff. Feature status stays unchanged. Up to 10 calls a day.',
+    inputSchema: {
+      type: 'object',
+      properties: { slug: { type: 'string' }, feature: { type: 'string' }, diff: { type: 'string' } },
+      required: ['slug', 'feature', 'diff'],
     },
   },
   {
@@ -210,6 +237,15 @@ export function renderKept(item: KeptItem) {
 /** The evidence the site and generate_verified_prd both build from, so all three read the same cached PRD. */
 const prdEvidence = (opportunity: Opportunity) => opportunity.evidence.slice(0, PRD_MAX_EVIDENCE);
 
+function unknownFeatures(ids: string[], spec: Spec) {
+  return text('Unknown feature ids: ' + ids.join(', ') + '. Valid features: ' + (spec.features.map((row) => row.id).join(', ') || 'none') + '.', true);
+}
+
+function isRepoPath(file: unknown): file is string {
+  return typeof file === 'string' && file.length > 0 && file.length <= 300
+    && !file.includes('\0') && !/^(?:[/\\]|[a-z]:)/i.test(file) && !file.split(/[/\\]/).includes('..');
+}
+
 async function callTool(name: string, args: Record<string, unknown>, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
   const opportunities = await deps.opportunities();
   if (name === 'search_opportunities') {
@@ -220,7 +256,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
   const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
-  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist'].includes(name) || updatesProgress) {
+  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'link_commit', 'verify_feature'].includes(name) || updatesProgress) {
     if (!opportunity) return text(`Unknown opportunity "${slug}". Call search_opportunities first.`, true);
   }
   if (name === 'get_opportunity' && opportunity) {
@@ -245,9 +281,56 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format);
     return { ...text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }
-  if ((name === 'get_build_checklist' || updatesProgress) && opportunity) {
+  if (name === 'link_commit' && opportunity) {
+    const { sha, message, files, features } = args;
+    if (typeof sha !== 'string' || !/^[a-f0-9]{7,40}$/i.test(sha)) return text('SHA must be 7–40 hexadecimal characters.', true);
+    if (typeof message !== 'string' || message.length > 500 || message.includes('\0')) return text('Message must be a string of at most 500 characters without null bytes.', true);
+    if (!Array.isArray(files) || files.length > 200 || !files.every(isRepoPath)) return text('Provide up to 200 repository-relative file paths, each 1–300 characters and without ".." path segments.', true);
+    if (features !== undefined && (!Array.isArray(features) || !features.every((id) => typeof id === 'string'))) return text('Features must be an array of feature ids.', true);
+    const rawIds: string[] = features ?? message.match(/\bf-?\d+\b/gi) ?? [];
+    const featureIds = new Set<string>();
+    if (rawIds.length) {
+      const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
+      if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
+      const validIds = new Set(cached.spec.features.map((row) => row.id));
+      const unknown = new Set<string>();
+      for (const rawId of rawIds) {
+        const id = normalizeFeatureId(rawId);
+        if (id && validIds.has(id)) featureIds.add(id);
+        else unknown.add(rawId);
+      }
+      if (unknown.size) return unknownFeatures([...unknown], cached.spec);
+    }
+    await deps.linkCommit(slug, { sha: sha.toLowerCase(), message, files, featureIds: [...featureIds] });
+    return text(featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.');
+  }
+  if ((name === 'get_build_checklist' || name === 'verify_feature' || updatesProgress) && opportunity) {
     const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
     if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
+    if (name === 'verify_feature') {
+      const { diff } = args;
+      if (typeof diff !== 'string' || !diff.trim()) return text('Provide a non-empty diff.', true);
+      const rawId = typeof args.feature === 'string' ? args.feature : '';
+      const id = normalizeFeatureId(rawId);
+      const feature = cached.spec.features.find((row) => row.id === id);
+      if (!feature) return unknownFeatures([rawId || '(missing)'], cached.spec);
+      if (!(await deps.consume('mcp_verify', 10))) return text('Daily limit reached (10 feature reviews). Try again tomorrow.', true);
+
+      const criteria = featureCriteria(cached.spec, feature).map((criterion, index) => ({ number: index + 1, criterion }));
+      const review = await deps.verifyFeature(JSON.stringify({
+        criteria, diff: diff.slice(0, 20_000), truncated: diff.length > 20_000,
+      })) as { checks?: Array<{ number: number; status: string; reason: string } | null> } | null;
+      if (!Array.isArray(review?.checks) || !review.checks.length) return text('The model did not return a review. Try again in a minute.', true);
+      const checks = new Map(review.checks.map((row) => [row?.number, row]));
+      const lines = criteria.map(({ number, criterion }) => {
+        const check = checks.get(number);
+        const reason = typeof check?.reason === 'string' ? check.reason.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+        if (check && reason && ['met', 'not met', 'unclear'].includes(check.status)) return number + '. ' + criterion + ' — ' + check.status + '. ' + reason;
+        return number + '. ' + criterion + ' — unclear. No usable assessment for this criterion.';
+      });
+      return text('Model opinion for ' + feature.id + '. Feature status is unchanged.'
+        + (diff.length > 20_000 ? ' Reviewed the first 20,000 characters of the diff.' : '') + '\n\n' + lines.join('\n'));
+    }
     if (updatesProgress) {
       const alias = name === 'mark_feature_done';
       const rawStatus = alias ? (args.done === false ? 'todo' : 'done') : args.status;

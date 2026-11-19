@@ -11,6 +11,7 @@ import PrdThumb from '@/components/PrdThumb';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { readBuildProgress, readBuildProgressHistory } from '@/lib/opportunities/build-progress';
+import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
 import { dossierHref } from '@/lib/opportunities/insight';
 import { prdModels } from '@/lib/opportunities/models';
@@ -151,10 +152,11 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
     supabase ? getCurrentUser() : null,
     cachedPrd(pickedIds),
   ]);
-  // MCP tracks progress against an opportunity's own PRD.
-  const [progress, progressHistory] = opportunity && user ? await Promise.all([
+  // MCP tracks progress and commits against an opportunity's own PRD.
+  const [progress, progressHistory, featureCommits] = opportunity && user && supabase ? await Promise.all([
     readBuildProgress(supabase, user.id, opportunity.slug),
     readBuildProgressHistory(supabase, user.id, opportunity.slug),
+    readFeatureCommits(supabase, user.id, opportunity.slug).then(summarizeFeatureCommits).catch(() => undefined),
   ]) : [];
   const ready = meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
   const slugs = [...new Set(picked.map((item) => item.slug))];
@@ -180,7 +182,7 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
         </header>
         <section className="mt-6" aria-label={t('PRD 작업 공간', 'PRD workspace')}>
           {/* MCP builds from the evidence-only PRD of an opportunity, so its start prompt is offered only for one. */}
-          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} progressHistory={progressHistory} models={prdModels(await prdPolicy())} showTitle={false} agentSlug={opportunity?.slug}>
+          <PrdBuilder title={title} evidenceIds={pickedIds} ready={ready} loginNext={self} initial={saved} signedIn={Boolean(user)} progress={progress} progressHistory={progressHistory} featureCommits={featureCommits} models={prdModels(await prdPolicy())} showTitle={false} agentSlug={opportunity?.slug}>
             {/* Before a PRD exists, show the quotes it will stand on and what it will contain. */}
             <div className="mt-8 grid max-w-[52rem] gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_20rem]">
               <section aria-labelledby="prd-sources">

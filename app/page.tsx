@@ -142,7 +142,7 @@ export default async function Home() {
             )}
             note={(
               <p className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[13px] text-muted">
-                <span>{t('초안은 로그인 없이, PRD는 하루 10개까지 무료', 'Drafts need no account; 10 PRDs a day free')}</span>
+                <span>{t('질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료', 'Answer questions with no account; sign in for 10 free PRDs a day')}</span>
                 <Link href={sampleHref} className="font-semibold text-seed underline-offset-4 hover:underline">{t('PRD 예시 보기', 'See a sample PRD')}</Link>
               </p>
             )}
@@ -279,7 +279,7 @@ export default async function Home() {
           <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 mx-auto h-[320px] max-w-[760px] -translate-y-1/2 rounded-full bg-glow blur-3xl" />
           <div className="relative">
             <h2 id="start-heading" className="t-section mx-auto max-w-[16em]">{t('내 아이디어에는 어떤 원문이 있을까요?', 'What have developers said about your idea?')}</h2>
-            <p className="t-lead mx-auto mt-4 max-w-[30em]">{t('한 줄이면 됩니다. 초안까지는 로그인도 필요 없습니다.', 'One line is enough. Drafts need no account.')}</p>
+            <p className="t-lead mx-auto mt-4 max-w-[30em]">{t('한 줄이면 됩니다. 질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료입니다.', 'One line is enough. Answer questions with no account; sign in for 10 free PRDs a day.')}</p>
             <div className="mt-8"><StartAgain label={t('지금 시작하기', 'Start now')} /></div>
           </div>
         </section>

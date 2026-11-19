@@ -13,7 +13,7 @@ const EXTENSION = 'https://github.com/rerereally/Seedup_ver2/tree/main/extension
 
 // [Korean question, Korean answer, English question, English answer]
 const FAQ: Array<[string, string, string, string]> = [
-  ['무료인가요?', 'PRD 초안은 로그인 없이, PRD 생성은 로그인 후 하루 10개까지 무료입니다. 에이전트로 받는 검증 리포트는 하루 3개입니다.', 'Is it free?', 'Drafts need no account, and signed-in accounts make up to 10 PRDs a day for free. Reports through your agent are 3 a day.'],
+  ['무료인가요?', '질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료입니다. 에이전트로 받는 검증 리포트는 하루 3개입니다.', 'Is it free?', 'Answering questions needs no account, and signing in gives you up to 10 free PRDs a day. Reports through your agent are 3 a day.'],
   ['"가설"은 무슨 뜻인가요?', '어느 원문도 받쳐 주지 않는 요구사항입니다. 지우지 않고 남겨 두니, 만들기 전에 직접 확인해 보세요.', 'What is a "hypothesis"?', 'A requirement no quote backs. It stays in the PRD so you can check it before building.'],
   ['원문은 어디서 가져오나요?', 'GitHub 이슈, Hacker News, Stack Overflow, DEV, Lobsters, 사용자 포럼 같은 공개 글입니다. 모든 인용에 원문 링크가 붙습니다.', 'Where do the quotes come from?', 'Public posts on GitHub issues, Hacker News, Stack Overflow, DEV, Lobsters and user forums. Every quote links to its post.'],
   ['레포 분석은 코드를 저장하나요?', '아니요. 공개 저장소의 README, 파일 구조, 의존성만 읽고 결과는 브라우저에만 남습니다.', 'Do you store my code?', 'No. Only the README, file tree and dependencies of public repositories are read, and the results stay in your browser.'],

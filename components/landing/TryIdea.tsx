@@ -90,7 +90,7 @@ export default function TryIdea({ pool, examples, head, note }: { pool: PoolItem
               <p className="mt-3 text-[15px] leading-7 text-tertiary">{t('오늘 모아 둔 글에서는 아직 같은 불만을 찾지 못했습니다. PRD 만들기를 누르면 웹에서 원문을 더 찾아봅니다.', 'Nothing in today’s collected posts matches yet. Press Make the PRD and the workspace searches the web for more.')}</p>
             )}
             <div className="mt-4 flex items-center justify-between gap-3">
-              <span className="text-[13px] text-muted">{t('로그인 없이 초안까지 만들 수 있어요', 'Drafts need no account')}</span>
+              <span className="text-[13px] text-muted">{t('질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료', 'Answer questions with no account; sign in for 10 free PRDs a day')}</span>
               <button type="button" onClick={go} className="link-seed">{t('이걸로 PRD 만들기', 'Make a PRD from this')}</button>
             </div>
           </section>

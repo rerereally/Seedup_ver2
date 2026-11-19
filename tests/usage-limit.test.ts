@@ -139,3 +139,18 @@ test('releaseUsageFor decrements with optimistic CAS and retries on concurrent c
   assert.equal(updateAttempts, 0);
   assert.equal(stored, 0);
 });
+
+test('fixture runs (e2e) neither count nor refund uses, so CI never spends the test account’s real limit', async () => {
+  const calls: string[] = [];
+  const db = { rpc: async (name: string) => { calls.push(name); return { data: false, error: null }; } } as unknown as SupabaseClient;
+  const before = process.env.LLM_FIXTURES;
+  process.env.LLM_FIXTURES = '1';
+  try {
+    assert.equal(await consumeDailyUsage(db, 'prd', 10), true);
+    await releaseDailyUsage(db, 'prd');
+    assert.deepEqual(calls, []);
+  } finally {
+    if (before === undefined) delete process.env.LLM_FIXTURES;
+    else process.env.LLM_FIXTURES = before;
+  }
+});

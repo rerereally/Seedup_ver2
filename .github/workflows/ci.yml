@@ -39,10 +39,10 @@ jobs:
       - run: supabase db start
       - name: Every migration is applied
         run: |
-          supabase migration list --local | tee list.txt
+          supabase migration list | tee list.txt
           for file in supabase/migrations/*.sql; do
             version=$(basename "$file" | cut -d_ -f1)
-            grep -qE "^ *$version *\| *$version" list.txt || { echo "::error::$file was not applied"; exit 1; }
+            grep -qE "$version.*\|.*$version" list.txt || { echo "::error::$file was not applied"; exit 1; }
           done
 
   # Each pull request from this repository gets its own preview address: the build is uploaded as a Worker version

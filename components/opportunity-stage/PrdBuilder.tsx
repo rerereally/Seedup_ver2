@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
-import type { BuildProgress } from '@/lib/opportunities/build-progress';
+import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
+import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
@@ -39,6 +40,14 @@ export function forgetStoredPrd(title: string) {
 type View = 'trace' | 'tree' | 'flow' | 'wire' | 'doc';
 
 const VIEWS: Array<[View, string, string]> = [['doc', '문서', 'Document'], ['trace', '기능 명세', 'Feature spec'], ['flow', '유저플로우', 'User flow'], ['wire', '와이어프레임', 'Wireframe'], ['tree', '구조 트리', 'IA tree']];
+const STATUS_LABELS: Record<FeatureStatus, [string, string]> = {
+  todo: ['대기', 'To do'],
+  in_progress: ['작업 중', 'In progress'],
+  improving: ['개선 중', 'Improving'],
+  done: ['완료', 'Done'],
+  blocked: ['막힘', 'Blocked'],
+  needs_recheck: ['다시 확인 필요', 'Needs recheck'],
+};
 
 async function postJson(url: string, body: unknown) {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -54,7 +63,7 @@ function changedCount(before: Spec, after: Spec) {
   return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, models = [], hideRevise = false, showTitle = true, agentSlug }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -79,8 +88,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   externalInstruction?: { id: number; text: string } | null;
   /** Told when a call fails, so the chat can say so instead of waiting forever. */
   onError?: (message: string) => void;
-  /** Features a coding agent marked done through MCP (mark_feature_done), by feature id. */
   progress?: BuildProgress;
+  progressHistory?: BuildProgressHistory;
+  featureCommits?: FeatureCommitSummary;
   /** The server's model menu; the pick is shared with every PRD screen through browser storage. */
   models?: PrdModel[];
   /** The idea chat takes change requests itself, so the side form would only repeat it. */
@@ -92,6 +102,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 }) {
   const lang = useLang();
   const t = translator(lang);
+  const progressDate = useMemo(() => new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Seoul' }), [lang]);
   const model = usePrdModel(models);
   const [input, setInput] = useState<SpecInput | null>(initial?.input ?? null);
   const [pickedIds, setPickedIds] = useState<string[] | null>(null);
@@ -164,7 +175,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   }, [storageKey, input, versions]);
 
   const markdown = useMemo(() => (input && spec ? renderSpecMarkdown(input, spec) : ''), [input, spec]);
-  const brief = useMemo(() => (input && spec ? renderAgentBrief(input, spec, format) : ''), [input, spec, format]);
+  const brief = useMemo(() => (input && spec ? renderAgentBrief(input, spec, format, agentSlug) : ''), [input, spec, format, agentSlug]);
   const trace = useMemo(() => (spec && focus ? traceOf(spec, focus) : null), [spec, focus]);
 
   const fail = (status: number, json: { error?: string }, fallback: string) => {
@@ -427,12 +438,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const priorityBadge = (priority?: string) => priority && <span className={`mr-2 rounded px-1.5 py-px align-[2px] text-[11.5px] font-semibold ${priority === 'P0' ? 'bg-ink text-white' : 'bg-surface-mid text-tertiary'}`}>{priority}</span>;
   const acceptanceLines = (lines?: string[]) => lines?.length ? lines.map((line) => <span key={line} className="mt-1 block text-[13.5px] leading-6 text-tertiary"><span aria-hidden="true" className="mr-1.5 text-seed">✓</span>{line}</span>) : null;
   // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
-  const docRow = (id: string, body: React.ReactNode, quiet = false) => (
+  const docRow = (id: string, body: React.ReactNode, quiet = false, footer?: React.ReactNode) => (
     <li key={id}>
       <button type="button" aria-pressed={focus === id} onClick={() => pick(id)} className={`-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 rounded-lg px-3 py-3.5 text-left text-[15px] leading-7 transition-colors hover:bg-surface-low aria-pressed:bg-seed-soft ${quiet ? 'text-muted' : 'text-ink'}`}>
         <span className="text-[13px] font-semibold text-muted">{id}</span>
         <span className="min-w-0">{body}</span>
       </button>
+      {footer}
     </li>
   );
 
@@ -549,8 +561,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
 
   const agentPrompt = agentSlug ? t(
-    `Seedup MCP의 generate_verified_prd로 "${agentSlug}"(${title}) PRD를 받아 AGENTS.md로 저장해 줘. 그다음 get_build_checklist를 보고 F-01부터 하나씩 만들고, 완료 기준을 통과하면 mark_feature_done으로 표시해 줘.`,
-    `Use the Seedup MCP tool generate_verified_prd for "${agentSlug}" (${title}) and save it as AGENTS.md. Then follow get_build_checklist, build F-01 first, one feature at a time, and call mark_feature_done when its done criteria pass.`,
+    `Seedup MCP의 generate_verified_prd로 "${agentSlug}"(${title}) PRD를 받아 AGENTS.md로 저장해 줘. 같은 slug로 get_next_task를 호출해 다음 기능 하나를 골라 줘. update_feature_status로 시작할 때 작업 중, 끝날 때 완료(확인 결과 포함) 또는 막힘을 보고해 줘.`,
+    `Use Seedup MCP to generate_verified_prd for "${agentSlug}" (${title}) and save it as AGENTS.md. Call get_next_task with the same slug to pick the next feature. Use update_feature_status to report in_progress at the start and done with checks or blocked at the end.`,
   ) : '';
   const notesField = (
     <div>
@@ -573,7 +585,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     [t('화면', 'Screens'), String(spec.screens.length), false, ''],
     // Shown once something is filled: at 0 it read as a failing score rather than an optional next step.
     ...(ready6 ? [[t('완료 기준을 채운 기능', 'Features with done criteria'), `${ready6}/${spec.features.length}`, false, t('기능 명세 보기에서 기능마다 입력, 규칙, 오류, 권한, 데이터, 테스트 기준을 채울 수 있습니다', 'Fill inputs, rules, errors, permissions, data and tests per feature in the feature spec view')] as [string, string, boolean, string]] : []),
-    ...(progress ? [[t('구현 완료', 'Built'), `${spec.features.filter((row) => progress[row.id]).length}/${spec.features.length}`, true, t('코딩 에이전트가 MCP로 표시한 기능', 'Marked done by a coding agent over MCP')] as [string, string, boolean, string]] : []),
+    ...(progress ? [[t('구현 완료', 'Built'), `${spec.features.filter((row) => progress[row.id]?.status === 'done').length}/${spec.features.length}`, true, t('코딩 에이전트가 완료로 보고한 기능', 'Reported done by a coding agent')] as [string, string, boolean, string]] : []),
   ] : [];
   // A picked line scrolls its first quote into view inside the evidence panel, so the panel follows the reader.
   const panelRef = useRef<HTMLOListElement>(null);
@@ -786,7 +798,42 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     {spec.features.length > 0 && (
                       <section>
                         <h4 id="prd-features" className={h2}>{t('기능', 'Features')}</h4>
-                        <ul className="rows mt-3">{spec.features.map((row) => docRow(row.id, <>{row.title}{!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}{progress?.[row.id] && <span className="ml-2 text-[13px] font-semibold text-seed" title={progress[row.id].note || undefined}>✓ {t('구현 완료', 'Built')}</span>}<span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span></>, !backed(row)))}</ul>
+                        <ul className="rows mt-3">{spec.features.map((row) => {
+                          const mark = progress?.[row.id];
+                          const featureStatus = mark?.status ?? 'todo';
+                          const events = progressHistory?.[row.id];
+                          const commits = featureCommits?.[row.id];
+                          const count = commits?.count ?? 0;
+                          const commitLabel = t(`연결된 커밋 ${count}개`, `${count} linked ${count === 1 ? 'commit' : 'commits'}`);
+                          return docRow(row.id, <>
+                            {row.title}
+                            {!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}
+                            {progress && <span className={`ml-2 text-[13px] font-semibold ${featureStatus === 'done' ? 'text-seed' : 'text-muted'}`} title={mark?.note || undefined}>
+                              {featureStatus === 'done' && '✓ '}{t(...STATUS_LABELS[featureStatus])}
+                            </span>}
+                            <span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span>
+                          </>, !backed(row), <>
+                            {featureCommits && (commits?.files.length ? (
+                              <details className="mb-3 ml-12 text-[13px] text-muted">
+                                <summary className="cursor-pointer">{commitLabel}{t(`, 파일 ${commits.files.length}개`, `, ${commits.files.length} ${commits.files.length === 1 ? 'file' : 'files'}`)}</summary>
+                                <ul className="mt-1 space-y-1">
+                                  {commits.files.map((file) => <li key={file}><code className="break-all">{file}</code></li>)}
+                                </ul>
+                              </details>
+                            ) : <p className="mb-3 ml-12 text-[13px] text-muted">{commitLabel}</p>)}
+                            {events?.length ? (
+                              <details className="mb-3 ml-12 text-[13px] text-muted">
+                                <summary className="cursor-pointer">{t('상태 이력', 'Status history')}</summary>
+                                <ol className="mt-1 space-y-1">
+                                  {events.map((event) => <li key={event.id} className="break-words">
+                                    <time dateTime={event.createdAt}>{progressDate.format(new Date(event.createdAt))}</time>
+                                    {' · '}{t(...STATUS_LABELS[event.status])}{event.note && ` · ${event.note}`}
+                                  </li>)}
+                                </ol>
+                              </details>
+                            ) : null}
+                          </>);
+                        })}</ul>
                       </section>
                     )}
                     {spec.screens.length > 0 && (

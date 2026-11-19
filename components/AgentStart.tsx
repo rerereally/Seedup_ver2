@@ -13,8 +13,8 @@ export default function AgentStart({ slug, name, className = '' }: { slug: strin
   const t = translator(useLang());
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const prompt = t(
-    `Seedup MCP의 generate_verified_prd로 "${slug}"(${name}) PRD를 받아 AGENTS.md로 저장해 줘. 그다음 get_build_checklist를 보고 F-01부터 하나씩 만들고, 완료 기준을 통과하면 mark_feature_done으로 표시해 줘.`,
-    `Use the Seedup MCP tool generate_verified_prd for "${slug}" (${name}) and save it as AGENTS.md. Then follow get_build_checklist, build F-01 first, one feature at a time, and call mark_feature_done when its done criteria pass.`,
+    `Seedup MCP의 generate_verified_prd로 "${slug}"(${name}) PRD를 받아 AGENTS.md로 저장해 줘. 같은 slug로 get_next_task를 호출해 다음 기능 하나를 골라 줘. update_feature_status로 시작할 때 작업 중, 끝날 때 완료(확인 결과 포함) 또는 막힘을 보고해 줘.`,
+    `Use Seedup MCP to generate_verified_prd for "${slug}" (${name}) and save it as AGENTS.md. Call get_next_task with the same slug to pick the next feature. Use update_feature_status to report in_progress at the start and done with checks or blocked at the end.`,
   );
   const copy = async () => {
     try {

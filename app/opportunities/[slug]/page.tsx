@@ -8,7 +8,8 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import OpportunityPrd from './OpportunityPrd';
-import { getOpportunity } from '@/lib/opportunities/data';
+import { similarCompareSlugs } from '@/lib/opportunities/compare';
+import { getOpportunities, getOpportunity } from '@/lib/opportunities/data';
 import { koreaLens, scoreOpportunity, stackFit, whyNow } from '@/lib/opportunities/insight';
 import { describeChange } from '@/lib/opportunities/merge';
 import { createClient } from '@/lib/supabase/server';
@@ -92,8 +93,10 @@ const chevron = <span aria-hidden="true" className="text-muted transition-transf
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const opportunity = await getOpportunity(slug);
+  const { opportunities } = await getOpportunities();
+  const opportunity = opportunities.find((item) => item.slug === slug);
   if (!opportunity) notFound();
+  const compareSlugs = similarCompareSlugs(opportunity, opportunities);
 
   const lang = await getLang();
   const t = translator(lang);
@@ -156,7 +159,12 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
         <header className="mt-4">
           <h1 className="page-intro-title">{text.name}</h1>
-            <p className="mt-3 max-w-[40em] text-[16px] leading-7 text-tertiary [text-wrap:pretty]">{text.problem}</p>
+          <p className="mt-3 max-w-[40em] text-[16px] leading-7 text-tertiary [text-wrap:pretty]">{text.problem}</p>
+          {compareSlugs.length >= 2 && (
+            <Link href={{ pathname: '/opportunities/compare', query: { slugs: compareSlugs.join(',') } }} className="btn-quiet mt-4 min-h-11 sm:min-h-10">
+              {t('다른 후보와 비교', 'Compare with other candidates')}
+            </Link>
+          )}
         </header>
         <div className="mt-8 page-split">
           <article className="min-w-0">

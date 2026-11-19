@@ -2235,7 +2235,94 @@
     ]
   },
   {
-    "file": "20261119113000_built_example_counts.sql",
+    "file": "20261119112105_feature_status.sql",
+    "tables": [
+      "build_progress_events"
+    ],
+    "columns": [
+      [
+        "build_progress",
+        "status"
+      ],
+      [
+        "build_progress",
+        "updated_at"
+      ],
+      [
+        "build_progress_events",
+        "id"
+      ],
+      [
+        "build_progress_events",
+        "user_id"
+      ],
+      [
+        "build_progress_events",
+        "slug"
+      ],
+      [
+        "build_progress_events",
+        "feature_id"
+      ],
+      [
+        "build_progress_events",
+        "status"
+      ],
+      [
+        "build_progress_events",
+        "note"
+      ],
+      [
+        "build_progress_events",
+        "created_at"
+      ]
+    ],
+    "functions": [
+      "write_build_progress"
+    ]
+  },
+  {
+    "file": "20261119120000_feature_commits.sql",
+    "tables": [
+      "feature_commits"
+    ],
+    "columns": [
+      [
+        "feature_commits",
+        "id"
+      ],
+      [
+        "feature_commits",
+        "user_id"
+      ],
+      [
+        "feature_commits",
+        "slug"
+      ],
+      [
+        "feature_commits",
+        "feature_id"
+      ],
+      [
+        "feature_commits",
+        "sha"
+      ],
+      [
+        "feature_commits",
+        "message"
+      ],
+      [
+        "feature_commits",
+        "files"
+      ],
+      [
+        "feature_commits",
+        "created_at"
+      ]
+    ]
+  },
+  {
+    "file": "20261119150000_built_example_counts.sql",
     "functions": [
       "built_example_counts"
     ]

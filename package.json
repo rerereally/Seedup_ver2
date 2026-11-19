@@ -16,6 +16,7 @@
     "e2e": "playwright test",
     "rls": "tsx --env-file=.env scripts/check-rls.ts",
     "migrations": "tsx scripts/check-migrations.ts",
+    "seal": "node --import tsx scripts/seal-predictions.ts",
     "test": "tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },

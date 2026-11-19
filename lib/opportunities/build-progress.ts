@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/** Features a coding agent marked done through MCP, per user and opportunity. Keyed by feature id (F-01). */
-export type BuildProgress = Record<string, { title: string; note: string; doneAt: string }>;
+export const AGENT_FEATURE_STATUSES = ['todo', 'in_progress', 'improving', 'done', 'blocked'] as const;
+export type AgentFeatureStatus = (typeof AGENT_FEATURE_STATUSES)[number];
+export type FeatureStatus = AgentFeatureStatus | 'needs_recheck';
+
+export type BuildProgress = Record<string, { title: string; status: FeatureStatus; note: string; updatedAt: string; doneAt: string | null }>;
+export type BuildProgressHistory = Record<string, Array<{ id: string; status: FeatureStatus; note: string; createdAt: string }>>;
 
 /** "F1", "f-1" and "F-01" all name the first feature; anything else is not a feature id. */
 export function normalizeFeatureId(value: string) {
@@ -12,16 +16,40 @@ export function normalizeFeatureId(value: string) {
 /** Reads with whatever client the caller has: the signed-in user's (row level security) or the service role. */
 export async function readBuildProgress(client: SupabaseClient | null, userId: string, slug: string): Promise<BuildProgress> {
   if (!client) return {};
-  const { data, error } = await client.from('build_progress').select('feature_id,feature_title,note,done_at').eq('user_id', userId).eq('slug', slug);
-  // Before supabase/migrations/20261116181543_build_progress.sql is run the table is missing, and the PRD simply shows no progress.
+  const { data, error } = await client.from('build_progress').select('feature_id,feature_title,status,note,updated_at,done_at').eq('user_id', userId).eq('slug', slug);
   if (error) return {};
-  return Object.fromEntries((data ?? []).map((row) => [String(row.feature_id), { title: String(row.feature_title ?? ''), note: String(row.note ?? ''), doneAt: String(row.done_at) }]));
+  return Object.fromEntries((data ?? []).map((row) => [row.feature_id, {
+    title: row.feature_title,
+    status: row.status,
+    note: row.note,
+    updatedAt: row.updated_at,
+    doneAt: row.done_at,
+  }]));
 }
 
-export async function writeBuildProgress(service: SupabaseClient, userId: string, slug: string, feature: { id: string; title: string }, done: boolean, note: string) {
-  const query = done
-    ? service.from('build_progress').upsert({ user_id: userId, slug, feature_id: feature.id, feature_title: feature.title.slice(0, 200), note: note.slice(0, 500), done_at: new Date().toISOString() }, { onConflict: 'user_id,slug,feature_id' })
-    : service.from('build_progress').delete().eq('user_id', userId).eq('slug', slug).eq('feature_id', feature.id);
-  const { error } = await query;
+export async function readBuildProgressHistory(client: SupabaseClient | null, userId: string, slug: string): Promise<BuildProgressHistory> {
+  if (!client) return {};
+  const { data, error } = await client.from('build_progress_events').select('id,feature_id,status,note,created_at')
+    .eq('user_id', userId).eq('slug', slug).order('created_at', { ascending: false });
+  if (error) return {};
+  const history = new Map<string, BuildProgressHistory[string]>();
+  for (const row of data ?? []) {
+    const events = history.get(row.feature_id) ?? [];
+    events.push({ id: row.id, status: row.status, note: row.note, createdAt: row.created_at });
+    history.set(row.feature_id, events);
+  }
+  return Object.fromEntries(history);
+}
+
+export async function writeBuildProgress(service: SupabaseClient, userId: string, slug: string, feature: { id: string; title: string }, status: FeatureStatus, note: string) {
+  const { data, error } = await service.rpc('write_build_progress', {
+    p_user_id: userId,
+    p_slug: slug,
+    p_feature_id: feature.id,
+    p_feature_title: feature.title.slice(0, 200),
+    p_status: status,
+    p_note: note.slice(0, 500),
+  });
   if (error) throw new Error(`build_progress write failed: ${error.message}`);
+  return data === true;
 }

@@ -1,3 +1,5 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+
 // Public lists change only when a collection run finishes, but every page used to read them again
 // on every navigation. A short in-memory cache removes those round trips to the database.
 const DEFAULT_TTL_MS = 60_000;
@@ -5,6 +7,14 @@ const DEFAULT_TTL_MS = 60_000;
 const STALE_FACTOR = 30;
 const MAX_ENTRIES = 100;
 const entries = new Map<string, { at: number; value: Promise<unknown>; refreshing: boolean }>();
+
+function keepBackgroundWorkAlive(promise: Promise<unknown>) {
+  try {
+    getCloudflareContext().ctx.waitUntil(promise);
+  } catch {
+    // Outside Cloudflare Workers (Node dev / tests) no waitUntil context exists.
+  }
+}
 
 function store<T>(key: string, load: () => Promise<T>) {
   const value = load();
@@ -24,7 +34,7 @@ export function cached<T>(key: string, load: () => Promise<T>, ttlMs = DEFAULT_T
   if (hit && age < ttlMs * STALE_FACTOR) {
     if (!hit.refreshing) {
       hit.refreshing = true;
-      store(key, load).catch(() => undefined);
+      keepBackgroundWorkAlive(store(key, load).catch(() => undefined));
     }
     return hit.value as Promise<T>;
   }

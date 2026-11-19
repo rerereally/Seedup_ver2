@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { enforceFreeOnlyModels, isFreeOpenRouterModel } from '../lib/llm';
+import { enforceFreeOnlyModels, isFreeOpenRouterModel, shouldThrottleModel } from '../lib/llm';
 import { assertIngestAuth } from '../lib/ingest/auth';
 
 test('ingest auth accepts only headers, rejects query secrets, and fails closed without a secret', () => {
@@ -24,10 +24,13 @@ test('ingest auth accepts only headers, rejects query secrets, and fails closed 
   }
 });
 
-test('recognizes free model ids', () => {
+test('recognizes free model ids and scopes slot throttling to free OpenRouter models only', () => {
   assert.equal(isFreeOpenRouterModel('nvidia/nemotron-3.5-super-vl:free'), true);
   assert.equal(isFreeOpenRouterModel('openrouter/free'), true);
   assert.equal(isFreeOpenRouterModel('anthropic/claude-sonnet-5'), false);
+  assert.equal(shouldThrottleModel('baidu/ernie-5.5-flash-preview:free'), true);
+  assert.equal(shouldThrottleModel('exaone'), false);
+  assert.equal(shouldThrottleModel('anthropic/claude-sonnet-5.5'), false);
 });
 
 test('free-only mode removes paid models and refuses an all-paid list', () => {

@@ -9,6 +9,8 @@ const MAX_SUPPLY = 8;
 const MAX_KEYWORDS = 14;
 const MAX_HISTORY = 30;
 const STALE_AFTER_DAYS = 21;
+// Qualified problems already passed the 3-quotes/2-platforms bar, so keep them longer across quiet weeks.
+const QUALIFIED_STALE_AFTER_DAYS = 90;
 const STATUS_RANK = { open: 0, narrowing: 1, unknown: 2, closed: 3 };
 const STATUS_WORDS = { open: '경쟁 적음', narrowing: '경쟁 늘어남', closed: '경쟁 많음', unknown: '확인 중' };
 
@@ -116,11 +118,14 @@ export function mergeRuns(previous: (Run & { generatedAt: string }) | null, next
     if (grown.status !== match.status) summary.statusChanged.push(`${match.name} ${match.status}→${grown.status}`);
   }
 
-  const staleBefore = new Date(now).getTime() - STALE_AFTER_DAYS * 86_400_000;
+  const nowMs = new Date(now).getTime();
+  const staleBefore = nowMs - STALE_AFTER_DAYS * 86_400_000;
+  const qualifiedStaleBefore = nowMs - QUALIFIED_STALE_AFTER_DAYS * 86_400_000;
   for (const old of remaining.values()) {
     const lastSeenAt = old.lastSeenAt ?? previous?.generatedAt ?? now;
+    const cutoff = old.qualified ? qualifiedStaleBefore : staleBefore;
     // Results from before single-source candidates were dropped are cleared out the same way as stale ones.
-    if (new Date(lastSeenAt).getTime() < staleBefore || !isListable(old)) {
+    if (new Date(lastSeenAt).getTime() < cutoff || !isListable(old)) {
       summary.expired.push(old.name);
       continue;
     }

@@ -89,12 +89,18 @@ export async function POST(request: Request) {
           // The reader left; the PRD still finishes so the run log and cache stay right.
         }
       };
-      const answer = await make(send);
-      send(answer ? { type: 'done', ...answer } : { type: 'error', error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' });
+      // Periodic keep-alive prevents CDN/proxy idle timeouts while reasoning models think silently.
+      const heartbeat = setInterval(() => send({ type: 'ping' }), 15_000);
       try {
-        controller.close();
-      } catch {
-        // Already closed by a reader that left.
+        const answer = await make(send);
+        send(answer ? { type: 'done', ...answer } : { type: 'error', error: 'PRD를 만들지 못했습니다. 잠시 후 다시 시도해주세요.' });
+      } finally {
+        clearInterval(heartbeat);
+        try {
+          controller.close();
+        } catch {
+          // Already closed by a reader that left.
+        }
       }
     },
   });

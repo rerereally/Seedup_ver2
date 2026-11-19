@@ -11,6 +11,8 @@
 [![Supabase](https://img.shields.io/badge/Supabase-pgvector-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 [![MCP Ready](https://img.shields.io/badge/MCP_Server-Claude_Code_%26_Cursor-7C3AED?style=for-the-badge)](https://modelcontextprotocol.io/)
 
+[왜 Seedup인가](#-왜-seedup을-만들었는가-why-seedup) · [아키텍처](#️-아키텍처--근거-추적-파이프라인) · [주요 기능](#-주요-기능) · [현재 상태와 한계](#-현재-상태와-한계-2026-11-19-기준) · [빠른 시작](#-빠른-시작) · [MCP 연결](#-mcp-서버-연결-claude--codex--cursor--antigravity-등) · [배포](#️-배포-cloudflare-workers)
+
 </div>
 
 ---
@@ -34,7 +36,7 @@
 | :--- | :--- | :--- | :--- |
 | **근거** | 요약은 주지만 원문 근거는 약함 | 짧은 프롬프트만 보고 그럴듯한 PRD 생성 | LLM이 뽑은 인용이 **원문에 글자 그대로 있을 때만** 채택(`isVerbatimQuote`). 증언 근거가 없는 요구사항은 서버가 **가설(H-n)**로 따로 둠 |
 | **시장 확인** | 경쟁 상황 분석 없음 | 이미 같은 도구가 있어도 칭찬함 | GitHub · npm · Show HN · VS Code · App Store에서 기존 도구를 찾아 **직접 경쟁 수**와 시장 상태(`open` / `narrowing` / `closed`)를 표시 |
-| **코딩 연결** | 읽기에서 끝남 | 마크다운 한 장으로 끝남 | `증언(E) → 요구사항(R) → 기능(F) → 화면(S)` 추적, 6가지 개발 준비 슬롯, `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` 내보내기, **MCP 서버로 에이전트가 직접 가져감** |
+| **코딩 연결** | 읽기에서 끝남 | 마크다운 한 장으로 끝남 | `증언(E) → 요구사항(R) → 기능(F) → 화면(S)` 추적, 6가지 개발 준비 슬롯, `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` 내보내기, **MCP 서버(작업 진행·커밋 역추적·재검증 포함)**로 에이전트가 직접 가져감 |
 | **기존 프로젝트** | 지원 안 함 | 새 아이템만 다룸 | 내 GitHub 저장소를 분석해 **다음 기능 3가지와 역기획 스펙**을 제안(`/seeds`) |
 
 ---
@@ -42,34 +44,45 @@
 ## 🏗️ 아키텍처 & 근거 추적 파이프라인
 
 ```mermaid
-flowchart LR
-  subgraph S["1. 수집 (매일 자동)"]
-    D1["불만(수요) 9곳: GitHub 이슈 · GitHub Discussions · HN Ask · HN 댓글 · Stack Overflow · Stack Exchange · DEV.to · Lobsters · 사용자 포럼"]
-    D2["기존 도구(공급): GitHub · npm · Show HN · VS Code · App Store (+ 선택: 웹 검색)"]
-    D3["읽을거리: RSS 기술 블로그 · arXiv/OpenAlex 논문 · AI 제품 · GitHub 트렌드"]
+flowchart TB
+  subgraph S["1. 수집 (매일 자동 · GitHub Actions)"]
+    D1["불만(수요) 9곳<br/>GitHub 이슈·Discussions · HN Ask·댓글 · Stack Overflow · Stack Exchange · DEV.to · Lobsters · 포럼"]
+    D2["기존 도구(공급)<br/>GitHub · npm · Show HN · VS Code · App Store (+ 선택: Tavily)"]
+    D3["기술 큐레이션<br/>RSS 블로그 · arXiv/OpenAlex 논문 · AI 제품 · GitHub 트렌드"]
   end
 
-  subgraph V["2. 검증"]
-    V1["원문 글자 대조 (isVerbatimQuote)"]
-    V2["같은 문제인지 LLM 재확인 + 사람 검토 목록"]
-    V3["기준: 원문 3건 이상 · 플랫폼 2곳 이상"]
-    V4["100점 점수 (저장된 수치로만 계산)"]
+  subgraph V["2. 검증 & 병합 (lib/opportunities/)"]
+    V1["원문 글자 대조 (isVerbatimQuote)<br/>홍보성 글 필터 (isPromotion)"]
+    V2["임베딩 2-Pass 클러스터링 & LLM 재확인<br/>사람 검토 목록 (review.ts)"]
+    V3["검증 기준: 원문 3건 이상 · 플랫폼 2곳 이상"]
+    V4["100점 정량 점수 & 봉인 예측 기록 (sealed.jsonl)"]
+    V1 --> V2 --> V3 --> V4
+  end
+
+  subgraph C["기술 큐레이션 · RAG 파이프라인"]
+    RAG["pgvector 1536차원 임베딩<br/>맞춤 추천 · 데일리 아티클 · 글 도우미 챗봇"]
   end
 
   subgraph L["3. Living Spec (/prd)"]
-    E["증언 E-n"] --> R["요구사항 R-n"]
-    R --> F["기능 F-n + 6가지 준비 슬롯"]
+    E["증언 E-n"] --> R["요구사항 R-n (P0/P1/P2 + 수락 기준)"]
+    R --> F["기능 F-n + 6가지 개발 준비 슬롯"]
     F --> SC["화면 S-n"]
-    H["근거 없는 항목 → 가설 H-n"]
+    H["근거 없는 항목 → 가설 H-n"] -. "아이디어 PRD" .-> F
   end
 
-  subgraph A["4. 에이전트로 전달"]
-    A1["AGENTS.md · CLAUDE.md · .cursor/rules"]
-    A2["Seedup MCP 서버 (/api/mcp)"]
-    A3["공유 링크 (/spec/[id])"]
+  subgraph A["4. 에이전트 전달 · 공유"]
+    A1["AGENTS.md · CLAUDE.md · .cursor/rules · 앱 빌더 프롬프트"]
+    A2["Seedup MCP 서버 (/api/mcp)<br/>MCP Apps 카드 · 상태 보고 · 커밋 연결 · 재검증"]
+    A3["읽기 전용 공유 링크 (/spec/[id]) · 만들었어요 사례"]
   end
 
-  S --> V --> L --> A
+  D1 --> V1
+  D2 --> V3
+  D3 --> RAG
+  V4 --> E
+  L --> A1
+  L --> A2
+  L --> A3
 ```
 
 ---
@@ -79,29 +92,29 @@ flowchart LR
 ### 1. 홈 (`/`)
 - **아이디어 한 줄 입력:** 입력하면 그 아이디어와 가까운 실제 원문을 바로 보여 주고, PRD 작업 화면으로 이어집니다.
 - **소개 섹션:** 원문이 흐르는 띠, 원문 → PRD → 에이전트 단계 설명, 불만이 먼저 나오고 도구가 나중에 나온 기록 차트.
-- **로그인 후 작업대:** 시작 체크리스트(관심 분야 → 첫 PRD → 에이전트 연결), 최근 PRD, 맞춤 추천, 킵한 저장소의 새 릴리스.
+- **로그인 후 작업대:** 오늘 읽을 글 배너 슬라이더, 시작 체크리스트(관심 분야 → 첫 PRD → 에이전트 연결), 최근 킵한 것, 나를 위한 추천, 만들 만한 문제, 킵한 저장소의 새 릴리스.
 
-### 2. 인사이트: 검증된 문제 목록 (`/newsletter-preview`, `/opportunities/[slug]`)
+### 2. 인사이트: 검증된 문제 목록 (`/newsletter-preview`, `/opportunities/[slug]`, `/predictions/sealed.jsonl`)
 - 주간 호와 함께 기준을 통과한 문제와 아직 모으는 중인 문제를 보여 줍니다. (`/opportunities`는 이 목록으로 이동합니다.)
 - **문제 상세:**
   - 원문(영어 원문 · 한국어 번역 · 원문 링크)
   - **점수 내역 100점:** 원문 수 30 · 플랫폼 폭 20 · 반응 15 · 최근성 15 · 남은 빈틈 20. AI가 매긴 점수가 아니라 저장된 수치로만 계산합니다.
-  - 왜 지금인가, 성장 기록, 이미 있는 도구
-  - 혼자 만들 때의 규모 추정, **첫 10명 찾기**(원문 작성자가 있는 곳, 만나면 물어볼 것, 링크 없는 답글 초안)
+  - 왜 지금인가, 성장 기록, 이미 있는 도구, 혼자 만들 때의 규모 추정, **첫 10명 찾기**(원문 작성자가 있는 곳, 만나면 물어볼 것, 링크 없는 답글 초안)
 - **사람 검토 목록(`lib/opportunities/review.ts`):** 원문이 글자 그대로 맞아도 다른 이야기를 하는 인용은 빼고, 엔진 규칙상 걸러졌어야 할 문제(한 제품의 기능 요청 등)는 숨깁니다. 사이트 · MCP · 메일에 한 번에 적용됩니다.
+- **봉인된 예측 기록(`/predictions/sealed.jsonl`):** 시그널 시점을 해시로 봉인(`npm run seal`)해 나중에 선행 여부를 사후 검증할 수 있습니다.
 
 ### 3. 근거 추적 PRD 작업 화면 (`/prd`, `/prd/new`, `/spec/[id]`)
 - **아이디어에 맞춘 질문:** 아이디어와 가까운 원문을 보고, PRD를 바꾸는 결정(첫 사용자, 쓰는 순간, 첫 버전의 한 가지, 플랫폼, 성공 기준, 제약)만 객관식 3~5개로 묻습니다(`lib/opportunities/questions.ts`). 모델이 답하지 않으면 고정 질문으로 바뀝니다.
-- **쓰는 대로 보이는 PRD:** 모델이 마크다운 문서(배경, 대상, 사용 장면, 목표, 요구사항과 수락 기준, 기능, 위험, 가정, 지표, 열린 질문)를 쓰는 대로 화면에 흘려 보내고(`streamText`, NDJSON), 끝나면 그 문서를 구조로 읽어 근거 검사를 거칩니다(`prd-markdown.ts`, `normalizeSpec()`). 지시문과 모범 예시는 `prd-prompt.ts`에 있고, 바꿀 때는 `scripts/eval-prd.ts`와 `scripts/judge-prd.ts`로 전후를 잽니다.
+- **쓰는 대로 보이는 PRD:** 모델이 마크다운 문서(배경, 대상, 사용 장면, 목표, 요구사항과 수락 기준, 기능, 위험, 가정, 지표, 열린 질문)를 쓰는 대로 화면에 흘려 보내고(`streamText`, NDJSON + 15초 keep-alive ping), 끝나면 그 문서를 구조로 읽어 근거 검사와 자동 보완을 거칩니다(`prd-markdown.ts`, `normalizeSpec()`).
 - **근거가 없을 때:** 기준 미달이면 웹 원문 찾기를 먼저 자동으로 돌리고, 그래도 없으면 가설마다 누구에게 무엇을 물어 확인할지 씁니다. 지켜보기, 소개 페이지, 직접 들은 말(인터뷰·메모, 기준에는 안 셈)로 이어집니다.
 - **`E-n → R-n → F-n → S-n` 추적:** 모든 요구사항은 증언을, 기능은 요구사항을, 화면은 기능을 참조해야 하며 서버(`normalizeSpec()`)가 강제합니다. 증언 근거가 없는 요구사항은 **가설(H-n)**로, 기준 미달 문제로 만든 PRD는 **가설 초안**으로 표시합니다.
 - **5가지 보기:** 문서 · 기능 명세(근거 추적) · 유저플로우 · 와이어프레임 · 구조 트리. 항목을 누르면 연결된 원문과 상하위 항목이 함께 강조됩니다(`traceOf`).
 - **6가지 개발 준비 슬롯**(기능마다): 입력·상태 조건, 비즈니스 규칙, 예외·오류 처리, 권한, 데이터, 완료 기준. 정해지지 않은 항목은 에이전트가 먼저 묻도록 적습니다.
 - **대화형 수정과 버전 기록:** 원문 목록은 고정한 채 자연어로 고치거나 항목 하나만 고치고, 고칠 때마다 버전과 바뀐 줄을 남깁니다. 버전은 이 브라우저에 남아 새로고침해도 이어집니다.
 - **근거 직접 추가:** 글 링크를 붙이면 Seedup이 그 글을 읽어 글자 단위로 맞는 문장만 원문으로 담습니다. 크롬 확장으로 담은 문장도 여기 나옵니다.
-- **내보내기와 공유:** `AGENTS.md` · `CLAUDE.md` · `.cursor/rules`, Lovable · Bolt · v0용 첫 프롬프트, PRD 마크다운, Mermaid 코드 복사. 보관함에서 읽기 전용 공개 링크(`/spec/[id]`)를 켜고, 만든 결과물 링크(“만들었어요”)를 붙일 수 있습니다.
+- **내보내기와 공유:** `AGENTS.md` · `CLAUDE.md` · `.cursor/rules`, Lovable · Bolt · v0용 첫 프롬프트, PRD 마크다운, Mermaid 코드 복사. 보관함에서 읽기 전용 공개 링크(`/spec/[id]`)를 켜고, 만든 결과물 링크("만들었어요")를 붙일 수 있습니다.
 
-### 4. 아이디어 검증 (`/ideas`)
+### 4. 아이디어 검증 (`/ideas`, `/try/[slug]`)
 - **검증 리포트(하루 3건):** 아이디어 하나에 대해 실제 원문, 기존 도구, 첫 사용자 후보, 판정을 한 장으로 줍니다.
 - **AI 평가:** pgvector 하이브리드 RAG로 관련 뉴스 · 논문 · 오픈소스 · AI 제품 근거를 찾아 점수를 매기고, 사용자가 말한 것(`user_stated`)과 AI가 추정한 것(`inferred_assumptions`)을 나눠 보여 줍니다.
 - **지켜보기:** 아이디어를 등록하면 매주 새 원문과 새 경쟁 도구를 메일로 알려 줍니다(최대 10개).
@@ -109,15 +122,20 @@ flowchart LR
 
 ### 5. MCP 연동 (`/agents`)
 - **도구 9가지 연결:** Claude Code, Claude 앱, Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT마다 맞는 설정을 보여 주고, 복사하거나 열 때 토큰 발급까지 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
-- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 9개:
+- **MCP Apps 카드 UI (`lib/mcp/apps.ts`):** Claude 데스크톱·웹, VS Code Copilot 등 MCP Apps 지원 클라이언트에서는 검색 결과·PRD·체크리스트·다음 작업을 인터랙티브 카드로 함께 렌더링합니다.
+- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 13개:
 
 | 도구 | 하는 일 |
 | :--- | :--- |
 | `search_opportunities` | 검증된 문제를 키워드로 검색 |
 | `get_opportunity` | 문제 · 빈틈 · 원문(`E-n`) · 경쟁 도구 상세 |
-| `generate_verified_prd` | 근거 추적 PRD를 `AGENTS.md` 등 원하는 형식으로 생성(하루 10회, 같은 근거면 캐시) |
-| `get_build_checklist` | PRD 기능(`F-n`)별 완료 기준과 완료 여부 |
-| `mark_feature_done` | 기능의 수락 기준마다 통과한 확인(테스트나 명령과 결과)을 받아야 완료로 표시(사이트 PRD에 반영) |
+| `generate_verified_prd` | 근거 추적 PRD를 `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` / 프롬프트 / 마크다운으로 생성(하루 10회, 같은 근거면 캐시) |
+| `get_build_checklist` | PRD 기능(`F-n`)별 현재 상태(`todo`/`in_progress`/`improving`/`done`/`blocked`/`needs_recheck`), 완료 기준, 미연결 커밋 수 |
+| `get_next_task` | 세션 시작 시 지금 구현할 다음 기능 1건과 준비 슬롯·검증 원문·관련 파일·상태 보고 명령을 반환 |
+| `update_feature_status` | 기능 상태를 `in_progress`/`improving`/`done`/`blocked`/`todo`로 보고 (`done`은 기준별 통과 증빙 필수, `blocked` 진입 시 웹훅 알림) |
+| `mark_feature_done` | `update_feature_status`의 호환 별칭 (`done` / `todo`) |
+| `link_commit` | 커밋 SHA·메시지·변경 파일 경로를 기능 `F-n`에 연결하고, 이미 완료된 다른 기능의 파일을 건드리면 자동으로 `needs_recheck` 표시 |
+| `verify_feature` | git diff(앞 20,000자)가 기능 완료 기준을 충족하는지 모델이 항목별(`met`/`not met`/`unclear`) 검토(상태는 바꾸지 않음, 하루 10회) |
 | `get_kept_items` | 보관함에 킵한 저장소 · 아티클 · 논문 · 제품 |
 | `find_related_content` | 아이디어와 의미가 가까운 뉴스 · 논문 · 저장소 · 제품 |
 | `validate_idea` | 아이디어 검증 리포트(하루 3회) |
@@ -135,32 +153,32 @@ flowchart LR
 - GitHub 급상승 저장소, AI 제품 레이더(별점 · 리뷰), 모델 리더보드.
 
 ### 8. 알림 · 개인화
-- **맞춤 추천(`lib/recommendations.ts`):** 온보딩 관심사 + 킵 · 좋아요 · 싫어요 · 관심 없음 + 신선도. 임베딩이 없어도 규칙 기반으로 동작합니다.
-- **메일:** 주간 뉴스레터와 기회 변동 다이제스트(Resend, 수신자별 실패 격리, `newsletter_sends` + `Idempotency-Key`로 중복 발송 방지). 지난 호는 웹(`/newsletter-preview/[period]`)에 쌓입니다.
-- **디스코드 · 슬랙 웹훅:** 주간 신호와 변경 알림을 채팅 채널로 보냅니다.
+- **맞춤 추천(`lib/recommendations.ts`, `lib/personal.ts`):** 온보딩 관심사 + 킵 · 좋아요 · 싫어요 · 관심 없음 + 신선도. 임베딩이 없어도 규칙 기반으로 동작합니다.
+- **메일:** 주간 뉴스레터, 기회 변동 다이제스트, **매일 리서치 메일**(Resend, 수신자별 실패 격리, `newsletter_sends` + `Idempotency-Key`로 중복 발송 방지). 지난 호는 웹(`/newsletter-preview/[period]`)에 쌓입니다.
+- **디스코드 · 슬랙 웹훅:** 주간 신호와 변경 알림, MCP `blocked` 상태 알림을 채팅 채널로 보냅니다.
 
 ### 9. 크롬 확장 (`extension/`)
 - GitHub · Hacker News · Stack Overflow에서 문장을 고르고 오른쪽 클릭 → **Seedup에 원문으로 담기**. Seedup이 원문을 다시 읽어 글자 그대로 있는지 확인한 뒤 PRD 근거로 보관합니다(하루 60개). 설치 방법은 [extension/README.md](extension/README.md).
 
 ### 10. 관리자 (`/admin/ingest`)
-- 수집 단계별 실행과 성공/실패, 임베딩 백필, 다이제스트 미리보기와 발송, 소스별 승인율과 품질 미달 기록(`ingest_rejections`).
-- 사용 지표(PRD 성공률과 걸린 시간 포함)와 DB 변경 적용 여부 점검.
+- 수집 단계별 실행과 성공/실패, 임베딩 백필, 다이제스트 미리보기와 발송, 소스별 승인율과 품질 미달 기록(`ingest_rejections`), 서버 오류 기록(`app_errors`).
+- 사용 지표(PRD 성공률과 걸린 시간 포함), 허용 모델 정책, DB 마이그레이션 적용 여부 점검.
 
 ---
 
-## 📊 현재 상태와 한계 (2026-11-18 기준)
+## 📊 현재 상태와 한계 (2026-11-19 기준)
 
 숨기지 않고 적습니다.
 
 | 항목 | 지금 상태 |
 | :--- | :--- |
-| 공개 중인 문제 | **25개, 그중 기준(원문 3건 · 플랫폼 2곳) 통과 6개.** 기준은 일부러 엄격하게 두고, 통과 수는 수집을 늘려서 키웁니다 |
-| 원문 검증의 한계 | 글자 대조는 "그 문장이 원문에 있다"만 보장하고 "그 문제와 관련 있다"는 보장하지 않습니다. 그래서 LLM 재확인과 사람 검토 목록을 둡니다 |
-| 무료 모델 | 엔진은 무료 OpenRouter 모델로 매일 돌고, 한 번에 14~29분이 걸리며 일부 호출이 실패합니다. 실패하면 이전 결과를 유지하고, 사용 횟수는 돌려줍니다 |
-| 수요로 섞이는 글 | 제품을 만든 사람의 소개 글("I built this…")이 불만 원문으로 들어오는 경우가 있습니다 |
-| 선행 기록 | "불만이 먼저 나오고 도구가 나중에 나왔다"는 기록은 참고용입니다. 인과관계를 뜻하지 않습니다 |
+| 공개 중인 문제 | **스냅샷 기준 37개, 그중 검증 기준(원문 3건 · 플랫폼 2곳) 통과 13개.** 기준은 일부러 엄격하게 두고, 매일 수집·보충으로 통과 수를 키웁니다 |
+| 원문 검증의 한계 | 글자 대조(`isVerbatimQuote`)는 "그 문장이 원문에 있다"만 보장하고 "그 문제와 관련 있다"는 보장하지 않습니다. 그래서 LLM 재확인과 사람 검토 목록(`review.ts`)을 함께 둡니다 |
+| 무료 모델 | 엔진은 무료 OpenRouter 모델로 매일 돌고, 일부 호출이 실패할 수 있습니다. 실패하면 이전 결과를 유지하고, 사용자 일일 한도는 돌려줍니다 |
+| 수요로 섞이는 글 | `isPromotion()`으로 제품 출시·홍보성 글(`Show HN`, `I just built...`)을 1차 필터링하지만, 본문 후반부 홍보성 문장 등 일부 오탐은 사람 검토 목록으로 보정합니다 |
+| 선행 기록 | "불만이 먼저 나오고 도구가 나중에 나왔다"는 기록과 봉인 예측(`sealed.jsonl`)은 참고용입니다. 인과관계를 뜻하지 않습니다 |
 | 영어 | 홈 · 문제 · PRD 등 주요 화면만 영어를 지원합니다 |
-| 사용자 검증 | 실사용자 테스트를 준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
+| 사용자 검증 | 실사용자 테스트를 진행·준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
 
 더 자세한 진단과 계획은 [docs/service-plan.md](docs/service-plan.md)에 있습니다.
 
@@ -171,13 +189,13 @@ flowchart LR
 | 영역 | 사용 기술 |
 | :--- | :--- |
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Lucide React |
-| **Backend & DB** | Supabase PostgreSQL, Row Level Security, `pgvector` (1536차원) |
+| **Backend & DB** | Supabase PostgreSQL, Row Level Security, `pgvector` (1536차원), 데이터 접근 계층(`lib/db/*`) |
 | **인증** | Supabase Auth (Google · GitHub OAuth), SHA-256 해시 개인 MCP 토큰 |
-| **AI** | OpenRouter (생성 · 추출 · 검증 · 역기획). 임베딩 기본값 `nvidia/nemotron-3-embed-1b:free`(2048차원을 앞 1536차원으로 잘라 다시 정규화) |
+| **AI** | OpenRouter(무료·유료 모델), LG AI연구원 EXAONE API(`k-exaone_v2.5`). 임베딩 기본값 `nvidia/nemotron-3-embed-1b:free`(2048차원을 앞 1536차원으로 잘라 정규화) |
 | **수집** | `rss-parser`, GitHub REST · GraphQL, Hacker News Algolia, Stack Exchange, DEV.to, Lobsters, Discourse 포럼, npm, VS Code Marketplace, App Store, arXiv, OpenAlex, 선택: Tavily 웹 검색 |
-| **에이전트 연동** | MCP (Streamable HTTP JSON-RPC 2.0), `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` |
+| **에이전트 연동** | MCP (Streamable HTTP JSON-RPC 2.0 + MCP Apps UI), `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` |
 | **메일 · 예약 작업** | Resend, GitHub Actions 예약 워크플로 |
-| **배포** | Cloudflare Workers, `@opennextjs/cloudflare` |
+| **배포 · 보호** | Cloudflare Workers (`@opennextjs/cloudflare`), Cloudflare Rate Limiting 바인딩(`RL_6`/`RL_12`/`RL_30`/`RL_60`) |
 
 ---
 
@@ -187,7 +205,7 @@ flowchart LR
 - **Node.js** 20.9 이상 / **npm** 10 이상
 - **Supabase** 프로젝트(`pgvector` 확장 활성화)
 - **OpenRouter** API 키
-- *(선택)* GitHub 토큰, Google/GitHub OAuth 클라이언트, Resend API 키, Tavily API 키
+- *(선택)* LG EXAONE API 키, GitHub 토큰, Google/GitHub OAuth 클라이언트, Resend API 키, Tavily API 키
 
 ### 2. 설치
 
@@ -222,21 +240,32 @@ ADMIN_EMAILS=you@example.com
 ```
 
 <details>
-<summary><b>선택 환경변수 (GitHub, 메일, 웹 검색, 수집 옵션)</b></summary>
+<summary><b>선택 환경변수 (EXAONE, PRD 모델, 서명 키, GitHub, 메일, 웹 검색, 수집 옵션)</b></summary>
 
 ```env
+# LG EXAONE (선택: K-EXAONE 2.5 모델 사용 시)
+EXAONE_API_KEY=
+EXAONE_REASONING_EFFORT=low
+
+# PRD 무료 모델 우선순위 및 라이브 원문 서명 키
+PRD_FREE_MODELS=baidu/ernie-5.5-flash-preview:free,particle-ai/particle-1:free,nvidia/nemotron-3-ultra-550b-a55b:free
+LIVE_EVIDENCE_SECRET=
+
+# 외부 수집 API
 GITHUB_TOKEN=your-github-token
 GITHUB_MIN_STARS=50
 HUGGINGFACE_TOKEN=your-huggingface-token
 STACKEXCHANGE_KEY=your-stackexchange-key
 
+# 메일 (Resend)
 RESEND_API_KEY=your-resend-api-key
 NEWSLETTER_FROM_EMAIL="Seedup <newsletter@your-domain.com>"
 
 # 엔진의 웹 원문 · 경쟁 도구 검색(없으면 건너뜀)
 TAVILY_API_KEY=
-# 엔진의 원문 보충 검색 모델(무료 모델이 자주 빈 답을 줄 때)
+# 엔진의 원문 보충 검색 모델 및 동시성(무료 모델이 자주 빈 답을 줄 때)
 # ENGINE_EVIDENCE_MODEL=exaone
+# ENGINE_TOPUP_CONCURRENCY=3
 
 OPENROUTER_TIMEOUT_MS=45000
 OPENROUTER_ARTICLE_TIMEOUT_MS=75000
@@ -250,63 +279,74 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 ### 4. 데이터베이스(Supabase)
 
-DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<이름>.sql`로, 적용 순서대로 쌓습니다. 첫 파일(`20261101000000_initial.sql`)이 전체 테이블 · 인덱스 · RLS이고, 나머지는 운영에 적용했던 순서의 증분 변경입니다. 모든 파일은 여러 번 실행해도 안전합니다. 테스트용 더미 데이터는 마이그레이션이 아니라 [supabase/seed.sql](supabase/seed.sql)(로컬 `supabase db reset` 때만 들어감)이고, 지우는 SQL은 [supabase/delete_dummy.sql](supabase/delete_dummy.sql)입니다.
+DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<이름>.sql`로 총 **26개**가 순서대로 쌓여 있습니다. 첫 파일(`20261101000000_initial.sql`)이 전체 테이블 · 인덱스 · RLS이고, 나머지는 운영에 적용했던 순서의 증분 변경입니다. 테스트용 더미 데이터는 [supabase/seed.sql](supabase/seed.sql)(로컬 `supabase db reset` 전용), 정리 SQL은 [supabase/delete_dummy.sql](supabase/delete_dummy.sql)입니다.
 
 1. **새 프로젝트:** `npx supabase link --project-ref <ref>` 후 `npx supabase db push`. 로컬 DB(Docker 필요)는 `npx supabase start` 또는 `npx supabase db reset`.
-2. **새 변경 추가:** `supabase/migrations/`에 다음 시각 접두사로 파일을 만들고 `npx tsx scripts/check-migrations.ts --write`로 `lib/schema-manifest.json`(관리자 화면의 'DB 변경 확인'이 쓰는 목록)을 갱신합니다. CI가 파일 이름 · 순서와 이 목록이 SQL과 맞는지 확인합니다. 운영 적용은 `npx supabase db push`(또는 SQL 편집기에 붙여 넣기).
-3. **운영 DB를 마이그레이션 기록에 맞추기(한 번만):** 운영 DB에는 아래 파일이 모두 SQL 편집기로 이미 적용되어 있지만 CLI의 적용 기록(`supabase_migrations.schema_migrations`)은 비어 있습니다. `db push`가 처음부터 다시 실행하지 않도록, DB 접근 권한이 있는 사람이 한 번 실행합니다.
+2. **새 변경 추가:** `supabase/migrations/`에 다음 시각 접두사로 파일을 만들고 `npx tsx scripts/check-migrations.ts --write`로 `lib/schema-manifest.json`을 갱신합니다. CI(`npm run migrations`)가 파일 이름 · 순서와 매니페스트 일치 여부를 검증합니다.
+3. **스키마 및 RLS 점검:** 빠진 변경 확인은 `npx tsx --env-file=.env scripts/check-schema.ts`, RLS 격리 확인은 `npm run rls`로 실행합니다.
+4. **OAuth Redirect URL 등록** (`Authentication > URL Configuration`):
+   - `http://localhost:3000/auth/callback`
+   - `https://seedup.rerereally.com/auth/callback`
+
+<details>
+<summary><b>마이그레이션 전체 목록 (26개) 및 운영 DB CLI 기록 동기화(최초 1회)</b></summary>
+
+운영 DB에 SQL 편집기로 먼저 적용해 둔 뒤 CLI 기록(`supabase_migrations.schema_migrations`)을 맞출 때 한 번만 실행합니다.
 
 ```bash
 npx supabase link --project-ref <운영 project ref>
-```
-
-```bash
-npx supabase migration repair --status applied 20261101000000 20261109211638 20261110155444 20261111090932 20261114222837 20261114223012 20261114225830 20261114230113 20261114230205 20261116172120 20261116181543 20261117111335 20261118120720 20261118120947 20261118121344 20261118121507 20261118121746 20261118121957 20261118190338 20261119112104
-```
-
-```bash
+npx supabase migration repair --status applied \
+  20261101000000 20261109211638 20261110155444 20261111090932 \
+  20261114222837 20261114223012 20261114225830 20261114230113 \
+  20261114230205 20261116172120 20261116181543 20261117111335 \
+  20261118120720 20261118120947 20261118121344 20261118121507 \
+  20261118121746 20261118121957 20261118190338 20261119112104 \
+  20261119112105 20261119120000 20261119150000 20261119160000 \
+  20261119160100 20261119170000
 npx supabase migration list
 ```
 
-`migration list`에서 Local과 Remote 열이 모두 같으면 끝입니다. 그 뒤로는 새 마이그레이션만 `db push`로 올라갑니다.
-
 | 파일 | 하는 일 |
 | :--- | :--- |
-| 20261101000000_initial.sql | 전체 테이블 · 인덱스 · RLS(아래 변경이 모두 반영된 상태) |
-| 20261109211638_hardening.sql | 수집 로그 서버 전용 제한, 아이디어 평가 RLS 강화 |
-| 20261110155444_opportunities.sql | 기회 엔진(`opportunities`), 증언 도시에(`evidence_dossiers`), 일일 AI 쿼터(`ai_usage`, `consume_ai_usage`) |
-| 20261111090932_newsletter_sends.sql | 메일 중복 발송 방지(`newsletter_sends`) |
-| 20261114222837_view_count.sql | 조회수 원자적 증가(`increment_content_view`) |
-| 20261114223012_usage_refund.sql | 생성 실패 시 쿼터 반환(`release_ai_usage`) |
-| 20261114225830_prd_cache.sql | 같은 근거 PRD 캐시(`prd_cache`) |
-| 20261114230113_mcp_tokens.sql | 개인 MCP 토큰(`mcp_tokens`) |
-| 20261114230205_dossier_share.sql | PRD 공개 공유 링크(`/spec/[id]`) |
-| 20261116172120_newsletter_issues.sql | 주간 뉴스레터 웹 보관(`newsletter_issues`) |
-| 20261116181543_build_progress.sql | MCP 구현 완료 체크리스트(`build_progress`) |
-| 20261117111335_prd_models.sql | PRD 허용 모델(`app_settings`), 실행 기록(`prd_runs`) |
-| 20261118120720_repo_releases.sql | 킵한 저장소 최신 릴리스(`github_trends.latest_release`) |
-| 20261118120947_built.sql | 공유 PRD "만들었어요" 링크 · 메모 |
-| 20261118121344_idea_watches.sql | 아이디어 지켜보기(`idea_watches`) |
-| 20261118121507_notify_webhook.sql | 디스코드 · 슬랙 웹훅(`user_onboarding.notify_webhook`) |
-| 20261118121746_saved_quotes.sql | 크롬 확장으로 담은 원문(`saved_quotes`) |
-| 20261118121957_idea_pages.sql | 검증 실험 키트 페이지 · 대기자 명단(`idea_pages`, `waitlist_signups`) |
-| 20261118190338_mcp_usage.sql | MCP 호출 쿼터 원자적 차감(`consume_ai_usage_for`) |
-| 20261119112104_app_errors.sql | 서버 오류 기록(`app_errors`) |
+| `20261101000000_initial.sql` | 전체 테이블 · 인덱스 · RLS 기본 스키마 |
+| `20261109211638_hardening.sql` | 수집 로그 서버 전용 제한, 아이디어 평가 RLS 강화 |
+| `20261110155444_opportunities.sql` | 기회 엔진(`opportunities`), 증언 도시에(`evidence_dossiers`), 일일 AI 쿼터(`ai_usage`, `consume_ai_usage`) |
+| `20261111090932_newsletter_sends.sql` | 메일 중복 발송 방지(`newsletter_sends`) |
+| `20261114222837_view_count.sql` | 조회수 원자적 증가(`increment_content_view`) |
+| `20261114223012_usage_refund.sql` | 생성 실패 시 쿼터 반환(`release_ai_usage`) |
+| `20261114225830_prd_cache.sql` | 같은 근거 PRD 캐시(`prd_cache`) |
+| `20261114230113_mcp_tokens.sql` | 개인 MCP 토큰(`mcp_tokens`) |
+| `20261114230205_dossier_share.sql` | PRD 공개 공유 링크(`/spec/[id]`) |
+| `20261116172120_newsletter_issues.sql` | 주간 뉴스레터 웹 보관(`newsletter_issues`) |
+| `20261116181543_build_progress.sql` | MCP 구현 완료 체크리스트(`build_progress`) |
+| `20261117111335_prd_models.sql` | PRD 허용 모델(`app_settings`), 실행 기록(`prd_runs`) |
+| `20261118120720_repo_releases.sql` | 킵한 저장소 최신 릴리스(`github_trends.latest_release`) |
+| `20261118120947_built.sql` | 공유 PRD "만들었어요" 링크 · 메모 |
+| `20261118121344_idea_watches.sql` | 아이디어 지켜보기(`idea_watches`) |
+| `20261118121507_notify_webhook.sql` | 디스코드 · 슬랙 웹훅(`user_onboarding.notify_webhook`) |
+| `20261118121746_saved_quotes.sql` | 크롬 확장으로 담은 원문(`saved_quotes`) |
+| `20261118121957_idea_pages.sql` | 검증 실험 키트 페이지 · 대기자 명단(`idea_pages`, `waitlist_signups`) |
+| `20261118190338_mcp_usage.sql` | MCP 호출 쿼터 원자적 차감(`consume_ai_usage_for`) |
+| `20261119112104_app_errors.sql` | 서버 오류 기록(`app_errors`) |
+| `20261119112105_feature_status.sql` | MCP 기능 상태 확장(`in_progress`/`improving`/`blocked`) 및 이력 |
+| `20261119120000_feature_commits.sql` | 기능별 커밋 연결(`feature_commits`) |
+| `20261119150000_built_example_counts.sql` | 문제별 "만들었어요" 공개 수 집계 RPC(`built_example_counts`) |
+| `20261119160000_feature_recheck.sql` | 공유 파일 수정 시 완료 기능 자동 `needs_recheck` 표시 RPC |
+| `20261119160100_commit_dismiss.sql` | 미연결 커밋 숨기기(`dismissed_commits`) |
+| `20261119170000_daily_research_mail.sql` | 매일 리서치 메일 구독 설정 |
 
-빠진 변경이 있는지는 `npx tsx --env-file=.env scripts/check-schema.ts` 또는 관리자 화면에서 확인할 수 있습니다. 다른 사람의 행을 읽거나 쓸 수 없는지(RLS)는 `npm run rls`로 확인합니다.
-
-3. **OAuth Redirect URL 등록** (`Authentication > URL Configuration`):
-   - `http://localhost:3000/auth/callback`
-   - `https://seedup.rerereally.com/auth/callback`
+</details>
 
 ### 5. 로컬 실행과 검증
 
 ```bash
 npm run dev          # http://localhost:3000
+npm run migrations   # 마이그레이션 파일 이름·순서·매니페스트 검증
 npm run typecheck
 npm run lint
-npm test             # 단위 테스트 141개
+npm test             # 단위 테스트 220+개
 npm run build
+npm run e2e          # Playwright 브라우저 E2E 테스트
 SMOKE_BASE_URL=http://localhost:3000 npm run smoke   # 주요 화면 · API 스모크 테스트
 ```
 
@@ -323,7 +363,7 @@ DB 설정이 없으면 기회 데이터는 코드에 포함된 예비 데이터(
      --header "Authorization: Bearer <발급받은_토큰>"
    ```
 3. 에이전트에게 바로 지시합니다.
-   > *"Seedup에서 AI 코딩 컨텍스트 공유 문제를 찾아 검증된 `AGENTS.md` 스펙을 만들고 `F-01`부터 구현해 줘."*
+   > *"Seedup에서 AI 코딩 컨텍스트 공유 문제를 찾아 검증된 `AGENTS.md` 스펙을 만들고 `get_next_task`로 `F-01`부터 구현해 줘."*
 
 ---
 
@@ -336,6 +376,9 @@ npm run engine
 
 # 위 + Supabase opportunities 테이블에 게시
 npm run engine -- --persist
+
+# 예측 시그널 타임스탬프 봉인
+npm run seal
 ```
 매일 07시(KST) GitHub Actions(`opportunity-engine.yml`)가 `--persist`로 실행합니다. 한 번의 실행은 이전 결과에 합쳐지므로 원문은 쌓이고, 약한 실행이 있어도 잃지 않습니다.
 
@@ -375,6 +418,7 @@ app/
   newsletter-preview/         인사이트: 주간 호와 검증된 문제 목록, 지난 호
   opportunities/[slug]/       문제 상세 (원문, 점수 내역, 왜 지금, 첫 10명 찾기)
   prd/ · spec/[id]/           근거 추적 PRD 작업 화면, 읽기 전용 공유 페이지
+  predictions/sealed.jsonl/   봉인된 시그널 예측 기록
   ideas/                      검증 리포트와 AI 아이디어 평가
   try/[slug]/                 검증 실험 키트 공개 페이지와 대기자 명단
   agents/                     MCP 연동 (버튼 한 번 연결, 직접 설정)
@@ -384,36 +428,47 @@ app/
   scrap/                      북마크 (PRD 열람, 공개 링크, 삭제)
   search/                     통합 검색
   onboarding/ · profile/      관심사 설정, 프로필(웹훅, 지켜보기, 실험 키트 관리)
-  about/ · guide/             소개, 사용 안내
+  about/ · guide/ · privacy/ · terms/   소개, 안내, 개인정보·약관
   admin/ingest/               관리자 수집 · 지표 · 메일 콘솔
   api/
-    opportunities/            매칭, PRD 생성 · 슬롯 · 수정, 검증 리포트, 원문 검색 · 링크 추가, 지켜보기
-    mcp/                      MCP 서버와 토큰 API
-    seeds/ · ideas/ · articles/ask/ · ingest/
+    opportunities/            매칭, PRD 생성 · 슬롯 · 수정, 검증 리포트, 원문 검색 · 링크 추가, 지켜보기, 커밋 해제
+    mcp/                      MCP 서버(/api/mcp, /api/mcp/[key])와 토큰 API
+    quotes/ · seeds/ · ideas/ · articles/ask/ · ingest/
 components/
-  landing/ · home/            홈 소개 섹션과 작업대
+  landing/ · home/            홈 소개 섹션과 작업대(배너 슬라이더 포함)
   opportunity-stage/          PRD 작업 화면(PrdBuilder), 문제 표
   McpConnect.tsx · AgentStart.tsx   MCP 연결
   ValidationReportPanel.tsx · IdeaWatches.tsx · IdeaPages.tsx
   SeedAdvisor.tsx · DossierPrd.tsx · ArticleAssistant.tsx · LangProvider.tsx
 lib/
-  opportunities/              수집 액터, 엔진, 원문 검증(rules.ts), 검토 목록(review.ts), 결과 합치기(merge.ts), Living Spec(spec.ts), PRD 생성 · 캐시
-  mcp/                        MCP 서버(server.ts)와 토큰 인증(auth.ts)
+  db/                         테이블별 서버 데이터 접근 계층 (ESLint 규칙으로 직접 쿼리 차단)
+  opportunities/              수집 액터, 엔진, 원문 검증(rules.ts), 검토 목록(review.ts), 결과 합치기(merge.ts), Living Spec(spec.ts), PRD 생성 · 캐시, 커밋·진행 추적
+  mcp/                        MCP 서버(server.ts), 엔드포인트(endpoint.ts), MCP Apps 카드(apps.ts), 토큰 인증(auth.ts)
+  llm.ts                      OpenRouter · EXAONE 단일 호출 진입점
   seeds/ · ingest/ · newsletter/
-  recommendations.ts          맞춤 추천 점수
-  usage-limit.ts              원자적 일일 쿼터와 실패 시 반환
+  recommendations.ts · personal.ts   맞춤 추천 · 개인화 피드
+  usage-limit.ts · throttle.ts   원자적 일일 쿼터와 Cloudflare Rate Limiting
 extension/                    크롬 확장 "Seedup 원문 담기"
-scripts/                      엔진 실행, 메일, 점검, 재임베딩, PRD 평가
-supabase/                     전체 스키마와 기능별 변경 SQL
-tests/                        단위 테스트 141개
-docs/                         서비스 계획, UI 계획, 사용자 확인 가이드, 호스팅 비교
+scripts/                      엔진 실행, 메일, 점검, 재임베딩, PRD 평가, 예측 봉인
+supabase/                     전체 스키마와 26개 증분 마이그레이션 SQL
+tests/                        단위 테스트 220+개
+e2e/                          Playwright E2E 테스트
+docs/                         서비스 계획, UI 계획, 트렌드·추천 평가, 사용자 확인 가이드
 ```
 
 ---
 
 ## ☁️ 배포 (Cloudflare Workers)
 
-`main`에 푸시하면 GitHub Actions(`ci.yml`)가 `typecheck → lint → test → build`를 통과한 뒤 Cloudflare Workers로 배포합니다. 그 밖의 워크플로는 `scheduled-ingest.yml`(매일 수집), `opportunity-engine.yml`(매일 기회 엔진), `prd-eval.yml`(PRD 품질 평가, 수동 실행)입니다.
+`main`에 푸시하면 GitHub Actions(`ci.yml`)가 `migrations → typecheck → lint → test → build`를 통과한 뒤 Cloudflare Workers로 배포합니다.
+
+| 워크플로 | 역할 |
+| :--- | :--- |
+| `ci.yml` | PR·`main` 검증(`migrations`, `typecheck`, `lint`, `test`, `build`) 및 `main` 자동 배포 |
+| `scheduled-ingest.yml` | 매일 06:00(KST) RSS·GitHub·제품·논문·외부 트렌드·트렌드·임베딩 수집 |
+| `opportunity-engine.yml` | 매일 07:00(KST) 기회 엔진 실행·게시·스키마 확인 |
+| `site-health.yml` | 주기적 운영 사이트 스모크·헬스 체크 |
+| `prd-eval.yml` | PRD 품질 평가 세트 수동 실행 |
 
 ```bash
 npm run preview   # OpenNext Cloudflare 로컬 미리보기

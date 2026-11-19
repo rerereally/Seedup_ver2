@@ -69,10 +69,14 @@ export function isListable(item: { evidence: unknown[] }) {
 }
 
 /**
- * Greedy clustering: each vector joins the group whose mean it is closest to, if close enough, or starts a new one.
+ * Two-pass centroid clustering:
+ * 1) Greedy pass forms initial candidate centroids above `threshold`.
+ * 2) Refinement pass reassigns every vector to its closest final centroid >= `threshold` (or splits out
+ *    a drifted outlier into its own group) so sequential centroid drift cannot chain unrelated problems together.
  * Returns groups of indices into `vectors`, in first-seen order.
  */
 export function clusterByEmbedding(vectors: number[][], threshold: number) {
+  if (!vectors.length) return [];
   const groups: Array<{ members: number[]; sum: number[] }> = [];
   vectors.forEach((vector, index) => {
     let best: (typeof groups)[number] | null = null;
@@ -92,7 +96,30 @@ export function clusterByEmbedding(vectors: number[][], threshold: number) {
     // The sum points the same way as the mean, which is all cosine similarity reads.
     for (let i = 0; i < vector.length; i += 1) best.sum[i] += vector[i];
   });
-  return groups.map((group) => group.members);
+
+  // Pass 2: re-check every vector against finalized centroids to prevent chaining drift.
+  const refined = new Map<number, number[]>();
+  const outliers: number[][] = [];
+  vectors.forEach((vector, index) => {
+    let bestGroup = -1;
+    let bestScore = threshold;
+    for (let g = 0; g < groups.length; g += 1) {
+      const score = cosineSimilarity(vector, groups[g].sum);
+      if (score >= bestScore) {
+        bestScore = score;
+        bestGroup = g;
+      }
+    }
+    if (bestGroup < 0) {
+      outliers.push([index]);
+      return;
+    }
+    const members = refined.get(bestGroup) ?? [];
+    members.push(index);
+    refined.set(bestGroup, members);
+  });
+
+  return [...refined.values(), ...outliers].sort((a, b) => a[0] - b[0]);
 }
 
 export function classifySupply(supply: SupplyItem[], reviewed: boolean): OpportunityStatus {

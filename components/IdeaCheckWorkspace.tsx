@@ -5,7 +5,9 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { EvaluationPanel, normalizeEvaluation } from '@/components/IdeaEvaluation';
 import type { EvaluationRun, RecentIdea } from '@/components/IdeaEvaluation';
+import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
 import ValidationReportPanel from '@/components/ValidationReportPanel';
+import type { PrdModel } from '@/lib/opportunities/models';
 import WorkSplit, { Bubble, ChatInput, showInResult } from '@/components/WorkSplit';
 import type { Stage } from '@/components/WorkSplit';
 import { evaluationById, recentEvaluations } from '@/lib/db/evaluations';
@@ -23,7 +25,8 @@ const EXAMPLES: Array<[string, string]> = [
 const chip = 'min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink';
 
 /** Idea validation in the /prd work frame: the idea and what the check found on the left, the full report on the right. */
-export default function IdeaCheckWorkspace({ initialIdea, evaluationId, signedIn }: { initialIdea: string; evaluationId: string | null; signedIn: boolean }) {
+export default function IdeaCheckWorkspace({ initialIdea, evaluationId, signedIn, models = [] }: { initialIdea: string; evaluationId: string | null; signedIn: boolean; models?: PrdModel[] }) {
+  const model = usePrdModel(models);
   const [idea, setIdea] = useState(initialIdea);
   const [status, setStatus] = useState<Status>('idle');
   const [run, setRun] = useState<EvaluationRun | null>(null);
@@ -45,7 +48,7 @@ export default function IdeaCheckWorkspace({ initialIdea, evaluationId, signedIn
     }
     setStatus('saving');
     try {
-      const response = await fetch('/api/ideas/evaluate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text }) });
+      const response = await fetch('/api/ideas/evaluate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text, model }) });
       const json = await response.json().catch(() => null);
       if (ticket !== runRef.current) return;
       if (!response.ok) {
@@ -202,6 +205,7 @@ export default function IdeaCheckWorkspace({ initialIdea, evaluationId, signedIn
     <WorkSplit
       title={idea || '아이디어 검증'}
       stages={stages}
+      tools={signedIn ? <ModelPicker models={models} /> : undefined}
       chat={chat}
       composer={<ChatInput id="check-input" label="검증할 아이디어" placeholder={idea ? '다른 아이디어를 적으면 새로 평가합니다' : '예: 데이터베이스마다 다른 CLI 명령을 하나로 묶는 도구'} onSend={(text) => void evaluate(text)} disabled={status === 'saving'} />}
       result={result}

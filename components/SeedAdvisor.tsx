@@ -9,6 +9,8 @@ import { readSavedSeedResult, saveSeedResult } from '@/lib/seeds/saved-result';
 import type { SavedSeedResult } from '@/lib/seeds/saved-result';
 import { inBatches } from '@/lib/utils';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import { usePrdModel } from '@/components/ModelPicker';
+import type { PrdModel } from '@/lib/opportunities/models';
 
 type RepoCard = {
   name: string;
@@ -139,7 +141,8 @@ export type SeedStatus = { login: string | null; loading: boolean; error: string
  * Reads an account's public repos and, per repo, what to fix, what to add and a PRD. Started by `run` (a login and a
  * number that changes on every ask); without it, the component shows its own form.
  */
-export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected, userId }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null; userId?: string } = {}) {
+export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected, userId, models = [] }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null; userId?: string; models?: PrdModel[] } = {}) {
+  const model = usePrdModel(models);
   const [login, setLogin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -199,7 +202,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
       let idea: SeedIdea | null = null;
       if (!signedOut) {
         try {
-          const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}`);
+          const response = await fetch(`/api/seeds?step=ideas&user=${encodeURIComponent(name)}&repo=${encodeURIComponent(repo.name)}${model ? `&model=${encodeURIComponent(model)}` : ''}`);
           if (response.status === 401) signedOut = true;
           else idea = ((await response.json()) as { idea?: SeedIdea | null }).idea ?? null;
         } catch {
@@ -382,6 +385,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
 
             <Section title="PRD·기능 명세 만들기" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
               <PrdBuilder
+                models={models}
                 title={`${repo.name} 역기획`}
                 evidenceIds={[]}
                 ready

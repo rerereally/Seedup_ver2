@@ -16,6 +16,7 @@ import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
+import type { FitQuery } from '@/lib/opportunities/fit';
 import { mapPoints } from '@/lib/opportunities/map';
 import { dailyResearch } from '@/lib/opportunities/research';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
@@ -35,8 +36,12 @@ const WEEK_MS = 7 * 24 * 3_600_000;
 const day = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' });
 const insightPath = '/newsletter-preview';
 
-type InsightParams = { profile?: string; stage?: string; size?: string; q?: string; all?: string; view?: string; path?: string | string[] };
+type InsightParams = FitQuery & { profile?: string; stage?: string; size?: string; q?: string; all?: string; view?: string; path?: string | string[] };
 
+/**
+ * Today's signals: the problem list first with the map as a side panel, and this week's issue (exactly what the
+ * Monday mail carries) with subscribing and past issues on its own tab (?view=issue).
+ */
 export default async function NewsletterPreviewPage({ searchParams }: { searchParams: Promise<InsightParams> }) {
   const params = await searchParams;
   const path = parseInsightPath(params.path);
@@ -86,7 +91,7 @@ async function NewOpportunityContent({ params, opportunities, generatedAt, now, 
     getGitHubTrends(),
     getProjectIdeas(),
     getResearchPapers(20),
-    user && supabase ? onboardingRow<{ newsletter_subscribed?: boolean | null }>(supabase, user.id, 'newsletter_subscribed') : null,
+    user && supabase ? onboardingRow<{ newsletter_subscribed?: boolean | null; answers?: { preferred_stack?: unknown } | null }>(supabase, user.id, params.view === 'issue' ? 'newsletter_subscribed' : 'newsletter_subscribed,answers') : null,
     user && supabase ? savedOpportunitySlugs(supabase) : null,
     newsletterIssues(),
     getArticleFeedItems(),
@@ -235,7 +240,7 @@ async function NewOpportunityContent({ params, opportunities, generatedAt, now, 
                 )}
                 <section id="problems" aria-labelledby="all-heading" className="flex min-w-0 scroll-mt-6 flex-col gap-8">
                   <h2 id="all-heading" className="text-[17px] font-bold tracking-[-0.015em]">모든 문제 <span className="num ml-1 text-[15px] font-semibold text-muted">{opportunities.length}</span></h2>
-                  <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath={insightPath} keep={{ ...newPathQuery, profile: params.profile }} />
+                  <OpportunityBrowser opportunities={opportunities} generatedAt={generatedAt} lang={lang} stage={params.stage} size={params.size} q={params.q} all={params.all} basePath={insightPath} keep={{ ...newPathQuery, profile: params.profile }} fitQuery={params} preferredStack={onboarding?.answers?.preferred_stack} />
                 </section>
               </div>
 

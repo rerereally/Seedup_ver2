@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Header from '@/components/Header';
 import RepoWorkspace from '@/components/RepoWorkspace';
+import { prdPolicy } from '@/lib/db/server';
 import { getLang } from '@/lib/i18n-server';
+import { prdModels } from '@/lib/opportunities/models';
 import { getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: '레포 분석' };
@@ -15,7 +17,7 @@ export default async function RepoPage({ searchParams }: { searchParams: Promise
     <>
       <Header />
       <main id="main-content" className="grow">
-        <RepoWorkspace key={user?.id} initialLogin={initialLogin} initialRepo={initialRepo} userId={user?.id} lang={lang} />
+        <RepoWorkspace key={user?.id} initialLogin={initialLogin} initialRepo={initialRepo} userId={user?.id} lang={lang} signedIn={Boolean(user)} models={user ? prdModels(await prdPolicy()) : []} />
       </main>
     </>
   );

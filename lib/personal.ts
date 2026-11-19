@@ -165,5 +165,9 @@ async function embeddedPicks(userId: string, input: { answers: unknown; keptTitl
 export function leadRead<T extends { type: string; id: string }>(items: T[], reads: ScoredNewsletterItem[]): { item: T; reason?: string } | null {
   const byKey = new Map(items.map((item) => [`${item.type}:${item.id}`, item]));
   const best = [...reads].sort((a, b) => b.score - a.score).find((row) => byKey.has(row.content.id));
-  return best ? { item: byKey.get(best.content.id)!, reason: best.reasons[0] } : null;
+  // Only a reason about the reader (interests, keeps, likes) counts; one about the article itself does not make it theirs.
+  return best ? { item: byKey.get(best.content.id)!, reason: best.reasons.find((reason) => !ITEM_REASONS.has(reason)) } : null;
 }
+
+// Reasons the scorer gives about the content alone (lib/recommendations.ts recommendationProfileReasons).
+const ITEM_REASONS = new Set(['프로젝트로 확장 가능', '개발 신호로 확인할 만한 콘텐츠']);

@@ -13,6 +13,7 @@ import { koreaLens, scoreOpportunity, stackFit, whyNow } from '@/lib/opportuniti
 import { describeChange } from '@/lib/opportunities/merge';
 import { createClient } from '@/lib/supabase/server';
 import { builtExamples } from '@/lib/db/dossiers';
+import { onboardingAnswers } from '@/lib/db/onboarding';
 import { BUILD_LABELS, PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Evidence, SupplyItem, SupplyKind } from '@/lib/opportunities/types';
 
@@ -58,8 +59,7 @@ async function preferredStack(): Promise<string[] | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
-  const { data: row } = await supabase.from('user_onboarding').select('answers').eq('user_id', data.user.id).maybeSingle();
-  const stack = (row?.answers as { preferred_stack?: unknown } | null)?.preferred_stack;
+  const stack = ((await onboardingAnswers(supabase, data.user.id)) as { preferred_stack?: unknown } | null)?.preferred_stack;
   return Array.isArray(stack) ? stack.map(String) : [];
 }
 

@@ -1,5 +1,6 @@
 'use server';
 
+import { deleteScrapRow } from '@/lib/db/scraps';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -16,7 +17,7 @@ export async function deleteScrap(formData: FormData) {
 
   const id = String(formData.get('id') ?? '');
   if (id) {
-    await supabase.from('scraps').delete().eq('id', id).eq('user_id', user.id);
+    await deleteScrapRow(supabase, user.id, id);
   }
 
   revalidatePath('/scrap');

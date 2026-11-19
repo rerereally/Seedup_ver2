@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Logo from '@/components/Logo';
 import OnboardingForm from '@/components/OnboardingForm';
 import type { OnboardingAnswers } from '@/lib/onboarding';
+import { onboardingRow } from '@/lib/db/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -24,11 +25,7 @@ export default async function OnboardingPage() {
     redirect('/login');
   }
 
-  const { data: onboarding } = await supabase
-    .from('user_onboarding')
-    .select('answers,newsletter_subscribed')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const onboarding = await onboardingRow<{ answers?: unknown; newsletter_subscribed?: boolean | null }>(supabase, user.id, 'answers,newsletter_subscribed');
 
   return (
     <main id="main-content" className="min-h-dvh bg-surface px-5 py-8 sm:px-10 md:py-12">

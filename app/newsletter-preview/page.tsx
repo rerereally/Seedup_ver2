@@ -1,3 +1,6 @@
+import { newsletterIssues } from '@/lib/db/server';
+import { onboardingRow } from '@/lib/db/onboarding';
+import { savedOpportunitySlugs } from '@/lib/db/dossiers';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { updateNewsletterSubscription } from '@/app/actions/profile';
@@ -8,7 +11,6 @@ import OpportunityBrowser from '@/components/OpportunityBrowser';
 import OpportunityMap from '@/components/OpportunityMap';
 import SubmitButton from '@/components/SubmitButton';
 import { getAIProducts, getArticleFeedItems, getGitHubTrends, getNewsItems, getProjectIdeas, getResearchPapers } from '@/lib/data';
-import { listIssues } from '@/lib/newsletter/issues';
 import { buildOpportunityDigest } from '@/lib/newsletter/opportunity-digest';
 import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
@@ -16,7 +18,6 @@ import { getOpportunities } from '@/lib/opportunities/data';
 import { mapPoints } from '@/lib/opportunities/map';
 import { MIN_EVIDENCE, MIN_PLATFORMS } from '@/lib/opportunities/types';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
@@ -42,9 +43,9 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
     getProjectIdeas(),
     getResearchPapers(20),
     getOpportunities(),
-    user && supabase ? supabase.from('user_onboarding').select('newsletter_subscribed').eq('user_id', user.id).maybeSingle() : null,
-    user && supabase ? supabase.from('evidence_dossiers').select('opportunity_slug').not('opportunity_slug', 'is', null).limit(50) : null,
-    listIssues(createAdminClient()),
+    user && supabase ? onboardingRow<{ newsletter_subscribed?: boolean | null }>(supabase, user.id, 'newsletter_subscribed') : null,
+    user && supabase ? savedOpportunitySlugs(supabase) : null,
+    newsletterIssues(),
     getLang(),
     getArticleFeedItems(),
   ]);
@@ -63,7 +64,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
   // The same builder the Monday job uses, so this page is the issue, not a mock of it.
   const issue = buildOpportunityDigest(opportunities, new Date(now - WEEK_MS).toISOString(), '', 'weekly', now, undefined, reads);
 
-  const subscribed = onboarding?.data?.newsletter_subscribed ?? false;
+  const subscribed = onboarding?.newsletter_subscribed ?? false;
   const watchedSlugs = new Set((dossiers?.data ?? []).map((row) => row.opportunity_slug as string));
   const watched = opportunities.filter((item) => watchedSlugs.has(item.slug));
   const points = mapPoints(opportunities, new Date(generatedAt).getTime());

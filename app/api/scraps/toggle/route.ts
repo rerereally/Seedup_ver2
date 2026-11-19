@@ -1,3 +1,4 @@
+import { addScrap, deleteScrapRow, findScrap } from '@/lib/db/scraps';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
@@ -22,24 +23,18 @@ export async function POST(request: Request) {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-  const { data: existing, error: lookupError } = await supabase
-    .from('scraps')
-    .select('id')
-    .eq('user_id', userData.user.id)
-    .eq('item_type', itemType)
-    .eq('item_id', itemId)
-    .maybeSingle();
+  const { data: existing, error: lookupError } = await findScrap(supabase, userData.user.id, itemType, itemId);
 
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
 
   if (existing) {
-    const { error } = await supabase.from('scraps').delete().eq('id', existing.id).eq('user_id', userData.user.id);
+    const { error } = await deleteScrapRow(supabase, userData.user.id, existing.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     revalidatePath('/scrap');
     return NextResponse.json({ saved: false });
   }
 
-  const { error } = await supabase.from('scraps').insert({
+  const { error } = await addScrap(supabase, {
     user_id: userData.user.id,
     item_type: itemType,
     item_id: itemId,

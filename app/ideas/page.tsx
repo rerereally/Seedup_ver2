@@ -3,6 +3,8 @@
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { createClient } from '@/lib/supabase/client';
+import { evaluationById, recentEvaluations } from '@/lib/db/evaluations';
+import { findScrap } from '@/lib/db/scraps';
 import PageIntro from '@/components/PageIntro';
 import ScrapButton from '@/components/ScrapButton';
 import { Loader2, RotateCcw, X } from 'lucide-react';
@@ -86,11 +88,7 @@ export default function Ideas() {
     const evaluationId = params.get('evaluation');
     const supabase = evaluationId ? createClient() : null;
     if (!evaluationId || !supabase) return;
-    void supabase
-      .from('idea_evaluations')
-      .select('id,idea_text,status,score,result')
-      .eq('id', evaluationId)
-      .maybeSingle()
+    void evaluationById(supabase, evaluationId)
       .then(({ data }) => {
         if (!data) return;
         const item = data as RecentIdea;
@@ -109,12 +107,7 @@ export default function Ideas() {
       setIsLoggedIn(Boolean(user));
       if (!user) return;
 
-      const { data } = await supabase
-        .from('idea_evaluations')
-        .select('id,idea_text,status,score,result')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(8);
+      const { data } = await recentEvaluations(supabase, user.id);
 
       setRecentIdeas((data ?? []) as RecentIdea[]);
     };
@@ -299,7 +292,7 @@ function EvaluationPanel({ run }: { run: EvaluationRun }) {
     if (!run.id || !supabase) return;
     let live = true;
     const id = run.id;
-    void supabase.from('scraps').select('id').eq('item_type', 'idea').eq('item_id', id).maybeSingle()
+    void findScrap(supabase, null, 'idea', id)
       .then(({ data }) => { if (live) setScrap({ id, saved: Boolean(data) }); });
     return () => { live = false; };
   }, [run.id]);

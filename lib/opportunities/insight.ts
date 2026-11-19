@@ -1,5 +1,5 @@
 import { PLATFORM_LABELS } from './types';
-import type { Evidence, Opportunity, OpportunityPoint, OpportunityStatus } from './types';
+import type { Evidence, Opportunity, OpportunityPoint, OpportunityStatus, SupplyItem } from './types';
 
 // Everything here is computed from the stored run, with no model call, so the same data always reads the same way.
 
@@ -63,13 +63,19 @@ export function whyNow(opportunity: Opportunity, now = Date.now()): WhyNow {
 
 export type TrackRecordRow = { slug: string; name: string; firstSeenAt: string; followers: Array<{ name: string; url: string; createdAt: string; leadDays: number }> };
 
+export function toolAppearedAfter(tool: SupplyItem, after: number, through = Infinity) {
+  const appeared = tool.createdAt ? Date.parse(tool.createdAt) : NaN;
+  return tool.relation !== 'unrelated' && appeared > after && appeared <= through;
+}
+
 /** Problems where a tool appeared only after the first complaint we hold. The record of the signal coming first. */
-export function trackRecord(opportunities: Opportunity[]): TrackRecordRow[] {
+export function trackRecord(opportunities: readonly Opportunity[], through = Infinity): TrackRecordRow[] {
   return opportunities.flatMap((item) => {
     const first = item.firstSeenAt;
     if (!first) return [];
+    const firstAt = Date.parse(first);
     const followers = item.supply
-      .filter((tool) => tool.relation !== 'unrelated' && tool.createdAt && tool.createdAt > first)
+      .filter((tool) => toolAppearedAfter(tool, firstAt, through))
       .map((tool) => ({ name: tool.name.replace(/^Show HN:\s*/i, ''), url: tool.url, createdAt: tool.createdAt as string, leadDays: Math.max(1, daysBetween(first, new Date(tool.createdAt as string).getTime())) }))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return followers.length ? [{ slug: item.slug, name: item.name, firstSeenAt: first, followers }] : [];

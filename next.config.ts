@@ -60,6 +60,11 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     root: process.cwd(),
+    rules: { '*.jsonl': { type: 'text' } },
+  },
+  webpack(config) {
+    config.module.rules.push({ test: /[/\\]predictions[/\\]sealed\.jsonl$/, type: 'asset/source' });
+    return config;
   },
   output: 'standalone',
 };

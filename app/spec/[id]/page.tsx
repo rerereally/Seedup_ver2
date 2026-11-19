@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Logo from '@/components/Logo';
+import PrdReportForm from '@/components/PrdReportForm';
 import { sharedPrd } from '@/lib/db/dossiers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -43,7 +44,10 @@ export default async function SharedSpecPage({ params }: { params: Promise<{ id:
             <h1 className="text-[clamp(26px,3vw,34px)] font-bold leading-tight tracking-tight">{spec.title} PRD</h1>
             <p className="text-sm text-muted"><span className="font-medium text-seed">개발자 원문 {quotes}건</span>, {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' }).format(new Date(spec.updated_at))}</p>
           </div>
-          <SpecActions markdown={spec.prd_markdown} />
+          <div className="flex flex-wrap items-start gap-2">
+            <SpecActions markdown={spec.prd_markdown} />
+            <PrdReportForm id={id} />
+          </div>
         </div>
 
         <div className="mt-8 page-split">

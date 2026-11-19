@@ -39,7 +39,13 @@ export const llmUsage = { calls: 0, failures: 0, empty: 0, lastFailure: '' };
 
 let nextCallAt = 0;
 
-async function waitForSlot() {
+/** Only free OpenRouter models share the 20 req/min free-tier bucket; EXAONE and paid models skip the delay. */
+export function shouldThrottleModel(model: string) {
+  return isFreeOpenRouterModel(model);
+}
+
+async function waitForSlot(model: string) {
+  if (!shouldThrottleModel(model)) return;
   const now = Date.now();
   const startAt = Math.max(now, nextCallAt);
   nextCallAt = startAt + MIN_CALL_INTERVAL_MS;
@@ -121,7 +127,7 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
       // A caller with a deadline (a person waiting) gets an answer or null in time, never a minutes-long retry chain.
       const left = options?.deadline ? options.deadline - Date.now() : Infinity;
       if (left < 3_000) return null;
-      await waitForSlot();
+      await waitForSlot(model);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(options?.timeoutMs ?? CALL_TIMEOUT_MS, left));
       try {
@@ -215,7 +221,7 @@ export async function streamText(prompt: string, options: StreamOptions = {}): P
     const endpoint = endpointFor(model, false);
     if (!endpoint) continue;
     if (deadline - Date.now() < 5_000) break;
-    await waitForSlot();
+    await waitForSlot(model);
     const controller = new AbortController();
     let text = '';
     let alive = false;

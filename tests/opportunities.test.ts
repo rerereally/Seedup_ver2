@@ -332,10 +332,23 @@ test('English mode uses the English copies and falls back to Korean when they ar
 import { clusterByEmbedding, isListable } from '../lib/opportunities/rules';
 import { pageWindow } from '../lib/opportunities/web';
 
-test('pains close in meaning share a group and distant ones do not', () => {
+test('pains close in meaning share a group and distant ones do not, with pass-2 centroid refinement preventing drift chaining', () => {
   const groups = clusterByEmbedding([[1, 0, 0], [0.95, 0.1, 0], [0, 1, 0], [0.9, 0, 0.1], [0, 0.97, 0.2]], 0.8);
   assert.deepEqual(groups, [[0, 1, 3], [2, 4]]);
   assert.deepEqual(clusterByEmbedding([], 0.8), []);
+
+  // A gradual 5-vector chain where pass 1 merges all 5 into one drifting group, and pass 2 splits index 0 out.
+  const chain = [
+    [1, 0],
+    [0.85, 0.526],
+    [0.7, 0.714],
+    [0.6, 0.8],
+    [0.55, 0.835],
+  ];
+  const refined = clusterByEmbedding(chain, 0.84);
+  assert.equal(refined.length, 2);
+  assert.deepEqual(refined[0], [0]);
+  assert.deepEqual(refined[1], [1, 2, 3, 4]);
 });
 
 test('one quote is never listed', () => {

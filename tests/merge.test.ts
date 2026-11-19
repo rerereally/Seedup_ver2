@@ -50,11 +50,20 @@ test('a run that could not review supply does not erase an earlier status', () =
   assert.equal(opportunities[0].history?.length, 1);
 });
 
-test('an opportunity not seen for three weeks is dropped', () => {
-  const previous = { generatedAt: DAY1, opportunities: [opp('old', [ev(1)], { lastSeenAt: '2026-10-01T00:00:00.000Z' }), opp('recent', [ev(2), ev(4)], { lastSeenAt: DAY1 })], embeddings: {} };
+test('an opportunity not seen for three weeks is dropped unless it is qualified (kept up to 90 days)', () => {
+  const previous = {
+    generatedAt: DAY1,
+    opportunities: [
+      opp('old-unqualified', [ev(1), ev(2)], { lastSeenAt: '2026-10-01T00:00:00.000Z', qualified: false }),
+      opp('old-qualified', [ev(1), ev(2), ev(3, 'github')], { lastSeenAt: '2026-10-01T00:00:00.000Z', qualified: true }),
+      opp('ancient-qualified', [ev(4), ev(5), ev(6, 'github')], { lastSeenAt: '2026-07-01T00:00:00.000Z', qualified: true }),
+      opp('recent', [ev(2), ev(4)], { lastSeenAt: DAY1 }),
+    ],
+    embeddings: {},
+  };
   const { opportunities, summary } = mergeRuns(previous, { opportunities: [opp('new', [ev(3)])], embeddings: {} }, DAY2);
-  assert.deepEqual(opportunities.map((item) => item.slug).sort(), ['new', 'recent']);
-  assert.deepEqual(summary.expired, ['old']);
+  assert.deepEqual(opportunities.map((item) => item.slug).sort(), ['new', 'old-qualified', 'recent']);
+  assert.deepEqual(summary.expired.sort(), ['ancient-qualified', 'old-unqualified']);
 });
 
 test('changes are described in the words shown on the page', () => {

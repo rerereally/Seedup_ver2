@@ -235,6 +235,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
           if (!line) continue;
           let event: { type?: string; text?: string; stage?: LivePhase; error?: string } & Record<string, unknown>;
           try { event = JSON.parse(line); } catch { continue; }
+          if (event.type === 'ping') continue;
           if (event.type === 'delta' && event.text) {
             liveText.current += event.text;
             phase = 'writing';

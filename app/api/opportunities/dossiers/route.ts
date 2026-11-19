@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
-import { safeSourceUrl } from '@/lib/opportunities/live-evidence';
+import { readLiveEvidence, safeSourceUrl } from '@/lib/opportunities/live-evidence';
 import { deleteDossier, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -22,21 +22,35 @@ export async function POST(request: Request) {
   const ids: string[] = Array.isArray(body?.evidenceIds) ? body.evidenceIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, MAX_EVIDENCE) : [];
   const { opportunities } = await getOpportunities();
   const picked = findEvidence(opportunities, ids);
-  if (!picked.length) return NextResponse.json({ error: '저장할 근거가 없습니다.' }, { status: 422 });
+  const live = readLiveEvidence(body?.liveEvidence, MAX_EVIDENCE);
+  const seen = new Set<string>();
+  const combinedEvidence = [...picked.map((item) => item.evidence), ...live].filter((item) => {
+    if (!item.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  }).slice(0, MAX_EVIDENCE);
 
-  const lead = leadOpportunity(opportunities, picked);
+  const prd = typeof body?.prdMarkdown === 'string' ? body.prdMarkdown.trim().slice(0, MAX_PRD_LENGTH) : null;
+  if (!combinedEvidence.length && (!prd || prd.length < 40)) {
+    return NextResponse.json({ error: '저장할 근거나 PRD가 없습니다.' }, { status: 422 });
+  }
+
+  const lead = picked.length ? leadOpportunity(opportunities, picked) : null;
+  const rawSlug = typeof body?.opportunitySlug === 'string' ? body.opportunitySlug.trim().slice(0, 120) : '';
+  const matchedSlug = rawSlug && opportunities.some((item) => item.slug === rawSlug) ? rawSlug : null;
   const title = (typeof body?.title === 'string' ? body.title.trim().slice(0, MAX_TITLE_LENGTH) : '') || lead?.name || '담은 근거';
-  const evidenceIds = picked.map((item) => item.evidence.id);
-  const dossierKey = createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 32);
-  const prd = typeof body?.prdMarkdown === 'string' ? body.prdMarkdown.slice(0, MAX_PRD_LENGTH) : null;
+  const evidenceIds = combinedEvidence.map((item) => item.id);
+  const dossierKey = evidenceIds.length
+    ? createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 32)
+    : createHash('sha256').update(`idea:${title.toLowerCase()}`).digest('hex').slice(0, 32);
 
   const { data: saved, error } = await saveDossier(supabase, {
     user_id: data.user.id,
     dossier_key: dossierKey,
     title,
-    opportunity_slug: lead?.slug ?? null,
+    opportunity_slug: lead?.slug ?? matchedSlug ?? null,
     evidence_ids: evidenceIds,
-    evidence: picked.map((item) => item.evidence),
+    evidence: combinedEvidence,
     ...(prd ? { prd_markdown: prd } : {}),
   });
 

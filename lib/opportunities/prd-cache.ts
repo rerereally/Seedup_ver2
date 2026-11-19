@@ -14,6 +14,23 @@ export async function readPrdCache(service: SupabaseClient | null, evidenceIds: 
   return data ? { input: data.input as SpecInput, spec: data.spec as Spec, createdAt: String(data.created_at) } : null;
 }
 
+/**
+ * Fallback lookup by opportunity title so an active MCP build does not lose its cached PRD
+ * when the daily engine appends a new quote and changes the exact evidence_key hash.
+ */
+export async function readLatestPrdCacheForTitle(service: SupabaseClient | null, title: string) {
+  const trimmed = title.trim();
+  if (!service || !trimmed) return null;
+  const { data } = await service
+    .from('prd_cache')
+    .select('input,spec,created_at')
+    .eq('input->>title', trimmed)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? { input: data.input as SpecInput, spec: data.spec as Spec, createdAt: String(data.created_at) } : null;
+}
+
 export async function writePrdCache(service: SupabaseClient | null, evidenceIds: string[], input: SpecInput, spec: Spec) {
   if (!service || !evidenceIds.length) return;
   const { error } = await service.from('prd_cache').upsert({ evidence_key: prdCacheKey(evidenceIds), input, spec, created_at: new Date().toISOString() });

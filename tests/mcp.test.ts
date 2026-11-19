@@ -61,9 +61,34 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
   assert.equal(garbage.error.code, -32700);
 });
 
-test('tools/list exposes every tool', async () => {
-  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'update_feature_status', 'mark_feature_done', 'link_commit', 'verify_feature', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
+test('tools/list exposes every tool with MCP annotations', async () => {
+  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), [
+    'search_opportunities',
+    'get_opportunity',
+    'generate_verified_prd',
+    'get_build_checklist',
+    'get_next_task',
+    'update_feature_status',
+    'mark_feature_done',
+    'link_commit',
+    'verify_feature',
+    'get_kept_items',
+    'find_related_content',
+    'validate_idea',
+    'watch_idea',
+    'list_my_prds',
+    'get_my_prd',
+    'explain_file',
+  ]);
+  for (const tool of answer.result.tools) {
+    assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `${tool.name} missing readOnlyHint`);
+    assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} destructiveHint should be false`);
+  }
+  const byName = new Map(answer.result.tools.map((tool) => [tool.name, tool]));
+  assert.equal(byName.get('search_opportunities')?.annotations?.readOnlyHint, true);
+  assert.equal(byName.get('explain_file')?.annotations?.readOnlyHint, true);
+  assert.equal(byName.get('update_feature_status')?.annotations?.readOnlyHint, false);
 });
 
 test('search ranks keyword hits first', () => {
@@ -469,6 +494,126 @@ test('a feature is done when the acceptance of every requirement it serves and i
   assert.deepEqual(partial.unmet.map((row) => row.n), [2]);
 });
 
+test('pinnedSpec keeps active builds working when daily quotes change cachedSpec key', async () => {
+  const spec = normalizeSpec({
+    summary: 'Pinned memory tool',
+    requirements: [{ title: 'Remember across sessions', detail: 'Persist notes locally', evidence: [1], priority: 'P0', acceptance: ['restarting keeps saved notes'] }],
+    features: [{ title: 'Store notes', detail: 'Save notes to disk', requirements: [1] }],
+  }, 1);
+  const rotatedQuote = { id: 'old-quote-rotated-out', platform: 'hn' as const, quote: 'I lose agent context every morning', quoteKo: '', url: 'https://example.com/old', score: 9, postedAt: null };
+  const pinnedDeps = deps({
+    cachedSpec: async () => null,
+    pinnedSpec: async (slug) => slug === 'memory' ? {
+      input: { title: 'Agent memory', problem: 'p', gap: '', evidence: [rotatedQuote], competitors: [] },
+      spec,
+    } : null,
+  });
+
+  const checklist = await toolResult('get_build_checklist', { slug: 'memory' }, pinnedDeps);
+  assert.equal(checklist.isError, undefined);
+  assert.match(checklist.text, /F-01 Store notes/);
+
+  const task = await toolResult('get_next_task', { slug: 'memory' }, pinnedDeps);
+  assert.equal(task.isError, undefined);
+  assert.match(task.text, /I lose agent context every morning/);
+});
+
+test('list_my_prds and get_my_prd expose personal saved PRDs in markdown and agent brief formats', async () => {
+  const sampleMd = `# 한 줄 요약\n개인 아이디어용 키 유출 감시 도구.\n\n## 요구사항\n### R1. [P0] 사용자는 커밋 전 API 키 유출을 감지할 수 있어야 한다\n정규식으로 키 패턴을 검사해 차단한다.\n- 수락 기준: AWS 키가 포함되면 커밋을 종료 코드 1로 막는다.\n\n## 기능\n### F1. Pre-commit 키 스캐너 (R1)\n변경된 파일을 읽어 키 패턴을 검사한다.`;
+  const prdDeps = deps({
+    myPrds: async () => [{ id: '11111111-1111-1111-1111-111111111111', title: '키 유출 감시', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-19T00:00:00Z' }],
+    myPrd: async (id) => id === '11111111-1111-1111-1111-111111111111' ? {
+      id, title: '키 유출 감시', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-19T00:00:00Z', prdMarkdown: sampleMd, evidence: [],
+    } : null,
+  });
+
+  const listed = await toolResult('list_my_prds', {}, prdDeps);
+  assert.equal(listed.isError, undefined);
+  assert.match(listed.text, /키 유출 감시/);
+  assert.match(listed.text, /Personal idea PRD/);
+
+  const raw = await toolResult('get_my_prd', { id: '11111111-1111-1111-1111-111111111111' }, prdDeps);
+  assert.equal(raw.isError, undefined);
+  assert.match(raw.text, /Pre-commit 키 스캐너/);
+
+  const brief = await toolResult('get_my_prd', { id: '11111111-1111-1111-1111-111111111111', format: 'agents' }, prdDeps);
+  assert.equal(brief.isError, undefined);
+  assert.match(brief.text, /Save as AGENTS\.md/);
+  assert.match(brief.text, /F-01\. Pre-commit 키 스캐너/);
+
+  const missing = await toolResult('get_my_prd', { id: 'missing' }, prdDeps);
+  assert.equal(missing.isError, true);
+});
+
+test('explain_file reverse-traces a file to features, requirements, verified quotes, and done criteria', async () => {
+  const spec = normalizeSpec({
+    summary: 's',
+    requirements: [{ title: 'Remember', detail: 'Persist notes locally', evidence: [1], priority: 'P0', acceptance: ['saving a note returns its id'] }],
+    features: [{ title: 'Store notes', detail: 'Write notes to storage', requirements: [1] }],
+  }, 3);
+  const traceDeps = deps({
+    cachedSpec: async () => ({ input: { title: 'Agent memory', problem: 'p', gap: '', evidence: list[0].evidence, competitors: [] }, spec }),
+    featureFiles: async () => ({ 'F-01': ['src/notes.ts'] }),
+    progress: async () => ({ 'F-01': progressRow('done') }),
+  });
+
+  const explained = await toolResult('explain_file', { slug: 'memory', path: './src/notes.ts' }, traceDeps);
+  assert.equal(explained.isError, undefined);
+  assert.match(explained.text, /F-01 Store notes \[done\]/);
+  assert.match(explained.text, /R-01 \[P0\] Remember/);
+  assert.match(explained.text, /E-1 \[hn\] "quote one"/);
+  assert.match(explained.text, /saving a note returns its id/);
+
+  const untouched = await toolResult('explain_file', { slug: 'memory', path: 'src/other.ts' }, traceDeps);
+  assert.equal(untouched.isError, undefined);
+  assert.match(untouched.text, /No linked feature touches/);
+
+  const invalid = await toolResult('explain_file', { slug: 'memory', path: '../etc/passwd' }, traceDeps);
+  assert.equal(invalid.isError, true);
+});
+
+test('prompts and seedup:// resources are listed and readable', async () => {
+  const d = deps({
+    myPrds: async () => [{ id: '11111111-1111-1111-1111-111111111111', title: 'My PRD', opportunitySlug: 'memory', evidenceCount: 2, updatedAt: '2026-11-19T00:00:00Z' }],
+    kept: async () => [{ type: 'github', title: 'owner/repo', note: 'Useful lib', url: 'https://github.com/owner/repo', page: 'https://x.test/github-trends/1', savedAt: '2026-11-19T00:00:00Z' }],
+  });
+
+  const init = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, d, 'https://x.test') as { result: { capabilities: Record<string, unknown> } };
+  assert.ok('prompts' in init.result.capabilities);
+
+  const prompts = await handleRpc({ jsonrpc: '2.0', id: 2, method: 'prompts/list' }, d, 'https://x.test') as { result: { prompts: Array<{ name: string }> } };
+  assert.deepEqual(prompts.result.prompts.map((p) => p.name), ['discover-and-spec', 'build-next-feature', 'pre-ship-audit', 'why-this-file']);
+
+  const got = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'prompts/get', params: { name: 'why-this-file', arguments: { slug: 'memory', path: 'src/notes.ts' } } }, d, 'https://x.test') as { result: { messages: Array<{ content: { text: string } }> } };
+  assert.match(got.result.messages[0].content.text, /explain_file/);
+
+  const missingArg = await handleRpc({ jsonrpc: '2.0', id: 4, method: 'prompts/get', params: { name: 'build-next-feature', arguments: {} } }, d, 'https://x.test') as { error: { code: number } };
+  assert.equal(missingArg.error.code, -32602);
+
+  const resources = await handleRpc({ jsonrpc: '2.0', id: 5, method: 'resources/list' }, d, 'https://x.test') as { result: { resources: Array<{ uri: string }> } };
+  assert.deepEqual(resources.result.resources.map((r) => r.uri), ['ui://seedup/card', 'seedup://prds/active', 'seedup://kept/recent']);
+
+  const activePrds = await handleRpc({ jsonrpc: '2.0', id: 6, method: 'resources/read', params: { uri: 'seedup://prds/active' } }, d, 'https://x.test') as { result: { contents: Array<{ text: string }> } };
+  assert.match(activePrds.result.contents[0].text, /My PRD/);
+
+  const keptRecent = await handleRpc({ jsonrpc: '2.0', id: 7, method: 'resources/read', params: { uri: 'seedup://kept/recent' } }, d, 'https://x.test') as { result: { contents: Array<{ text: string }> } };
+  assert.match(keptRecent.result.contents[0].text, /owner\/repo/);
+});
+
+test('non-opportunity tools do not eagerly load opportunities', async () => {
+  let oppCalls = 0;
+  const lazyDeps = deps({
+    opportunities: async () => { oppCalls += 1; return list; },
+    myPrds: async () => [],
+  });
+
+  await handleRpc(call('get_kept_items', {}), lazyDeps, 'https://x.test');
+  await handleRpc(call('find_related_content', { idea: 'agent memory caching' }), lazyDeps, 'https://x.test');
+  await handleRpc(call('watch_idea', { idea: 'leaked api keys alert' }), lazyDeps, 'https://x.test');
+  await handleRpc(call('list_my_prds', {}), lazyDeps, 'https://x.test');
+  assert.equal(oppCalls, 0);
+});
+
 test('handleRpc rejects empty batches and batches larger than MCP_MAX_BATCH_SIZE without running tools', async () => {
   const d = deps();
   const empty = await handleRpc([], d, '') as { error: { code: number } };
@@ -519,4 +664,30 @@ test('get_kept_items empty github hint points to /github-trends instead of remov
   const answer = await handleRpc(call('get_kept_items', { type: 'github' }), deps(), 'https://seedup.test') as { result: { content: Array<{ text: string }> } };
   assert.match(answer.result.content[0].text, /https:\/\/seedup\.test\/github-trends/);
   assert.doesNotMatch(answer.result.content[0].text, /tab=github/);
+});
+
+test('a pinned PRD wins over a newer PRD cached for the current quotes, so feature numbers stay put', async () => {
+  const pinned = normalizeSpec({ summary: 'pinned', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Pinned feature', requirements: [1] }] }, 1);
+  const newer = normalizeSpec({ summary: 'newer', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Regenerated feature', requirements: [1] }] }, 1);
+  const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
+  const used = deps({ cachedSpec: async () => ({ input, spec: newer }), pinnedSpec: async () => ({ input, spec: pinned }) });
+  const checklist = await toolResult('get_build_checklist', { slug: 'memory' }, used);
+  assert.match(checklist.text, /Pinned feature/);
+  assert.doesNotMatch(checklist.text, /Regenerated feature/);
+});
+
+test('generate_verified_prd pins the PRD for the user, replacing an existing pin only when asked for a fresh one', async () => {
+  const pins: boolean[] = [];
+  const used = deps({ pin: async (_slug, _result, replace) => { pins.push(replace); } });
+  await toolResult('generate_verified_prd', { slug: 'memory' }, used);
+  await toolResult('generate_verified_prd', { slug: 'memory', fresh: true }, used);
+  assert.deepEqual(pins, [false, true]);
+});
+
+test('tools that spend a daily limit on a model call are not marked read-only, so clients ask before running them', async () => {
+  const listed = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, deps(), 'https://x.test') as { result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }> } };
+  const hint = (name: string) => listed.result.tools.find((tool) => tool.name === name)?.annotations?.readOnlyHint;
+  assert.equal(hint('verify_feature'), false);
+  assert.equal(hint('validate_idea'), false);
+  assert.equal(hint('get_next_task'), true);
 });

@@ -30,14 +30,18 @@ function countInMemory(key: string, perMinute: number) {
   return false;
 }
 
-/** True when `key` already made `perMinute` requests in the last minute; otherwise counts this one. */
+/**
+ * True when `key` already made `perMinute` requests in the last minute; otherwise counts this one. Both counts apply:
+ * the binding is shared across instances but approximate by design (a quick burst gets through before it syncs),
+ * and this instance's exact count catches the burst.
+ */
 export async function rateLimited(key: string, perMinute: number, limiter: Limiter | null = limiterFor(perMinute)) {
-  if (limiter) {
-    try {
-      return !(await limiter.limit({ key })).success;
-    } catch {
-      // A limiter outage must not block visitors; this instance's count still applies.
-    }
+  const local = countInMemory(key, perMinute);
+  if (local || !limiter) return local;
+  try {
+    return !(await limiter.limit({ key })).success;
+  } catch {
+    // A limiter outage must not block visitors; this instance's count already applied.
+    return false;
   }
-  return countInMemory(key, perMinute);
 }

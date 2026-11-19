@@ -1,9 +1,9 @@
 import { PLATFORM_LABELS } from './types';
-import type { Evidence, Opportunity, OpportunityPoint, OpportunityStatus } from './types';
+import type { Evidence, Opportunity, OpportunityPoint, OpportunityStatus, SupplyItem } from './types';
 
 // Everything here is computed from the stored run, with no model call, so the same data always reads the same way.
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 const RECENT_DAYS = 180;
 const STATUS_GAP_POINTS: Record<OpportunityStatus, number> = { open: 20, narrowing: 10, unknown: 6, closed: 0 };
 const STATUS_GAP_WORDS: Record<OpportunityStatus, string> = {
@@ -63,13 +63,19 @@ export function whyNow(opportunity: Opportunity, now = Date.now()): WhyNow {
 
 export type TrackRecordRow = { slug: string; name: string; firstSeenAt: string; followers: Array<{ name: string; url: string; createdAt: string; leadDays: number }> };
 
+export function toolAppearedAfter(tool: SupplyItem, after: number, through = Infinity) {
+  const appeared = tool.createdAt ? Date.parse(tool.createdAt) : NaN;
+  return tool.relation !== 'unrelated' && appeared > after && appeared <= through;
+}
+
 /** Problems where a tool appeared only after the first complaint we hold. The record of the signal coming first. */
-export function trackRecord(opportunities: Opportunity[]): TrackRecordRow[] {
+export function trackRecord(opportunities: readonly Opportunity[], through = Infinity): TrackRecordRow[] {
   return opportunities.flatMap((item) => {
     const first = item.firstSeenAt;
     if (!first) return [];
+    const firstAt = Date.parse(first);
     const followers = item.supply
-      .filter((tool) => tool.relation !== 'unrelated' && tool.createdAt && tool.createdAt > first)
+      .filter((tool) => toolAppearedAfter(tool, firstAt, through))
       .map((tool) => ({ name: tool.name.replace(/^Show HN:\s*/i, ''), url: tool.url, createdAt: tool.createdAt as string, leadDays: Math.max(1, daysBetween(first, new Date(tool.createdAt as string).getTime())) }))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return followers.length ? [{ slug: item.slug, name: item.name, firstSeenAt: first, followers }] : [];
@@ -128,6 +134,10 @@ export function koreaLens(opportunity: Opportunity): KoreaLens {
 
 export type DossierChange = { added: Evidence[]; removed: number; notes: string[] };
 
+export function historyPointAt(history: readonly OpportunityPoint[], time: number) {
+  return history.findLast((point) => Date.parse(point.at) <= time);
+}
+
 /** What happened to an opportunity after a dossier was saved from it, phrased as things to revise in the PRD. */
 export function dossierChanges(savedEvidenceIds: string[], savedAt: string, opportunity: Opportunity, describe: (before: OpportunityPoint, after: OpportunityPoint) => string[]): DossierChange {
   const saved = new Set(savedEvidenceIds);
@@ -135,7 +145,7 @@ export function dossierChanges(savedEvidenceIds: string[], savedAt: string, oppo
   const added = opportunity.evidence.filter((item) => !saved.has(item.id));
   const removed = savedEvidenceIds.filter((id) => !current.has(id)).length;
   const history = opportunity.history ?? [];
-  const before = [...history].reverse().find((entry) => entry.at <= savedAt) ?? history[0];
+  const before = historyPointAt(history, Date.parse(savedAt)) ?? history[0];
   const after = history[history.length - 1];
   const notes: string[] = [];
   if (added.length) notes.push(`저장한 뒤 원문 ${added.length}건이 새로 붙었습니다. 요구사항의 근거로 추가할 수 있는지 확인하세요.`);

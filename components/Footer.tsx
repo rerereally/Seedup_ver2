@@ -15,9 +15,9 @@ const COLUMNS = [
   ] },
   { name: '기획', en: 'Plan', links: [
     { name: 'PRD', en: 'PRD', href: '/prd' },
-    { name: '아이디어 검증', en: 'Idea validation', href: '/ideas' },
+    { name: '아이디어 검증', en: 'Idea validation', href: '/prd?mode=validate' },
     { name: 'MCP 연동', en: 'MCP', href: '/agents' },
-    { name: '레포 분석', en: 'Repo analysis', href: '/seeds' },
+    { name: '레포 분석', en: 'Repo analysis', href: '/prd?mode=repo' },
   ] },
   { name: 'Seedup', en: 'Seedup', links: [
     { name: '소개', en: 'About', href: '/about' },

@@ -131,7 +131,15 @@ function LinkList({ items, isFresh }: { items: SeedLink[]; isFresh: (href: strin
   );
 }
 
-export default function SeedAdvisor() {
+/** Where a look stands, for the chat beside the result in the /prd work frame. */
+export type SeedRepoLine = { name: string; description: string; language: string; waiting: boolean; features: number; improvements: number };
+export type SeedStatus = { login: string | null; loading: boolean; error: string; repos: number | null; pending: number; needsLogin: boolean; missed: number; savedAt: string; list: SeedRepoLine[] };
+
+/**
+ * Reads an account's public repos and, per repo, what to fix, what to add and a PRD. Started by `run` (a login and a
+ * number that changes on every ask); without it, the component shows its own form.
+ */
+export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', selected }: { run?: { login: string; id: number }; onStatus?: (status: SeedStatus) => void; loginNext?: string; selected?: string | null } = {}) {
   const [login, setLogin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -248,12 +256,38 @@ export default function SeedAdvisor() {
     } catch {
       // Nothing usable is stored, or storage is blocked.
     }
+    if (run) return;
     if (!saved) return;
     const found = saved;
     // Deferred so the first paint matches the server.
     const timer = window.setTimeout(() => restore(found), 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- the first visit only; `run` takes over after that
+
+  // Each new ask from the chat: the stored result if it is the same account, otherwise a fresh look.
+  const ask = useEffectEvent((login: string) => {
+    let saved: Saved | null = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+    } catch {
+      // Storage blocked: look again.
+    }
+    const name = login.trim().replace(/^@/, '').replace(/^https?:\/\/github\.com\//i, '').split('/')[0].toLowerCase();
+    if (saved && saved.login === name && Array.isArray(saved.repos) && !result) restore(saved);
+    else void look(login);
+  });
+  useEffect(() => {
+    if (!run?.login) return;
+    const login = run.login;
+    const timer = window.setTimeout(() => ask(login), 0);
+    return () => clearTimeout(timer);
+  }, [run?.id, run?.login]);
+
+  const report = useEffectEvent(() => onStatus?.({
+    login: result?.login ?? null, loading, error, repos: result ? result.repos.length : null, pending: pending.length, needsLogin, missed, savedAt,
+    list: (result?.repos ?? []).map((repo) => ({ name: repo.name, description: ideas[repo.name]?.summary || repo.description, language: repo.language, waiting: pending.includes(repo.name), features: ideas[repo.name]?.features.length ?? 0, improvements: ideas[repo.name]?.improvements?.length ?? 0 })),
+  }));
+  useEffect(() => report(), [result, loading, error, pending, needsLogin, missed, savedAt, ideas]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -262,7 +296,7 @@ export default function SeedAdvisor() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={submit} className="max-w-[720px]">
+      {!run && <form onSubmit={submit} className="max-w-[720px]">
         <label htmlFor="seed-login" className="text-sm font-semibold text-ink">GitHub 아이디 또는 주소</label>
         <div className="mt-2 flex flex-wrap gap-2">
           <input
@@ -286,7 +320,7 @@ export default function SeedAdvisor() {
         </div>
         <p className="mt-3 text-[13px] leading-6 text-muted">공개 레포 가운데 최근에 작업한 5개만 읽습니다. 로그인은 필요 없고, 비공개 레포는 읽지 않습니다.</p>
         {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
-      </form>
+      </form>}
 
       {result && result.repos.length === 0 && (
         <div className="empty-state">
@@ -296,17 +330,18 @@ export default function SeedAdvisor() {
         </div>
       )}
 
-      {result && result.repos.length > 0 && (
+      {!run && result && result.repos.length > 0 && (
         <p aria-live="polite" className="text-sm text-muted">
           {pending.length > 0 && <><Loader2 aria-hidden="true" className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />레포를 하나씩 읽고 고칠 점과 더할 기능을 생각하는 중입니다. 남은 레포 <span className="num">{pending.length}</span>개, 무료 모델이라 레포마다 1분쯤 걸릴 수 있습니다.</>}
           {savedAt && <>{formatDate(savedAt)}에 살펴본 결과입니다. <button type="button" onClick={() => void look(result.login)} className="ml-1 font-medium text-seed underline underline-offset-4">다시 살펴보기</button><span className="ml-1">를 누르면 그 뒤에 새로 붙은 원문과 소식을 표시합니다.</span></>}
-          {!savedAt && pending.length === 0 && needsLogin && <><Link href="/login?next=/seeds" className="font-medium text-seed underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
+          {!savedAt && pending.length === 0 && needsLogin && <><Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-medium text-seed underline underline-offset-4">로그인</Link>하면 레포마다 AI가 더할 기능을 제안합니다. 지금은 키워드와 의미로 맞춘 결과만 보입니다. </>}
           {!savedAt && pending.length === 0 && missed > 0 && `AI 모델이 답하지 않아 레포 ${missed}개는 기능 제안을 만들지 못했습니다. 그 레포에는 키워드와 의미로 맞춘 결과만 보입니다.`}
           {!savedAt && pending.length === 0 && missed === 0 && '기능 제안은 무료 AI 모델이 레포 설명과 README만 읽고 쓴 것이라 틀릴 수 있습니다.'}
         </p>
       )}
 
-      {result?.repos.map((repo) => {
+      {/* With a repo picked (the chat lists them), only that one is shown. */}
+      {result?.repos.filter((repo) => !selected || repo.name === selected).map((repo) => {
         const idea = ideas[repo.name];
         const repoPapers = papers[repo.name];
         const waiting = pending.includes(repo.name);
@@ -362,7 +397,7 @@ export default function SeedAdvisor() {
                 title={`${repo.name} 역기획`}
                 evidenceIds={[]}
                 ready
-                loginNext="/seeds"
+                loginNext={loginNext}
                 endpoint="/api/seeds"
                 requestBody={{ user: result.login, repo: repo.name }}
                 generateLabel="이 저장소로 PRD·기능 명세 만들기"

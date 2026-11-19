@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Logo from '@/components/Logo';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { sharedPrd } from '@/lib/db/dossiers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import SpecActions from './SpecActions';
@@ -14,15 +14,7 @@ export const metadata: Metadata = {
 /** A PRD its owner chose to share. Read with the service role, and only when the owner turned sharing on. */
 async function getSharedSpec(id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const service = createAdminClient();
-  if (!service) return null;
-  const { data } = await service
-    .from('evidence_dossiers')
-    .select('title,prd_markdown,evidence_ids,opportunity_slug,updated_at')
-    .eq('id', id)
-    .eq('shared', true)
-    .maybeSingle();
-  return data?.prd_markdown ? data : null;
+  return sharedPrd(id);
 }
 
 export default async function SharedSpecPage({ params }: { params: Promise<{ id: string }> }) {

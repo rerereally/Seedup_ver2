@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getContentTable, type ContentTarget } from '@/lib/content-targets';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -40,4 +41,19 @@ export async function refreshContentReactionCounts(itemType: ContentTarget, item
       dislike_count: dislikeCount ?? 0,
     })
     .eq('id', itemId);
+}
+
+/** Likes or dislikes an item for the signed-in user; the same reaction again takes it back. Uses their own client. */
+export async function toggleReaction(supabase: SupabaseClient, userId: string, itemType: ContentTarget, itemId: string, reaction: string) {
+  const { data: existing } = await supabase.from('content_reactions').select('id,reaction').eq('user_id', userId).eq('item_type', itemType).eq('item_id', itemId).maybeSingle();
+  if (existing?.reaction === reaction) await supabase.from('content_reactions').delete().eq('id', existing.id).eq('user_id', userId);
+  else if (existing) await supabase.from('content_reactions').update({ reaction, updated_at: new Date().toISOString() }).eq('id', existing.id).eq('user_id', userId);
+  else await supabase.from('content_reactions').insert({ user_id: userId, item_type: itemType, item_id: itemId, reaction });
+}
+
+/** An item's public view, like and dislike counts. */
+export async function contentCounts(itemType: ContentTarget, itemId: string) {
+  const admin = createAdminClient();
+  const { data } = admin ? await admin.from(getContentTable(itemType)).select('view_count,like_count,dislike_count').eq('id', itemId).maybeSingle() : { data: null };
+  return { views: data?.view_count ?? 0, likes: data?.like_count ?? 0, dislikes: data?.dislike_count ?? 0 };
 }

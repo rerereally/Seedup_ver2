@@ -4,7 +4,7 @@ import Header from '@/components/Header';
 import McpConnect from '@/components/McpConnect';
 import PageIntro from '@/components/PageIntro';
 import WorkShell from '@/components/WorkShell';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { hasMcpToken } from '@/lib/db/mcp-tokens';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -33,7 +33,7 @@ export default async function AgentsPage() {
   const user = data.user;
   if (!user) redirect('/login?next=/agents');
 
-  const connected = await (createAdminClient()?.from('mcp_tokens').select('user_id').eq('user_id', user.id).maybeSingle().then(({ data: row }) => Boolean(row)) ?? Promise.resolve(false));
+  const connected = await hasMcpToken(user.id);
 
   return (
     <>

@@ -10,6 +10,7 @@ import PageIntro from '@/components/PageIntro';
 import WorkShell from '@/components/WorkShell';
 import { getContentHref } from '@/lib/content-targets';
 import { getScraps } from '@/lib/data';
+import { recentDossiers } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
@@ -47,15 +48,7 @@ function buildFilterHref(filterValue: string, query: string) {
 }
 
 async function getDossiers() {
-  const supabase = await createClient();
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('evidence_dossiers')
-    // '*' so the page keeps working before the optional `shared` column (20261114230205_dossier_share.sql) exists.
-    .select('*')
-    .order('updated_at', { ascending: false })
-    .limit(20);
-  return error ? [] : ((data ?? []) as DossierRow[]);
+  return recentDossiers<DossierRow>(await createClient(), 20);
 }
 
 type DossierRow = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; prd_markdown: string | null; updated_at: string; shared?: boolean; evidence?: Array<{ quote?: string; url?: string }> | null; built_url?: string | null; built_note?: string | null };

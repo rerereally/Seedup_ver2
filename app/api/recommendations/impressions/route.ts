@@ -1,3 +1,4 @@
+import { recordImpressions } from '@/lib/db/recommendations';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     }));
   if (!rows.length) return NextResponse.json({ ok: true, recorded: 0 });
 
-  const { error } = await supabase.from('recommendation_impressions').insert(rows);
+  const { error } = await recordImpressions(supabase, rows);
   if (error) return NextResponse.json({ error: 'Could not record recommendation impressions' }, { status: 500 });
   return NextResponse.json({ ok: true, recorded: rows.length });
 }

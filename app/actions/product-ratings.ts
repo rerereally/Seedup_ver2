@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { refreshProductRating, saveProductRating, saveProductReview } from '@/lib/db/products';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -21,40 +21,9 @@ export async function submitAIProductReview(formData: FormData) {
 
   if (!productId || !rating || body.length < 5) redirect(returnTo);
 
-  await supabase.from('ai_product_reviews').upsert(
-    {
-      product_id: productId,
-      user_id: user.id,
-      author_name: user.email?.split('@')[0] ?? 'Seedup user',
-      rating,
-      title: title || null,
-      body,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,product_id' },
-  );
-
-  await supabase.from('ai_product_ratings').upsert(
-    {
-      user_id: user.id,
-      product_id: productId,
-      rating,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,product_id' },
-  );
-
-  const admin = createAdminClient();
-  if (admin) {
-    const { data } = await admin.from('ai_product_ratings').select('rating').eq('product_id', productId);
-    const ratings = data ?? [];
-    const sum = ratings.reduce((total, item) => total + Number(item.rating ?? 0), 0);
-    await admin.from('ai_products').update({
-      user_rating_average: ratings.length ? Number((sum / ratings.length).toFixed(2)) : null,
-      user_score_sum: sum,
-      rating_count: ratings.length,
-    }).eq('id', productId);
-  }
+  await saveProductReview(supabase, { productId, userId: user.id, authorName: user.email?.split('@')[0] ?? 'Seedup user', rating, title: title || null, body });
+  await saveProductRating(supabase, user.id, productId, rating);
+  await refreshProductRating(productId, null);
 
   revalidatePath('/ai-products');
   revalidatePath(returnTo);

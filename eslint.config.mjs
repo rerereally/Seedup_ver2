@@ -50,6 +50,7 @@ const SERVICE_KEY_FILES = [
   "lib/opportunities/data.ts",
   "lib/personal.ts",
   "scripts/check-app-errors.ts",
+  "scripts/export-snapshot.ts",
   "scripts/reembed.ts",
 ];
 

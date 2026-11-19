@@ -115,6 +115,10 @@ jobs:
         with:
           path: engine-memory.json
           key: engine-memory-${{ github.run_id }}
+      # Citation precision on the labeled quotes, and how many new quotes still need a label. Measurement only.
+      - name: Measure citation precision
+        continue-on-error: true
+        run: npx tsx scripts/eval-precision.ts | tee -a "$GITHUB_STEP_SUMMARY"
       # Watched ideas are checked after the run, once a week each; a failure here never fails the engine run.
       - name: Check watched ideas
         continue-on-error: true

@@ -43,6 +43,20 @@ export function meetsEvidenceBar(evidenceCount: number, platformCount: number) {
   return evidenceCount >= MIN_EVIDENCE && platformCount >= MIN_PLATFORMS;
 }
 
+// A maker announcing their own tool is supply, not someone lacking one. Checked on the title and the opening only,
+// since a complaint often ends with "so I built a script".
+const PROMOTION = /^(show hn\b|launch hn\b|\[?(show|launch)\]?\s*:|introducing\b)|^\W*(i|we) (just )?(built|made|created|launched|released|open[- ]?sourced|wrote)\b|\b(check out|try) (my|our) (new )?(tool|app|project|library|extension|product)\b/i;
+
+/** True for a post whose author is announcing a product rather than describing a problem. */
+export function isPromotion(item: { title: string; text: string }) {
+  return PROMOTION.test(item.title.trim()) || PROMOTION.test(item.text.trim().slice(0, 160));
+}
+
+/** A quote that stops on a colon or comma was cut mid-thought, so a reader cannot tell what the problem is. */
+export function isCompleteQuote(quote: string) {
+  return !/[:;,，]\s*$/.test(quote.trim());
+}
+
 /** One quote from one place is an anecdote, so such a candidate is not listed at all, not even as below the bar. */
 export function isListable(item: { evidence: unknown[] }) {
   return item.evidence.length >= 2;

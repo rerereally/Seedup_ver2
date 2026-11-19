@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { callJsonModel } from './llm';
 import type { ModelUsage } from './llm';
-import { isVerbatimQuote } from './rules';
+import { isCompleteQuote, isVerbatimQuote } from './rules';
 import { cleanText, searchDemand } from './actors';
 import { fetchPageText, safeSourceUrl } from './web';
 import type { Evidence, Platform, RawSignal } from './types';
@@ -85,7 +85,7 @@ export async function findLiveEvidence(idea: string, onUsage?: (usage: ModelUsag
   for (const row of answer?.quotes ?? []) {
     const post = posts[Number(row.id)];
     const quote = String(row.quote ?? '').trim();
-    if (!post || !quote || !isVerbatimQuote(quote, `${post.title} ${post.text}`)) continue;
+    if (!post || !quote || !isCompleteQuote(quote) || !isVerbatimQuote(quote, `${post.title} ${post.text}`)) continue;
     if (quotes.some((item) => item.url === post.url)) continue;
     quotes.push({
       id: `lv_${createHash('sha256').update(`${post.url}\n${quote}`).digest('hex').slice(0, 16)}`,

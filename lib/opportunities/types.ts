@@ -106,6 +106,8 @@ export type ActorRun = {
   items: number;
   errors: number;
   durationMs: number;
+  /** Posts dropped because their author was announcing a product. Missing on runs before the filter. */
+  promotions?: number;
 };
 
 export type EngineStats = {

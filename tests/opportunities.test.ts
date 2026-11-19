@@ -449,3 +449,35 @@ test('read memory keeps recent posts and pains, forgets old ones, and drops pain
   assert.equal(next.pains[1].item.text.length, 800);
   assert.deepEqual(rememberRun(null, [], [], now, new Set()), { read: {}, pains: [] });
 });
+
+test('a maker announcing a product is not read as someone lacking a tool', async () => {
+  const { isPromotion } = await import('../lib/opportunities/rules');
+  for (const title of ['Show HN: A faster lockfile differ', 'I built a CLI that finds broken packages', 'Introducing Foo, the GIF API', 'Launch HN: Acme (YC W26)'])
+    assert.equal(isPromotion({ title, text: '' }), true, title);
+  assert.equal(isPromotion({ title: '', text: 'We just launched our tool for on-call notes, check it out' }), true);
+  assert.equal(isPromotion({ title: 'Is there a tool to diff lockfiles?', text: 'Every week CI breaks and I wish there was a way. In the end I built a script.' }), false);
+  assert.equal(isPromotion({ title: 'Why is there no good way to test MCP servers', text: 'I tried everything.' }), false);
+});
+
+test('citation precision counts only published quotes and lists the unlabeled ones', async () => {
+  const { precisionOf } = await import('../lib/opportunities/eval');
+  const opportunities = [{ slug: 'a', evidence: [{ id: 'e1', quote: 'q1' }, { id: 'e2', quote: 'q2' }, { id: 'e3', quote: 'q3' }] }];
+  const result = precisionOf(opportunities, {
+    e1: { slug: 'a', quote: 'q1', relevant: true, by: 'jihun' },
+    e2: { slug: 'a', quote: 'q2', relevant: false, by: 'claude-draft' },
+    gone: { slug: 'b', quote: 'old', relevant: false, by: 'jihun' },
+  });
+  assert.equal(result.labeled, 2);
+  assert.equal(result.precision, 50);
+  assert.equal(result.byPeople, 1);
+  assert.deepEqual(result.unlabeled.map((row) => row.id), ['e3']);
+  assert.equal(precisionOf([], {}).precision, null);
+});
+
+test('a quote cut off on a colon or comma is not evidence', async () => {
+  const { isCompleteQuote } = await import('../lib/opportunities/rules');
+  assert.equal(isCompleteQuote('Amazon Bedrock does not provide an API that returns:'), false);
+  assert.equal(isCompleteQuote('every time I switch providers, '), false);
+  assert.equal(isCompleteQuote('I had to rewrite large parts of my code.'), true);
+  assert.equal(isCompleteQuote('Is there a tool to diff lockfiles?'), true);
+});

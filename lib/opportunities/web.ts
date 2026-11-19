@@ -96,6 +96,15 @@ export async function searchWebSupply(query: string): Promise<Array<Omit<SupplyI
   return results.map((row) => ({ kind: 'web', name: row.title.slice(0, 90) || new URL(row.url).host, description: row.content.slice(0, 160), popularity: 0, url: row.url, createdAt: null }));
 }
 
+/**
+ * A well-known product the model named for this problem (GIPHY for a GIF API), found on the web so it enters the
+ * competitor list with a real page and that page's own description. A name the web cannot find is dropped.
+ */
+export async function searchKnownProduct(name: string): Promise<Array<Omit<SupplyItem, 'relation'>>> {
+  const [top] = await webSearch(`${name} official site`, 1);
+  return top ? [{ kind: 'web', name: name.slice(0, 90), description: top.content.slice(0, 160), popularity: 0, url: top.url, createdAt: null }] : [];
+}
+
 export async function searchWebDemand(phrase: string): Promise<Array<Omit<RawSignal, 'id' | 'actor'>>> {
   const results = await webSearch(phrase, 4);
   const pages = await Promise.all(results.map(async (row) => ({ row, page: await fetchPageText(row.url) })));

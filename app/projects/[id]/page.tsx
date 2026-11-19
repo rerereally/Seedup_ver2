@@ -367,7 +367,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   {
                     label: '아이디어 검증하기',
                     desc: '이 프로젝트의 시장성과 난이도를 분석합니다',
-                    href: `/ideas?idea=${encodeURIComponent(`${displayTitle}를 7일 안에 만들 수 있는 초보자용 프로젝트로 평가해줘`)}`,
+                    href: `/prd/validate?idea=${encodeURIComponent(`${displayTitle}를 7일 안에 만들 수 있는 초보자용 프로젝트로 평가해줘`)}`,
                   },
                   {
                     label: '다른 프로젝트 보기',

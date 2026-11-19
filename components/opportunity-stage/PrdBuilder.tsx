@@ -6,6 +6,7 @@ import { changedLines } from '@/lib/opportunities/spec-diff';
 import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
+import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
@@ -62,7 +63,7 @@ function changedCount(before: Spec, after: Spec) {
   return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, models = [], hideRevise = false, showTitle = true, agentSlug }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -89,6 +90,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   onError?: (message: string) => void;
   progress?: BuildProgress;
   progressHistory?: BuildProgressHistory;
+  featureCommits?: FeatureCommitSummary;
   /** The server's model menu; the pick is shared with every PRD screen through browser storage. */
   models?: PrdModel[];
   /** The idea chat takes change requests itself, so the side form would only repeat it. */
@@ -800,6 +802,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                           const mark = progress?.[row.id];
                           const featureStatus = mark?.status ?? 'todo';
                           const events = progressHistory?.[row.id];
+                          const commits = featureCommits?.[row.id];
+                          const count = commits?.count ?? 0;
+                          const commitLabel = t(`연결된 커밋 ${count}개`, `${count} linked ${count === 1 ? 'commit' : 'commits'}`);
                           return docRow(row.id, <>
                             {row.title}
                             {!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}
@@ -807,17 +812,27 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                               {featureStatus === 'done' && '✓ '}{t(...STATUS_LABELS[featureStatus])}
                             </span>}
                             <span className="block text-sm leading-6 text-muted">{row.detail} ({t(`${row.requirementIds.join(', ')} 충족`, `serves ${row.requirementIds.join(', ')}`)})</span>
-                          </>, !backed(row), events?.length ? (
-                            <details className="mb-3 ml-12 text-[13px] text-muted">
-                              <summary className="cursor-pointer">{t('상태 이력', 'Status history')}</summary>
-                              <ol className="mt-1 space-y-1">
-                                {events.map((event) => <li key={event.id} className="break-words">
-                                  <time dateTime={event.createdAt}>{progressDate.format(new Date(event.createdAt))}</time>
-                                  {' · '}{t(...STATUS_LABELS[event.status])}{event.note && ` · ${event.note}`}
-                                </li>)}
-                              </ol>
-                            </details>
-                          ) : undefined);
+                          </>, !backed(row), <>
+                            {featureCommits && (commits?.files.length ? (
+                              <details className="mb-3 ml-12 text-[13px] text-muted">
+                                <summary className="cursor-pointer">{commitLabel}{t(`, 파일 ${commits.files.length}개`, `, ${commits.files.length} ${commits.files.length === 1 ? 'file' : 'files'}`)}</summary>
+                                <ul className="mt-1 space-y-1">
+                                  {commits.files.map((file) => <li key={file}><code className="break-all">{file}</code></li>)}
+                                </ul>
+                              </details>
+                            ) : <p className="mb-3 ml-12 text-[13px] text-muted">{commitLabel}</p>)}
+                            {events?.length ? (
+                              <details className="mb-3 ml-12 text-[13px] text-muted">
+                                <summary className="cursor-pointer">{t('상태 이력', 'Status history')}</summary>
+                                <ol className="mt-1 space-y-1">
+                                  {events.map((event) => <li key={event.id} className="break-words">
+                                    <time dateTime={event.createdAt}>{progressDate.format(new Date(event.createdAt))}</time>
+                                    {' · '}{t(...STATUS_LABELS[event.status])}{event.note && ` · ${event.note}`}
+                                  </li>)}
+                                </ol>
+                              </details>
+                            ) : null}
+                          </>);
                         })}</ul>
                       </section>
                     )}

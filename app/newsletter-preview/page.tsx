@@ -16,8 +16,10 @@ import { pickReads } from '@/lib/newsletter/reads';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { mapPoints } from '@/lib/opportunities/map';
+import { dailyResearch } from '@/lib/opportunities/research';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
 import type { Opportunity } from '@/lib/opportunities/types';
+import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { StatusLabel } from '@/components/opportunity-stage/OpportunityTable';
 import { DEMO_NEWSLETTER_PROFILES, isRecommendableNewsItem, scoreNewsletterItems, toNewsletterContentItems } from '@/lib/recommendations';
@@ -86,6 +88,7 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
       <main id="main-content" className="page-shell grow">
         <h1 className="page-intro-title">인사이트</h1>
         <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
+        <DailyResearchSection research={dailyResearch(opportunities, now)} lang={lang} />
         {/* The day's counts as figures, all from the run dated above. */}
         <dl className="mt-5 grid grid-cols-2 overflow-hidden rounded-xl border border-outline-soft sm:grid-cols-4">
           {([
@@ -218,6 +221,77 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
       </main>
       <Footer />
     </>
+  );
+}
+
+function DailyResearchSection({ research, lang }: { research: ReturnType<typeof dailyResearch>; lang: Lang }) {
+  const t = translator(lang);
+  const groups = [
+    {
+      title: t('새로 찾은 문제', 'New problems'),
+      items: research.newProblems.map((item) => ({ ...item, detail: t(`원문 ${item.evidence}건`, `Quotes ${item.evidence}`) })),
+    },
+    {
+      title: t('수요 상승', 'Rising demand'),
+      items: research.demandRising.map((item) => ({ ...item, detail: t(`원문 +${item.growth}건`, `Quotes +${item.growth}`) })),
+    },
+    {
+      title: t('검증 기준 통과', 'Passed the evidence bar'),
+      items: research.newlyQualified.map((item) => ({ ...item, detail: t(`원문 ${item.evidence}건, 플랫폼 ${item.platforms}곳`, `Quotes ${item.evidence}, platforms ${item.platforms}`) })),
+    },
+    {
+      title: t('빈틈 줄어듦', 'Closing gaps'),
+      items: research.gapClosing.map((item) => ({
+        ...item,
+        detail: item.directGrowth > 0 ? t(`직접 경쟁 +${item.directGrowth}개`, `Direct rivals +${item.directGrowth}`) : t('경쟁 늘어남', 'Competition increased'),
+      })),
+    },
+  ];
+
+  return (
+    <section aria-labelledby="daily-research-heading" className="card mt-5 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="daily-research-heading" className="text-[17px] font-bold tracking-tight">{t('오늘 달라진 것', 'What changed today')}</h2>
+        <p className="label">{research.windowDays === 1 ? t('최근 1일', 'Past day') : t('변화가 적어 최근 7일', 'Few changes, showing the past 7 days')}</p>
+      </div>
+      {research.changeCount ? (
+        <>
+          <p className="num mt-1 text-sm text-muted">{t(`신호 ${research.changeCount}건`, `Signals ${research.changeCount}`)}</p>
+          <div className="mt-4 grid gap-x-6 gap-y-4 md:grid-cols-2">
+            {groups.map(({ title, items }) => (
+              <div key={title} className="min-w-0">
+                <h3 className="text-sm font-semibold">{title}</h3>
+                {items.length ? (
+                  <ul className="rows mt-2">
+                    {items.map((item) => (
+                      <li key={item.slug}>
+                        <Link href={`/opportunities/${encodeURIComponent(item.slug)}`} prefetch={false} className="link-seed w-full min-h-11 flex-wrap justify-between gap-x-3 py-2">
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{t(item.name, item.nameEn || item.name)}</span>
+                          <span className="num font-normal text-muted">{item.detail}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="mt-2 text-sm text-muted">{t('변화 없음', 'No changes')}</p>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 border-t border-outline-soft pt-4">
+            <h3 className="text-sm font-semibold">{t('분야별 원문 증가', 'Quote growth by field')}</h3>
+            {research.fieldTrend.length ? (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {research.fieldTrend.map((field) => (
+                  <li key={field.label} className="chip max-w-full gap-2 text-[13px]">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{t(field.label, field.labelEn || field.label)}</span>
+                    <span className="num shrink-0">+{field.growth}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-2 text-sm text-muted">{t('집계할 분야가 없습니다.', 'No fields to report.')}</p>}
+          </div>
+        </>
+      ) : <p className="mt-3 text-sm text-muted">{t('최근 7일 동안 달라진 신호가 없습니다.', 'No signals changed in the past 7 days.')}</p>}
+    </section>
   );
 }
 

@@ -201,7 +201,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
                 </h2>
                 <ul className="divide-y divide-outline-soft">
                   {[
-                    { label: paper.implementation_idea ? '구현 아이디어 검증' : '프로젝트로 바꾸기', href: `/ideas?idea=${encodeURIComponent(buildPrompt)}` },
+                    { label: paper.implementation_idea ? '구현 아이디어 검증' : '프로젝트로 바꾸기', href: `/prd/validate?idea=${encodeURIComponent(buildPrompt)}` },
                     { label: paper.code_url ? '코드 저장소 열기' : '관련 프로젝트 보기', href: paper.code_url ?? '/projects', external: Boolean(paper.code_url) },
                     { label: '논문 목록으로', href: '/news?tab=paper' },
                   ].map((action) => (

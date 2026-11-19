@@ -29,6 +29,9 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     consume: async () => { calls.push('consume'); return true; },
     related: async () => [],
     progress: async () => ({}),
+    linkCommit: async () => {},
+    featureFiles: async () => ({}),
+    verifyFeature: async () => null,
     setProgress: async () => false,
     notifyBlocked: async () => {},
     kept: async () => [],
@@ -57,7 +60,7 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
 
 test('tools/list exposes every tool', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'update_feature_status', 'mark_feature_done', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'update_feature_status', 'mark_feature_done', 'link_commit', 'verify_feature', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -76,6 +79,8 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   assert.match(answer.result.content[0].text, /Save as CLAUDE\.md/);
   assert.match(answer.result.content[0].text, /F-01\. Store notes/);
   assert.match(answer.result.content[0].text, /update_feature_status.*in_progress.*done.*blocked/);
+  assert.match(answer.result.content[0].text, /Implements F-03/);
+  assert.match(answer.result.content[0].text, /link_commit after each commit.*git diff --name-only HEAD~1/);
   assert.deepEqual(d.calls, ['consume', 'generate']);
   const draft = await handleRpc(call('generate_verified_prd', { slug: 'schema' }), deps(), '') as { result: { content: Array<{ text: string }> } };
   assert.match(draft.result.content[0].text, /AGENTS\.md/);
@@ -117,7 +122,7 @@ function progressFixture(over: Partial<McpDeps> = {}) {
     },
     ...over,
   });
-  return { withSpec, progress };
+  return { withSpec, progress, spec };
 }
 
 test('the checklist lists current status and done criteria, and the legacy alias still works', async () => {
@@ -147,6 +152,98 @@ test('the checklist lists current status and done criteria, and the legacy alias
 
   await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F-01', done: false }), withSpec, '');
   assert.equal(progress['F-01'].status, 'todo');
+});
+
+const commitArgs = { slug: 'memory', sha: 'ABc1234', message: 'Implements F-01', files: ['src/notes.ts'] };
+
+async function toolResult(name: string, args: Record<string, unknown>, withSpec: McpDeps) {
+  const response = await handleRpc(call(name, args), withSpec, '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+  return { isError: response.result.isError, text: response.result.content[0].text };
+}
+
+test('link_commit parses feature ids, honors explicit overrides, and keeps commits without a feature', async () => {
+  const writes: Parameters<McpDeps['linkCommit']>[] = [];
+  const { withSpec } = progressFixture({ linkCommit: async (...args) => { writes.push(args); } });
+  for (const [message, features, featureIds] of [
+    ['Implements F-01', undefined, ['F-01']],
+    ['Implements F-1', undefined, ['F-01']],
+    ['Implements F-01, F-02 and f1 (R-2, E-1)', undefined, ['F-01', 'F-02']],
+    ['Implements F-99', ['f-2', 'F02'], ['F-02']],
+    ['Metadata update', undefined, []],
+    ['Implements F-01', [], []],
+  ] as const) {
+    const result = await toolResult('link_commit', { ...commitArgs, message, features }, withSpec);
+    assert.equal(result.isError, undefined, result.text);
+    assert.deepEqual(writes.pop(), ['memory', { sha: 'abc1234', message, files: commitArgs.files, featureIds }]);
+  }
+});
+
+test('link_commit rejects invalid input and lists valid features for unknown ids', async () => {
+  let writes = 0;
+  const { withSpec } = progressFixture({ linkCommit: async () => { writes += 1; } });
+  for (const invalid of [
+    { sha: '123456' }, { sha: 'abc123z' }, { sha: 'a'.repeat(41) },
+    { message: 123 }, { message: 'x'.repeat(501) },
+    { files: 'src/notes.ts' }, { files: [4] }, { files: Array(201).fill('file') },
+    { files: ['x'.repeat(301)] }, { files: ['/etc/passwd'] }, { files: ['C:\\src\\notes.ts'] },
+    { files: ['\\\\host\\notes.ts'] }, { files: ['src/../notes.ts'] }, { files: ['..\\notes.ts'] },
+    { features: null }, { features: ['F-01', 2] },
+  ]) {
+    const result = await toolResult('link_commit', { ...commitArgs, ...invalid }, withSpec);
+    assert.equal(result.isError, true, JSON.stringify(invalid));
+  }
+  for (const args of [{ features: ['F-01', 'F-99'] }, { message: 'Implements F-01, F-99' }]) {
+    const result = await toolResult('link_commit', { ...commitArgs, ...args }, withSpec);
+    assert.equal(result.isError, true);
+    assert.match(result.text, /Unknown feature ids: F-99\. Valid features: F-01, F-02/);
+  }
+  assert.equal(writes, 0);
+});
+
+test('verify_feature compares a bounded diff to the checklist and never changes progress', async () => {
+  const calls: Array<[string, number]> = [];
+  const { withSpec, progress, spec } = progressFixture({
+    consume: async (feature, limit) => { calls.push([feature, limit]); return true; },
+    verifyFeature: async (prompt) => {
+      assert.deepEqual(JSON.parse(prompt), {
+        criteria: [
+          { number: 1, criterion: 'saving a note returns its id' },
+          { number: 2, criterion: 'empty notes are rejected' },
+          { number: 3, criterion: 'saved notes can be read' },
+        ],
+        diff: '+'.repeat(20_000), truncated: true,
+      });
+      return { checks: [
+        { number: 2, status: 'met', reason: 'Empty notes throw an error.' },
+        { number: 1, status: 'not met', reason: 'The return\nvalue is missing.' },
+      ] };
+    },
+  });
+  spec.features[0].slots!.done.push('empty notes are rejected', 'saved notes can be read');
+  const result = await toolResult('verify_feature', { slug: 'memory', feature: 'f1', diff: '+'.repeat(20_000) + 'tail' }, withSpec);
+  assert.equal(result.isError, undefined, result.text);
+  assert.match(result.text, /Model opinion for F-01.*status is unchanged/);
+  assert.match(result.text, /1\. saving a note returns its id — not met\. The return value is missing\./);
+  assert.match(result.text, /2\. empty notes are rejected — met\. Empty notes throw an error\./);
+  assert.match(result.text, /3\. saved notes can be read — unclear\./);
+  assert.deepEqual(calls, [['mcp_verify', 10]]);
+  assert.deepEqual(progress, {});
+});
+
+test('verify_feature checks the feature and the daily limit before invoking the model', async () => {
+  let modelCalls = 0;
+  const { withSpec } = progressFixture({
+    consume: async () => false,
+    verifyFeature: async () => { modelCalls += 1; return null; },
+  });
+  const args = { slug: 'memory', feature: 'F-01', diff: '+code' };
+  const unknown = await toolResult('verify_feature', { ...args, feature: 'F-99' }, withSpec);
+  assert.match(unknown.text, /Unknown feature ids: F-99\. Valid features: F-01, F-02/);
+  assert.equal(unknown.isError, true);
+  const limited = await toolResult('verify_feature', args, withSpec);
+  assert.match(limited.text, /Daily limit reached/);
+  assert.equal(limited.isError, true);
+  assert.equal(modelCalls, 0);
 });
 
 test('update_feature_status only accepts agent statuses and requires passing checks for done', async () => {

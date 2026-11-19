@@ -370,6 +370,8 @@ ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 ${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}## Rules
 - Ship one feature at a time and keep each change small.
 - For a Seedup opportunity, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
+- Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
+- If the user has enabled commit uploads for this project, call link_commit after each commit with the opportunity slug, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).
 - Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
 - When a readiness slot says "open question", ask instead of guessing.
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.

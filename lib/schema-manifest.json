@@ -2280,5 +2280,45 @@
     "functions": [
       "write_build_progress"
     ]
+  },
+  {
+    "file": "20261119120000_feature_commits.sql",
+    "tables": [
+      "feature_commits"
+    ],
+    "columns": [
+      [
+        "feature_commits",
+        "id"
+      ],
+      [
+        "feature_commits",
+        "user_id"
+      ],
+      [
+        "feature_commits",
+        "slug"
+      ],
+      [
+        "feature_commits",
+        "feature_id"
+      ],
+      [
+        "feature_commits",
+        "sha"
+      ],
+      [
+        "feature_commits",
+        "message"
+      ],
+      [
+        "feature_commits",
+        "files"
+      ],
+      [
+        "feature_commits",
+        "created_at"
+      ]
+    ]
   }
 ]

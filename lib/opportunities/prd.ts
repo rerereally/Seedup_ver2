@@ -1,5 +1,5 @@
-import { callJsonModel, prdFreeModels, streamText } from './llm';
-import type { ModelUsage, StreamEvent } from './llm';
+import { callJsonModel, prdFreeModels, streamText } from '../llm';
+import type { ModelUsage, StreamEvent } from '../llm';
 import { parsePrdMarkdown } from './prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from './prd-prompt';
 import { normalizeRivals, normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown } from './spec';

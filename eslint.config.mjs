@@ -65,4 +65,15 @@ export default defineConfig([
       "no-restricted-imports": ["error", { patterns: [{ group: ["**/supabase/admin"], message: "The service key skips row-level security. Use lib/supabase/server, or add this file to SERVICE_KEY_FILES in eslint.config.mjs after review." }] }],
     },
   },
+  {
+    // Model providers are called from lib/llm.ts only, so timeouts, fallbacks and the free-model policy live in one place.
+    files: ["**/*.{ts,tsx,js,mjs}"],
+    ignores: ["lib/llm.ts", "eslint.config.mjs"],
+    rules: {
+      "no-restricted-syntax": ["error",
+        { selector: "Literal[value=/openrouter\\.ai|api\\.exaone\\.ai/]", message: "Call models through lib/llm.ts instead of a provider URL." },
+        { selector: "TemplateElement[value.raw=/openrouter\\.ai|api\\.exaone\\.ai/]", message: "Call models through lib/llm.ts instead of a provider URL." },
+      ],
+    },
+  },
 ]);

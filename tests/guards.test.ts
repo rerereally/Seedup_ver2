@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { enforceFreeOnlyModels, isFreeOpenRouterModel } from '../lib/ingest/openrouter-models';
+import { enforceFreeOnlyModels, isFreeOpenRouterModel } from '../lib/llm';
 import { assertIngestAuth } from '../lib/ingest/auth';
 
 test('ingest auth accepts only headers, rejects query secrets, and fails closed without a secret', () => {

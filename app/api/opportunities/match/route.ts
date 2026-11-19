@@ -1,6 +1,6 @@
 import { clientOf, rateLimited } from '@/lib/throttle';
 import { getOpportunityEmbeddings } from '@/lib/opportunities/data';
-import { createEmbedding } from '@/lib/opportunities/llm';
+import { createEmbedding } from '@/lib/llm';
 import { rankBySimilarity } from '@/lib/opportunities/match';
 import { cosineSimilarity } from '@/lib/opportunities/rules';
 import { NextResponse } from 'next/server';

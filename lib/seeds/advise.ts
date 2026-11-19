@@ -1,4 +1,4 @@
-import { callJsonModel, createEmbedding } from '../opportunities/llm';
+import { callJsonModel, createEmbedding } from '../llm';
 import { cosineSimilarity } from '../opportunities/rules';
 import type { Opportunity, OpportunityStatus } from '../opportunities/types';
 import type { SeedRepo } from './github';

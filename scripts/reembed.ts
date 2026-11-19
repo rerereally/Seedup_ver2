@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { syncRagEmbeddings } from '../lib/ingest/rag';
-import { createEmbedding } from '../lib/opportunities/llm';
+import { createEmbedding } from '../lib/llm';
 import type { Opportunity, OpportunitySnapshot } from '../lib/opportunities/types';
 import { createAdminClient } from '../lib/supabase/admin';
 

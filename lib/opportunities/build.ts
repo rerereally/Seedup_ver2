@@ -1,4 +1,4 @@
-import { callJsonModel } from './llm';
+import { callJsonModel } from '../llm';
 import type { BuildEstimate, BuildSize, Opportunity } from './types';
 
 const SIZES: BuildSize[] = ['weekend', 'weeks', 'team'];

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mapLimit } from '../utils';
 import { DISCOVERY_ACTORS, forumHostOf, runDiscoveryActors, searchDemand, searchSupply, signalRank, stackSiteOf, SUPPLY_COVERAGE } from './actors';
-import { callJsonModel, createEmbedding, llmUsage } from './llm';
+import { callJsonModel, createEmbedding, llmUsage } from '../llm';
 import { classifySupply, clusterByEmbedding, countFollowers, isCompleteQuote, isListable, isVerbatimQuote, meetsEvidenceBar, toSlug } from './rules';
 import { searchKnownProduct, searchWebDemand, searchWebSupply, webSearchEnabled } from './web';
 import type { ActorRun, Evidence, MemoryPain, Opportunity, OpportunitySnapshot, Platform, RawSignal, SupplyItem } from './types';

@@ -124,7 +124,7 @@ export function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: str
   );
 }
 
-export type LivePhase = 'waiting' | 'thinking' | 'writing' | 'structuring' | 'checking';
+export type LivePhase = 'waiting' | 'thinking' | 'writing' | 'structuring' | 'checking' | 'auditing';
 
 const PHASES: Record<LivePhase, [string, string]> = {
   waiting: ['모델에 연결하는 중', 'Connecting to the model'],
@@ -132,6 +132,7 @@ const PHASES: Record<LivePhase, [string, string]> = {
   writing: ['PRD를 쓰는 중', 'Writing the PRD'],
   structuring: ['문서를 요구사항과 기능으로 나누는 중', 'Splitting the document into requirements and features'],
   checking: ['빠진 곳을 검사하고 보완하는 중', 'Checking for gaps and repairing'],
+  auditing: ['P0 요구사항의 원문 근거를 대조하는 중', 'Auditing P0 requirements against cited quotes'],
 };
 
 /**

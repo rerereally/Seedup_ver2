@@ -132,7 +132,7 @@ export default async function Scrap({ searchParams }: { searchParams: Promise<{ 
               <EmptyState
                 title={savedItems.length ? '조건에 맞는 것이 없습니다' : '아직 저장한 것이 없습니다'}
                 description={savedItems.length ? '찾는 말이나 종류를 바꿔 보세요.' : '글이나 저장소에서 킵하기를 누르거나 PRD를 저장하면 여기에 모입니다.'}
-                actionHref={savedItems.length ? '/scrap' : '/news?tab=github'}
+                actionHref={savedItems.length ? '/scrap' : '/github-trends'}
                 actionLabel={savedItems.length ? '전체 보기' : '이번 주 오픈소스 보기'}
               />
             </div>

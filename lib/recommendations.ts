@@ -118,6 +118,8 @@ export type RecommendationProfile = {
   sections?: string[];
   /** Topics from what the user saved or liked on the site. */
   liked?: string[];
+  /** Topics and skills from items the user marked not interested / disliked. */
+  disliked?: string[];
   /** Newsletter content ids ("news:<id>") the user already saved or disliked. */
   excluded?: string[];
 };
@@ -146,15 +148,28 @@ export function overlap(left: string[] = [], right: string[] = []) {
   return unique(left).filter((value) => rightSet.has(value)).length;
 }
 
-const SHORT_ASCII_WORD = /^[a-z0-9]{1,3}$/i;
+const ASCII_VALUE = /^[\x20-\x7e]+$/;
 
-// Short English tokens like 'ai' or 'ui' would substring-match 'domain' or 'guide', so they need whole-word matches.
+function matchesAsWholeToken(needle: string, haystack: string) {
+  if (!needle || !haystack) return false;
+  if (needle === haystack) return true;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const start = /^[a-z0-9]/i.test(needle) ? '(?:^|[^a-z0-9])' : '(?:^|\\s)';
+  const end = /[a-z0-9]$/i.test(needle) ? '(?:$|[^a-z0-9])' : '(?:$|\\s)';
+  return new RegExp(`${start}${escaped}${end}`, 'i').test(haystack);
+}
+
+// Match Latin/ASCII tags on token boundaries so 'java' never matches 'javascript' and 'react' never matches 'reaction',
+// while keeping substring matching for Korean phrases like '프론트엔드' inside '프론트엔드 개발'.
 function fuzzyMatch(leftValue: string, rightValue: string) {
-  if (SHORT_ASCII_WORD.test(leftValue) || SHORT_ASCII_WORD.test(rightValue)) {
-    const wordsOf = (value: string) => value.split(/[^a-z0-9]+/i);
-    return leftValue === rightValue || wordsOf(rightValue).includes(leftValue) || wordsOf(leftValue).includes(rightValue);
-  }
-  return leftValue.includes(rightValue) || rightValue.includes(leftValue);
+  if (leftValue === rightValue) return true;
+  const leftAscii = ASCII_VALUE.test(leftValue);
+  const rightAscii = ASCII_VALUE.test(rightValue);
+  if (leftAscii && matchesAsWholeToken(leftValue, rightValue)) return true;
+  if (rightAscii && matchesAsWholeToken(rightValue, leftValue)) return true;
+  if (!leftAscii && rightValue.includes(leftValue)) return true;
+  if (!rightAscii && leftValue.includes(rightValue)) return true;
+  return false;
 }
 
 export function fuzzyOverlap(left: string[] = [], right: string[] = []) {
@@ -175,6 +190,7 @@ type ScoringProfile = {
   tracks: string[];
   tokens: string[];
   liked: string[];
+  disliked: string[];
   excluded: Set<string>;
 };
 
@@ -191,6 +207,7 @@ function toScoringProfile(profile: UserNewsletterProfile | RecommendationProfile
       tracks: inferPreferredTracks([...profile.interests, ...profile.goals, ...profile.preferred_roles, ...profile.preferred_stack]),
       tokens: [],
       liked: [],
+      disliked: [],
       excluded: new Set(),
     };
   }
@@ -204,8 +221,24 @@ function toScoringProfile(profile: UserNewsletterProfile | RecommendationProfile
     tracks: profile.tracks,
     tokens: profile.tokens,
     liked: profile.liked ?? [],
+    disliked: profile.disliked ?? [],
     excluded: new Set(profile.excluded ?? []),
   };
+}
+
+function hasPersonalSignals(p: ScoringProfile) {
+  return (
+    p.interests.length > 0
+    || p.stack.length > 0
+    || p.goals.length > 0
+    || p.roles.length > 0
+    || p.tracks.length > 0
+    || p.tokens.length > 0
+    || p.liked.length > 0
+    || p.disliked.length > 0
+    || p.levels.length > 0
+    || p.sections.length > 0
+  );
 }
 
 /** Points that fall off with age: a day-old item gets the most, a month-old item almost none. */
@@ -220,24 +253,52 @@ export function freshnessPoints(publishedAt: string | null | undefined, now = Da
   return 2;
 }
 
-export function scoreContent(content: RecommendationMetadata, profile: UserNewsletterProfile | RecommendationProfile, publishedAt?: string | null, now = Date.now()) {
+export type ScoreBreakdown = {
+  personal: number;
+  editorial: number;
+  total: number;
+};
+
+/**
+ * Separates personal relevance from shared editorial/freshness signals so editorial scores break ties
+ * rather than drowning out a reader's interests, stack, saved topics, and disliked topics.
+ */
+export function scoreContentBreakdown(
+  content: RecommendationMetadata,
+  profile: UserNewsletterProfile | RecommendationProfile,
+  publishedAt?: string | null,
+  now = Date.now(),
+): ScoreBreakdown {
   const p = toScoringProfile(profile);
-  let score = 0;
-  score += fuzzyOverlap(content.topic_tags, p.interests) * 4;
-  score += fuzzyOverlap(content.skill_tags, p.stack) * 3;
-  score += fuzzyOverlap(content.target_goals, p.goals) * 4;
-  score += overlap(content.related_roles, p.roles) * 4;
-  score += overlap(content.topic_tags, p.tracks) * 5;
-  // Free-form answer tokens are noisy, so they add a little and are capped.
-  if (p.tokens.length) score += Math.min(fuzzyOverlap([...content.topic_tags, ...content.skill_tags, ...content.target_interests], p.tokens), 4) * 2;
-  if (content.target_levels.some((level) => p.levels.some((own) => normalize(own) === normalize(level)))) score += 3;
-  if (p.sections.includes(content.newsletter_section)) score += 2;
-  if (p.liked.length) score += Math.min(fuzzyOverlap([...content.topic_tags, ...content.skill_tags], p.liked), 3) * 3;
-  score += content.newsletter_priority * 0.2;
-  score += content.novelty_score * 0.1;
-  score += content.source_quality_score * 0.1;
-  score += freshnessPoints(publishedAt, now) / 5;
-  return Math.round(score);
+  const contentTags = [...content.topic_tags, ...content.skill_tags];
+
+  let personal = 0;
+  personal += fuzzyOverlap(content.topic_tags, p.interests) * 20;
+  personal += fuzzyOverlap(content.skill_tags, p.stack) * 16;
+  personal += fuzzyOverlap(content.target_goals, p.goals) * 14;
+  personal += overlap(content.related_roles, p.roles) * 16;
+  personal += overlap(content.topic_tags, p.tracks) * 18;
+  // Free-form answer tokens are noisy, so they add moderately and are capped.
+  if (p.tokens.length) personal += Math.min(fuzzyOverlap([...contentTags, ...content.target_interests], p.tokens), 4) * 6;
+  if (content.target_levels.some((level) => p.levels.some((own) => normalize(own) === normalize(level)))) personal += 6;
+  if (p.sections.includes(content.newsletter_section)) personal += 4;
+  if (p.liked.length) personal += Math.min(fuzzyOverlap(contentTags, p.liked), 3) * 16;
+  if (p.disliked.length) personal -= Math.min(fuzzyOverlap(contentTags, p.disliked), 3) * 20;
+
+  const editorial =
+    content.newsletter_priority * 0.2
+    + content.novelty_score * 0.1
+    + content.source_quality_score * 0.1
+    + freshnessPoints(publishedAt, now) / 5;
+
+  // When personal signals exist, editorial/freshness is scaled into a tie-breaking band (~12pt spread)
+  // so a single genuine personal match always outranks an unrelated high-editorial item.
+  const total = Math.round(hasPersonalSignals(p) ? personal + editorial * 0.35 : editorial);
+  return { personal: Math.round(personal), editorial: Math.round(editorial), total };
+}
+
+export function scoreContent(content: RecommendationMetadata, profile: UserNewsletterProfile | RecommendationProfile, publishedAt?: string | null, now = Date.now()) {
+  return scoreContentBreakdown(content, profile, publishedAt, now).total;
 }
 
 /** Kept for callers that score demo profiles by metadata alone. */
@@ -674,10 +735,11 @@ export function scoreNewsletterItems(items: NewsletterContentItem[], profile: Us
 }
 
 function recommendationProfileReasons(content: RecommendationMetadata, profile: RecommendationProfile) {
+  const stackAndTokens = [...(profile.stack ?? []), ...profile.tokens];
   const reasons = [
     profile.liked?.length && fuzzyOverlap([...content.topic_tags, ...content.skill_tags], profile.liked) > 0 ? '저장·좋아요한 주제와 비슷' : null,
     fuzzyOverlap(content.topic_tags, profile.interests) > 0 ? '관심 분야와 일치' : null,
-    fuzzyOverlap(content.skill_tags, profile.tokens) > 0 ? '저장·선택한 기술과 연결' : null,
+    fuzzyOverlap(content.skill_tags, stackAndTokens) > 0 ? '저장·선택한 기술과 연결' : null,
     fuzzyOverlap(content.target_goals, profile.goals) > 0 ? '현재 목표와 연결' : null,
     content.project_convertible ? '프로젝트로 확장 가능' : null,
   ].filter(Boolean) as string[];
@@ -738,8 +800,8 @@ function inferRoles(values: string[]) {
 const CONTENT_ID_PREFIX: Record<string, string> = { news: 'news', paper: 'paper', ai_product: 'product', github: 'repo', project: 'project' };
 
 /**
- * Turns what one reader did on the site into newsletter signals: saved and liked items lend their topics
- * (liked), and anything already saved or disliked is not mailed again (excluded).
+ * Turns what one reader did on the site into recommendation signals: saved and liked items lend their topics
+ * (liked), disliked items lend penalty topics (disliked), and anything already saved or disliked is excluded.
  */
 export function behaviorSignals(
   scraps: Array<Pick<ScrapItem, 'item_type' | 'item_id' | 'title' | 'tag'>>,
@@ -749,6 +811,7 @@ export function behaviorSignals(
   const key = (type: string, id: string | null) => (CONTENT_ID_PREFIX[type] && id ? `${CONTENT_ID_PREFIX[type]}:${id}` : null);
   const byId = new Map(candidates.map((item) => [item.id, item]));
   const liked: string[] = [];
+  const disliked: string[] = [];
   const excluded: string[] = [];
   for (const scrap of scraps) {
     const id = key(scrap.item_type, scrap.item_id);
@@ -758,8 +821,16 @@ export function behaviorSignals(
   for (const reaction of reactions) {
     const id = key(reaction.item_type, reaction.item_id);
     if (!id) continue;
-    if (reaction.reaction === 'dislike') excluded.push(id);
-    else if (reaction.reaction === 'like') liked.push(...(byId.get(id)?.metadata.topic_tags ?? []));
+    const matched = byId.get(id);
+    if (reaction.reaction === 'dislike') {
+      excluded.push(id);
+      if (matched) disliked.push(...matched.metadata.topic_tags, ...matched.metadata.skill_tags);
+    } else if (reaction.reaction === 'like' && matched) {
+      liked.push(...matched.metadata.topic_tags);
+    }
   }
-  return { liked: unique(liked).slice(0, 30), excluded: [...new Set(excluded)] };
+  const uniqueLiked = unique(liked).slice(0, 30);
+  const likedSet = new Set(uniqueLiked);
+  const uniqueDisliked = unique(disliked).filter((tag) => !likedSet.has(tag)).slice(0, 20);
+  return { liked: uniqueLiked, disliked: uniqueDisliked, excluded: [...new Set(excluded)] };
 }

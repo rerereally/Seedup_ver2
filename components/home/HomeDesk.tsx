@@ -10,7 +10,7 @@ import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
-import { forYou, pickReads, ruleReads } from '@/lib/personal';
+import { homeRecommendations } from '@/lib/personal';
 import NotInterestedButton from '@/components/NotInterestedButton';
 import { recentReleases } from '@/lib/ingest/kept-repos';
 import type { RepoRelease } from '@/lib/ingest/kept-repos';
@@ -58,14 +58,15 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
 
   const dossiers = dossierRows.map((dossier) => ({ ...dossier, opportunity: opportunities.find((item) => item.slug === dossier.opportunity_slug) }));
   const onboarded = Boolean(answers && Object.keys(answers as object).length);
-  const picks = await forYou(user.id, {
+  const { picks, banner: picked } = await homeRecommendations(user.id, {
     answers,
     kept: scraps,
     keptKeys,
     planTitles: dossiers.map((item) => (item.opportunity ? item.opportunity.name : item.title)),
     opportunities,
     opportunityEmbeddings: embeddings,
-  }).catch(() => []);
+    articles,
+  }, { bannerLimit: BANNER_SIZE }).catch(() => ({ picks: [], banner: [] }));
   // The day's shared picks: verified problems seen most recently.
   const signals = [...opportunities]
     .filter((item) => item.qualified)
@@ -77,9 +78,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     ? await repoReleases<RepoRelease>(supabase, keptRepoIds)
     : [];
   const releases = recentReleases(keptRepoRows).slice(0, 4);
-  // The banner: the reader's five best-scored articles, topped up with the newest while there is little to go on.
-  const reads = await ruleReads(user.id, answers, scraps).catch(() => []);
-  const picked = pickReads(articles, reads, BANNER_SIZE);
+  // The banner: the reader's five best-scored articles (same engine as "For you"), topped up with the newest.
   const newest = [...articles].sort((a, b) => String(b.published_at ?? '').localeCompare(String(a.published_at ?? ''))).filter((item) => !picked.some((pick) => pick.item === item));
   const banner = [...picked, ...newest.slice(0, BANNER_SIZE - picked.length).map((item) => ({ item, reason: undefined }))];
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });

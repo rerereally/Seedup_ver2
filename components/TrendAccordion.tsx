@@ -1,6 +1,7 @@
 'use client';
 
 import type { Trend, TrendSnapshot } from '@/lib/data';
+import { isGenericTitle } from '@/lib/ingest/trend-builder';
 import { ArrowUpRight, ChevronDown, Code2, FileText, PackageSearch, Radio } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
@@ -154,9 +155,8 @@ function SourceMix({ trend }: { trend: Trend }) {
 }
 
 function isMeaningfulTrend(trend: Trend) {
-  const keyword = (trend.display_name ?? trend.keyword).toLowerCase().trim();
-  if (/^ai\s+(search|tool|tools|product|products|app|apps|software|service|services)$/.test(keyword)) return false;
-  if (/^(ai|llm|agent|coding agent|ai agent|developer|development|tools?|app|service|product|python|javascript|typescript|react|next\.?js|supabase|api|github|open source|rag|mcp|automation|workflow|dashboard|template|starter|boilerplate|framework|search|saas|productivity)$/.test(keyword)) return false;
+  const keyword = (trend.display_name ?? trend.keyword).trim();
+  if (isGenericTitle(keyword)) return false;
   if (/^(product|github|news|paper)\s+\d+$/i.test(trend.keyword)) return false;
   return true;
 }

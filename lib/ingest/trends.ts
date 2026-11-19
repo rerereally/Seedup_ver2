@@ -26,6 +26,7 @@ import {
   normalizeDisplayScore,
   pickTopByCategory,
   repoDisplayName,
+  staleTrendKeywords,
 } from '@/lib/ingest/trend-builder';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
@@ -41,7 +42,7 @@ export async function ingestTrends(request: Request) {
   const [newsResult, productsResult, reposResult, papersResult] = await Promise.all([
     supabase.from('news_items').select('id,title,category,related_skills,topic_tags,skill_tags,intent_tags,project_idea,relevance_score,daily_rank_score,original_url,source,published_at,created_at').order('published_at', { ascending: false }).limit(220),
     supabase.from('ai_products').select('id,name,category,use_cases,topic_tags,skill_tags,related_project_ideas,score,website_url,product_hunt_url,created_at').order('created_at', { ascending: false }).limit(140),
-    supabase.from('github_trends').select('id,repo_full_name,repo_url,topics,language,short_summary,beginner_summary,project_idea,relevance_score,stars,stars_delta_7d,pushed_at,created_at').order('stars', { ascending: false }).limit(180),
+    supabase.from('github_trends').select('id,repo_full_name,repo_url,topics,language,short_summary,beginner_summary,project_idea,relevance_score,stars,stars_delta_7d,pushed_at,created_at').order('stars_delta_7d', { ascending: false, nullsFirst: false }).order('stars', { ascending: false }).limit(180),
     supabase.from('research_papers').select('id,title,categories,related_skills,implementation_idea,service_idea,relevance_score,trend_score,buildability_score,paper_url,published_at,created_at').order('published_at', { ascending: false }).limit(120),
   ]);
 
@@ -79,11 +80,12 @@ export async function ingestTrends(request: Request) {
     const text = [repo.repo_full_name, repo.short_summary, repo.beginner_summary, repo.project_idea, ...(repo.topics ?? [])].join(' ');
     const weight = 18 + Math.min(stars / 800, 16) + Math.min(Math.max(starDelta, 0) / 5, 14) + Number(repo.relevance_score ?? 50) / 18;
     const skills = [repo.language, ...(repo.topics ?? [])].filter(Boolean) as string[];
-    addOpenSourceSignal(signals, displayName, weight * 1.35, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, skills, [displayName], 'GitHub');
-    addKnownToolModelSignals(signals, text, weight * 0.82, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, skills, [displayName], 'GitHub');
-    addWorkflowSignals(signals, text, weight * 0.7, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, skills, [displayName], 'GitHub');
-    addImplementationPatternSignals(signals, text, weight * 0.9, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, skills, [displayName], 'GitHub');
-    addBuildIdeaSignals(signals, repo.project_idea ?? text, weight * 0.82, 'github', repo.id, repo.repo_full_name, repo.repo_url, repo.pushed_at ?? repo.created_at, skills, [displayName], 'GitHub');
+    const repoDate = repo.created_at ?? repo.pushed_at;
+    addOpenSourceSignal(signals, displayName, weight * 1.35, 'github', repo.id, repo.repo_full_name, repo.repo_url, repoDate, skills, [displayName], 'GitHub');
+    addKnownToolModelSignals(signals, text, weight * 0.82, 'github', repo.id, repo.repo_full_name, repo.repo_url, repoDate, skills, [displayName], 'GitHub');
+    addWorkflowSignals(signals, text, weight * 0.7, 'github', repo.id, repo.repo_full_name, repo.repo_url, repoDate, skills, [displayName], 'GitHub');
+    addImplementationPatternSignals(signals, text, weight * 0.9, 'github', repo.id, repo.repo_full_name, repo.repo_url, repoDate, skills, [displayName], 'GitHub');
+    addBuildIdeaSignals(signals, repo.project_idea ?? text, weight * 0.82, 'github', repo.id, repo.repo_full_name, repo.repo_url, repoDate, skills, [displayName], 'GitHub');
   }
 
   for (const paper of papersResult.data ?? []) {
@@ -143,9 +145,29 @@ export async function ingestTrends(request: Request) {
     return { candidate, rank: index + 1, displayScore, previousScore, weeklyGrowthRate, trendDirection, status };
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+  const since6Days = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10);
+  const rankedKeywords = ranked.map((item) => item.candidate.displayName);
+  const historyByKeyword = new Map<string, number[]>();
+  if (rankedKeywords.length) {
+    const { data: priorSnapshots } = await supabase
+      .from('trend_snapshots')
+      .select('keyword,snapshot_date,score')
+      .in('keyword', rankedKeywords)
+      .gte('snapshot_date', since6Days)
+      .lt('snapshot_date', today)
+      .order('snapshot_date', { ascending: true });
+    for (const row of (priorSnapshots ?? []) as Array<{ keyword: string; score: number | null }>) {
+      const scores = historyByKeyword.get(row.keyword) ?? [];
+      scores.push(Number(row.score ?? 0));
+      historyByKeyword.set(row.keyword, scores);
+    }
+  }
+
   let upserted = 0;
   for (const item of ranked) {
     const { candidate } = item;
+    const realBars = buildBars([...(historyByKeyword.get(candidate.displayName) ?? []), item.displayScore]);
     const payload = {
       keyword: candidate.displayName,
       display_name: candidate.displayName,
@@ -162,8 +184,8 @@ export async function ingestTrends(request: Request) {
       trend_direction: item.trendDirection,
       score: item.displayScore,
       status: item.status,
-      bars: buildBars(item.displayScore),
-      why_trending: buildWhyTrending(candidate, item.weeklyGrowthRate),
+      bars: realBars,
+      why_trending: buildWhyTrending(candidate, item.weeklyGrowthRate, item.trendDirection === 'new'),
       related_skills: [...candidate.relatedSkills].filter((skill) => !isGenericTitle(skill)).slice(0, 10),
       related_tools: [...candidate.relatedTools].filter((tool) => !isGenericTitle(tool)).slice(0, 8),
       target_roles: inferTargetRoles(candidate.category, candidate.entityType),
@@ -207,7 +229,28 @@ export async function ingestTrends(request: Request) {
     }
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  let pruned = 0;
+  if (upserted > 0 && errors === 0) {
+    const { data: existingRows, error: listError } = await supabase.from('trends').select('keyword');
+    if (listError) {
+      console.error('Failed to list existing trends for pruning', listError);
+    } else {
+      const stale = staleTrendKeywords(
+        ((existingRows ?? []) as Array<{ keyword: string }>).map((row) => row.keyword),
+        rankedKeywords,
+      );
+      for (let i = 0; i < stale.length; i += 100) {
+        const chunk = stale.slice(i, i + 100);
+        const { error: deleteError } = await supabase.from('trends').delete().in('keyword', chunk);
+        if (deleteError) {
+          console.error('Failed to prune stale trends', deleteError);
+        } else {
+          pruned += chunk.length;
+        }
+      }
+    }
+  }
+
   const snapshotPayload = ranked.slice(0, 150).map(({ candidate, displayScore }) => ({
     keyword: candidate.displayName,
     snapshot_date: today,
@@ -236,8 +279,8 @@ export async function ingestTrends(request: Request) {
     skipped: Math.max(0, candidates.length - ranked.length),
     errors,
     durationMs: Date.now() - startedAt,
-    detail: { signals: signals.length, deduplicated: deduplicatedSignals.length, ranked: ranked.length, categories: CATEGORIES },
+    detail: { signals: signals.length, deduplicated: deduplicatedSignals.length, ranked: ranked.length, pruned, categories: CATEGORIES },
   });
 
-  return NextResponse.json({ ok: errors === 0, signals: signals.length, upserted, errors, ranked: ranked.length });
+  return NextResponse.json({ ok: errors === 0, signals: signals.length, upserted, pruned, errors, ranked: ranked.length });
 }

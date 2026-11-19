@@ -1,4 +1,4 @@
-import { consumeUsageFor, userForToken } from '@/lib/mcp/auth';
+import { consumeUsageFor, releaseUsageFor, userForToken } from '@/lib/mcp/auth';
 import { callJsonModel } from '@/lib/llm';
 import { handleRpc } from '@/lib/mcp/server';
 import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server';
@@ -18,11 +18,21 @@ import { userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossie
 import { addWatch } from '@/lib/db/watches';
 import { onboardingRow } from '@/lib/db/onboarding';
 import { sendWebhook } from '@/lib/newsletter/webhooks';
+import { clientOf, rateLimited } from '@/lib/throttle';
 import { NextResponse } from 'next/server';
+
+const NO_STORE = { 'Cache-Control': 'no-store' };
+const IP_REQUESTS_PER_MINUTE = 60;
+const USER_REQUESTS_PER_MINUTE = 30;
 
 const unauthorized = () => NextResponse.json(
   { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /agents (MCP 연동).' } },
-  { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } },
+  { status: 401, headers: { 'WWW-Authenticate': 'Bearer', ...NO_STORE } },
+);
+
+const throttled = () => NextResponse.json(
+  { jsonrpc: '2.0', id: null, error: { code: -32029, message: 'Too many requests. Try again in a minute.' } },
+  { status: 429, headers: { 'Retry-After': '60', ...NO_STORE } },
 );
 
 /**
@@ -31,10 +41,12 @@ const unauthorized = () => NextResponse.json(
  * `pathKey` is the token taken from /api/mcp/<token>, for apps whose connector form has no header field.
  */
 export async function handleMcpRequest(request: Request, pathKey?: string) {
+  if (await rateLimited(`mcp:ip:${clientOf(request)}`, IP_REQUESTS_PER_MINUTE)) return throttled();
   const service = createAdminClient();
-  if (!service) return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Server is not configured' } }, { status: 503 });
+  if (!service) return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Server is not configured' } }, { status: 503, headers: NO_STORE });
   const userId = await userForToken(service, pathKey ? `Bearer ${pathKey}` : request.headers.get('authorization'));
   if (!userId) return unauthorized();
+  if (await rateLimited(`mcp:user:${userId}`, USER_REQUESTS_PER_MINUTE)) return throttled();
 
   const body = await request.json().catch(() => undefined);
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/+$/, '');
@@ -95,6 +107,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       return result?.spec ?? null;
     },
     consume: (feature, limit) => consumeUsageFor(service, userId, feature, limit),
+    release: (feature) => releaseUsageFor(service, userId, feature),
     related: async (idea) => (await retrieveIdeaContext(idea, { maxReferences: 6, syncMissing: false, throwOnError: true })).map((row) => ({
       title: String(row.metadata.title ?? row.source_table),
       url: row.metadata.url ?? null,
@@ -127,5 +140,5 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     watch: async (idea) => typeof (await addWatch(service, userId, idea)) === 'object',
   };
   const answer = await handleRpc(body, deps, siteUrl);
-  return answer === null ? new Response(null, { status: 202 }) : NextResponse.json(answer);
+  return answer === null ? new Response(null, { status: 202, headers: NO_STORE }) : NextResponse.json(answer, { headers: NO_STORE });
 }

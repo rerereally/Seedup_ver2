@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { consumeDailyUsage, releaseDailyUsage, usageLimitFailsOpen } from '../lib/usage-limit';
-import { consumeUsageFor } from '../lib/mcp/auth';
+import { consumeUsageFor, releaseUsageFor } from '../lib/mcp/auth';
 
 function fakeClient(result: { data?: unknown; error?: { message: string } | null }) {
   const calls: Array<{ name: string; args: unknown }> = [];
@@ -60,4 +60,82 @@ test('MCP usage is counted by the atomic function with the token owner as the us
   const { client, calls } = fakeClient({ data: false });
   assert.equal(await consumeUsageFor(client, 'user-1', 'mcp_prd', 10), false);
   assert.deepEqual(calls, [{ name: 'consume_ai_usage_for', args: { p_user: 'user-1', p_feature: 'mcp_prd', p_daily_limit: 10 } }]);
+});
+
+test('MCP usage fallback follows usageLimitFailsOpen when the database fails', async () => {
+  const failingClient = (opts: { readError?: string; upsertError?: string }) => ({
+    rpc: async () => ({ data: null, error: { message: 'missing rpc' } }),
+    from: () => ({
+      select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: opts.readError ? null : { count: 1 }, error: opts.readError ? { message: opts.readError } : null }) }) }) }) }),
+      upsert: async () => ({ error: opts.upsertError ? { message: opts.upsertError } : null }),
+    }),
+  }) as unknown as SupabaseClient;
+
+  const original = console.error;
+  const previous = process.env.USAGE_LIMIT_FAIL_OPEN;
+  console.error = () => {};
+  try {
+    process.env.USAGE_LIMIT_FAIL_OPEN = 'false';
+    assert.equal(await consumeUsageFor(failingClient({ readError: 'db down' }), 'user-1', 'mcp_prd', 10), false);
+    assert.equal(await consumeUsageFor(failingClient({ upsertError: 'write failed' }), 'user-1', 'mcp_prd', 10), false);
+    process.env.USAGE_LIMIT_FAIL_OPEN = 'true';
+    assert.equal(await consumeUsageFor(failingClient({ readError: 'db down' }), 'user-1', 'mcp_prd', 10), true);
+    assert.equal(await consumeUsageFor(failingClient({ upsertError: 'write failed' }), 'user-1', 'mcp_prd', 10), true);
+  } finally {
+    console.error = original;
+    if (previous === undefined) delete process.env.USAGE_LIMIT_FAIL_OPEN;
+    else process.env.USAGE_LIMIT_FAIL_OPEN = previous;
+  }
+});
+
+test('releaseUsageFor decrements with optimistic CAS and retries on concurrent change', async () => {
+  let stored = 3;
+  let updateAttempts = 0;
+  const client = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { count: stored }, error: null }),
+            }),
+          }),
+        }),
+      }),
+      update: (patch: { count: number }) => ({
+        eq: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: (_col: string, expected: number) => ({
+                select: () => ({
+                  maybeSingle: async () => {
+                    updateAttempts += 1;
+                    // Simulate another request decrementing between read and update on the first attempt.
+                    if (updateAttempts === 1) {
+                      stored = 2;
+                      return { data: null, error: null };
+                    }
+                    if (stored !== expected) return { data: null, error: null };
+                    stored = patch.count;
+                    return { data: { count: stored }, error: null };
+                  },
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+
+  await releaseUsageFor(client, 'user-1', 'mcp_prd');
+  assert.equal(updateAttempts, 2);
+  assert.equal(stored, 1);
+
+  // Never decrements below zero.
+  stored = 0;
+  updateAttempts = 0;
+  await releaseUsageFor(client, 'user-1', 'mcp_prd');
+  assert.equal(updateAttempts, 0);
+  assert.equal(stored, 0);
 });

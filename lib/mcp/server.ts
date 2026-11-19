@@ -36,6 +36,11 @@ export type McpDeps = {
   cachedSpec: (evidenceIds: string[]) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /** Fallback pinned PRD for an opportunity slug (user dossier or latest cached PRD) when daily evidence shifts. */
   pinnedSpec?: (slug: string, opportunity: Opportunity) => Promise<{ input: SpecInput; spec: Spec } | null>;
+  /**
+   * Fills the six readiness slots of one feature that has none (a PRD made over MCP skips the web step that fills
+   * them) and returns the updated PRD, or null when it could not in time. The result is cached for later calls.
+   */
+  fillSlots?: (cached: { input: SpecInput; spec: Spec }, featureId: string) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /** Saves this PRD as the user's pinned one for the slug; keeps an existing pin unless `replace`. */
   pin?: (slug: string, result: { input: SpecInput; spec: Spec }, replace: boolean) => Promise<void>;
   /** Saved personal and problem PRDs owned by this user. */
@@ -360,12 +365,23 @@ export function pickNextTask(spec: Spec, progress: BuildProgress) {
   return { feature, status, evidence, why };
 }
 
-async function nextTaskResult(opportunity: Opportunity, cached: { input: SpecInput; spec: Spec }, progress: BuildProgress, deps: McpDeps): Promise<ToolResult> {
+async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInput; spec: Spec }, progress: BuildProgress, deps: McpDeps): Promise<ToolResult> {
   const { slug } = opportunity;
+  let cached = found;
   const task = pickNextTask(cached.spec, progress);
   if (!task.feature) return text(`No next task for "${slug}". ${task.why}`);
 
-  const { feature, status, evidence, why } = task;
+  const { status, evidence, why } = task;
+  let feature = task.feature;
+  // The feature about to be built gets its readiness slots now if the PRD never had them, once; the PRD keeps them.
+  if (!feature.slots && deps.fillSlots) {
+    const filled = await deps.fillSlots(cached, feature.id).catch(() => null);
+    const updated = filled?.spec.features.find((row) => row.id === feature.id);
+    if (filled && updated?.slots) {
+      cached = filled;
+      feature = updated;
+    }
+  }
   const criteria = featureCriteria(cached.spec, feature);
   // The cache key ignores order, but E-n always refers to the order saved with the PRD.
   // Fall back to the pinned PRD's own stored evidence if the daily engine rotated a quote out of opportunity.evidence.

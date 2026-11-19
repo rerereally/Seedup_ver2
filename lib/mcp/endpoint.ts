@@ -5,7 +5,7 @@ import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server'
 import { getOpportunities } from '@/lib/opportunities/data';
 import { flagBuildProgressForCommit, readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
 import { countUnlinkedCommits, featureFiles, writeFeatureCommit } from '@/lib/opportunities/feature-commits';
-import { generatePrd } from '@/lib/opportunities/prd';
+import { generatePrd, generateSlots } from '@/lib/opportunities/prd';
 import { readLatestPrdCacheForTitle, readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { normalizeSpec, renderSpecMarkdown } from '@/lib/opportunities/spec';
@@ -22,6 +22,8 @@ import { sendWebhook } from '@/lib/newsletter/webhooks';
 import { clientOf, rateLimited } from '@/lib/throttle';
 import { NextResponse } from 'next/server';
 
+// How long get_next_task waits for a feature's readiness slots before answering with open questions.
+const SLOT_FILL_MS = 45_000;
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const IP_REQUESTS_PER_MINUTE = 60;
 const USER_REQUESTS_PER_MINUTE = 30;
@@ -91,6 +93,20 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         evidence: result.input.evidence,
         prd_markdown: renderSpecMarkdown(result.input, result.spec),
       });
+    },
+    fillSlots: async (cached, featureId) => {
+      const feature = cached.spec.features.find((row) => row.id === featureId);
+      if (!feature) return null;
+      const rows = [...cached.spec.requirements, ...cached.spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
+      // A free model can take a minute; the agent gets the task with open questions rather than waiting longer.
+      const slots = await Promise.race([
+        generateSlots(cached.input, feature, rows, cached.spec.lang ?? 'ko').catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), SLOT_FILL_MS)),
+      ]);
+      if (!slots) return null;
+      const spec = { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots } : row)) };
+      await writePrdCache(service, cached.input.evidence.map((item) => item.id), cached.input, spec);
+      return { input: cached.input, spec };
     },
     myPrds: async (limit): Promise<SavedPrdSummary[]> => {
       const rows = await userPrds(service, userId, limit);

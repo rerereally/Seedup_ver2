@@ -37,7 +37,7 @@
 | **근거** | 요약은 주지만 원문 근거는 약함 | 짧은 프롬프트만 보고 그럴듯한 PRD 생성 | LLM이 뽑은 인용이 **원문에 글자 그대로 있을 때만** 채택(`isVerbatimQuote`). 증언 근거가 없는 요구사항은 서버가 **가설(H-n)**로 따로 둠 |
 | **시장 확인** | 경쟁 상황 분석 없음 | 이미 같은 도구가 있어도 칭찬함 | GitHub · npm · Show HN · VS Code · App Store에서 기존 도구를 찾아 **직접 경쟁 수**와 시장 상태(`open` / `narrowing` / `closed`)를 표시 |
 | **코딩 연결** | 읽기에서 끝남 | 마크다운 한 장으로 끝남 | `증언(E) → 요구사항(R) → 기능(F) → 화면(S)` 추적, 6가지 개발 준비 슬롯, `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` 내보내기, **MCP 서버(작업 진행·커밋 역추적·재검증 포함)**로 에이전트가 직접 가져감 |
-| **기존 프로젝트** | 지원 안 함 | 새 아이템만 다룸 | 내 GitHub 저장소를 분석해 **다음 기능 3가지와 역기획 스펙**을 제안(`/seeds`) |
+| **기존 프로젝트** | 지원 안 함 | 새 아이템만 다룸 | 내 GitHub 저장소를 분석해 **다음 기능 3가지와 역기획 스펙**을 제안(`/prd/repo`) |
 
 ---
 
@@ -85,6 +85,21 @@ flowchart TB
   L --> A3
 ```
 
+### 모델을 믿지 않는 네 겹의 확인
+
+무료 LLM이 틀리거나 지어내는 것을 전제로, 각 단계 결과를 코드가 다시 확인합니다.
+
+| 단계 | 하는 일 | 위치 |
+|---|---|---|
+| 1. 원문 글자 대조 | 모델이 뽑은 인용이 원문에 글자 그대로 있을 때만 근거로 채택 | `isVerbatimQuote` (`lib/opportunities/rules.ts`) |
+| 2. 구조 검사 | 요구사항, 기능, 화면의 참조를 강제하고 원문이 없는 요구사항은 가설(`H-n`)로 분리 | `normalizeSpec` (`lib/opportunities/spec.ts`) |
+| 3. P0 점검 | P0마다 테스트 가능한 수락 기준이 있는지 검사하고 없으면 한 번 수정. 원문 대비 범위 비약을 보는 P0 Critic은 평가 실험에서 켜서 비교 중 | `specIssues`, `prd-audit.ts` |
+| 4. 정량 평가 | 같은 20건을 고정해 PRD 품질을 반복 측정 | `scripts/eval-prd.ts`, `scripts/judge-prd.ts` |
+
+비슷한 불만을 한 문제로 묶을 때는 임베딩 군집을 두 번 돌립니다. 한 번 묶은 뒤 모든 글을 최종 중심과 다시 비교해, 입력 순서 때문에 동떨어진 글이 줄줄이 붙는 것을 막습니다(`clusterByEmbedding`).
+
+측정 결과는 [docs/scorecard.md](docs/scorecard.md)에 있습니다. 같은 20건 기준으로 생성 성공 19/20에서 20/20, PRD당 형식 지적 0.7에서 0, 내용 종합 3.0에서 7.4(10점 만점), 걸린 시간 중간값 64초에서 55초입니다. 운영에 공개된 인용 63개 중 83%(52/63)가 원문과 맞았습니다(팀 확인 중).
+
 ---
 
 ## 🚀 주요 기능
@@ -114,7 +129,8 @@ flowchart TB
 - **근거 직접 추가:** 글 링크를 붙이면 Seedup이 그 글을 읽어 글자 단위로 맞는 문장만 원문으로 담습니다. 크롬 확장으로 담은 문장도 여기 나옵니다.
 - **내보내기와 공유:** `AGENTS.md` · `CLAUDE.md` · `.cursor/rules`, Lovable · Bolt · v0용 첫 프롬프트, PRD 마크다운, Mermaid 코드 복사. 보관함에서 읽기 전용 공개 링크(`/spec/[id]`)를 켜고, 만든 결과물 링크("만들었어요")를 붙일 수 있습니다.
 
-### 4. 아이디어 검증 (`/ideas`, `/try/[slug]`)
+### 4. 아이디어 검증 (`/prd/validate`, `/try/[slug]`)
+- `/prd` 입력창의 토글에서 **아이디어 검증**을 고르면 왼쪽 대화, 오른쪽 평가 결과 화면으로 열립니다(예전 `/ideas`는 이리로 넘어옵니다).
 - **검증 리포트(하루 3건):** 아이디어 하나에 대해 실제 원문, 기존 도구, 첫 사용자 후보, 판정을 한 장으로 줍니다.
 - **AI 평가:** pgvector 하이브리드 RAG로 관련 뉴스 · 논문 · 오픈소스 · AI 제품 근거를 찾아 점수를 매기고, 사용자가 말한 것(`user_stated`)과 AI가 추정한 것(`inferred_assumptions`)을 나눠 보여 줍니다.
 - **지켜보기:** 아이디어를 등록하면 매주 새 원문과 새 경쟁 도구를 메일로 알려 줍니다(최대 10개).
@@ -123,7 +139,8 @@ flowchart TB
 ### 5. MCP 연동 (`/agents`)
 - **도구 9가지 연결:** Claude Code, Claude 앱, Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT마다 맞는 설정을 보여 주고, 복사하거나 열 때 토큰 발급까지 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
 - **MCP Apps 카드 UI (`lib/mcp/apps.ts`):** Claude 데스크톱·웹, VS Code Copilot 등 MCP Apps 지원 클라이언트에서는 검색 결과·PRD·체크리스트·다음 작업을 인터랙티브 카드로 함께 렌더링합니다.
-- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 13개:
+- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 16개와 프롬프트 4개(`discover-and-spec`, `build-next-feature`, `pre-ship-audit`, `why-this-file`), 리소스(`seedup://prds/active`, `seedup://kept/recent`). 도구마다 `readOnlyHint` 등 annotations를 달아, 하루 한도를 쓰는 도구는 실행 전에 확인을 받습니다.
+- **진행 중 PRD 고정:** 에이전트가 만들거나 사이트에서 저장한 PRD를 사용자별로 고정해, 매일 엔진이 원문을 더해도 기능 번호(`F-n`)와 진행 기록이 어긋나지 않습니다.
 
 | 도구 | 하는 일 |
 | :--- | :--- |
@@ -140,8 +157,12 @@ flowchart TB
 | `find_related_content` | 아이디어와 의미가 가까운 뉴스 · 논문 · 저장소 · 제품 |
 | `validate_idea` | 아이디어 검증 리포트(하루 3회) |
 | `watch_idea` | 아이디어 지켜보기 등록(최대 10개) |
+| `list_my_prds` | 내가 저장한 PRD 목록(내 아이디어 PRD 포함) |
+| `get_my_prd` | 저장한 PRD 하나를 마크다운이나 에이전트 파일 형식으로 |
+| `explain_file` | 파일 경로가 어떤 기능(`F-n`), 요구사항(`R-n`), 원문(`E-n`) 때문에 있는지 역추적 |
 
-### 6. 레포 분석 (`/seeds`)
+### 6. 레포 분석 (`/prd/repo`)
+- `/prd` 입력창의 토글에서 **레포 분석**을 고르면 왼쪽 대화의 레포 목록에서 하나를 골라 오른쪽에서 봅니다(예전 `/seeds`는 이리로 넘어옵니다).
 - GitHub 계정의 최근 공개 저장소(포크 제외)를 README · 언어 · 토픽으로 분석해 가까운 문제, 관련 아티클, 비슷한 오픈소스를 연결합니다.
 - **다음 기능 3가지 제안:** 저장소의 `issues/new`를 제목과 본문이 채워진 상태로 바로 엽니다.
 - **역기획(Reverse Spec):** README, 상위 2단계 파일 트리, `package.json` / `pyproject.toml`을 읽어 **깨면 안 되는 기존 구조**를 지키며 새 기능 스펙을 만듭니다.
@@ -344,7 +365,7 @@ npm run dev          # http://localhost:3000
 npm run migrations   # 마이그레이션 파일 이름·순서·매니페스트 검증
 npm run typecheck
 npm run lint
-npm test             # 단위 테스트 220+개
+npm test             # 단위 테스트 250+개(31개 파일)
 npm run build
 npm run e2e          # Playwright 브라우저 E2E 테스트
 SMOKE_BASE_URL=http://localhost:3000 npm run smoke   # 주요 화면 · API 스모크 테스트
@@ -451,7 +472,7 @@ lib/
 extension/                    크롬 확장 "Seedup 원문 담기"
 scripts/                      엔진 실행, 메일, 점검, 재임베딩, PRD 평가, 예측 봉인
 supabase/                     전체 스키마와 26개 증분 마이그레이션 SQL
-tests/                        단위 테스트 220+개
+tests/                        단위 테스트 250+개(31개 파일)
 e2e/                          Playwright E2E 테스트
 docs/                         서비스 계획, UI 계획, 트렌드·추천 평가, 사용자 확인 가이드
 ```

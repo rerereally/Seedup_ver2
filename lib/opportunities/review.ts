@@ -11,6 +11,7 @@ const HIDDEN: Record<string, string> = {
   'kagi-mcp-server-missing': 'a request for one vendor, and 9 direct rivals already exist',
   'positive-ai-developer-community': 'an opinion about a community, not a problem software solves',
   'gpu-rental-price-arbitrage': 'a price comparison and a wish to trade, not a pain',
+  'international-meeting-time-zone-sync': 'everyday complaints about time zones, a space crowded with mature tools',
 };
 
 // Quotes that are verbatim but say something other than the problem they are filed under.

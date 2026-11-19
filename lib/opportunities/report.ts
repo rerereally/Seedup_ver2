@@ -3,7 +3,7 @@ import { estimateBuild } from './build';
 import { findLiveEvidence } from './live-evidence';
 import { callJsonModel } from '../llm';
 import { matchOpportunities } from './match';
-import { meetsEvidenceBar } from './rules';
+import { firstUserSources, meetsEvidenceBar } from './rules';
 import { PLATFORM_LABELS } from './types';
 import type { BuildEstimate, Evidence, Opportunity, SupplyItem } from './types';
 import { searchWebSupply, webSearchEnabled } from './web';
@@ -38,10 +38,8 @@ export function reportVerdict(quotes: number, platforms: number, direct: number)
   return { level: 'go', reason: `원문 ${quotes}건, ${platforms}곳에서 같은 문제를 확인했고, 같은 문제를 그대로 푸는 도구는 ${direct}개입니다.` };
 }
 
-/** The people who described the problem, one per post, quotes first then the related problems' quotes. */
 export function firstUsersFrom(quotes: Evidence[], limit = 10) {
-  const seen = new Set<string>();
-  return quotes.filter((row) => !seen.has(row.url) && seen.add(row.url)).slice(0, limit).map((row) => ({ platform: PLATFORM_LABELS[row.platform] ?? row.platform, url: row.url, quote: row.quote }));
+  return firstUserSources(quotes, limit).map((row) => ({ platform: PLATFORM_LABELS[row.platform] ?? row.platform, url: row.url, quote: row.quote }));
 }
 
 async function labelRivals(idea: string, supply: Array<Omit<SupplyItem, 'relation'>>) {

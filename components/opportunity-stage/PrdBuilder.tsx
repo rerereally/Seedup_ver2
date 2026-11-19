@@ -394,7 +394,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setNeedsLogin(false);
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', { title, evidenceIds: ids, prdMarkdown: markdown || undefined });
+      const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', {
+        title,
+        evidenceIds: ids,
+        ...(requestBody?.liveEvidence ? { liveEvidence: requestBody.liveEvidence } : {}),
+        ...(agentSlug ? { opportunitySlug: agentSlug } : {}),
+        prdMarkdown: markdown || undefined,
+      });
       if (!ok) {
         fail(code, json, t('저장하지 못했습니다.', 'Could not save.'));
         setSaveState('idle');

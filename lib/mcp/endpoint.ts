@@ -1,16 +1,20 @@
 import { consumeUsageFor, userForToken } from '@/lib/mcp/auth';
 import { callJsonModel } from '@/lib/llm';
 import { handleRpc } from '@/lib/mcp/server';
-import type { McpDeps } from '@/lib/mcp/server';
+import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { flagBuildProgressForCommit, readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
 import { countUnlinkedCommits, featureFiles, writeFeatureCommit } from '@/lib/opportunities/feature-commits';
 import { generatePrd } from '@/lib/opportunities/prd';
-import { readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
+import { readLatestPrdCacheForTitle, readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
+import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
+import { normalizeSpec } from '@/lib/opportunities/spec';
+import type { Evidence } from '@/lib/opportunities/types';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
+import { userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
 import { addWatch } from '@/lib/db/watches';
 import { onboardingRow } from '@/lib/db/onboarding';
 import { sendWebhook } from '@/lib/newsletter/webhooks';
@@ -37,6 +41,54 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
   const deps: McpDeps = {
     opportunities: async () => (await getOpportunities()).opportunities,
     cachedSpec: (ids) => readPrdCache(service, ids),
+    pinnedSpec: async (slug, opportunity) => {
+      const pinned = await userPinnedDossierForSlug(service, userId, slug);
+      if (pinned) {
+        if (pinned.evidence_ids.length) {
+          const cached = await readPrdCache(service, pinned.evidence_ids);
+          if (cached) return cached;
+        }
+        const parsed = parsePrdMarkdown(pinned.prd_markdown);
+        if (parsed) {
+          const evidence = Array.isArray(pinned.evidence) ? (pinned.evidence as Evidence[]) : opportunity.evidence;
+          const spec = normalizeSpec(parsed, evidence.length, !opportunity.qualified);
+          return {
+            input: {
+              title: pinned.title || opportunity.name,
+              problem: opportunity.problem,
+              gap: opportunity.gap,
+              evidence,
+              competitors: opportunity.supply.filter((row) => row.relation === 'direct').map((row) => row.name),
+            },
+            spec,
+          };
+        }
+      }
+      return readLatestPrdCacheForTitle(service, opportunity.name);
+    },
+    myPrds: async (limit): Promise<SavedPrdSummary[]> => {
+      const rows = await userPrds(service, userId, limit);
+      return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        opportunitySlug: row.opportunity_slug,
+        evidenceCount: Array.isArray(row.evidence_ids) ? row.evidence_ids.length : 0,
+        updatedAt: row.updated_at,
+      }));
+    },
+    myPrd: async (id): Promise<SavedPrdDetail | null> => {
+      const row = await userPrdById(service, userId, id);
+      if (!row) return null;
+      return {
+        id: row.id,
+        title: row.title,
+        opportunitySlug: row.opportunity_slug,
+        evidenceCount: Array.isArray(row.evidence_ids) ? row.evidence_ids.length : 0,
+        updatedAt: row.updated_at,
+        prdMarkdown: row.prd_markdown,
+        evidence: Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [],
+      };
+    },
     generate: async (input, draft) => {
       const result = await generatePrd(input, { draft }).catch(() => null);
       if (result) await writePrdCache(service, input.evidence.map((item) => item.id), input, result.spec);

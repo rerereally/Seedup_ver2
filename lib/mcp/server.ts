@@ -6,8 +6,9 @@ import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/buil
 import { touchedDoneFeatures } from '@/lib/opportunities/feature-commits';
 import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
+import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, normalizeSpec, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecInput } from '@/lib/opportunities/spec';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 
@@ -15,10 +16,29 @@ export const MCP_DAILY_PRD_LIMIT = 10;
 export const MCP_DAILY_REPORT_LIMIT = 3;
 const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
+export type SavedPrdSummary = {
+  id: string;
+  title: string;
+  opportunitySlug: string | null;
+  evidenceCount: number;
+  updatedAt: string;
+};
+
+export type SavedPrdDetail = SavedPrdSummary & {
+  prdMarkdown: string;
+  evidence: Evidence[];
+};
+
 export type McpDeps = {
   opportunities: () => Promise<Opportunity[]>;
   /** The last good PRD for this exact evidence set, if one was generated before. */
   cachedSpec: (evidenceIds: string[]) => Promise<{ input: SpecInput; spec: Spec } | null>;
+  /** Fallback pinned PRD for an opportunity slug (user dossier or latest cached PRD) when daily evidence shifts. */
+  pinnedSpec?: (slug: string, opportunity: Opportunity) => Promise<{ input: SpecInput; spec: Spec } | null>;
+  /** Saved personal and problem PRDs owned by this user. */
+  myPrds?: (limit: number) => Promise<SavedPrdSummary[]>;
+  /** One saved PRD owned by this user, with its markdown and evidence. */
+  myPrd?: (id: string) => Promise<SavedPrdDetail | null>;
   generate: (input: SpecInput, draft: boolean) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
@@ -66,16 +86,21 @@ const progressProperties = {
   },
 };
 
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+const STATE_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+
 export const TOOLS = [
   {
     name: 'search_opportunities',
     description: 'Search Seedup build opportunities: developer pains with verified quotes from GitHub, Hacker News and Stack Overflow, and how crowded the market is.',
     inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Keywords, e.g. "agent memory" or "schema"' }, limit: { type: 'number', minimum: 1, maximum: 10 } }, required: ['query'] },
+    annotations: READ_ONLY,
   },
   {
     name: 'get_opportunity',
     description: 'Full detail of one opportunity: the problem, the gap, every verified quote with its source link, and direct competitors.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
+    annotations: READ_ONLY,
   },
   {
     name: 'generate_verified_prd',
@@ -89,16 +114,19 @@ export const TOOLS = [
       },
       required: ['slug'],
     },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: 'get_build_checklist',
     description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its current status and done criteria.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
+    annotations: READ_ONLY,
   },
   {
     name: 'get_next_task',
-    description: 'Call at the start of a session. Picks one ready feature from the cached PRD and includes its done criteria, readiness slots, verified quotes, related files and status calls.',
+    description: 'Call at the start of a session. Picks one ready feature from the cached or pinned PRD and includes its done criteria, readiness slots, verified quotes, related files and status calls.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
+    annotations: READ_ONLY,
   },
   {
     name: 'update_feature_status',
@@ -112,6 +140,7 @@ export const TOOLS = [
       },
       required: ['slug', 'feature_id', 'status'],
     },
+    annotations: STATE_WRITE,
   },
   {
     name: 'mark_feature_done',
@@ -125,6 +154,7 @@ export const TOOLS = [
       },
       required: ['slug', 'feature'],
     },
+    annotations: STATE_WRITE,
   },
   {
     name: 'link_commit',
@@ -140,6 +170,7 @@ export const TOOLS = [
       },
       required: ['slug', 'sha', 'message', 'files'],
     },
+    annotations: STATE_WRITE,
   },
   {
     name: 'verify_feature',
@@ -149,6 +180,7 @@ export const TOOLS = [
       properties: { slug: { type: 'string' }, feature: { type: 'string' }, diff: { type: 'string' } },
       required: ['slug', 'feature', 'diff'],
     },
+    annotations: READ_ONLY,
   },
   {
     name: 'get_kept_items',
@@ -160,21 +192,104 @@ export const TOOLS = [
         limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
       },
     },
+    annotations: READ_ONLY,
   },
   {
     name: 'find_related_content',
     description: 'News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
+    annotations: READ_ONLY,
   },
   {
     name: 'validate_idea',
     description: 'Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
     name: 'watch_idea',
     description: 'Watch one idea: once a week Seedup searches again and mails the user any new quotes or new rival tools for it. Up to 10 ideas.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
+    annotations: STATE_WRITE,
+  },
+  {
+    name: 'list_my_prds',
+    description: 'List PRDs the user saved on Seedup (including personal idea PRDs and saved opportunity PRDs), newest first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
+      },
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'get_my_prd',
+    description: 'Read one saved PRD owned by this user (by id from list_my_prds) as PRD markdown or an agent brief (AGENTS.md, CLAUDE.md, Cursor rule, or app-builder prompt).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Saved PRD id (UUID from list_my_prds)' },
+        format: { type: 'string', enum: ['prd', 'agents', 'claude', 'cursor', 'prompt'], description: 'Default prd' },
+      },
+      required: ['id'],
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'explain_file',
+    description: 'Reverse-trace a repository file path back to the PRD features (F-n), requirements (R-n/H-n), verified user quotes (E-n), and done criteria that depend on it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string' },
+        path: { type: 'string', description: 'Repository-relative file path, e.g. src/notes.ts' },
+      },
+      required: ['slug', 'path'],
+    },
+    annotations: READ_ONLY,
+  },
+] as const;
+
+export const PROMPTS = [
+  {
+    name: 'discover-and-spec',
+    description: 'Search verified developer pains on Seedup, compare top candidates and competitors, and generate an evidence-traced PRD.',
+    arguments: [{ name: 'query', description: 'Topic or pain keywords to search', required: true }],
+  },
+  {
+    name: 'build-next-feature',
+    description: 'Start a focused coding session: fetch the next ready PRD feature, mark it in_progress, implement it, verify criteria, link the commit, and mark it done.',
+    arguments: [{ name: 'slug', description: 'Opportunity slug', required: true }],
+  },
+  {
+    name: 'pre-ship-audit',
+    description: 'Audit build readiness before shipping: inspect unfinished or needs_recheck features and verify diffs against done criteria.',
+    arguments: [{ name: 'slug', description: 'Opportunity slug', required: true }],
+  },
+  {
+    name: 'why-this-file',
+    description: 'Explain why a file exists in terms of PRD features, requirements, verified user quotes, and criteria that must not break when editing it.',
+    arguments: [
+      { name: 'slug', description: 'Opportunity slug', required: true },
+      { name: 'path', description: 'Repository-relative file path', required: true },
+    ],
+  },
+] as const;
+
+const STATIC_RESOURCES = [
+  appResource,
+  {
+    uri: 'seedup://prds/active',
+    name: 'Active Seedup PRDs',
+    description: 'Saved PRDs owned by this user (opportunity PRDs and personal idea PRDs)',
+    mimeType: 'text/markdown',
+  },
+  {
+    uri: 'seedup://kept/recent',
+    name: 'Recent kept references',
+    description: 'Recently kept GitHub repos, articles, papers, and AI products on Seedup',
+    mimeType: 'text/markdown',
   },
 ] as const;
 
@@ -248,9 +363,10 @@ async function nextTaskResult(opportunity: Opportunity, cached: { input: SpecInp
   const { feature, status, evidence, why } = task;
   const criteria = featureCriteria(cached.spec, feature);
   // The cache key ignores order, but E-n always refers to the order saved with the PRD.
+  // Fall back to the pinned PRD's own stored evidence if the daily engine rotated a quote out of opportunity.evidence.
   const quotes = [...evidence].sort((a, b) => a - b).flatMap((number) => {
-    const id = cached.input.evidence[number - 1]?.id;
-    const quote = opportunity.evidence.find((item) => item.id === id);
+    const saved = cached.input.evidence[number - 1];
+    const quote = (saved?.id ? opportunity.evidence.find((item) => item.id === saved.id) : undefined) ?? saved;
     return quote ? [describeQuote(quote, number)] : [];
   });
   const files = (await deps.featureFiles?.(slug))?.[feature.id] ?? [];
@@ -338,7 +454,160 @@ function isRepoPath(file: unknown): file is string {
     && !file.includes('\0') && !/^(?:[/\\]|[a-z]:)/i.test(file) && !file.split(/[/\\]/).includes('..');
 }
 
+function normalizeRepoPath(path: string) {
+  return path.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+}
+
+/**
+ * Resolves the active PRD for an opportunity slug: checks exact current-evidence cache first,
+ * then falls back to the user's pinned dossier or latest cached PRD so daily quote updates never
+ * break an active build session.
+ */
+async function resolveSpecForSlug(opportunity: Opportunity, deps: McpDeps): Promise<{ input: SpecInput; spec: Spec } | null> {
+  const exact = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
+  if (exact) return exact;
+  return deps.pinnedSpec ? deps.pinnedSpec(opportunity.slug, opportunity) : null;
+}
+
+function renderSavedPrdList(items: SavedPrdSummary[], siteUrl: string) {
+  if (!items.length) return `No saved PRDs yet. Create and save one at ${siteUrl}/prd.`;
+  return `${items.length} saved PRD${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map((item) => [
+    `- ${item.title} (id: ${item.id})`,
+    item.opportunitySlug ? `  Opportunity slug: ${item.opportunitySlug}` : '  Personal idea PRD (no opportunity slug)',
+    `  Evidence: ${item.evidenceCount} quote${item.evidenceCount === 1 ? '' : 's'} · Updated ${item.updatedAt.slice(0, 10)}`,
+    `  Use: get_my_prd {"id":"${item.id}","format":"agents"}`,
+  ].join('\n')).join('\n\n')}`;
+}
+
+function renderSavedPrdExport(saved: SavedPrdDetail, format: ExportFormat | 'prd') {
+  if (format === 'prd') return saved.prdMarkdown;
+  const parsed = parsePrdMarkdown(saved.prdMarkdown);
+  if (!parsed) return saved.prdMarkdown;
+  const spec = normalizeSpec(parsed, saved.evidence.length, saved.evidence.length < 3, { idea: !saved.opportunitySlug });
+  const input: SpecInput = {
+    title: saved.title,
+    problem: spec.background || spec.summary || saved.title,
+    gap: '',
+    evidence: saved.evidence,
+    competitors: [],
+  };
+  const brief = renderAgentBrief(input, spec, format, saved.opportunitySlug ?? undefined);
+  return `Save as ${EXPORT_FILES[format]}:\n\n${brief}`;
+}
+
+async function explainFileResult(opportunity: Opportunity, cached: { input: SpecInput; spec: Spec }, rawPath: unknown, deps: McpDeps): Promise<ToolResult> {
+  const normalized = typeof rawPath === 'string' ? normalizeRepoPath(rawPath) : '';
+  if (!isRepoPath(normalized)) return text('Provide a repository-relative file path (1–300 characters, no ".." segments).', true);
+
+  const [progress, linked] = await Promise.all([deps.progress(opportunity.slug), deps.featureFiles(opportunity.slug)]);
+  const matchingFeatureIds = Object.entries(linked)
+    .filter(([, files]) => files.some((file) => normalizeRepoPath(file) === normalized))
+    .map(([featureId]) => featureId);
+
+  if (!matchingFeatureIds.length) {
+    return text(`No linked feature touches "${normalized}" in "${opportunity.slug}" yet. Call link_commit after commits so Seedup can map files back to PRD features and verified quotes.`);
+  }
+
+  const allReqs = new Map([...cached.spec.requirements, ...cached.spec.hypotheses].map((row) => [row.id, row]));
+  const sections = matchingFeatureIds.flatMap((featureId) => {
+    const feature = cached.spec.features.find((row) => row.id === featureId);
+    if (!feature) return [];
+    const status = progress[feature.id]?.status ?? 'todo';
+    const served = feature.requirementIds.flatMap((rid) => {
+      const row = allReqs.get(rid);
+      return row ? [row] : [];
+    });
+    const quoteNumbers = [...new Set(served.flatMap((row) => row.evidence))].sort((a, b) => a - b);
+    const quotes = quoteNumbers.flatMap((number) => {
+      const saved = cached.input.evidence[number - 1];
+      const quote = (saved?.id ? opportunity.evidence.find((item) => item.id === saved.id) : undefined) ?? saved;
+      return quote ? [describeQuote(quote, number)] : [];
+    });
+    const criteria = featureCriteria(cached.spec, feature);
+    return [[
+      `## ${feature.id} ${feature.title} [${status}]`,
+      feature.detail,
+      '',
+      'Requirements served:',
+      ...(served.length
+        ? served.map((row) => `- ${row.id}${row.priority ? ` [${row.priority}]` : ''} ${row.title}: ${row.detail}`)
+        : ['- (none)']),
+      '',
+      'Verified quotes:',
+      ...(quotes.length ? quotes.map((line) => `- ${line}`) : ['- No verified quotes (hypothesis)']),
+      '',
+      'Done criteria to re-check if you modify this file:',
+      ...criteria.map((line, index) => `${index + 1}. ${line}`),
+    ].join('\n')];
+  });
+
+  if (!sections.length) {
+    return text(`Commits touching "${normalized}" exist, but none match a feature in the active PRD for "${opportunity.slug}".`);
+  }
+
+  return text(`Reverse trace for "${normalized}" in ${opportunity.name} (${opportunity.slug}):\n\n${sections.join('\n\n')}`);
+}
+
+const OPPORTUNITY_TOOLS = new Set([
+  'search_opportunities',
+  'get_opportunity',
+  'generate_verified_prd',
+  'get_build_checklist',
+  'get_next_task',
+  'update_feature_status',
+  'mark_feature_done',
+  'link_commit',
+  'verify_feature',
+  'explain_file',
+]);
+
 async function callTool(name: string, args: Record<string, unknown>, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
+  // Handle user-scoped tools first without loading the full opportunity catalog.
+  if (name === 'list_my_prds') {
+    const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
+    const items = deps.myPrds ? await deps.myPrds(limit) : [];
+    return text(renderSavedPrdList(items, siteUrl));
+  }
+  if (name === 'get_my_prd') {
+    const id = String(args.id ?? '').trim();
+    if (!id) return text('Provide the saved PRD id (from list_my_prds).', true);
+    const saved = deps.myPrd ? await deps.myPrd(id) : null;
+    if (!saved) return text(`Saved PRD "${id}" not found. Call list_my_prds first.`, true);
+    const format = (['prd', 'agents', 'claude', 'cursor', 'prompt'].includes(String(args.format)) ? String(args.format) : 'prd') as ExportFormat | 'prd';
+    return text(renderSavedPrdExport(saved, format));
+  }
+  if (name === 'get_kept_items') {
+    const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;
+    const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
+    const items = await deps.kept(type, limit);
+    if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/github-trends.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
+    return text(`${items.length} kept item${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map(renderKept).join('\n\n')}`);
+  }
+  if (name === 'validate_idea') {
+    const idea = String(args.idea ?? '').trim().slice(0, 300);
+    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
+    if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
+    const report = await deps.validate(idea);
+    return report ? text(report) : text('The report could not be made. Try again in a minute.', true);
+  }
+  if (name === 'watch_idea') {
+    const idea = String(args.idea ?? '').trim().slice(0, 300);
+    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
+    return (await deps.watch(idea))
+      ? text(`Watching "${idea}". Seedup checks it once a week and mails new quotes or rival tools. Stop it at ${siteUrl}/profile.`)
+      : text('Could not start the watch (the limit is 10 ideas, or the database is not set up yet).', true);
+  }
+  if (name === 'find_related_content') {
+    const idea = String(args.idea ?? '').trim().slice(0, 500);
+    if (idea.length < 5) return text('Describe the idea in a sentence.', true);
+    const rows = await deps.related(idea);
+    return text(rows.length ? rows.map((row) => `- ${row.title} (${row.source}, similarity ${row.similarity.toFixed(2)})${row.url ? ` ${row.url}` : ''}`).join('\n') : 'Nothing Seedup collected is close to this idea.');
+  }
+
+  if (!OPPORTUNITY_TOOLS.has(name)) {
+    return text(`Unknown tool "${name}".`, true);
+  }
+
   const opportunities = await deps.opportunities();
   if (name === 'search_opportunities') {
     const found = searchOpportunities(opportunities, String(args.query ?? ''), Number(args.limit ?? 5));
@@ -348,7 +617,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
   const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
-  const needsPrd = ['get_build_checklist', 'get_next_task', 'verify_feature'].includes(name) || updatesProgress;
+  const needsPrd = ['get_build_checklist', 'get_next_task', 'verify_feature', 'explain_file'].includes(name) || updatesProgress;
   if (['get_opportunity', 'generate_verified_prd', 'link_commit'].includes(name) || needsPrd) {
     if (!opportunity) return text(`Unknown opportunity "${slug}". Call search_opportunities first.`, true);
   }
@@ -383,7 +652,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const rawIds: string[] = features ?? message.match(/\bf-?\d+\b/gi) ?? [];
     const featureIds = new Set<string>();
     if (rawIds.length) {
-      const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
+      const cached = await resolveSpecForSlug(opportunity, deps);
       if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
       const validIds = new Set(cached.spec.features.map((row) => row.id));
       const unknown = new Set<string>();
@@ -417,8 +686,11 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     return text(lines.join('\n'));
   }
   if (needsPrd && opportunity) {
-    const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
+    const cached = await resolveSpecForSlug(opportunity, deps);
     if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
+    if (name === 'explain_file') {
+      return explainFileResult(opportunity, cached, args.path, deps);
+    }
     if (name === 'verify_feature') {
       const { diff } = args;
       if (typeof diff !== 'string' || !diff.trim()) return text('Provide a non-empty diff.', true);
@@ -478,34 +750,93 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     if (name === 'get_next_task') return nextTaskResult(opportunity, cached, progress, deps);
     return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
   }
-  if (name === 'get_kept_items') {
-    const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;
-    const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
-    const items = await deps.kept(type, limit);
-    if (!items.length) return text(type === 'github' ? `No kept repositories yet. Keep one from ${siteUrl}/news?tab=github.` : `Nothing kept yet. Keep repositories and articles on ${siteUrl}/news.`);
-    return text(`${items.length} kept item${items.length === 1 ? '' : 's'}, newest first:\n\n${items.map(renderKept).join('\n\n')}`);
-  }
-  if (name === 'validate_idea') {
-    const idea = String(args.idea ?? '').trim().slice(0, 300);
-    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
-    if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
-    const report = await deps.validate(idea);
-    return report ? text(report) : text('The report could not be made. Try again in a minute.', true);
-  }
-  if (name === 'watch_idea') {
-    const idea = String(args.idea ?? '').trim().slice(0, 300);
-    if (idea.length < 4) return text('Describe the idea in a sentence.', true);
-    return (await deps.watch(idea))
-      ? text(`Watching "${idea}". Seedup checks it once a week and mails new quotes or rival tools. Stop it at ${siteUrl}/profile.`)
-      : text('Could not start the watch (the limit is 10 ideas, or the database is not set up yet).', true);
-  }
-  if (name === 'find_related_content') {
-    const idea = String(args.idea ?? '').trim().slice(0, 500);
-    if (idea.length < 5) return text('Describe the idea in a sentence.', true);
-    const rows = await deps.related(idea);
-    return text(rows.length ? rows.map((row) => `- ${row.title} (${row.source}, similarity ${row.similarity.toFixed(2)})${row.url ? ` ${row.url}` : ''}`).join('\n') : 'Nothing Seedup collected is close to this idea.');
-  }
   return text(`Unknown tool "${name}".`, true);
+}
+
+async function readResource(uri: unknown, deps: McpDeps, siteUrl: string) {
+  const app = readAppResource(uri);
+  if (app) return app;
+  if (uri === 'seedup://prds/active') {
+    const items = deps.myPrds ? await deps.myPrds(20) : [];
+    return { contents: [{ uri, mimeType: 'text/markdown', text: renderSavedPrdList(items, siteUrl) }] };
+  }
+  if (uri === 'seedup://kept/recent') {
+    const items = await deps.kept(null, 20);
+    const body = items.length ? items.map(renderKept).join('\n\n') : `Nothing kept yet. Keep references on ${siteUrl}/news.`;
+    return { contents: [{ uri, mimeType: 'text/markdown', text: body }] };
+  }
+  return null;
+}
+
+function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
+  const str = (key: string) => String(rawArgs[key] ?? '').trim();
+  if (name === 'discover-and-spec') {
+    const query = str('query');
+    if (!query) return { error: 'Missing required argument: query' };
+    return {
+      result: {
+        description: 'Search verified opportunities and draft an evidence-traced PRD',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Use Seedup MCP tools to research "${query}":\n1. Call search_opportunities with {"query":${JSON.stringify(query)},"limit":5}.\n2. Pick the strongest verified opportunity and call get_opportunity on its slug to review every quote and direct competitor.\n3. Call generate_verified_prd for that slug with format "agents" (or "claude" if working in Claude Code) and summarize the P0 scope and evidence links.`,
+          },
+        }],
+      },
+    };
+  }
+  if (name === 'build-next-feature') {
+    const slug = str('slug');
+    if (!slug) return { error: 'Missing required argument: slug' };
+    return {
+      result: {
+        description: 'Implement the next ready PRD feature end-to-end with verified checks',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Run a focused Seedup build loop for "${slug}":\n1. Call get_next_task {"slug":${JSON.stringify(slug)}}.\n2. Call update_feature_status with status "in_progress" for the returned feature_id.\n3. Implement the feature following its readiness slots and verified quotes.\n4. Run tests/commands verifying every numbered done criterion (and optionally call verify_feature with git diff).\n5. Call link_commit if commit linking is enabled, then update_feature_status with status "done" and passing checks for every criterion.`,
+          },
+        }],
+      },
+    };
+  }
+  if (name === 'pre-ship-audit') {
+    const slug = str('slug');
+    if (!slug) return { error: 'Missing required argument: slug' };
+    return {
+      result: {
+        description: 'Verify build readiness and re-check modified features before shipping',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Audit ship readiness for "${slug}":\n1. Call get_build_checklist {"slug":${JSON.stringify(slug)}} and check for any features in needs_recheck, blocked, or todo.\n2. For any needs_recheck or recently changed feature, collect its git diff and call verify_feature against its done criteria.\n3. Report which features are verified ready, which criteria failed or remain unclear, and whether any unlinked commits need review.`,
+          },
+        }],
+      },
+    };
+  }
+  if (name === 'why-this-file') {
+    const slug = str('slug');
+    const path = str('path');
+    if (!slug) return { error: 'Missing required argument: slug' };
+    if (!path) return { error: 'Missing required argument: path' };
+    return {
+      result: {
+        description: 'Explain which user quotes and PRD criteria depend on a file',
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Before modifying "${path}" in "${slug}", call explain_file {"slug":${JSON.stringify(slug)},"path":${JSON.stringify(path)}} and summarize: (1) which PRD features and requirements depend on this file, (2) the underlying verified user pain quotes (E-n), and (3) every done criterion that must still pass after edits.`,
+          },
+        }],
+      },
+    };
+  }
+  return null;
 }
 
 async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
@@ -520,25 +851,31 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
       const asked = String(message.params?.protocolVersion ?? '');
       return reply({
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
-        capabilities: { tools: {}, resources: {} },
-        serverInfo: { name: 'seedup', version: '1.0.0' },
-        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. At the start of each build session, call get_next_task with the opportunity slug and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending.',
+        capabilities: { tools: {}, resources: {}, prompts: {} },
+        serverInfo: { name: 'seedup', version: '1.1.0' },
+        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo (or call list_my_prds / get_my_prd for saved personal PRDs). At the start of each build session, call get_next_task with the opportunity slug and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending, and explain_file before editing files linked to done features.',
       });
     }
     case 'ping':
       return reply({});
-    // The only resource is the MCP Apps card (lib/mcp/apps.ts).
     case 'resources/list':
-      return reply({ resources: [appResource] });
+      return reply({ resources: [...STATIC_RESOURCES] });
     case 'resources/read': {
-      const resource = readAppResource(message.params?.uri);
+      const resource = await readResource(message.params?.uri, deps, siteUrl);
       return resource ? reply(resource) : fail(-32002, `Resource not found: ${String(message.params?.uri ?? '')}`);
     }
-    // No templates or prompts, but some clients list them anyway and treat an error as a broken server.
     case 'resources/templates/list':
       return reply({ resourceTemplates: [] });
     case 'prompts/list':
-      return reply({ prompts: [] });
+      return reply({ prompts: [...PROMPTS] });
+    case 'prompts/get': {
+      const promptName = String(message.params?.name ?? '');
+      const promptArgs = (message.params?.arguments ?? {}) as Record<string, unknown>;
+      const outcome = getPromptResult(promptName, promptArgs);
+      if (!outcome) return fail(-32602, `Prompt not found: ${promptName}`);
+      if ('error' in outcome && outcome.error) return fail(-32602, outcome.error);
+      return reply(outcome.result);
+    }
     case 'tools/list':
       return reply({ tools: withAppMeta(TOOLS) });
     case 'tools/call': {

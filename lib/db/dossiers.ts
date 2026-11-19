@@ -56,3 +56,52 @@ export async function sharedPrd(id: string) {
   const { data } = await service.from('evidence_dossiers').select('title,prd_markdown,evidence_ids,opportunity_slug,updated_at').eq('id', id).eq('shared', true).maybeSingle();
   return data?.prd_markdown ? data : null;
 }
+
+export type UserDossierPrd = {
+  id: string;
+  title: string;
+  opportunity_slug: string | null;
+  evidence_ids: string[];
+  evidence: unknown;
+  prd_markdown: string;
+  updated_at: string;
+};
+
+/** Saved PRDs owned by one user (service-role lookup for personal MCP tokens). */
+export async function userPrds(service: SupabaseClient, userId: string, limit = 20): Promise<UserDossierPrd[]> {
+  const { data, error } = await service
+    .from('evidence_dossiers')
+    .select('id,title,opportunity_slug,evidence_ids,evidence,prd_markdown,updated_at')
+    .eq('user_id', userId)
+    .not('prd_markdown', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  return error ? [] : ((data ?? []) as UserDossierPrd[]);
+}
+
+/** One saved PRD owned by the user (service-role lookup for personal MCP tokens). */
+export async function userPrdById(service: SupabaseClient, userId: string, id: string): Promise<UserDossierPrd | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await service
+    .from('evidence_dossiers')
+    .select('id,title,opportunity_slug,evidence_ids,evidence,prd_markdown,updated_at')
+    .eq('user_id', userId)
+    .eq('id', id)
+    .not('prd_markdown', 'is', null)
+    .maybeSingle();
+  return error || !data ? null : (data as UserDossierPrd);
+}
+
+/** Most recently saved PRD for an opportunity slug by one user, used to pin active MCP builds. */
+export async function userPinnedDossierForSlug(service: SupabaseClient, userId: string, slug: string): Promise<UserDossierPrd | null> {
+  const { data, error } = await service
+    .from('evidence_dossiers')
+    .select('id,title,opportunity_slug,evidence_ids,evidence,prd_markdown,updated_at')
+    .eq('user_id', userId)
+    .eq('opportunity_slug', slug)
+    .not('prd_markdown', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return error || !data ? null : (data as UserDossierPrd);
+}

@@ -1,17 +1,15 @@
 import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
-import { Bot, Check, FileText, GitBranch, Lightbulb } from 'lucide-react';
-import IdeaComposer from '@/components/IdeaComposer';
+import { Check } from 'lucide-react';
+import { ArticleLead } from '@/components/ArticleCards';
 import RepoPicks, { rankRepos } from '@/components/RepoPicks';
 import { getContentHref } from '@/lib/content-targets';
-import { getGitHubTrends, getScrapKeySet, getScraps } from '@/lib/data';
+import { getArticleFeedItems, getGitHubTrends, getScrapKeySet, getScraps } from '@/lib/data';
 import { translator } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n';
 import { getOpportunities, getOpportunityEmbeddings } from '@/lib/opportunities/data';
-import { dossierChanges, dossierHref } from '@/lib/opportunities/insight';
-import { describeChange } from '@/lib/opportunities/merge';
 import { PLATFORM_LABELS, localizedOpportunity } from '@/lib/opportunities/types';
-import { forYou } from '@/lib/personal';
+import { forYou, leadRead, ruleReads } from '@/lib/personal';
 import NotInterestedButton from '@/components/NotInterestedButton';
 import { recentReleases } from '@/lib/ingest/kept-repos';
 import type { RepoRelease } from '@/lib/ingest/kept-repos';
@@ -36,14 +34,14 @@ const TYPE_LABELS: Record<string, [string, string]> = {
 const h2 = 'text-[17px] font-bold tracking-[-0.015em]';
 
 /**
- * The signed-in front page, in the order a builder works: start something (first and widest), pick up what is in
- * progress, then what is worth a look. Problems worth building sit in the right column. New accounts get a short
- * setup list instead of empty sections.
+ * The signed-in front page: the one read picked for this person first and widest, then what they kept and more picks.
+ * Problems worth building sit in the right column. New accounts get a short setup list instead of empty sections.
+ * Making a PRD starts from the PRD page, not here.
  */
 export default async function HomeDesk({ user, lang }: { user: User; lang: Lang }) {
   const t = translator(lang);
   const supabase = await createClient();
-  const [{ opportunities, generatedAt }, scraps, keptKeys, trends, dossierRows, token, answers, embeddings] = await Promise.all([
+  const [{ opportunities, generatedAt }, scraps, keptKeys, trends, dossierRows, token, answers, embeddings, articles] = await Promise.all([
     getOpportunities(),
     getScraps(),
     getScrapKeySet(),
@@ -52,12 +50,10 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     hasMcpToken(user.id),
     supabase ? onboardingAnswers(supabase, user.id) : Promise.resolve(null),
     getOpportunityEmbeddings().catch(() => ({} as Record<string, number[]>)),
+    getArticleFeedItems(),
   ]);
 
-  const dossiers = dossierRows.map((dossier) => {
-    const opportunity = opportunities.find((item) => item.slug === dossier.opportunity_slug);
-    return { ...dossier, opportunity, notes: opportunity ? dossierChanges(dossier.evidence_ids, dossier.updated_at, opportunity, describeChange).notes : [] };
-  });
+  const dossiers = dossierRows.map((dossier) => ({ ...dossier, opportunity: opportunities.find((item) => item.slug === dossier.opportunity_slug) }));
   const onboarded = Boolean(answers && Object.keys(answers as object).length);
   const picks = await forYou(user.id, {
     answers,
@@ -78,8 +74,13 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     ? await repoReleases<RepoRelease>(supabase, keptRepoIds)
     : [];
   const releases = recentReleases(keptRepoRows).slice(0, 4);
+  // The banner: the reader's best-scored article, or the newest one while there is nothing to go on.
+  const reads = await ruleReads(user.id, answers, scraps).catch(() => []);
+  const newest = [...articles].sort((a, b) => String(b.published_at ?? '').localeCompare(String(a.published_at ?? '')))[0];
+  const banner = leadRead(articles, reads) ?? (newest ? { item: newest, reason: undefined } : null);
   const day = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' });
   const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' });
+  const kept = new Set(keptKeys);
 
   const setup = [
     { done: onboarded, label: t('관심 분야와 스택 고르기', 'Pick your interests and stack'), hint: t('추천이 내 관심사로 바뀝니다', 'Recommendations follow your interests'), href: '/onboarding' },
@@ -87,28 +88,19 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
     { done: token, label: t('코딩 에이전트 연결', 'Connect your coding agent'), hint: t('Claude Code·Cursor가 PRD를 직접 가져갑니다', 'Claude Code and Cursor read your PRDs'), href: '/agents' },
   ];
   const setupLeft = setup.filter((step) => !step.done).length;
-  const actions = [
-    { icon: FileText, label: t('아이디어로 PRD', 'PRD from an idea'), href: '/prd' },
-    { icon: GitBranch, label: t('레포 분석', 'Repo analysis'), href: '/prd?mode=repo' },
-    { icon: Lightbulb, label: t('아이디어 검증', 'Idea validation'), href: '/prd?mode=validate' },
-    { icon: Bot, label: token ? t('MCP 연동됨', 'MCP connected') : t('MCP 연동', 'MCP'), href: '/agents' },
-  ];
 
   return (
     <main id="main-content" className="page-shell grow">
-      {/* The desk's one job sits first and widest: start something. */}
       <header>
-            <h1 className="page-intro-title md:text-[38px]">{t('무엇을 만들고 싶나요?', 'What do you want to build?')}</h1>
-            <p className="mt-1 text-[13px] text-muted">{day.format(new Date(generatedAt))}</p>
-            <div className="mt-4"><IdeaComposer compact id="home-idea" placeholder={t('한 줄로 적으면 PRD 작업 공간이 열립니다', 'One line opens the PRD workspace')} /></div>
-            <nav aria-label={t('바로 가기', 'Shortcuts')} className="mt-3 flex flex-wrap gap-2">
-              {actions.map(({ icon: Icon, label, href }) => (
-                <Link key={href} href={href} className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-soft px-3 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">
-                  <Icon aria-hidden="true" className="h-4 w-4" />{label}
-                </Link>
-              ))}
-            </nav>
-          </header>
+        <h1 className="page-intro-title">{t('오늘 읽을 글', 'Today’s read')}</h1>
+        <p className="mt-1 text-[13px] text-muted">{day.format(new Date(generatedAt))}</p>
+      </header>
+      {/* The day's one read for this person, first and widest. */}
+      {banner && (
+        <div className="mt-6">
+          <ArticleLead item={banner.item} isScrapped={kept.has(`${banner.item.type === 'paper' ? 'paper' : 'news'}:${banner.item.id}`)} returnTo="/" reason={banner.reason ? `나에게 맞는 글, ${banner.reason}` : reads.length ? '나에게 맞는 글' : '오늘의 새 글'} />
+        </div>
+      )}
       <div className="page-split mt-10">
         <div className="min-w-0 space-y-10">
 
@@ -128,30 +120,6 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
                   </li>
                 ))}
               </ol>
-            </section>
-          )}
-
-          {dossiers.length > 0 && (
-            <section aria-labelledby="desk-prds">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                <h2 id="desk-prds" className={h2}>{t('이어서 하기', 'Pick up where you left off')}</h2>
-                <Link href="/scrap" className="link-seed">{t('북마크', 'Bookmarks')}</Link>
-              </div>
-              <ul className="rows mt-2">
-                {dossiers.map((dossier) => (
-                  <li key={dossier.id} className="py-3.5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                      <Link href={dossierHref(dossier, opportunities)} className="text-[15px] font-semibold leading-snug underline-offset-4 hover:underline">
-                        {dossier.opportunity ? localizedOpportunity(dossier.opportunity, lang).name : dossier.title}
-                      </Link>
-                      <span className="flex flex-wrap gap-x-3 text-[13px] text-muted">
-                        <span>{t(`원문 ${dossier.evidence_ids.length}건`, `${dossier.evidence_ids.length} quotes`)}</span><span>{dossier.prd_markdown ? t('PRD 있음', 'PRD saved') : t('PRD 아직 없음', 'No PRD yet')}</span><time dateTime={dossier.updated_at}>{date.format(new Date(dossier.updated_at))}</time>
-                      </span>
-                    </div>
-                    {dossier.notes.length > 0 && <p className="mt-1 text-[13px] text-seed">{t('저장한 뒤 달라짐', 'Changed since saved')}: {dossier.notes.slice(0, 2).join(', ')}</p>}
-                  </li>
-                ))}
-              </ul>
             </section>
           )}
 
@@ -241,7 +209,7 @@ export default async function HomeDesk({ user, lang }: { user: User; lang: Lang 
             <section aria-labelledby="desk-repos">
               <div className="flex items-baseline justify-between gap-4">
                 <h2 id="desk-repos" className="text-[16px] font-bold">{t('이번 주 오픈소스', 'Open source this week')}</h2>
-                <Link href="/news?tab=github" className="link-seed">{t('전체', 'All')}</Link>
+                <Link href="/github-trends" className="link-seed">{t('전체', 'All')}</Link>
               </div>
               <div className="mt-2"><RepoPicks repos={repos} kept={keptKeys} limit={3} /></div>
             </section>

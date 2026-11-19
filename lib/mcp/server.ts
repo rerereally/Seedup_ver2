@@ -1,5 +1,6 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
+import { appResource, checklistCard, opportunitiesCard, prdCard, readAppResource, withAppMeta } from '@/lib/mcp/apps';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { specInputFor } from '@/lib/opportunities/context';
@@ -37,7 +38,7 @@ export type KeptType = (typeof KEPT_TYPES)[number];
 export type KeptItem = { type: string; title: string; note: string | null; url: string; page: string; savedAt: string; extra?: string };
 
 type RpcRequest = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> };
-type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean; structuredContent?: Record<string, unknown> };
 
 const text = (value: string, isError = false): ToolResult => ({ content: [{ type: 'text', text: value }], ...(isError ? { isError } : {}) });
 
@@ -213,7 +214,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const opportunities = await deps.opportunities();
   if (name === 'search_opportunities') {
     const found = searchOpportunities(opportunities, String(args.query ?? ''), Number(args.limit ?? 5));
-    return text(found.length ? found.map((item) => describe(item, siteUrl)).join('\n\n') : 'No opportunity matched. Try broader words.');
+    if (!found.length) return text('No opportunity matched. Try broader words.');
+    return { ...text(found.map((item) => describe(item, siteUrl)).join('\n\n')), structuredContent: opportunitiesCard(found, siteUrl) };
   }
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
@@ -241,7 +243,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       result = { input, spec };
     }
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format);
-    return text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`);
+    return { ...text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }
   if ((name === 'get_build_checklist' || updatesProgress) && opportunity) {
     const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
@@ -274,7 +276,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
         }
       }
     }
-    return text(renderChecklist(opportunity, cached.spec, await deps.progress(slug), siteUrl));
+    const progress = await deps.progress(slug);
+    return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
   }
   if (name === 'get_kept_items') {
     const type = (KEPT_TYPES as readonly string[]).includes(String(args.type)) ? (String(args.type) as KeptType) : null;
@@ -318,22 +321,27 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
       const asked = String(message.params?.protocolVersion ?? '');
       return reply({
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 'seedup', version: '1.0.0' },
         instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. Call get_build_checklist and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending.',
       });
     }
     case 'ping':
       return reply({});
-    // Tools only, but some clients list these anyway and treat an error as a broken server.
+    // The only resource is the MCP Apps card (lib/mcp/apps.ts).
     case 'resources/list':
-      return reply({ resources: [] });
+      return reply({ resources: [appResource] });
+    case 'resources/read': {
+      const resource = readAppResource(message.params?.uri);
+      return resource ? reply(resource) : fail(-32002, `Resource not found: ${String(message.params?.uri ?? '')}`);
+    }
+    // No templates or prompts, but some clients list them anyway and treat an error as a broken server.
     case 'resources/templates/list':
       return reply({ resourceTemplates: [] });
     case 'prompts/list':
       return reply({ prompts: [] });
     case 'tools/list':
-      return reply({ tools: TOOLS });
+      return reply({ tools: withAppMeta(TOOLS) });
     case 'tools/call': {
       const name = String(message.params?.name ?? '');
       const args = (message.params?.arguments ?? {}) as Record<string, unknown>;

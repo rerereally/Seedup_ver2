@@ -14,7 +14,7 @@ async function main() {
   const since = new Date(Date.now() - hours * 3_600_000).toISOString();
   const { data, error } = await supabase.from('app_errors').select('path,route,kind,message').gte('created_at', since).limit(500);
   if (error) {
-    console.log(`::warning::Server errors not checked (${error.message}). Run supabase/app_errors_2026_11.sql if the table is missing.`);
+    console.log(`::warning::Server errors not checked (${error.message}). Run supabase/migrations/20261119112104_app_errors.sql if the table is missing.`);
     return;
   }
   if (!data.length) {

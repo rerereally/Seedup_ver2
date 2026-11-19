@@ -1,5 +1,5 @@
 -- Seedup dummy data for backend/UI testing
--- Run this after supabase/schema.sql.
+-- Run this after supabase/migrations.
 -- This file inserts public content only. User-owned scraps require an auth.users id.
 
 insert into public.news_items

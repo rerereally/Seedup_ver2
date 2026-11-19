@@ -1195,7 +1195,7 @@ create index if not exists news_paper_links_news_idx on public.news_paper_links 
 grant select, insert, update, delete on public.content_embeddings to service_role;
 grant execute on function public.match_seedup_content(vector, integer, double precision) to service_role;
 
--- Opportunity engine, dossiers, and AI usage limits. Kept in sync with opportunities_2026_11.sql.
+-- Opportunity engine, dossiers, and AI usage limits. Kept in sync with 20261110155444_opportunities.sql.
 
 create table if not exists public.opportunities (
   slug text primary key,

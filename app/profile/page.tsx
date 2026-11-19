@@ -25,7 +25,7 @@ function notice(status?: string) {
   if (status === 'webhook-saved') return '채팅 알림을 저장했습니다. 다음 알림부터 그 채널로도 갑니다.';
   if (status === 'webhook-cleared') return '채팅 알림을 껐습니다.';
   if (status === 'webhook-invalid') return '디스코드나 슬랙의 웹훅 주소만 넣을 수 있습니다.';
-  if (status === 'webhook-failed') return '채팅 알림을 저장하지 못했습니다. DB 설정(notify_webhook_2026_11.sql)을 확인하세요.';
+  if (status === 'webhook-failed') return '채팅 알림을 저장하지 못했습니다. DB 설정(20261118121507_notify_webhook.sql)을 확인하세요.';
   return null;
 }
 

@@ -19,10 +19,31 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Migration names and order, and lib/schema-manifest.json in step with the SQL (the schema check must parse it).
+      - run: npm run migrations
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Applies every migration and supabase/seed.sql to an empty local Supabase database, so SQL that only worked on the
+  # live database fails here rather than in `supabase db push`. Runs beside `check`, so it adds no time to it.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.2.0
+      - run: supabase db start
+      - name: Every migration is applied
+        run: |
+          supabase migration list --local | tee list.txt
+          for file in supabase/migrations/*.sql; do
+            version=$(basename "$file" | cut -d_ -f1)
+            grep -qE "^ *$version *\| *$version" list.txt || { echo "::error::$file was not applied"; exit 1; }
+          done
 
   # Each pull request from this repository gets its own preview address: the build is uploaded as a Worker version
   # under a "pr-N" alias without becoming the live version. It runs with the live Worker's secrets, so it reads and

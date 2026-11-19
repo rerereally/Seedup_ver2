@@ -259,7 +259,7 @@ export async function streamText(prompt: string, options: StreamOptions = {}): P
   return null;
 }
 
-/** Must match the vector(1536) columns in supabase/schema.sql. */
+/** Must match the vector(1536) columns in supabase/migrations. */
 export const EMBEDDING_DIMENSIONS = 1536;
 
 /**

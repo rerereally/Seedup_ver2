@@ -114,7 +114,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const history = points.map((entry, index) => ({ ...entry, changes: index ? describeChange(points[index - 1], entry) : [] }));
   const direct = opportunity.supply.filter((item) => item.relation === 'direct');
   const partial = opportunity.supply.filter((item) => item.relation !== 'direct');
-  // What people built from this problem, from PRDs their owners made public with a link (built_2026_11.sql).
+  // What people built from this problem, from PRDs their owners made public with a link (20261118120947_built.sql).
   const builtRows = await createAdminClient()?.from('evidence_dossiers').select('id,title,built_url,built_note,built_at').eq('opportunity_slug', opportunity.slug).eq('shared', true).not('built_at', 'is', null).order('built_at', { ascending: false }).limit(6)
     .then(({ data, error }) => (error ? [] : (data ?? []) as Array<{ id: string; title: string; built_url: string; built_note: string | null; built_at: string }>)) ?? [];
   // How far this problem has grown. Design and build happen after this page, so they are never the current step here.

@@ -160,7 +160,7 @@ async function upsertProduct(supabase: NonNullable<ReturnType<typeof createAdmin
     delete fallbackPayload[key];
   }
 
-  console.warn('Product upsert retrying without newsletter metadata columns. Apply supabase/schema.sql to enable full metadata.');
+  console.warn('Product upsert retrying without newsletter metadata columns. Apply supabase/migrations to enable full metadata.');
   return supabase.from('ai_products').upsert(fallbackPayload, { onConflict: 'product_hunt_url' });
 }
 

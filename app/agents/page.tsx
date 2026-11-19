@@ -19,6 +19,7 @@ const TOOLS = [
   ['get_opportunity', '원문과 이미 있는 도구까지 한 번에'],
   ['generate_verified_prd', '원문이 붙은 PRD 만들기 (AGENTS.md, CLAUDE.md, Cursor 규칙, 빌더 프롬프트)'],
   ['get_build_checklist', 'PRD 기능별 구현 체크리스트'],
+  ['get_next_task', '다음 기능과 완료 기준, 원문, 관련 파일 보기'],
   ['update_feature_status', '기능 상태와 이력 기록. 완료는 수락 기준별 확인 결과 필요'],
   ['mark_feature_done', '기존 호환용. 기능을 완료 또는 대기로 표시'],
   ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],

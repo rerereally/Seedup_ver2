@@ -1,14 +1,14 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
-import { appResource, checklistCard, opportunitiesCard, prdCard, readAppResource, withAppMeta } from '@/lib/mcp/apps';
+import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, readAppResource, withAppMeta } from '@/lib/mcp/apps';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, renderAgentBrief, renderSpecMarkdown } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecInput } from '@/lib/opportunities/spec';
-import type { Opportunity } from '@/lib/opportunities/types';
+import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
 export const MCP_DAILY_REPORT_LIMIT = 3;
@@ -50,11 +50,11 @@ const progressProperties = {
   note: { type: 'string', description: 'One line on what changed or what is blocking work' },
   checks: {
     type: 'array',
-    description: 'Required for done. One passing check with evidence per numbered criterion from get_build_checklist.',
+    description: 'Required for done. One passing check with evidence per numbered criterion from get_next_task or get_build_checklist.',
     items: {
       type: 'object',
       properties: {
-        criterion: { type: 'number', description: 'The criterion number from get_build_checklist' },
+        criterion: { type: 'number', description: 'The criterion number from get_next_task or get_build_checklist' },
         passed: { type: 'boolean' },
         evidence: { type: 'string', description: 'How it was checked: the test name and its result, or the command and its output, in one line' },
       },
@@ -90,6 +90,11 @@ export const TOOLS = [
   {
     name: 'get_build_checklist',
     description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its current status and done criteria.',
+    inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
+  },
+  {
+    name: 'get_next_task',
+    description: 'Call at the start of a session. Picks one ready feature from the cached PRD and includes its done criteria, readiness slots, verified quotes, related files and status calls.',
     inputSchema: { type: 'object', properties: { slug: { type: 'string' } }, required: ['slug'] },
   },
   {
@@ -188,11 +193,95 @@ function describe(item: Opportunity, siteUrl: string) {
   return `${item.name} (${item.slug}) — ${item.qualified ? 'verified' : 'below evidence bar'}, ${item.evidence.length} quotes on ${item.platforms.join(', ')}, ${item.directCount} direct competitors, status ${item.status}\n  ${item.problem}\n  ${siteUrl}/opportunities/${item.slug}`;
 }
 
+function describeQuote(item: Evidence, number: number) {
+  return `E-${number} [${item.platform}] "${item.quote}" ${item.url}`;
+}
+
 /** Use the same numbered criteria in the checklist and in the tools that record completion. */
 export function featureCriteria(spec: Spec, feature: Spec['features'][number]) {
   const served = [...spec.requirements, ...spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
   const criteria = [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter(Boolean))];
   return criteria.length ? criteria : ['Confirm the feature works with a test or command.'];
+}
+
+export function pickNextTask(spec: Spec, progress: BuildProgress) {
+  const features = spec.features.map((feature) => ({
+    feature,
+    status: progress[feature.id]?.status ?? 'todo',
+    number: Number(feature.id.slice(2)),
+  }));
+  const pending = features.filter(({ status }) => status !== 'done' && status !== 'blocked');
+  const ready = pending.filter(({ feature, number }) => !features.some((earlier) =>
+    earlier.number < number && earlier.status !== 'done' &&
+    earlier.feature.requirementIds.some((id) => feature.requirementIds.includes(id)),
+  )).map((task) => ({
+    ...task,
+    evidence: [...new Set(spec.requirements.filter((row) => task.feature.requirementIds.includes(row.id)).flatMap((row) => row.evidence))],
+  }));
+
+  const priority = { needs_recheck: 0, in_progress: 1, improving: 1, todo: 2, done: 3, blocked: 3 };
+  const next = ready.sort((a, b) => priority[a.status] - priority[b.status] ||
+    (a.status === 'todo' && b.status === 'todo' ? b.evidence.length - a.evidence.length : 0) ||
+    a.number - b.number)[0];
+  if (!next) {
+    const why = !features.length ? 'This PRD has no features.'
+      : pending.length ? 'Remaining features are waiting for earlier features that serve the same requirements.'
+      : features.every(({ status }) => status === 'done') ? 'All features are done.'
+      : 'The remaining features are blocked.';
+    return { feature: null, why };
+  }
+  const { feature, status, evidence } = next;
+  const why = status === 'needs_recheck' ? 'This feature needs a recheck.'
+    : status === 'todo' ? `Ready to start with ${evidence.length} distinct verified quotes. To-do features are ranked by quote count, then feature number.`
+    : 'Resume work already underway.';
+  return { feature, status, evidence, why };
+}
+
+async function nextTaskResult(opportunity: Opportunity, cached: { input: SpecInput; spec: Spec }, progress: BuildProgress, deps: McpDeps): Promise<ToolResult> {
+  const { slug } = opportunity;
+  const task = pickNextTask(cached.spec, progress);
+  if (!task.feature) return text(`No next task for "${slug}". ${task.why}`);
+
+  const { feature, status, evidence, why } = task;
+  const criteria = featureCriteria(cached.spec, feature);
+  // The cache key ignores order, but E-n always refers to the order saved with the PRD.
+  const quotes = [...evidence].sort((a, b) => a - b).flatMap((number) => {
+    const id = cached.input.evidence[number - 1]?.id;
+    const quote = opportunity.evidence.find((item) => item.id === id);
+    return quote ? [describeQuote(quote, number)] : [];
+  });
+  const files = (await deps.featureFiles?.(slug))?.[feature.id] ?? [];
+  const slots = SLOT_KEYS.map((key) => `- ${SLOT_LABELS_EN[key]}: ${feature.slots?.[key]?.join(' / ') || '(open question)'}`);
+  const args = { slug, feature_id: feature.id };
+  const checks = criteria.map((_, index) => ({ criterion: index + 1, passed: true, evidence: '' }));
+  const note = progress[feature.id]?.note;
+  return {
+    ...text(`${feature.id} ${feature.title} [${status}]
+${feature.detail}
+${why}${note ? `\nPrevious status note: ${note}` : ''}
+
+Done when
+${criteria.map((line, index) => `${index + 1}. ${line}`).join('\n')}
+
+Readiness slots
+${slots.join('\n')}
+
+Verified quotes
+${quotes.join('\n') || 'No verified quotes.'}
+
+Related files
+${files.join('\n') || '관련 파일 정보 없음'}
+
+Start now
+update_feature_status ${JSON.stringify({ ...args, status: 'in_progress' })}
+
+After all criteria pass, fill each evidence field with the passing test or command and its result
+update_feature_status ${JSON.stringify({ ...args, status: 'done', checks })}
+
+If blocked, describe what is blocking work
+update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<what is blocking work>' })}`),
+    structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files),
+  };
 }
 
 type Check = { criterion: number; passed: boolean; evidence: string };
@@ -256,11 +345,12 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const slug = String(args.slug ?? '');
   const opportunity = opportunities.find((item) => item.slug === slug);
   const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
-  if (['get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'link_commit', 'verify_feature'].includes(name) || updatesProgress) {
+  const needsPrd = ['get_build_checklist', 'get_next_task', 'verify_feature'].includes(name) || updatesProgress;
+  if (['get_opportunity', 'generate_verified_prd', 'link_commit'].includes(name) || needsPrd) {
     if (!opportunity) return text(`Unknown opportunity "${slug}". Call search_opportunities first.`, true);
   }
   if (name === 'get_opportunity' && opportunity) {
-    const quotes = opportunity.evidence.map((item, index) => `E-${index + 1} [${item.platform}] "${item.quote}" ${item.url}`).join('\n');
+    const quotes = opportunity.evidence.map((item, index) => describeQuote(item, index + 1)).join('\n');
     const rivals = opportunity.supply.filter((item) => item.relation === 'direct').map((item) => `- ${item.name} ${item.url}`).join('\n');
     return text(`${describe(opportunity, siteUrl)}\n\nGap: ${opportunity.gap || 'unknown'}\n\nVerified quotes:\n${quotes}\n\nDirect competitors:\n${rivals || '- none found'}`);
   }
@@ -278,7 +368,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       if (!spec) return text('The model did not answer. Try again in a minute.', true);
       result = { input, spec };
     }
-    const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format);
+    const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format, slug);
     return { ...text(format === 'prd' ? body : `Save as ${EXPORT_FILES[format]}:\n\n${body}`), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }
   if (name === 'link_commit' && opportunity) {
@@ -304,7 +394,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     await deps.linkCommit(slug, { sha: sha.toLowerCase(), message, files, featureIds: [...featureIds] });
     return text(featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.');
   }
-  if ((name === 'get_build_checklist' || name === 'verify_feature' || updatesProgress) && opportunity) {
+  if (needsPrd && opportunity) {
     const cached = await deps.cachedSpec(prdEvidence(opportunity).map((item) => item.id));
     if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
     if (name === 'verify_feature') {
@@ -360,6 +450,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       }
     }
     const progress = await deps.progress(slug);
+    if (name === 'get_next_task') return nextTaskResult(opportunity, cached, progress, deps);
     return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
   }
   if (name === 'get_kept_items') {
@@ -406,7 +497,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {}, resources: {} },
         serverInfo: { name: 'seedup', version: '1.0.0' },
-        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. Call get_build_checklist and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending.',
+        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo. At the start of each build session, call get_next_task with the opportunity slug and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending.',
       });
     }
     case 'ping':

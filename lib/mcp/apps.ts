@@ -1,4 +1,4 @@
-// MCP Apps (io.modelcontextprotocol/ui, spec 2026-01-26): three tools also draw a small card in hosts that render
+// MCP Apps (io.modelcontextprotocol/ui, spec 2026-01-26): tools also draw a small card in hosts that render
 // apps (Claude web and desktop, VS Code Copilot). Hosts that do not keep showing the text result, which stays complete.
 import type { BuildProgress } from '@/lib/opportunities/build-progress';
 import type { Spec } from '@/lib/opportunities/spec';
@@ -6,7 +6,7 @@ import type { Opportunity } from '@/lib/opportunities/types';
 
 export const APP_URI = 'ui://seedup/card';
 export const APP_MIME = 'text/html;profile=mcp-app';
-const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'mark_feature_done', 'update_feature_status']);
+const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'mark_feature_done', 'update_feature_status']);
 
 /** The tool list with the card linked to the tools that have one. */
 export function withAppMeta<T extends { name: string }>(tools: readonly T[]) {
@@ -69,6 +69,10 @@ export function checklistCard(opportunity: Opportunity, spec: Spec, progress: Bu
     features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progress[feature.id]?.note ?? '' })),
     url: page(siteUrl, opportunity.slug),
   };
+}
+
+export function nextTaskCard(feature: Spec['features'][number], why: string, criteria: number, quotes: number, files: string[]) {
+  return { kind: 'next', id: feature.id, title: feature.title, why, criteria, quotes, files };
 }
 
 // The card: plain DOM, no libraries. Text from the server goes in through textContent only (quotes come from the web).
@@ -153,9 +157,17 @@ button:disabled{opacity:.5;cursor:default}
       h('div', { class: 'actions' }, h('button', { text: T('웹에서 보기', 'Open on the web'), on: function(){ open(data.url); } })),
       h('p', { class: 'muted', text: T('상태는 에이전트가 update_feature_status로 보고합니다. 완료는 기준을 모두 확인해야 기록됩니다.', 'The agent reports status with update_feature_status; done needs every criterion checked.') })];
   }
+  function next(data){
+    return [h('h1', null, h('span', { class: 'id', text: data.id }), h('span', { text: data.title })),
+      h('p', { class: 'sub', text: data.why }),
+      h('p', { class: 'muted num', text: T('완료 기준 ', 'Done criteria: ') + data.criteria + T('개, 원문 ', ', quotes: ') + data.quotes + T('개', '') }),
+      data.files.length
+        ? h('div', { class: 'list' }, ...data.files.map(function(file){ return h('div', { class: 'muted', style: 'overflow-wrap:anywhere', text: file }); }))
+        : h('p', { class: 'muted', text: T('관련 파일 정보 없음', 'No related file information') })];
+  }
   function render(data){
     if (!data || !data.kind) return;
-    var parts = data.kind === 'opportunities' ? opportunities(data) : data.kind === 'prd' ? prd(data) : data.kind === 'checklist' ? checklist(data) : null;
+    var parts = data.kind === 'opportunities' ? opportunities(data) : data.kind === 'prd' ? prd(data) : data.kind === 'checklist' ? checklist(data) : data.kind === 'next' ? next(data) : null;
     if (!parts) return;
     root.replaceChildren.apply(root, parts.filter(Boolean));
   }

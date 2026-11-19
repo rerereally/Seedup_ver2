@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleRpc, searchOpportunities } from '../lib/mcp/server';
+import { handleRpc, pickNextTask, searchOpportunities } from '../lib/mcp/server';
 import type { McpDeps } from '../lib/mcp/server';
 import { normalizeFeatureId } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
@@ -47,6 +47,7 @@ test('initialize answers with a supported protocol version and tool capability',
   const answer = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }, deps(), 'https://x.test') as { result: { protocolVersion: string; capabilities: object; instructions: string } };
   assert.equal(answer.result.protocolVersion, '2025-03-26');
   assert.ok('tools' in answer.result.capabilities);
+  assert.match(answer.result.instructions, /start of each build session, call get_next_task/);
   assert.match(answer.result.instructions, /update_feature_status.*in_progress.*done with checks or blocked/);
 });
 
@@ -60,7 +61,7 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
 
 test('tools/list exposes every tool', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string }> } };
-  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'update_feature_status', 'mark_feature_done', 'link_commit', 'verify_feature', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
+  assert.deepEqual(answer.result.tools.map((tool) => tool.name), ['search_opportunities', 'get_opportunity', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'update_feature_status', 'mark_feature_done', 'link_commit', 'verify_feature', 'get_kept_items', 'find_related_content', 'validate_idea', 'watch_idea']);
 });
 
 test('search ranks keyword hits first', () => {
@@ -84,6 +85,7 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   assert.deepEqual(d.calls, ['consume', 'generate']);
   const draft = await handleRpc(call('generate_verified_prd', { slug: 'schema' }), deps(), '') as { result: { content: Array<{ text: string }> } };
   assert.match(draft.result.content[0].text, /AGENTS\.md/);
+  assert.match(draft.result.content[0].text, /get_next_task \{"slug":"schema"\} at the start of each session/);
 });
 
 test('a cached PRD is returned without spending the daily limit; a used-up limit is a tool error', async () => {
@@ -124,6 +126,50 @@ function progressFixture(over: Partial<McpDeps> = {}) {
   });
   return { withSpec, progress, spec };
 }
+
+const progressRow = (status: BuildProgress[string]['status']): BuildProgress[string] => ({
+  title: '', status, note: '', updatedAt: 'now', doneAt: null,
+});
+
+test('next task prioritizes rechecks, resumed work, distinct quotes, then the feature number', () => {
+  const spec = normalizeSpec({
+    requirements: [[1], [1, 2, 3], [1, 2], [2, 3], [2], [3]].map((evidence, i) => ({ title: `Requirement ${i}`, evidence })),
+    features: [[1], [2], [3, 4], [5], [6]].map((requirements, i) => ({ title: `Feature ${i}`, requirements })),
+  }, 3);
+  spec.features.reverse();
+  const progress: BuildProgress = { 'F-04': progressRow('improving'), 'F-05': progressRow('needs_recheck') };
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-05');
+  progress['F-05'] = progressRow('blocked');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-04');
+  progress['F-04'] = progressRow('in_progress');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-04');
+  progress['F-04'] = progressRow('done');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-02');
+  progress['F-02'] = progressRow('done');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-03');
+});
+
+test('next task waits for an earlier feature serving the same requirement, even if blocked', () => {
+  const { spec, progress } = progressFixture();
+  spec.features.reverse();
+  progress['F-02'] = progressRow('needs_recheck');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-01');
+  progress['F-01'] = progressRow('blocked');
+  const waiting = pickNextTask(spec, progress);
+  assert.equal(waiting.feature, null);
+  assert.match(waiting.why, /waiting for earlier features/);
+  progress['F-01'] = progressRow('done');
+  assert.equal(pickNextTask(spec, progress).feature?.id, 'F-02');
+});
+
+test('next task reports when every feature is done or blocked', () => {
+  const { spec, progress } = progressFixture();
+  progress['F-01'] = progressRow('done');
+  progress['F-02'] = progressRow('done');
+  assert.deepEqual(pickNextTask(spec, progress), { feature: null, why: 'All features are done.' });
+  progress['F-02'] = progressRow('blocked');
+  assert.deepEqual(pickNextTask(spec, progress), { feature: null, why: 'The remaining features are blocked.' });
+});
 
 test('the checklist lists current status and done criteria, and the legacy alias still works', async () => {
   const { withSpec, progress } = progressFixture();

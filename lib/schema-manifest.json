@@ -2233,5 +2233,11 @@
         "digest"
       ]
     ]
+  },
+  {
+    "file": "20261119113000_built_example_counts.sql",
+    "functions": [
+      "built_example_counts"
+    ]
   }
 ]

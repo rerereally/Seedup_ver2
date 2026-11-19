@@ -5,6 +5,7 @@ import { ArrowUpRight, Check, Copy, Loader2 } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { SeedFeature, SeedIdea, SeedLink, SeedOpportunityRef, SeedPaper } from '@/lib/seeds/advise';
+import { SEEDS_RESULT_KEY } from '@/lib/seeds/saved';
 import { inBatches } from '@/lib/utils';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
 
@@ -21,8 +22,6 @@ type RepoCard = {
   similar: SeedLink[];
 };
 
-
-const STORAGE_KEY = 'seedup:seeds-result';
 
 type Saved = { login: string; at: string; repos: RepoCard[]; ideas: Record<string, SeedIdea>; papers: Record<string, SeedPaper[]> };
 
@@ -234,7 +233,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
     const names = new Set(repos.map((repo) => repo.name));
     const saved: Saved = { login: name.toLowerCase(), at: new Date().toISOString(), repos, ideas: Object.fromEntries(Object.entries(keptIdeas).filter(([key]) => names.has(key))), papers: Object.fromEntries(Object.entries(keptPapers).filter(([key]) => names.has(key))) };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      localStorage.setItem(SEEDS_RESULT_KEY, JSON.stringify(saved));
     } catch {
       // Storage can be blocked or full; the result is then simply not remembered.
     }
@@ -251,7 +250,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
   useEffect(() => {
     let saved: Saved | null = null;
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+      const parsed = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
       if (parsed && typeof parsed.login === 'string' && Array.isArray(parsed.repos)) saved = parsed;
     } catch {
       // Nothing usable is stored, or storage is blocked.
@@ -268,7 +267,7 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
   const ask = useEffectEvent((login: string) => {
     let saved: Saved | null = null;
     try {
-      saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Saved | null;
+      saved = JSON.parse(localStorage.getItem(SEEDS_RESULT_KEY) ?? 'null') as Saved | null;
     } catch {
       // Storage blocked: look again.
     }

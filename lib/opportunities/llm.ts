@@ -1,4 +1,4 @@
-import { enforceFreeOnlyModels, isFreeOpenRouterModel } from '../ingest/openrouter-models';
+import { enforceFreeOnlyModels, isFreeOpenRouterModel, outputTokenCap } from '../ingest/openrouter-models';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const MIN_CALL_INTERVAL_MS = 3_100; // Free tier allows 20 requests per minute.
@@ -61,8 +61,7 @@ const messagesFor = (prompt: string, system?: string) => [...(system ? [{ role: 
 // Free reasoning models count their thinking inside max_tokens and cannot turn it off: ernie 5.5 flash thinks for
 // 6k to 8k tokens whatever the effort setting, so at 8k it often ended with no answer at all (measured 2026-11-19).
 // A free model costs nothing more for a higher cap, and the cap only bites when thinking runs long.
-const FREE_MIN_TOKENS = 16_000;
-const tokenCap = (model: string, requested: number) => (model === EXAONE_ID || isFreeOpenRouterModel(model) ? Math.max(requested, FREE_MIN_TOKENS) : requested);
+const tokenCap = (model: string, requested: number) => outputTokenCap(model, requested, model === EXAONE_ID || isFreeOpenRouterModel(model));
 
 /** Tokens one call used, reported to whoever logs PRD runs. `model` is the menu id that answered. */
 export type ModelUsage = { model: string; promptTokens: number; completionTokens: number };

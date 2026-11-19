@@ -37,27 +37,37 @@ const TABS = [HOME, SIGNALS, PRD, SCRAP];
 const isOn = (pathname: string | null, item: NavItem) =>
   item.href === '/' ? pathname === '/' : item.match.some((href) => pathname === href || pathname?.startsWith(`${href}/`));
 
+// Every page renders its own Header, so the shell mounts again on each navigation. What it learned (who is signed in,
+// whether they are an admin, whether the menu is folded) is kept here for the tab's life, so a page change does not
+// flash the signed-out buttons, drop the admin link or unfold the menu before the same values come back.
+const remembered: { email: string | null; isAdmin: boolean; folded: boolean | null } = { email: null, isAdmin: false, folded: null };
+
 function useAccount() {
-  const [email, setEmail] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState<string | null>(remembered.email);
+  const [isAdmin, setIsAdmin] = useState(remembered.isAdmin);
   useEffect(() => {
     const supabase = createClient();
     if (!supabase) return;
     // The listener's first event carries the session from the cookie, so the header needs no network call of its
     // own; the admin check runs once per signed-in address, not on every auth event.
-    let checked: string | null = null;
+    let checked: string | null = remembered.email;
+    const admin = (value: boolean) => {
+      remembered.isAdmin = value;
+      setIsAdmin(value);
+    };
     const update = (next?: string | null) => {
+      remembered.email = next ?? null;
       setEmail(next ?? null);
       if (!next) {
         checked = null;
-        return setIsAdmin(false);
+        return admin(false);
       }
       if (checked === next) return;
       checked = next;
       fetch('/api/auth/is-admin')
         .then((response) => (response.ok ? response.json() : { isAdmin: false }))
-        .then((result: { isAdmin?: boolean }) => setIsAdmin(Boolean(result.isAdmin)))
-        .catch(() => setIsAdmin(false));
+        .then((result: { isAdmin?: boolean }) => admin(Boolean(result.isAdmin)))
+        .catch(() => admin(false));
     };
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => update(session?.user.email));
     return () => listener.subscription.unsubscribe();
@@ -98,7 +108,11 @@ function AppShell() {
   // The idea workspace needs the bottom of a phone screen for its own make action.
   const workspace = pathname?.startsWith('/prd/new') ?? false;
   // Wide screens: the sidebar folds to an icon rail and back, pushing the page. The PRD workspace starts folded.
-  const [folded, setFolded] = useState<boolean | null>(null);
+  const [folded, setFoldedState] = useState<boolean | null>(remembered.folded);
+  const setFolded = (value: boolean) => {
+    remembered.folded = value;
+    setFoldedState(value);
+  };
   const rail = folded ?? workspace;
 
   // A link in the drawer navigates; the drawer then closes on the new page.
@@ -195,7 +209,7 @@ function AppShell() {
   return (
     <>
       {rail ? (
-        <aside className="app-sidebar is-rail fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center gap-1 border-r border-outline-soft bg-white py-3 lg:flex">
+        <aside style={{ viewTransitionName: 'app-sidebar' }} className="app-sidebar is-rail fixed inset-y-0 left-0 z-40 hidden w-16 flex-col items-center gap-1 border-r border-outline-soft bg-white py-3 lg:flex">
           <button type="button" onClick={() => setFolded(false)} aria-label={t('메뉴 펼치기', 'Expand menu')} title={t('메뉴 펼치기', 'Expand menu')} className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low hover:text-ink">
             <PanelLeftOpen className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -207,10 +221,10 @@ function AppShell() {
           <span className="mt-auto"><ThemeToggle /></span>
         </aside>
       ) : (
-        <aside className="app-sidebar fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-outline-soft bg-white lg:flex">{nav}</aside>
+        <aside style={{ viewTransitionName: 'app-sidebar' }} className="app-sidebar fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-outline-soft bg-white lg:flex">{nav}</aside>
       )}
 
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-outline-soft bg-surface px-4 lg:hidden">
+      <header style={{ viewTransitionName: 'app-topbar' }} className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-outline-soft bg-surface px-4 lg:hidden">
         <button type="button" onClick={() => setOpen(true)} aria-label={t('메뉴 열기', 'Open menu')} aria-expanded={open} className="-ml-2 inline-flex h-11 w-11 items-center justify-center rounded-lg text-tertiary hover:bg-surface-low">
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -231,7 +245,7 @@ function AppShell() {
       )}
 
       {!workspace && (
-        <nav className="app-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-outline-soft bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
+        <nav style={{ viewTransitionName: 'app-tabbar' }} className="app-tabbar fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-outline-soft bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('모바일 주요 메뉴', 'Mobile menu')}>
           {TABS.map((entry) => (
             <Link key={entry.href} href={entry.href} aria-current={isOn(pathname, entry) ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[11px] ${isOn(pathname, entry) ? 'font-semibold text-seed' : 'text-muted'}`}>
               <entry.icon className="h-5 w-5" aria-hidden="true" />

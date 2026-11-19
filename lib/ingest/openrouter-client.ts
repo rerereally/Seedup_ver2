@@ -1,12 +1,10 @@
 // OpenRouter chat call with model fallback, and lenient parsing of the JSON the models return.
-import { enforceFreeOnlyModels, isFreeOpenRouterModel } from './openrouter-models';
+import { enforceFreeOnlyModels, isFreeOpenRouterModel, outputTokenCap } from './openrouter-models';
 
 const DEFAULT_WRITING_MODEL = 'anthropic/claude-sonnet-5';
 const DEFAULT_PREPROCESS_MODEL = 'google/gemini-3.5-flash';
 const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 45_000);
 export const ARTICLE_OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_ARTICLE_TIMEOUT_MS ?? 75_000);
-// Free models are mostly reasoning models: reasoning spends max_tokens before the answer starts.
-const FREE_MODEL_REASONING_TOKENS = 4_000;
 const FREE_MODEL_MIN_TIMEOUT_MS = 45_000;
 
 export async function callOpenRouter<T>(
@@ -45,7 +43,7 @@ export async function callOpenRouter<T>(
           model,
           messages,
           temperature: options?.temperature ?? 0.2,
-          max_tokens: isFreeModel ? maxTokens + FREE_MODEL_REASONING_TOKENS : maxTokens,
+          max_tokens: outputTokenCap(model, maxTokens),
           ...(options?.jsonSchema
             ? {
                 response_format: {

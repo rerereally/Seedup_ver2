@@ -20,8 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      # With SEEDUP_SITE_URL set, the deployed site does the collecting. Without it, the app is built
-      # and started inside this runner, so collection works before anything is deployed.
+      # The app is built and started inside this runner and collects from there, so a step can run as long as it
+      # needs; inside the deployed Worker, steps were cut off by its time limit (article drafts never finished).
+      # The deployed site (SEEDUP_SITE_URL) is used only when this runner lacks the secrets to collect itself.
       SITE_URL: ${{ secrets.SEEDUP_SITE_URL }}
       REMOTE_INGEST_SECRET: ${{ secrets.SEEDUP_INGEST_SECRET }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -32,15 +33,16 @@ jobs:
       OPENROUTER_FALLBACK_MODELS: ${{ vars.OPENROUTER_FALLBACK_MODELS }}
       OPENROUTER_FREE_ONLY: ${{ vars.OPENROUTER_FREE_ONLY }}
       RAG_EMBEDDING_MODEL: ${{ vars.RAG_EMBEDDING_MODEL }}
+      EXAONE_API_KEY: ${{ secrets.EXAONE_API_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Choose where to collect
         id: mode
         run: |
-          if [ -n "$SITE_URL" ] && [ -n "$REMOTE_INGEST_SECRET" ]; then
-            echo "mode=remote" >> "$GITHUB_OUTPUT"
-          elif [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -n "$SUPABASE_SECRET_KEY" ] && [ -n "$OPENROUTER_API_KEY" ] && [ -n "$OPENROUTER_MODEL" ]; then
+          if [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ] && [ -n "$SUPABASE_SECRET_KEY" ] && [ -n "$OPENROUTER_API_KEY" ] && [ -n "$OPENROUTER_MODEL" ]; then
             echo "mode=local" >> "$GITHUB_OUTPUT"
+          elif [ -n "$SITE_URL" ] && [ -n "$REMOTE_INGEST_SECRET" ]; then
+            echo "mode=remote" >> "$GITHUB_OUTPUT"
           else
             echo "Set either SEEDUP_SITE_URL and SEEDUP_INGEST_SECRET, or the Supabase and OpenRouter secrets plus the OPENROUTER_MODEL variable."
             exit 1
@@ -98,8 +100,8 @@ jobs:
             status=000
             # One retry, because a free model or a source that is briefly down should not fail the day.
             for attempt in 1 2; do
-              # GitHub and paper collection summarise each item with a free model and have taken over five minutes.
-              status=$(curl --silent --show-error --max-time 600 --output /dev/null --write-out '%{http_code}' \
+              # Steps summarise items with free models; article drafts have taken over ten minutes.
+              status=$(curl --silent --show-error --max-time 1500 --output /dev/null --write-out '%{http_code}' \
                 --request POST --header "x-ingest-secret: $INGEST_SECRET" "$SITE_URL$path") || status=000
               case "$status" in
                 2*) break ;;

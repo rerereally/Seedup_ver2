@@ -3,7 +3,7 @@ import type { Evidence, Opportunity, OpportunityPoint, OpportunityStatus } from 
 
 // Everything here is computed from the stored run, with no model call, so the same data always reads the same way.
 
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 const RECENT_DAYS = 180;
 const STATUS_GAP_POINTS: Record<OpportunityStatus, number> = { open: 20, narrowing: 10, unknown: 6, closed: 0 };
 const STATUS_GAP_WORDS: Record<OpportunityStatus, string> = {
@@ -128,6 +128,10 @@ export function koreaLens(opportunity: Opportunity): KoreaLens {
 
 export type DossierChange = { added: Evidence[]; removed: number; notes: string[] };
 
+export function historyPointAt(history: readonly OpportunityPoint[], time: number) {
+  return history.findLast((point) => Date.parse(point.at) <= time);
+}
+
 /** What happened to an opportunity after a dossier was saved from it, phrased as things to revise in the PRD. */
 export function dossierChanges(savedEvidenceIds: string[], savedAt: string, opportunity: Opportunity, describe: (before: OpportunityPoint, after: OpportunityPoint) => string[]): DossierChange {
   const saved = new Set(savedEvidenceIds);
@@ -135,7 +139,7 @@ export function dossierChanges(savedEvidenceIds: string[], savedAt: string, oppo
   const added = opportunity.evidence.filter((item) => !saved.has(item.id));
   const removed = savedEvidenceIds.filter((id) => !current.has(id)).length;
   const history = opportunity.history ?? [];
-  const before = [...history].reverse().find((entry) => entry.at <= savedAt) ?? history[0];
+  const before = historyPointAt(history, Date.parse(savedAt)) ?? history[0];
   const after = history[history.length - 1];
   const notes: string[] = [];
   if (added.length) notes.push(`저장한 뒤 원문 ${added.length}건이 새로 붙었습니다. 요구사항의 근거로 추가할 수 있는지 확인하세요.`);

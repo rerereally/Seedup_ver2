@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
 import { recommendToolkit } from '@/lib/opportunities/toolkit';
-import { EVIDENCE_STRENGTH_LABELS, EXPORT_FILES, PRD_SENTENCE_LABELS, evidenceStrengthFor, p0FeatureIds, prdSentenceKinds, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
+import { EVIDENCE_STRENGTH_LABELS, EXPORT_FILES, PRD_SENTENCE_LABELS, evidenceStrengthFor, p0FeatureIds, prdSentenceKinds, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRequirement } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
@@ -14,6 +14,7 @@ import { exportFormatOrder, ONBOARDING_TOOL_STORAGE_KEY, preferredExportFormat }
 import { createClient } from '@/lib/supabase/client';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
+import AgentHandoff, { agentStartPrompt, loadProjectGoal, renderProjectBrief } from '@/components/goal/AgentHandoff';
 import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
 import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
@@ -69,7 +70,7 @@ function changedCount(before: Spec, after: Spec) {
   return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug, preferredTool: initialPreferredTool = null }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug, projectKey, showAgentHandoff = false, preferredTool: initialPreferredTool = null }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -105,6 +106,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   showTitle?: boolean;
   /** An opportunity's slug: the agent menu then also offers the MCP start prompt, which builds from that opportunity. */
   agentSlug?: string;
+  /** The planning workspace's saved personal PRD key; used only for the agent handoff and exports. */
+  projectKey?: string;
+  /** The planning workspace has locked its goal and reached the agent stage. */
+  showAgentHandoff?: boolean;
   /** Tool format chosen at onboarding, if already resolved on the server. */
   preferredTool?: ExportFormat | null;
 }) {
@@ -221,7 +226,15 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     const p0 = p0FeatureIds(spec);
     return spec.features.filter((feature) => p0.has(feature.id)).map((feature) => `${feature.id} ${feature.title}`);
   }, [spec]);
-  const brief = useMemo(() => (input && spec ? renderAgentBrief(input, spec, format, agentSlug) : ''), [input, spec, format, agentSlug]);
+  const exportKey = projectKey ?? agentSlug;
+  const personalKey = exportKey?.startsWith('prd:') ? exportKey : undefined;
+  const brief = useMemo(() => (input && spec ? renderProjectBrief(input, spec, format, exportKey) : ''), [input, spec, format, exportKey]);
+  // Read again on export: the goal may have been locked or revised in this same workspace.
+  const agentExport = async (key: ExportFormat) => {
+    if (!personalKey && key === format) return brief;
+    const goal = personalKey ? await loadProjectGoal(personalKey) : null;
+    return renderProjectBrief(input!, spec!, key, exportKey, goal);
+  };
   const trace = useMemo(() => (spec && focus ? traceOf(spec, focus) : null), [spec, focus]);
 
   const fail = (status: number, json: { error?: string }, fallback: string) => {
@@ -653,7 +666,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{render(row)}</li>)}</ul>
     : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
 
-  const agentPrompt = agentSlug ? t(
+  const agentPrompt = personalKey ? agentStartPrompt(personalKey, lang) : agentSlug ? t(
     `Seedup MCP의 generate_verified_prd로 "${agentSlug}"(${title}) PRD를 받아 AGENTS.md로 저장해 줘. 같은 slug로 get_next_task를 호출해 다음 기능 하나를 골라 줘. update_feature_status로 시작할 때 작업 중, 끝날 때 완료(확인 결과 포함) 또는 막힘을 보고해 줘.`,
     `Use Seedup MCP to generate_verified_prd for "${agentSlug}" (${title}) and save it as AGENTS.md. Call get_next_task with the same slug to pick the next feature. Use update_feature_status to report in_progress at the start and done with checks or blocked at the end.`,
   ) : '';
@@ -722,6 +735,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   return (
     <>
+      {showAgentHandoff && personalKey && input && spec && <AgentHandoff projectKey={personalKey} input={input} spec={spec} />}
       {!hideControls && !spec && (
         <div className="card max-w-[52rem] p-5 sm:p-6">
           {signedIn !== false && notesField}
@@ -803,23 +817,21 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         : key === 'prompt'
                           ? t('Lovable·Bolt·v0 프롬프트', 'Lovable·Bolt·v0 prompt')
                           : EXPORT_FILES.agents);
-                    const primaryBrief = renderAgentBrief(input, spec, primaryFormat, agentSlug);
                     const primaryLabel = pickedTool ? toolLabel(primaryFormat) : EXPORT_FILES[primaryFormat];
                     return (
                       <>
-                        <button type="button" className={quietButton} onClick={() => void copy(primaryLabel, primaryBrief)}>{t(`${primaryLabel} 내용 복사`, `Copy ${primaryLabel}`)}</button>
-                        <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[primaryFormat].split('/').pop()!, primaryBrief)}>{t(`${primaryLabel} 받기`, `Download ${primaryLabel}`)}</button>
+                        <button type="button" className={quietButton} onClick={() => void agentExport(primaryFormat).then((text) => copy(primaryLabel, text))}>{t(`${primaryLabel} 내용 복사`, `Copy ${primaryLabel}`)}</button>
+                        <button type="button" className={quietButton} onClick={() => void agentExport(primaryFormat).then((text) => downloadText(EXPORT_FILES[primaryFormat].split('/').pop()!, text))}>{t(`${primaryLabel} 받기`, `Download ${primaryLabel}`)}</button>
                         {agentPrompt && <button type="button" className={quietButton} onClick={() => void copy(t('MCP 시작 문장', 'MCP start prompt'), agentPrompt)}>{t('MCP로 시작하는 문장 복사', 'Copy the MCP start prompt')}</button>}
                         <details className="border-t border-outline-soft pt-1">
                           <summary className="cursor-pointer px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">{t('다른 도구', 'Other tools')}</summary>
                           <div className="mt-1 flex flex-col gap-0.5">
                             {otherFormats.map((otherKey) => {
-                              const otherBrief = renderAgentBrief(input, spec, otherKey, agentSlug);
                               const otherName = toolLabel(otherKey);
                               return (
                                 <div key={otherKey} className="flex items-center justify-between gap-1">
-                                  <button type="button" className={quietButton} onClick={() => { setFormat(otherKey); void copy(otherName, otherBrief); }}>{t(`${otherName} 복사`, `Copy ${otherName}`)}</button>
-                                  <button type="button" className="shrink-0 rounded px-2 py-1 text-[12px] text-muted hover:bg-surface-low hover:text-ink" onClick={() => { setFormat(otherKey); downloadText(EXPORT_FILES[otherKey].split('/').pop()!, otherBrief); }}>{t('받기', 'Download')}</button>
+                                  <button type="button" className={quietButton} onClick={() => { setFormat(otherKey); void agentExport(otherKey).then((text) => copy(otherName, text)); }}>{t(`${otherName} 복사`, `Copy ${otherName}`)}</button>
+                                  <button type="button" className="shrink-0 rounded px-2 py-1 text-[12px] text-muted hover:bg-surface-low hover:text-ink" onClick={() => { setFormat(otherKey); void agentExport(otherKey).then((text) => downloadText(EXPORT_FILES[otherKey].split('/').pop()!, text)); }}>{t('받기', 'Download')}</button>
                                 </div>
                               );
                             })}

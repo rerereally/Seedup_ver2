@@ -610,6 +610,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
           {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
           <PrdBuilder
             title={idea}
+            projectKey={projectKey ?? undefined}
+            showAgentHandoff={goalLocked}
             evidenceIds={keptIds}
             ready={passes}
             loginNext={loginNext}

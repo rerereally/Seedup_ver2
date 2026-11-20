@@ -1,0 +1,152 @@
+[
+  {
+    "id": "rag-01",
+    "idea": "GitHub에 실수로 올린 API 키를 바로 찾아 알려 주는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-02",
+    "idea": "Supabase의 행 단위 접근 권한을 설정하고 검증하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-03",
+    "idea": "개발 블로그 글을 내 저장소의 구현 작업으로 바꾸는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-04",
+    "idea": "AI API 비용을 기능과 모델별로 보여 주는 대시보드",
+    "relevant": null
+  },
+  {
+    "id": "rag-05",
+    "idea": "오픈소스 입문자가 고칠 만한 GitHub 이슈를 추천하는 메일",
+    "relevant": null
+  },
+  {
+    "id": "rag-06",
+    "idea": "회의록에서 담당자와 마감일을 찾아 이슈를 만드는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-07",
+    "idea": "AI로 만든 앱의 첫 사용자 인터뷰 대상자를 찾는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-08",
+    "idea": "하나의 질문으로 여러 LLM 응답을 나란히 비교하는 앱",
+    "relevant": null
+  },
+  {
+    "id": "rag-09",
+    "idea": "긴 논문에서 재현에 필요한 데이터와 평가 방법만 정리하는 앱",
+    "relevant": null
+  },
+  {
+    "id": "rag-10",
+    "idea": "검색 증강 생성에서 답변의 인용이 원문을 뒷받침하는지 검사하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-11",
+    "idea": "코딩 에이전트가 세션 사이에 프로젝트 맥락을 잃지 않게 하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-12",
+    "idea": "코드 리뷰에서 변경된 API와 영향을 받는 호출자를 찾는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-13",
+    "idea": "자동화 워크플로가 조용히 실패했을 때 알림을 보내는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-14",
+    "idea": "새 npm 버전이 프로젝트의 호환성을 깨는지 알려 주는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-15",
+    "idea": "깃허브 릴리스 노트를 기술 스택별로 모아 보여 주는 메일",
+    "relevant": null
+  },
+  {
+    "id": "rag-16",
+    "idea": "서로 다른 서비스의 벡터 검색 결과를 같은 평가 세트로 비교하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-17",
+    "idea": "개발 팀의 프롬프트 버전과 모델 설정을 기록하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-18",
+    "idea": "오픈소스 라이선스와 모델 이용 조건을 한 번에 확인하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-19",
+    "idea": "Playwright에서 재현이 어려운 간헐적 테스트 실패를 모으는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-20",
+    "idea": "모바일 앱의 접근성 문구와 버튼 크기를 확인하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-21",
+    "idea": "서버리스 함수의 느린 첫 요청 원인을 찾는 서비스",
+    "relevant": null
+  },
+  {
+    "id": "rag-22",
+    "idea": "Git 커밋 기록에서 자연어로 배포 변경점을 찾는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-23",
+    "idea": "기술 뉴스와 논문에서 내가 쓰는 언어에 맞는 구현 예제를 찾는 앱",
+    "relevant": null
+  },
+  {
+    "id": "rag-24",
+    "idea": "팀의 문서에서 자주 반복되는 질문과 공식 답을 찾는 검색 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-25",
+    "idea": "같은 개발 커뮤니티 질문을 여러 언어로 찾아 주는 검색 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-26",
+    "idea": "이미지 생성 모델의 속도와 결과 품질을 나란히 비교하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-27",
+    "idea": "제품 대기 신청을 만들고 초기 사용자 피드백을 모으는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-28",
+    "idea": "개인의 개발 프로젝트와 관심사에 맞춰 주간 읽을거리를 추천하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-29",
+    "idea": "서비스 장애 보고서에서 타임라인과 재발 방지 작업을 정리하는 도구",
+    "relevant": null
+  },
+  {
+    "id": "rag-30",
+    "idea": "로컬 개발 환경의 의존성과 설치 명령을 팀원에게 공유하는 도구",
+    "relevant": null
+  }
+]

@@ -50,7 +50,7 @@
 | 판정 위치 | 판정 로직은 Seedup 서버에만. 사용자 저장소의 CI 안에서 판정하지 않음(에이전트가 그 파일을 고칠 수 있으므로). CI 결과는 GitHub API로 읽기만 |
 | 승인 | 터미널 대화에서 받음(MCP 응답이 "사용자에게 물어라"를 지시 → `record_decision`에 "대화에서 승인"으로 기록). 대시보드는 이력 확인과 목표 변경만 |
 | 게이트 | 기본은 표시 모드(🟢 감독관 검증 / 🔵 로컬 확인 / ⚪ 자가 보고). 프로젝트별 엄격 모드에서만 거부 |
-| 모델 | 기획 초안은 무료 모델 가능. 검증 · 배포 전 테스트 · 평가는 유료 모델. **검증 모델은 GPT 6.2 Sol과 Haiku 5.5 둘이고, 개발 모델과 다른 계열이 판정**(Codex로 개발 → Haiku, Claude Code로 개발 → GPT) |
+| 모델 | 기획 초안은 무료 모델 가능. 검증 · 배포 전 테스트 · 평가는 유료 모델. **검증 모델은 GPT 6.2 Sol과 Haiku 5.5 둘이고, 개발 모델과 다른 계열이 판정**(Codex로 개발 → Haiku, Claude Code로 개발 → GPT). OpenRouter ID: `openai/gpt-6.2-sol`, `anthropic/claude-haiku-5.5`. `provider.data_collection: "deny"`는 수집하는 제공사를 라우팅에서 빼는 필터일 뿐 "어디에도 저장 안 됨"이 아니므로, 처리방침 · 화면에서 그렇게 약속하지 않음 |
 | 개인 PRD | `prd:<id>` 프로젝트 키로 MCP 진행 도구 전부 사용 |
 | 에이전트 연동 | MCP 하나에 기대지 않고 4층(MCP, 프로젝트 파일, 로컬 훅, GitHub)으로 |
 | 숫자 | 실측값만 씀. 토큰 절감은 실제 비용 차액으로 |
@@ -365,10 +365,13 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 | :--- | :--- | :--- |
 | ① 사용자별 프로젝트 목록 | `supervisor_projects`에서 사용자의 프로젝트를 최근 활동순으로 읽는 함수. 대시보드 목록이 저장 PRD 목록을 대신 쓰지 않게 교체 | `lib/db/supervisor-projects.ts`, `components/supervisor/data.ts`, 관련 테스트 |
 | ② 기능별 검증 수준 | 진행 기록에 검증 수준(🟢 `supervisor_verified` · 🔵 `local_checked` · ⚪ `self_reported`)을 저장 · 조회. 🟢는 유효한 검증 토큰이 있을 때만(A2 완료 게이트), 🔵는 로컬 훅 결과를 받을 때만. 대시보드 신호등이 이 값을 씀 | `supabase/migrations/<새 파일>`(`build_progress`에 칸 추가), `lib/opportunities/build-progress.ts`, `lib/mcp/server.ts`(A2 뒤), `components/supervisor/model.ts` |
-| ③ 훅 묶음의 `pre-commit` | 계획 3-4의 1단 로컬 검사: 커밋 전에 바뀐 줄로 정적 검사(차단 규칙만 막고 경고는 표시). 스타터 팩에 파일과 설치 안내 추가 | `lib/supervisor/hook-bundle.ts`, 필요하면 `scripts/` 아래 검사 스크립트, `tests/` |
+| ③ 훅 묶음의 `pre-commit` | 계획 3-4의 1단 로컬 검사: 커밋 전에 바뀐 줄로 정적 검사(차단 규칙만 막고 경고는 표시). 스타터 팩에 파일과 설치 안내 추가 | `lib/supervisor/hook-bundle.ts`, `lib/supervisor/local-audit.ts`(로컬 검사), `lib/supervisor/diff-audit.ts`(규칙을 데이터로 꺼내 로컬 · 서버가 같은 규칙을 씀, #157), `tests/` |
 | ④ 이탈 검사 입력 보강 | 커밋 연결에 파일 상태(추가 · 수정 · 삭제)를 받고, diff의 마이그레이션에서 새 테이블을 읽어 `findDrift`에 넘김(명세에 없는 화면 · API · 테이블 판정) | `lib/mcp/server.ts`(`link_commit`, A2 뒤), `lib/opportunities/feature-commits.ts`, 필요하면 마이그레이션, `components/supervisor/model.ts` |
 
-순서: ①(독립) → A2 → ② · ④ → ③(언제든). ②는 마이그레이션이 있어 정지훈이 머지하며 운영 DB에 적용합니다.
+| ⑤ 훅 묶음 형식 보완(9절 조사) | SessionStart matcher에 `clear` · `fork` 추가, Stop 입력 JSON을 문자열 대신 구조로 읽기, 프로젝트 루트 기준 경로, upstream 없는 브랜치도 "push 안 됨"으로, 압축 직전(PreCompact) 인계, Codex용 `.codex/hooks.json`(사용자가 `/hooks`에서 신뢰해야 실행), Windows의 `sh` 없음 대응 | `lib/supervisor/hook-bundle.ts`, 관련 테스트 |
+| ⑥ 검증 운영 보완(9절 조사) | 실패한 파일 요청에도 상한(지금은 성공 80개만 셈), 요청 수 · 걸린 시간(p50/p95)을 기록, 데이터 수집 필터에 맞는 제공사가 없을 때 명확한 오류와 사용량 환불. 응답 뒤 30초를 넘는 처리는 Workers `waitUntil`로 버틸 수 없으므로, 실측 뒤 필요하면 Workflows 또는 Queues를 계획 세션이 고름 | `lib/verifier/*`, `lib/db/verifications.ts` |
+
+순서: ①(독립) → A2 → ② · ④ → ③ · ⑤ · ⑥(언제든). ②는 마이그레이션이 있어 정지훈이 머지하며 운영 DB에 적용합니다.
 
 **단계 2에 함께 하는 것 (코드 칸 밖)**
 
@@ -432,13 +435,25 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 
 ## 9. 확인이 필요한 것
 
-- Claude Code 훅(세션 시작 · 압축 · 종료) 입력 형식과 동작, OpenTelemetry 지표, Codex 훅 · 세션 로그 형식(B2, A1이 구현 전 확인)
-- MCP 서버 안내문을 클라이언트별로 얼마나 반영하는지, 사용자 확인 요청 지원 범위
-- GitHub API 한도, 단순형 검증이 실제로 응답 시간 안에 끝나는지, Seedup의 Cloudflare 요금제와 Workers 백그라운드 시간 제한, Workflows · Durable Objects 제공 범위(판정을 사용자 저장소 CI로 옮기는 것은 하지 않음)
-- Cloudflare Browser Rendering 제공 범위와 가격
-- codebase-memory-mcp 실제 출력 형식, App Store 리뷰 피드 · 네이버 · YouTube API 약관
-- GitHub 트렌드 · AI 제품 테이블의 라이선스 · 패키지 이름 필드
-- 운영 PRD에서 `goals` · `nonGoals` · `metrics`가 실제로 채워지는 비율(A3 단계 1)
+2026-11-20 조사([research/2026-11-20-section9.md](research/2026-11-20-section9.md), 공식 문서 근거)로 확인된 것은 해당 절과 단계 2 보완 ⑤ · ⑥으로 옮겼습니다. 요점:
+
+- **훅:** Claude Code · Codex 모두 SessionStart · PreCompact · Stop을 지원하고, Stop은 `{"decision":"block","reason":…}`로 이어 가게 함. Codex 훅은 사용자가 `/hooks`에서 신뢰해야 실행. 지금 훅 묶음의 어긋난 곳은 보완 ⑤. Claude Code 사용량은 OpenTelemetry `claude_code.token.usage` · `claude_code.cost.usage`(비용은 근삿값).
+- **MCP 클라이언트:** 서버 안내문은 Claude Code · Codex · VS Code가 반영(Cursor는 확인 못 함). 사용자 확인 요청(elicitation)은 클라이언트마다 다르고, MCP Apps 카드는 Cursor · VS Code 지원, Claude Code · Codex CLI는 확인 못 함. 그래서 텍스트 응답을 기본으로 하고 카드 · 확인 요청은 선택(1절 "승인은 터미널 대화" 유지).
+- **GitHub 한도:** 토큰 하나에 시간당 5,000회, 검증 1회에 보통 `5 + 읽은 파일 수`회 → 시간당 약 60~1,000회 검증(예산 계산, 실측 아님).
+- **Workers:** 연결이 살아 있는 동안 경과 시간 상한은 없지만 CPU(무료 10ms, 유료 기본 30초)와 응답 뒤 `waitUntil` 30초 제한이 있음. Workflows · Durable Objects · Queues는 무료 · 유료 모두 제공. Browser Run(옛 Browser Rendering)은 무료 하루 10분, 유료 월 10시간 + 시간당 $0.09.
+- **외부 출처(3-10, 보류 유지):** 네이버 검색 API는 FAQ상 장기 저장 · 재가공 불가, YouTube 댓글은 30일 안에 갱신 또는 삭제, 경쟁 앱 리뷰 RSS는 공식 지원 · 재이용 허락 확인 못 함. 영구 인용 근거로 쓰려면 권리 확인이 먼저.
+- **OpenRouter:** 두 검증 모델 모두 등재(1절 ID). `data_collection: "deny"`는 라우팅 필터이고, 무보관은 계정의 ZDR · Safety Retention 설정에 달림.
+- **DB:** `github_trends` · `ai_products`에 라이선스 · 패키지 이름 칸 없음(3-9 추천 승격은 스키마 · 수집까지 포함한 보류 작업).
+
+**아직 확인할 것**
+
+- Seedup의 Cloudflare 요금제와 CPU 설정, GitHub 토큰 종류(정지훈)
+- 실제 검증 1회의 걸린 시간 p50/p95와 GitHub 요청 수(단계 2 보완 ⑥에서 기록)
+- OpenRouter 계정의 privacy · Safety Retention 설정, 두 모델이 deny 필터 아래 실제로 호출되는지(정지훈, 유료 요청 1회씩)
+- 훅을 지원 CLI 버전별로 실제 실행: 시작 · clear · fork · 압축 · 중단 · 재개(보완 ⑤ 테스트)
+- Codex 저장 세션 로그의 토큰 필드 위치(내부 형식이라 계약으로 쓰지 않음, 실측 토큰은 보류 3-8)
+- Cursor의 서버 안내문 반영, Claude Code · Codex CLI의 카드 표시
+- codebase-memory-mcp 출력 형식, 운영 PRD의 `goals` · `nonGoals` · `metrics` 채움 비율(A3 단계 1 측정)
 
 ---
 
@@ -505,3 +520,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: DESIGN.md 8절 MCP 화면 · 응답 기준 확정.
 - 2026-11-20: 검증 모델(GPT 6.2 Sol · Haiku 5.5, 교차 계열), 유료 비용 보호(OpenRouter 지출 한도 + 사용자별 하루 횟수), 실제 프로젝트 검증 시점(단계 2 완료 뒤) 반영. 정지훈 결정.
 - 2026-11-20: 단계 2 보완 칸 추가(B2 #153이 남긴 빈 곳 4개: 프로젝트 목록 함수, 기능별 검증 수준, pre-commit, 이탈 입력). 담당 정지훈.
+- 2026-11-20: 9절 조사 반영(Codex, 공식 문서 근거). 확인된 사실을 9절 요점으로, 단계 2 보완에 ⑤ 훅 형식 · ⑥ 검증 운영 추가, 1절 모델 줄에 OpenRouter ID와 deny의 의미.

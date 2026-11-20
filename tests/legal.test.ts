@@ -4,6 +4,12 @@ import { PRIVACY } from '../lib/legal';
 
 test('privacy names verification models and scopes the provider filter without promising no retention', () => {
   const section = PRIVACY.find(([title]) => title === '밖으로 보내는 곳');
+  const prdLine = section?.[1].find(line => line.startsWith('- OpenRouter와 그 모델 제공사(아이디어'));
+  assert.ok(prdLine);
+  assert.match(prdLine, /GPT 6\.2 Sol/);
+  assert.match(prdLine, /Claude Haiku 5\.5/);
+  assert.match(prdLine, /최후 폴백/);
+
   const verification = section?.[1].find(line => line.startsWith('- OpenRouter와 그 모델 제공사(기능 검증의 코드)'));
   assert.ok(verification);
   assert.match(verification, /GPT 6\.2 Sol\(OpenAI\)/);

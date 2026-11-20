@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { consumeAnonUsage, releaseAnonUsage } from '@/lib/db/found-evidence';
+import { prdFreeModels } from '@/lib/llm';
 import { searchIdeaEvidence } from '@/lib/opportunities/idea-evidence';
+import { lightWebModels } from '@/lib/opportunities/models';
 import { signEvidence } from '@/lib/opportunities/live-evidence';
 import { createClient } from '@/lib/supabase/server';
 import { clientOf, rateLimited } from '@/lib/throttle';
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
   }
   const refund = () => (signedIn ? releaseDailyUsage(supabase!, FEATURE) : releaseAnonUsage(visitor, FEATURE));
 
-  const result = await searchIdeaEvidence(idea, { avoid, deadline: Date.now() + 80_000 }).catch(() => null);
+  const result = await searchIdeaEvidence(idea, { avoid, models: lightWebModels(prdFreeModels()), deadline: Date.now() + 80_000 }).catch(() => null);
   if (!result) {
     await refund();
     return NextResponse.json({ error: '찾는 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.' }, { status: 502 });

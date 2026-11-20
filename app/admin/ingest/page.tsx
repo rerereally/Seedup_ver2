@@ -388,7 +388,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
 
           <section id="prd-models" className="scroll-mt-24 border border-outline-soft bg-white p-5 md:p-6">
             <h2 className="text-2xl font-bold text-ink">PRD 모델</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">모든 계정이 PRD를 만들 때 고를 수 있는 모델입니다. 체크를 끄면 그 모델을 고른 요청도 무료 모델로 만들어집니다. 수집·처리 엔진은 이 설정과 관계없이 항상 무료 모델만 씁니다. 저장 후 30초 안에 반영됩니다.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">모든 계정이 PRD를 만들 때 고를 수 있는 모델입니다. 기본값은 GPT 6.2 Sol이며, 체크를 끈 모델을 고른 요청은 GPT 6.2 Sol로 만들어집니다. 데이터 수집·정제·임베딩·아티클 생성 엔진은 이 설정과 관계없이 항상 무료 모델만 씁니다. 저장 후 30초 안에 반영됩니다.</p>
             {params.prdModels && (
               <p className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.prdModels === 'saved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
                 {params.prdModels === 'saved' ? '저장했습니다.' : params.prdModels === 'missing-service-key' ? '서버 키가 없어 저장하지 못했습니다.' : '저장하지 못했습니다. supabase/migrations/20261117111335_prd_models.sql을 실행했는지 확인하세요.'}

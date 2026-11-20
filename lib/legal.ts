@@ -25,7 +25,7 @@ export const PRIVACY: Array<[string, string[]]> = [
     '- Cloudflare: 사이트 호스팅',
     '- Google: 로그인',
     '- Resend: 주간 메일, 매일 리서치 메일, 알림 메일 발송',
-    '- OpenRouter와 그 모델 제공사(아이디어 · 질문 답 · 메모 · PRD): PRD, 질문, 요약을 만들 때 아이디어와 답, 메모, 원문을 보냅니다. 아이디어 · 질문 답 · 메모 · PRD는 무료 모델로 갈 수 있고, 그 제공사가 입력을 기록하거나 학습에 쓸 수 있습니다.',
+    '- OpenRouter와 그 모델 제공사(아이디어 · 질문 답 · 메모 · PRD · 검증 리포트): PRD 작성·수정, 역기획, 질문, 명확성 점검, 검증 리포트를 만들 때 아이디어와 답, 메모, 원문을 보냅니다. 기본으로 유료 모델(GPT 6.2 Sol, Claude Haiku 5.5)을 쓰며, 유료 모델이 모두 실패한 경우에만 최후 폴백으로 무료 모델을 호출할 수 있습니다(무료 모델 호출 시 해당 제공사가 입력을 기록하거나 학습에 쓸 수 있음).',
     '- OpenRouter와 그 모델 제공사(기능 검증의 코드): GitHub 공개 저장소에서 서버가 읽은 diff · 파일을 GPT 6.2 Sol(OpenAI) 또는 Claude Haiku 5.5(Anthropic)로 보냅니다. 개발에 쓴 모델과 다른 계열이 판정하며(Codex로 개발하면 Claude Haiku 5.5, Claude Code로 개발하면 GPT 6.2 Sol), OpenRouter에서 데이터를 수집하는 제공사를 빼는 설정을 적용한 유료 경로로만 보냅니다. 코드는 판정에만 쓰고, Seedup은 판정 결과(인용한 코드 줄 포함)를 저장합니다. OpenRouter와 모델 제공사는 각자의 정책에 따라 안전 목적 등으로 입력을 일정 기간 보관할 수 있습니다.',
     '- LG AI연구원 EXAONE API: PRD, 질문, 요약을 만들 때 아이디어와 답, 메모, 원문을 보냅니다.',
     '- Tavily, GitHub, Stack Exchange 등 공개 API: 원문과 경쟁 도구를 찾을 때 검색어를 보냅니다',

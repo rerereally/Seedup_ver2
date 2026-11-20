@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fixtureProse } from '../lib/llm-fixtures';
-import { defaultPolicy, estimateCost, pickPrdModel, prdModels } from '../lib/opportunities/models';
+import { carefulWebModels, criticWebModels, defaultPolicy, estimateCost, lightWebModels, pickPrdModel, prdModels } from '../lib/opportunities/models';
 import { isAdminUser } from '../lib/auth/admin';
 import { generatePrd, specIssues } from '../lib/opportunities/prd';
+import { checkIdeaClarity, planQuestions } from '../lib/opportunities/questions';
 import { normalizeSpec } from '../lib/opportunities/spec';
 
 const input = { title: 't', problem: 'p', gap: '', competitors: [], evidence: [{ id: 'e1', platform: 'hn' as const, quote: 'q', quoteKo: '', url: 'u', score: 0, postedAt: null }] };
@@ -27,22 +28,26 @@ test('the code check names vague, unserved and unmeasured parts, and stays quiet
   assert.deepEqual(specIssues(good, input), []);
 });
 
-test('every account picks from one menu; the admin policy decides what runs, and the free model always does', () => {
+test('every account picks from one menu; GPT 6.2 Sol is always the default, and admin policy gates optional models', () => {
   const keys = ['OPENROUTER_MODEL', 'EXAONE_API_KEY'] as const;
   const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   try {
     process.env.OPENROUTER_MODEL = 'base/model:free';
     delete process.env.EXAONE_API_KEY;
     const policy = defaultPolicy();
-    assert.deepEqual(prdModels(policy).map((row) => row.label), ['기본 무료 모델', 'K-EXAONE 2.5', 'Claude Haiku 5.5', 'DeepSeek V4.1 Flash', 'Claude Sonnet 5.5', 'GPT-6.1 Sol', 'Claude Opus 5.5']);
-    // By default only the free model runs; paid models are listed but blocked, EXAONE waits for its key.
+    assert.deepEqual(prdModels(policy).map((row) => row.label), ['GPT 6.2 Sol', 'Claude Haiku 5.5', 'DeepSeek V4.1 Flash', 'Claude Sonnet 5.5', 'Claude Opus 5.5', 'K-EXAONE 2.5', '무료 모델']);
+    // By default GPT 6.2 Sol, Claude Haiku 5.5 and the free fallback run; optional paid models stay blocked, EXAONE waits for its key.
+    assert.equal(pickPrdModel('openai/gpt-6.2-sol', policy), 'openai/gpt-6.2-sol');
+    assert.equal(pickPrdModel('anthropic/claude-haiku-5.5', policy), 'anthropic/claude-haiku-5.5');
     assert.equal(pickPrdModel('base/model:free', policy), 'base/model:free');
-    assert.equal(pickPrdModel('anthropic/claude-haiku-5.5', policy), undefined);
+    assert.equal(pickPrdModel('anthropic/claude-opus-5.5', policy), undefined);
     assert.equal(pickPrdModel('exaone', policy), undefined);
     process.env.EXAONE_API_KEY = 'key';
     assert.equal(pickPrdModel('exaone', policy), 'exaone');
 
+    // Even a legacy policy without GPT 6.2 Sol keeps GPT 6.2 Sol available as the fixed default.
     const opened = { enabled: ['base/model:free', 'anthropic/claude-haiku-5.5'] };
+    assert.equal(pickPrdModel('openai/gpt-6.2-sol', opened), 'openai/gpt-6.2-sol');
     assert.equal(pickPrdModel('anthropic/claude-haiku-5.5', opened), 'anthropic/claude-haiku-5.5');
     assert.equal(pickPrdModel('anthropic/claude-opus-5.5', opened), undefined);
     assert.equal(pickPrdModel('someone/expensive-model', { enabled: ['someone/expensive-model'] }), undefined);
@@ -53,6 +58,14 @@ test('every account picks from one menu; the admin policy decides what runs, and
       else process.env[key] = saved[key];
     }
   }
+});
+
+test('web model chains route careful tasks to GPT 6.2 Sol, light/critic tasks to Claude Haiku 5.5, and keep free models last', () => {
+  assert.deepEqual(carefulWebModels(undefined, ['free/a:free']), ['openai/gpt-6.2-sol', 'anthropic/claude-haiku-5.5', 'free/a:free']);
+  assert.deepEqual(carefulWebModels('anthropic/claude-sonnet-5.5', ['free/a:free']), ['anthropic/claude-sonnet-5.5', 'openai/gpt-6.2-sol', 'anthropic/claude-haiku-5.5', 'free/a:free']);
+  assert.deepEqual(lightWebModels(['free/a:free']), ['anthropic/claude-haiku-5.5', 'openai/gpt-6.2-sol', 'free/a:free']);
+  assert.deepEqual(criticWebModels('openai/gpt-6.2-sol', ['free/a:free']), ['anthropic/claude-haiku-5.5', 'openai/gpt-6.2-sol', 'free/a:free']);
+  assert.deepEqual(criticWebModels('anthropic/claude-haiku-5.5', ['free/a:free']), ['openai/gpt-6.2-sol', 'anthropic/claude-haiku-5.5', 'free/a:free']);
 });
 
 test('costs come from reported tokens, and admins come from the setting or Supabase app metadata', () => {
@@ -148,4 +161,63 @@ test('a PRD read back from the cache gets a P0, open readiness questions and eve
   assert.deepEqual(repaired.rivals?.map((row) => row.name), ['MemoriPilot', 'Cortex']);
   assert.equal(repaired.requirements[0].evidenceStrength, 'some');
   assert.deepEqual(repairCachedSpec({ competitors: ['MemoriPilot', 'Cortex'], evidence }, repaired), repaired);
+});
+
+test('web PRD defaults to GPT 6.2 Sol for writing, Claude Haiku 5.5 for P0 audit/slots, and falls back to free only last', async (t) => {
+  const keys = ['OPENROUTER_API_KEY', 'OPENROUTER_MODEL', 'OPENROUTER_FREE_ONLY', 'PRD_FREE_MODELS', 'LLM_FIXTURES'] as const;
+  const previous = keys.map((key) => process.env[key]);
+  process.env.OPENROUTER_API_KEY = 'mock-key';
+  process.env.OPENROUTER_MODEL = 'base/model:free';
+  process.env.OPENROUTER_FREE_ONLY = 'true';
+  process.env.PRD_FREE_MODELS = 'fallback/free:free';
+  delete process.env.LLM_FIXTURES;
+  const calls: Array<{ title: string; model: string }> = [];
+  const text = fixtureProse().replace('경고 단위로 묶은 요약을 돌려준다.', '경고 단위로 묶은 요약을 돌려준다. [E1]');
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    const title = new Headers(init.headers).get('x-title') ?? '';
+    calls.push({ title, model: body.model });
+    if (title === 'Seedup PRD' && body.model === 'openai/gpt-6.2-sol') {
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`);
+    }
+    if (title === 'Seedup P0 evidence critic' && body.model === 'anthropic/claude-haiku-5.5') {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ verdicts: [{ id: 'R-01', verdict: 'supported', reason: '원문이 뒷받침함' }] }) } }] }));
+    }
+    if (title === 'Seedup readiness slots' && body.model === 'anthropic/claude-haiku-5.5') {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ inputs: ['a'], rules: ['b'], errors: ['c'], access: ['d'], data: ['e'], done: ['f'] }) } }] }));
+    }
+    if (title === 'Seedup planning questions' && body.model === 'anthropic/claude-haiku-5.5') {
+      return new Response(null, { status: 503 });
+    }
+    if (title === 'Seedup planning questions' && body.model === 'openai/gpt-6.2-sol') {
+      return new Response(null, { status: 503 });
+    }
+    if (title === 'Seedup planning questions' && body.model === 'fallback/free:free') {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ questions: [{ key: 'first', question: '누가 쓰나요?', why: '대상 고정', options: ['개발자', '디자이너'] }, { key: 'when', question: '언제 쓰나요?', why: '시점 고정', options: ['배포 전', '배포 후'] }] }) } }] }));
+    }
+    if (title === 'Seedup idea clarity' && body.model === 'anthropic/claude-haiku-5.5') {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ missing: [], suggestion: '' }) } }] }));
+    }
+    return new Response(null, { status: 503 });
+  });
+  try {
+    const result = await generatePrd(input, { repair: false });
+    assert.equal(result?.model, 'openai/gpt-6.2-sol');
+    assert.ok(calls.some((call) => call.title === 'Seedup PRD' && call.model === 'openai/gpt-6.2-sol'));
+    assert.ok(calls.some((call) => call.title === 'Seedup P0 evidence critic' && call.model === 'anthropic/claude-haiku-5.5'));
+    assert.ok(calls.some((call) => call.title === 'Seedup readiness slots' && call.model === 'anthropic/claude-haiku-5.5'));
+
+    const questions = await planQuestions('LLM 응답 스키마 변환기', ['provider schema mismatch']);
+    assert.equal(questions?.length, 2);
+    assert.deepEqual(calls.filter((call) => call.title === 'Seedup planning questions').map((call) => call.model), ['anthropic/claude-haiku-5.5', 'openai/gpt-6.2-sol', 'fallback/free:free']);
+
+    const clarity = await checkIdeaClarity('개발자를 위한 LLM 응답 스키마 변환기');
+    assert.deepEqual(clarity, { missing: [], suggestion: '' });
+    assert.deepEqual(calls.filter((call) => call.title === 'Seedup idea clarity').map((call) => call.model), ['anthropic/claude-haiku-5.5']);
+  } finally {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+  }
 });

@@ -174,7 +174,7 @@ export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 /** Where each brief goes. `prompt` is no repo file: it is pasted as the first message in Lovable, Bolt, v0 or Replit. */
 export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursor/rules/seedup.mdc', prompt: 'prompt.md' };
 
-type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; acceptance?: unknown; check?: unknown };
+type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; acceptance?: unknown; check?: unknown; slots?: unknown };
 
 export type RawSpec = {
   summary?: unknown;
@@ -337,7 +337,8 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     const title = text(record.title, 120);
     const requirementIds = numbers(record.requirements, rows.length).flatMap((n) => requirementId.get(n) ?? []);
     if (!title || !requirementIds.length) return;
-    const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: null };
+    // Slots come back only from a saved PRD's markdown; a freshly written draft gets them in a later step.
+    const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: normalizeSlots(record.slots) };
     features.push(kept);
     featureId.set(index + 1, kept.id);
   });

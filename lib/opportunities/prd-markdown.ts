@@ -41,6 +41,34 @@ const EVIDENCE_LINE = /^(?:근거|evidence)\s*[:：]\s*/i;
 const SENTENCE_LABEL = /^\[(?:증언|사실|추정|testimony|fact|inference)\]\s*/i;
 const LEADING_CITATIONS = /^(?:\[\s*E\s*-?\s*\d+(?:\s*[,，/]\s*E?\s*-?\s*\d+)*\s*\]\s*)+/i;
 const ITEM = (letter: 'R' | 'H' | 'F') => new RegExp(`^(?:#{2,5}\\s*|[-*+]\\s+|\\d+\\.\\s+)?\\**\\s*${letter}\\s*-?\\s*0*(\\d+)\\s*[.:)\\]]?\\**\\s*(.*)$`, 'i');
+// The readiness slots renderSpecMarkdown writes under a feature, read back so a saved PRD keeps them. Labels come in
+// Korean, English, or as the slot keys themselves (the English agent export); spec.ts owns the labels but imports
+// this file, so they are matched by their words here instead of imported.
+const SLOTS_HEAD = /^(?:개발 준비 슬롯|development readiness slots)$/i;
+// The "Serves: R-01" line renderSpecMarkdown adds: read for the links, kept out of the feature's text.
+const SERVES_LINE = /^(?:충족하는 요구사항|serves)\s*[:：]/i;
+const OPEN_SLOT_VALUE = /^\((?:open question|정해지지 않음, 먼저 물어볼 것)\)$/i;
+const SLOT_WORDS: Array<[string, RegExp]> = [
+  ['inputs', /^(?:inputs?\b|입력)/i], ['rules', /^(?:rules\b|business rules|비즈니스 규칙)/i], ['errors', /^(?:errors?\b|예외)/i],
+  ['access', /^(?:access\b|permissions?|권한)/i], ['data', /^(?:data\b|데이터)/i], ['done', /^(?:done\b|tests?\b|테스트)/i],
+];
+
+/** Splits a feature's body into its text and the readiness slots written after the slots heading, if any. */
+function featureSlots(body: string[]) {
+  const start = body.findIndex((line) => SLOTS_HEAD.test(stripMarks(line)));
+  if (start < 0) return { text: body, slots: undefined };
+  const slots: Record<string, string[]> = {};
+  for (const line of body.slice(start + 1)) {
+    const item = bulletText(line);
+    const colon = item.search(/[:：]/);
+    const key = colon > 0 ? SLOT_WORDS.find(([, pattern]) => pattern.test(item.slice(0, colon).trim()))?.[0] : undefined;
+    if (!key) continue;
+    const value = item.slice(colon + 1).trim();
+    slots[key] = OPEN_SLOT_VALUE.test(value) ? [] : value.split(' / ').map((part) => part.trim()).filter(Boolean);
+  }
+  return { text: body.slice(0, start), slots };
+}
+
 const REQUIREMENT_ITEM = ITEM('R');
 const HYPOTHESIS_ITEM = ITEM('H');
 const FEATURE_ITEM = ITEM('F');
@@ -162,7 +190,8 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     const refs = [...item.head.matchAll(/\b([RH])\s*-?\s*0*(\d+)/gi)];
     const links = refs.length ? refs : [...item.body.join(' ').matchAll(/\b([RH])\s*-?\s*0*(\d+)/gi)];
     const title = stripMarks(item.head.replace(/\s*[([][^)\]]*\b[RH]\s*-?\s*\d+[^)\]]*[)\]]\s*$/i, '')).replace(/^[\s.:-]+/, '');
-    return { title, detail: stripCitations(prose(item.body.map(bulletText))), requirements: links.flatMap(([, kind, number]) => position.get(`${kind.toUpperCase()}${Number(number)}`) ?? []) };
+    const { text: lines, slots } = featureSlots(item.body);
+    return { title, detail: stripCitations(prose(lines.filter((line) => !SERVES_LINE.test(stripMarks(line))).map(bulletText))), requirements: links.flatMap(([, kind, number]) => position.get(`${kind.toUpperCase()}${Number(number)}`) ?? []), ...(slots ? { slots } : {}) };
   });
 
   const difference = (buckets.get('differentiation') ?? []).map(bulletText).filter(Boolean);

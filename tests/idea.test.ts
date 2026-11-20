@@ -134,3 +134,14 @@ test('fetchPageText stops reading and cancels the stream once the byte cap is re
   assert.ok(text?.startsWith('start'));
   assert.ok((text?.length ?? 0) <= 50);
 });
+
+import { ideaAudience } from '../lib/ideas/input';
+
+test('ideaAudience extracts the target audience noun (longer words first) or returns null', () => {
+  assert.equal(ideaAudience('대학생 가계부 앱', 'ko'), '대학생');
+  assert.equal(ideaAudience('1인 개발자를 위한 배포 자동화 도구', 'ko'), '1인 개발자');
+  assert.equal(ideaAudience('AI 에이전트 권한 관리', 'ko'), null);
+  assert.equal(ideaAudience('A budgeting app for students', 'en'), 'Students');
+  assert.equal(ideaAudience('An invoicing tool for freelancers', 'en'), 'Freelancers');
+  assert.equal(ideaAudience('AI agent permission guardrails', 'en'), null);
+});

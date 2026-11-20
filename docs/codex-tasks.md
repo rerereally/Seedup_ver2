@@ -19,6 +19,7 @@
 | C 평가 | CX-9 → CX-10 | 아이디어 평가 통합과 반대 근거 → 적중 기록 화면 | 큼, 중간 | 없음 |
 | D 기타 | CX-11, CX-12, CX-13 | 공개 목록 신고, MCP 주소형 토큰, RAG 평가 도구 | 중간, 작음, 중간 | CX-11은 #95 머지 뒤 |
 | E 팀 기반 | CX-14 | 서버 버전 기록과 항목별 댓글 | 큼 | AG-9 머지 뒤, 트랙 B와 같은 파일이면 그 PR 머지 뒤 |
+| F 보내기 | CX-15 | 키 없이 공유·내보내기(GitHub·Linear 이슈 링크, gh 명령, CSV, Notion, 에이전트 문장, 공유 미리보기) | 중간 | 없음. 트랙 B와 `PrdBuilder.tsx`·`spec.ts`가 겹치면 먼저 머지된 쪽에 맞춰 고침 |
 
 ---
 
@@ -270,6 +271,32 @@ Seedup은 개발자가 공개 글에 남긴 불만(원문)을 글자 단위로 �
 6. MCP가 고정해 쓰는 PRD(userPinnedDossierForSlug)가 새 버전으로 바뀌면 진행 중 기능에 needs_recheck를 표시하는 기존 흐름과 이어지는지 확인하고 PR에 적는다.
 
 [테스트] 버전 충돌 감지, 되돌리기, 댓글 항목 연결, 증언 편집 거부.
+```
+
+---
+
+## 트랙 F: 보내기
+
+### CX-15. 키 없이 공유·내보내기
+
+```text
+[배경] PRD를 Linear, Jira, Notion, Slack, GitHub로 보내고 싶다. 하지만 우리 서버는 어떤 서비스의 API 키나 OAuth도 쓰지 않는다(정식 연동은 팀 요금제로 미룸). 그래서 사용자가 자기 계정으로 직접 만들게 돕는다. 서버에 새 비밀값, 새 테이블, 새 의존성을 추가하지 않는다.
+PRD의 기능(F-n), 우선순위(P0/P1/P2), 수락 기준, 근거 원문 링크는 lib/opportunities/spec.ts의 Spec과 renderSpecMarkdown / renderAgentBrief에 있다. 내보내기 메뉴는 components/opportunity-stage/PrdBuilder.tsx에 있다(AG-9가 첫 버튼 규칙을 만듦, 그 규칙은 유지).
+
+[할 일]
+1. 이슈 본문 만들기: lib/opportunities/issues.ts에 기능 하나를 이슈로 바꾸는 순수 함수를 둔다. 제목은 "F-01 기능 이름", 본문은 기능 설명, 관련 요구사항과 우선순위, 수락 기준 체크리스트, 근거 원문 링크(있으면), 공유 링크(/spec/[id]가 있으면). P0는 우선순위 표시. 주소 길이 제한을 넘지 않게 본문이 길면 요약하고 "전체는 Seedup에서" 링크로 끝낸다(기준 6000자).
+2. GitHub 이슈 미리 채운 링크: 기능마다 "GitHub 이슈로" 버튼. https://github.com/{owner}/{repo}/issues/new?title=…&body=…&labels=… 를 새 탭으로 연다. 저장소는 사용자가 "owner/repo"로 한 번 적고 이 브라우저(localStorage, try/catch)에만 둔다. 형식 검사(owner/repo)를 한다.
+3. Linear 이슈 미리 채운 링크: 기능마다 "Linear 이슈로" 버튼. https://linear.new?title=…&description=… 를 연다. Linear 문서에서 이 형식이 맞는지 확인하고, 다르면 문서대로 한다. 확인한 문서 주소를 PR에 적는다.
+4. GitHub CLI 명령 복사: 모든 기능(P0 먼저)을 gh issue create --repo owner/repo --title … --body-file - 형태의 셸 명령 묶음으로 복사한다. 제목과 본문은 셸에서 안전하게 인용한다(작은따옴표 이스케이프, heredoc 사용). 사용자 입력이 명령으로 실행되지 않음을 테스트로 확인한다.
+5. Jira·Linear CSV: 기능별 한 줄짜리 CSV를 받는다(Summary, Description, Priority, Labels). CSV 이스케이프(쉼표, 따옴표, 줄바꿈)와 수식 주입 방지(=, +, -, @로 시작하면 앞에 작은따옴표)를 한다. lib/idea-pages.ts의 기존 안전한 CSV 함수가 있으면 그것을 쓴다. Jira와 Linear의 가져오기 화면 이름을 안내 문구에 적는다.
+6. Notion: PRD.md 받기 옆에 "Notion에서 가져오기 → Markdown & CSV" 안내 한 줄. 할 일이 Notion 체크박스로 바뀌도록 마크다운의 체크리스트 형식(- [ ])이 맞는지 확인한다.
+7. 에이전트로 이슈 만들기: renderAgentBrief와 앱 빌더 프롬프트 끝에 한 문장을 더한다: "Linear나 GitHub MCP가 연결돼 있으면, 시작 전에 위 기능을 F-n 제목 그대로 이슈로 만들고 P0부터 진행 상황을 Seedup MCP와 함께 보고한다." 연결이 없으면 아무 일도 하지 않게 쓴다.
+8. 공유 미리보기와 Slack 요약: /spec/[id]에 generateMetadata로 제목, 한 줄 요약, OG 정보를 넣는다(검색 노출 noindex는 유지). 북마크와 PRD 화면에 "Slack에 붙일 요약 복사" 버튼: 제목, 한 줄 요약, P0 기능 목록, 공유 링크(없으면 공유를 켜라는 안내).
+9. 모든 버튼 문구는 t('한국어', 'English'). 버튼이 많아지지 않게 "보내기" 메뉴 하나에 모은다. 휴대폰 폭에서 메뉴가 화면을 넘지 않게 한다.
+
+[테스트] 이슈 본문 길이 제한, URL 인코딩(한글, 줄바꿈, &, #), owner/repo 검사, gh 명령의 셸 인용(작은따옴표와 $(…)가 실행되지 않음), CSV 이스케이프와 수식 주입 방지, 에이전트 문장 포함.
+
+[하지 않을 것] 서버가 외부 서비스 API를 직접 부르는 것, 웹훅 주소나 토큰 저장, 양방향 동기화.
 ```
 
 ---

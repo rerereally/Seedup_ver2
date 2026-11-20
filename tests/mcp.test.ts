@@ -6,6 +6,14 @@ import { normalizeFeatureId } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import type { Opportunity } from '../lib/opportunities/types';
+import type { ProjectMemory } from '../lib/db/project-memory';
+
+/** Memory holding the user's approved answer for F-01, so a P0 feature with open readiness questions opens its task. */
+const answeredF01: ProjectMemory = {
+  decisions: [{ id: 'd1', projectKey: 'memory', goalVersion: 1, title: 'Overwrite on same title', why: 'User answered', rejected: [], author: { kind: 'agent', name: 'test' }, approved: true, featureIds: ['F-01'], criterionIds: [], at: '2026-11-20T00:00:00Z' }],
+  handoffs: [],
+  facts: [],
+};
 
 const opportunity = (slug: string, name: string, keywords: string[], qualified = true): Opportunity => ({
   slug, name, problem: `${name} problem`, gap: '', keywords, status: 'open', qualified, platforms: ['hn', 'github'],
@@ -36,7 +44,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     setProgress: async () => false,
     notifyBlocked: async () => {},
     kept: async () => [],
-    validate: async (idea) => { calls.push('validate'); return `# report ${idea}`; },
+    validate: async (idea) => { calls.push('validate'); return { text: `# report ${idea}` }; },
     watch: async () => { calls.push('watch'); return true; },
     ...over,
   };
@@ -454,6 +462,32 @@ test('validate_idea checks the daily limit before making a report, and refuses a
   assert.equal(empty.result.isError, true);
 });
 
+test('validate_idea hands back the saved draft key, and generate_verified_prd makes that draft PRD once', async () => {
+  const key = 'prd:11111111-2222-3333-4444-555555555555';
+  const saved = await handleRpc(call('validate_idea', { idea: 'meal plan for picky kids' }), deps({ validate: async () => ({ text: '# report', projectKey: key }) }), 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(saved.result.content[0].text, new RegExp(`saved as your project ${key}[\\s\\S]*generate_verified_prd \\{"project":"${key}"\\}`));
+
+  const draft = { id: key.slice(4), title: 'meal plan for picky kids', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-20T00:00:00Z', prdMarkdown: '# Meal plan PRD', evidence: [] };
+  const made = deps({ myPrd: async () => null, draftPrd: async (id) => { made.calls.push(`draft:${id}`); return draft; } });
+  const answer = await handleRpc(call('generate_verified_prd', { project: key, format: 'prd' }), made, 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  assert.equal(answer.result.isError, undefined);
+  assert.match(answer.result.content[0].text, /Meal plan PRD/);
+  assert.deepEqual(made.calls, ['consume', `draft:${key.slice(4)}`]);
+
+  const releases: string[] = [];
+  const missing = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => null, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { isError?: boolean } };
+  assert.equal(missing.result.isError, true);
+  const failed = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('model'); }, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  assert.equal(failed.result.isError, true);
+  assert.match(failed.result.content[0].text, /did not answer/);
+  assert.deepEqual(releases, ['mcp_prd', 'mcp_prd']);
+
+  // Only generate_verified_prd makes a draft's PRD; other tools on a draft key do not spend the PRD limit.
+  const other = deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('must not run'); } });
+  await handleRpc(call('get_next_task', { project: key }), other, 'https://x.test');
+  assert.equal(other.calls.includes('consume'), false);
+});
+
 import { firstUsersFrom, reportVerdict } from '../lib/opportunities/report';
 
 test('the report verdict uses the same 3-quotes-from-2-sites bar as published problems', () => {
@@ -521,7 +555,7 @@ test('pinnedSpec keeps active builds working when daily quotes change cachedSpec
   assert.equal(checklist.isError, undefined);
   assert.match(checklist.text, /F-01 Store notes/);
 
-  const task = await toolResult('get_next_task', { slug: 'memory' }, pinnedDeps);
+  const task = await toolResult('get_next_task', { slug: 'memory' }, { ...pinnedDeps, projectMemory: async () => answeredF01 });
   assert.equal(task.isError, undefined);
   assert.match(task.text, /I lose agent context every morning/);
 });
@@ -707,10 +741,32 @@ test('get_next_task fills the chosen feature’s empty readiness slots once and 
       return { input: cached.input, spec: { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots: filledSlots } : row)) } };
     },
   });
-  const task = await toolResult('get_next_task', { slug: 'memory' }, filled);
+  const task = await toolResult('get_next_task', { slug: 'memory' }, { ...filled, projectMemory: async () => answeredF01 });
   assert.deepEqual(asked, ['F-01']);
   assert.match(task.text, /only the owner reads notes/);
 
-  const failed = await toolResult('get_next_task', { slug: 'memory' }, deps({ cachedSpec: async () => ({ input, spec }), fillSlots: async () => null }));
+  const failed = await toolResult('get_next_task', { slug: 'memory' }, deps({ cachedSpec: async () => ({ input, spec }), fillSlots: async () => null, projectMemory: async () => answeredF01 }));
   assert.match(failed.text, /\(open question\)/);
+});
+
+test('get_next_task asks the open questions of a P0 feature first, until an approved answer names that feature', async () => {
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Store notes', requirements: [1] }] }, 1);
+  spec.features[0].slots = { inputs: ['a note title and body'], rules: ['확인 필요: 같은 제목이면 덮어쓸까요?'], errors: [], access: ['only the owner'], data: ['notes table'], done: ['restart keeps notes'] };
+  const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
+  const withMemory = (decisions: ProjectMemory['decisions']) => deps({ cachedSpec: async () => ({ input, spec }), projectMemory: async () => ({ decisions, handoffs: [], facts: [] }) });
+
+  const asked = await toolResult('get_next_task', { slug: 'memory' }, withMemory([]));
+  assert.equal(asked.isError, undefined);
+  assert.match(asked.text, /^F-01 Store notes \[open questions\]/);
+  assert.match(asked.text, /1\. Business rules: 같은 제목이면 덮어쓸까요\?\n2\. Errors and edge cases: what should it be\?/);
+  assert.doesNotMatch(asked.text, /update_feature_status/);
+  assert.match(asked.text, /\nNext: record_decision \{.*"feature_ids":\["F-01"\].*"approval":"대화에서 승인"\}$/);
+
+  // An answer the user did not approve, or one for another feature, does not open the task.
+  const unapproved = await toolResult('get_next_task', { slug: 'memory' }, withMemory([{ ...answeredF01.decisions[0], approved: null }, { ...answeredF01.decisions[0], featureIds: ['F-02'] }]));
+  assert.match(unapproved.text, /\[open questions\]/);
+
+  const opened = await toolResult('get_next_task', { slug: 'memory' }, withMemory(answeredF01.decisions));
+  assert.match(opened.text, /^F-01 Store notes \[todo\]/);
+  assert.match(opened.text, /\nNext: update_feature_status .*"status":"in_progress"/);
 });

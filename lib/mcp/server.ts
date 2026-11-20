@@ -10,8 +10,8 @@ import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
-import type { ExportFormat, Spec, SpecInput, SpecRival } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, p0FeatureIds, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
+import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRival } from '@/lib/opportunities/spec';
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 import { isGitHubLogin } from '@/lib/seeds/github';
@@ -83,8 +83,13 @@ export type McpDeps = {
   notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
   /** What this user kept on the site (repos, articles, papers, products), newest first. */
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
-  /** A validation report for one idea, as Markdown; null when it could not be made. */
-  validate: (idea: string) => Promise<string | null>;
+  /**
+   * A validation report for one idea, as Markdown, and the project key (prd:<id>) its quotes were saved under as the
+   * user's PRD draft; null when the report could not be made.
+   */
+  validate: (idea: string) => Promise<{ text: string; projectKey?: string | null } | null>;
+  /** Makes and saves the PRD for a draft that validate_idea saved; null when no such draft exists, throws when the model fails. */
+  draftPrd?: (id: string) => Promise<SavedPrdDetail | null>;
   /** Starts a weekly watch on one idea; false when the person already watches the most allowed. */
   watch: (idea: string) => Promise<boolean>;
 };
@@ -285,7 +290,7 @@ export const TOOLS = [
   },
   {
     name: 'generate_verified_prd',
-    description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
+    description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft. With a prd:<id> key from validate_idea it makes and saves that idea\'s PRD the first time.',
     inputSchema: projectSchema({
       format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
       fresh: { type: 'boolean', description: 'Generate again for a public opportunity' },
@@ -307,7 +312,7 @@ export const TOOLS = [
   },
   {
     name: 'validate_idea',
-    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
+    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
@@ -544,6 +549,10 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
       feature = updated;
     }
   }
+  // A P0 feature not started yet with open readiness questions is not built on a guess: the agent gets the questions
+  // to ask the user, and the coding task opens once an answer approved in the conversation is recorded for it.
+  const questions = status === 'todo' && p0FeatureIds(cached.spec).has(feature.id) ? openQuestionsOf(feature) : [];
+  if (questions.length && !(await answeredFeature(deps, slug, feature.id))) return questionsFirst(slug, goal, context, feature, questions);
   const criteria = featureCriteria(cached.spec, feature);
   // The cache key ignores order, but E-n always refers to the order saved with the PRD.
   // Fall back to the pinned PRD's own stored evidence if the daily engine rotated a quote out of opportunity.evidence.
@@ -589,6 +598,32 @@ update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<wha
     task.scopeCheck ? scopeDecision(slug, feature.id) : toolCall('update_feature_status', { ...args, status: 'in_progress' })),
     structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files, shortGoal(goal) || undefined),
   };
+}
+
+/** The readiness slots of a feature still left open, as questions for the user. */
+export function openQuestionsOf(feature: SpecFeature) {
+  return SLOT_KEYS.flatMap((key) => {
+    const items = feature.slots?.[key] ?? [];
+    if (!items.length) return [`${SLOT_LABELS_EN[key]}: what should it be?`];
+    return items.filter((line) => OPEN_SLOT_MARKER.test(line.trim())).map((line) => `${SLOT_LABELS_EN[key]}: ${line.trim().replace(OPEN_SLOT_MARKER, '').trim()}`);
+  }).slice(0, 6);
+}
+
+/** True once a decision the user approved in the conversation names this feature. */
+async function answeredFeature(deps: McpDeps, key: ProjectKey, featureId: string) {
+  const memory = await deps.projectMemory?.(key, 50).catch(() => undefined);
+  return Boolean(memory?.decisions.some((decision) => decision.approved === true && decision.featureIds.includes(featureId)));
+}
+
+function questionsFirst(key: ProjectKey, goal: ProjectGoal | null | undefined, context: string, feature: SpecFeature, questions: string[]): ToolResult {
+  const record = { project: key, title: '<the answer>', why: '<the user’s reason>', agent: '<your name>', scope_change: false, feature_ids: [feature.id], approval: APPROVED };
+  return projectReply(`${feature.id} ${oneLine(feature.title)} [open questions]`, goal, `${context ? `${context}\n\n` : ''}${feature.detail}
+
+The answers change how ${feature.id} is built, so do not guess. Ask the user in the terminal, one question at a time:
+${questions.map((line, index) => `${index + 1}. ${line}`).join('\n')}
+
+A suggested default, or leaving the case out of the first version, is a valid answer. Record the answers for this feature, then call get_next_task again:
+record_decision ${JSON.stringify(record)}`, toolCall('record_decision', record));
 }
 
 /**
@@ -1225,7 +1260,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const idea = String(args.idea ?? '').trim().slice(0, 300);
     if (idea.length < 4) return text('Describe the idea in a sentence.', true);
     if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
-    let report: string | null = null;
+    let report: Awaited<ReturnType<McpDeps['validate']>> = null;
     try {
       report = await deps.validate(idea);
     } catch (error) {
@@ -1236,7 +1271,9 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       await deps.release?.('mcp_report').catch(() => undefined);
       return text('The report could not be made. Try again in a minute.', true);
     }
-    return text(report);
+    return text(report.projectKey
+      ? `${report.text}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey })}`
+      : report.text);
   }
   if (name === 'watch_idea') {
     const idea = String(args.idea ?? '').trim().slice(0, 300);
@@ -1261,11 +1298,24 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const slug = projectKey(args);
   if (!slug) return projectReply('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', null, '', toolCall('get_my_prd', {}), true);
   const personal = slug.startsWith('prd:');
-  const saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
+  let saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
+  // A draft validate_idea saved has quotes but no PRD yet: generate_verified_prd makes it (counted like any PRD).
+  if (personal && !saved && name === 'generate_verified_prd' && deps.draftPrd) {
+    if (!(await deps.consume('mcp_prd', MCP_DAILY_PRD_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_PRD_LIMIT} PRDs). Try again tomorrow.`, true);
+    try {
+      saved = await deps.draftPrd(slug.slice(4));
+    } catch {
+      await deps.release?.('mcp_prd').catch(() => undefined);
+      return text('The model did not answer. Try again in a minute.', true);
+    }
+    if (!saved) await deps.release?.('mcp_prd').catch(() => undefined);
+  }
   const savedBuild = saved ? savedProject(saved, slug) : null;
   const opportunities = personal ? [] : await deps.opportunities();
   const opportunity = personal ? savedBuild?.opportunity : opportunities.find((item) => item.slug === slug);
-  if (!opportunity) return projectReply('Project not found. Call search_opportunities or get_my_prd first.', null, '',
+  if (!opportunity) return projectReply(personal
+    ? 'Project not found. A key from validate_idea has no PRD yet: call generate_verified_prd with it first. Otherwise call get_my_prd.'
+    : 'Project not found. Call search_opportunities or get_my_prd first.', null, '',
     personal ? toolCall('get_my_prd', {}) : toolCall('search_opportunities', { query: '<topic>' }), true);
   const loadSpec = () => personal ? Promise.resolve(savedBuild?.result ?? null) : resolveSpecForSlug(opportunity, deps);
   if (SUPERVISOR_TOOLS.has(name)) return callSupervisorTool(name, args, opportunity, deps, loadSpec, siteUrl);

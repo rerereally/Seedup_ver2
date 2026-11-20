@@ -1,7 +1,9 @@
 // Saved evidence and PRDs (evidence_dossiers). A user's own rows go through their client and row-level security;
 // every write also names the user so it stays safe if a policy ever changes. Shared PRDs and built examples are
 // public by the owner's choice and are read with the service key.
+import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Evidence } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export function saveDossier(supabase: SupabaseClient, row: Record<string, unknown>) {
@@ -78,6 +80,33 @@ export async function sharedPrd(id: string) {
   if (!service) return null;
   const { data } = await service.from('evidence_dossiers').select('title,prd_markdown,evidence_ids,opportunity_slug,updated_at').eq('id', id).eq('shared', true).maybeSingle();
   return data?.prd_markdown ? data : null;
+}
+
+/**
+ * Saves the quotes a validation report found for an idea as the user's PRD draft (no PRD yet), so an agent can make
+ * the PRD from it next. The same idea with the same quotes reuses one draft; new quotes make a new one, so a PRD
+ * already made from older quotes is never overwritten.
+ */
+export async function saveIdeaDraft(service: SupabaseClient, userId: string, idea: string, evidence: Evidence[]) {
+  const title = idea.trim().slice(0, 120);
+  const ids = evidence.map((row) => row.id).sort();
+  const dossierKey = createHash('sha256').update(['mcp-idea', title.toLowerCase(), ...ids].join('\n')).digest('hex').slice(0, 32);
+  const { data, error } = await saveDossier(service, { user_id: userId, dossier_key: dossierKey, title, opportunity_slug: null, evidence_ids: ids, evidence });
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+/** A draft saved by saveIdeaDraft that has no PRD yet. */
+export async function userIdeaDraft(service: SupabaseClient, userId: string, id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await service.from('evidence_dossiers').select('id,title,evidence').eq('user_id', userId).eq('id', id).is('prd_markdown', null).maybeSingle();
+  return error || !data ? null : (data as { id: string; title: string; evidence: unknown });
+}
+
+/** Writes the PRD made from a draft; a draft that got its PRD meanwhile is left alone. */
+export async function setIdeaDraftPrd(service: SupabaseClient, userId: string, id: string, markdown: string) {
+  const { error } = await service.from('evidence_dossiers').update({ prd_markdown: markdown, updated_at: new Date().toISOString() }).eq('user_id', userId).eq('id', id).is('prd_markdown', null);
+  if (error) throw error;
 }
 
 export type UserDossierPrd = {

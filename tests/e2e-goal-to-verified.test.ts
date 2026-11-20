@@ -435,7 +435,15 @@ test('full E2E loop: three entries → goal lock → agent start prompt → MCP 
     assert.equal(connected.isError, undefined);
     assert.match(connected.body, /Connected octocat\/handoff-bot to prd:11111111-2222-3333-4444-555555555555\./);
 
-    // Step 4: get_next_task selects F-01 by contribution to G-1 and instructs update_feature_status(in_progress).
+    // Step 4: F-01 still has open readiness questions, so get_next_task asks for them before any code is written;
+    // the agent records the user's approved answer, and the task opens.
+    const questions = await callMcp('get_next_task', { project: PROJECT_KEY });
+    assert.equal(questions.isError, undefined);
+    assert.match(questions.body, /^F-01 메시지 수집과 요약 \[open questions\]/);
+    assert.match(questions.body, /\nNext: record_decision \{.*"feature_ids":\["F-01"\].*"approval":"대화에서 승인"\}$/);
+    const answered = await callMcp('record_decision', { project: PROJECT_KEY, title: 'Unparsed alerts are skipped and counted', why: 'User answered in the terminal', agent: 'claude-code', scope_change: false, feature_ids: ['F-01'], approval: '대화에서 승인' });
+    assert.equal(answered.isError, undefined);
+    // Then get_next_task selects F-01 by contribution to G-1 and instructs update_feature_status(in_progress).
     const nextTask = await callMcp('get_next_task', { project: PROJECT_KEY });
     assert.equal(nextTask.isError, undefined);
     assert.equal(nextTask.structuredContent?.id, 'F-01');

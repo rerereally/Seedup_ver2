@@ -1,6 +1,7 @@
 import { callJsonModel, prdFreeModels, streamText } from '../llm';
 import type { ModelUsage, StreamEvent } from '../llm';
 import { auditP0Evidence, isTestableCriterion } from './prd-audit';
+import type { P0AuditStatus } from './prd-audit';
 import { competitorListings, normalizeTechnicalDesign } from './prd-design';
 import { findDifferentiationOverlap, withDifferentiationQuestion } from './prd-differentiation';
 import { parsePrdMarkdown } from './prd-markdown';
@@ -81,6 +82,34 @@ export type PrdEvent = StreamEvent | { type: 'stage'; stage: 'structuring' | 'ch
 
 export type PrdOptions = { draft?: boolean; lang?: Lang; idea?: boolean; model?: string; stack?: readonly string[]; onUsage?: (usage: ModelUsage) => void; beginner?: boolean; screens?: boolean; onEvent?: (event: PrdEvent) => void; deadline?: number; repair?: boolean; auditP0?: boolean; criticModel?: string };
 
+const AUDIT_NOTES: Record<Exclude<P0AuditStatus, 'done' | 'nothing'> | 'skipped' | 'off', { ko: string; en: string }> = {
+  skipped: {
+    ko: 'P0 근거 감사를 시간 안에 마치지 못해 건너뛰었습니다. P0 요구사항과 원문의 연결은 아직 검증되지 않았습니다.',
+    en: 'The P0 evidence audit was skipped for lack of time. Links between P0 requirements and quotes are not verified yet.',
+  },
+  off: {
+    ko: 'P0 근거 감사를 실행하지 않았습니다. P0 요구사항과 원문의 연결은 아직 검증되지 않았습니다.',
+    en: 'The P0 evidence audit was not run. Links between P0 requirements and quotes are not verified yet.',
+  },
+  failed: {
+    ko: 'P0 근거 감사 모델이 답하지 않아 감사를 마치지 못했습니다. P0 요구사항과 원문의 연결은 아직 검증되지 않았습니다.',
+    en: 'The P0 evidence audit model did not answer. Links between P0 requirements and quotes are not verified yet.',
+  },
+  overruled: {
+    ko: 'P0 근거 감사가 원문이 받쳐 주는 요구사항을 하나도 인정하지 않았습니다. 요구사항은 그대로 두었으니 원문을 다시 찾거나 사용자에게 확인하세요.',
+    en: 'The P0 evidence audit accepted none of the evidence-backed requirements. They were kept as written: search for quotes again or confirm them with users.',
+  },
+};
+
+/** Adds one line to reviewNotes when the P0 evidence audit did not check the links; a finished or empty audit adds nothing. */
+export function withAuditNote(spec: Spec, status: P0AuditStatus | 'skipped' | 'off'): Spec {
+  if (status === 'done' || status === 'nothing') return spec;
+  const note = spec.lang === 'en' ? AUDIT_NOTES[status].en : AUDIT_NOTES[status].ko;
+  const reviewNotes = spec.reviewNotes ?? [];
+  if (reviewNotes.includes(note)) return spec;
+  return { ...spec, reviewNotes: [...reviewNotes, note] };
+}
+
 /**
  * Writes the PRD as a Markdown document, streamed as it is written, then reads it back into the evidence-checked
  * spec. The model writes prose with a worked example to follow, which reads far better than filling JSON fields;
@@ -132,9 +161,15 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
   }
 
   let auditChanges: Awaited<ReturnType<typeof auditP0Evidence>>['changes'] = [];
+  let auditStatus: P0AuditStatus | 'skipped' | 'off' = 'nothing';
   const auditLeft = deadline - Date.now();
+  const hasP0Evidence = spec.requirements.some((row) => row.priority === 'P0') && input.evidence.length > 0;
   // On by default: a P0 that only cites a quote, without the quote backing it, must not stay a verified requirement.
-  if ((options.auditP0 ?? true) && auditLeft >= MIN_AUDIT_MS) {
+  if (hasP0Evidence && options.auditP0 === false) {
+    auditStatus = 'off';
+  } else if (hasP0Evidence && auditLeft < MIN_AUDIT_MS) {
+    auditStatus = 'skipped';
+  } else if (hasP0Evidence) {
     options.onEvent?.({ type: 'stage', stage: 'auditing' });
     const audited = await auditP0Evidence(input, spec, {
       // A different model checks the writer's work, so it does not just agree with itself.
@@ -142,10 +177,12 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
       timeoutMs: Math.min(35_000, auditLeft),
       deadline: Math.min(deadline, Date.now() + 35_000),
       onUsage: options.onUsage,
-    }).catch(() => ({ spec, changes: [], audited: false }));
+    }).catch(() => ({ spec, changes: [], audited: false, status: 'failed' as const }));
     spec = audited.spec;
     auditChanges = audited.changes;
+    auditStatus = audited.status;
   }
+  spec = withAuditNote(spec, auditStatus);
 
   options.onEvent?.({ type: 'stage', stage: 'completing' });
   const [ready, overlap] = await Promise.all([

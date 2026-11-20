@@ -369,22 +369,33 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const loginNext = `/prd/new?idea=${encodeURIComponent(idea)}`;
 
   // Web search for quotes the stored ones do not cover. What it finds is kept right away; the person can still drop it.
-  const searchWeb = async () => {
+  // Each search sends the phrases earlier ones tried for this idea, so the next one uses other words; when the first
+  // automatic search falls short of the bar, one more runs right away with them.
+  const tried = useRef<{ idea: string; phrases: string[] }>({ idea: '', phrases: [] });
+  const searchWeb = async (retry = false, kept = keptIds, known: LiveQuote[] = live) => {
     const version = ++searchVersion.current;
-    setSearch({ state: 'busy' });
+    if (tried.current.idea !== idea) tried.current = { idea, phrases: [] };
+    setSearch({ state: 'busy', ...(retry ? { message: t('다른 표현으로 한 번 더 찾는 중입니다.', 'Searching once more with other words.') } : {}) });
     try {
-      const response = await fetch('/api/opportunities/evidence-search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea }) });
+      const response = await fetch('/api/opportunities/evidence-search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea, avoid: tried.current.phrases }) });
       const json = await response.json().catch(() => ({}));
       if (searchVersion.current !== version) return;
       if (!response.ok) {
         setSearch({ state: 'error', message: json.error ?? t('찾지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not search. Try again shortly.') });
         return;
       }
+      const phrases = (Array.isArray(json.phrases) ? json.phrases : []).filter((row: unknown): row is string => typeof row === 'string');
+      tried.current = { idea, phrases: [...tried.current.phrases, ...phrases].slice(-6) };
       const found = (Array.isArray(json.quotes) ? json.quotes : []) as LiveQuote[];
+      const next = [...kept, ...found.map((row) => row.id).filter((id) => !kept.includes(id))].slice(0, MAX_KEPT);
       setLive((before) => [...before, ...found.filter((row) => !before.some((old) => old.id === row.id))]);
       setTouched(true);
-      setKept([...keptIds, ...found.map((row) => row.id).filter((id) => !keptIds.includes(id))].slice(0, MAX_KEPT));
-      setSearch({ state: 'done', message: found.length ? t(`원문 ${found.length}건을 찾아 근거로 담았습니다.`, `Found and kept ${found.length} quotes.`) : t('웹에서도 맞는 원문을 찾지 못했습니다. 답변만으로 만들면 요구사항은 가설로 표시됩니다.', 'No matching quote on the web either. A PRD from your answers marks requirements as hypotheses.') });
+      setKept(next);
+      const rows = [...known, ...found];
+      const keptRows = next.flatMap((id) => quoteById.get(id) ?? rows.find((row) => row.id === id) ?? []);
+      const short = keptRows.length < MIN_EVIDENCE || new Set(keptRows.map((row) => row.platform)).size < MIN_PLATFORMS;
+      if (!retry && short && phrases.length) return void searchWeb(true, next, rows);
+      setSearch({ state: 'done', message: found.length || retry ? t(`원문 ${keptRows.length}건을 근거로 담았습니다.${short ? ' 기준에는 못 미쳐 원문이 없는 줄은 가설로 표시됩니다.' : ''}`, `Kept ${keptRows.length} quotes as evidence.${short ? ' Still short of the bar, so unbacked lines become hypotheses.' : ''}`) : t('웹에서도 맞는 원문을 찾지 못했습니다. 답변만으로 만들면 요구사항은 가설로 표시됩니다.', 'No matching quote on the web either. A PRD from your answers marks requirements as hypotheses.') });
     } catch {
       if (searchVersion.current !== version) return;
       setSearch({ state: 'error', message: t('연결이 끊겼습니다. 다시 시도해 주세요.', 'Connection lost. Try again.') });
@@ -417,15 +428,16 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   };
 
   // Short of the evidence bar, look on the web once per idea without waiting to be asked: a PRD with quotes is the
-  // point, and a person rarely finds the search button before writing. Signed-in only (it spends a daily quota).
+  // point, and a person rarely finds the search button before writing. Signed-out visitors get a few a day too, so
+  // they see evidence before they sign in.
   const searchedFor = useRef('');
   useEffect(() => {
-    if (!restored || !signedIn || !idea || passes || search.state !== 'idle' || searchedFor.current === idea || live.length) return;
+    if (!restored || !idea || passes || search.state !== 'idle' || searchedFor.current === idea || live.length) return;
     searchedFor.current = idea;
     void searchWeb();
     // searchWeb reads the latest state when it runs; re-running on its identity would search again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restored, signedIn, idea, passes, search.state, live.length]);
+  }, [restored, idea, passes, search.state, live.length]);
 
   // The id of the saved PRD, for the goal API. The same title and evidence upsert the same bookmark PrdBuilder saves, and
   // leave its markdown alone. shortcut: a PRD with no quotes gets no id here (422), until PrdBuilder reports its saved id.
@@ -703,11 +715,10 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
   const web = (
     <div className={matched.length || live.length || saved.length ? 'mt-6 border-t border-outline-soft pt-5' : 'mt-4'}>
       <p className="text-[14px] font-semibold text-ink">{t('웹에서 원문 더 찾기', 'Find more quotes on the web')}</p>
-      <p className="mt-1 text-[13px] leading-5 text-muted">{t('GitHub 이슈, Hacker News, Stack Overflow에서 같은 불편을 말한 글을 찾아, 원문과 글자 단위로 맞는 문장만 가져옵니다. 30초에서 1분 걸립니다.', 'Searches GitHub issues, Hacker News and Stack Overflow for posts about the same problem, keeping only sentences that match the source word for word. Takes 30 to 60 seconds.')}</p>
-      <div className="mt-3">
-        {signedIn
-          ? <button type="button" onClick={onSearch} disabled={search.state === 'busy'} className={`${matched.length || live.length ? 'btn-quiet' : 'btn'} h-10 whitespace-nowrap`}>{search.state === 'busy' ? t('웹에서 찾는 중', 'Searching the web') : live.length ? t('한 번 더 찾기', 'Search again') : t('웹에서 찾기', 'Search the web')}</button>
-          : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 whitespace-nowrap">{t('로그인하고 웹에서 찾기', 'Sign in to search the web')}</Link>}
+      <p className="mt-1 text-[13px] leading-5 text-muted">{t('GitHub 이슈, Hacker News, Stack Overflow와 생활 분야 Q&A 사이트에서 같은 불편을 말한 글을 찾아, 원문과 글자 단위로 맞는 문장만 가져옵니다. 다른 사람이 비슷한 아이디어로 찾아 둔 원문도 함께 봅니다. 30초에서 1분 걸립니다.', 'Searches GitHub issues, Hacker News, Stack Overflow and everyday Q&A sites for posts about the same problem, keeping only sentences that match the source word for word. Quotes found for similar ideas are checked too. Takes 30 to 60 seconds.')}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onSearch} disabled={search.state === 'busy'} className={`${matched.length || live.length ? 'btn-quiet' : 'btn'} h-10 whitespace-nowrap`}>{search.state === 'busy' ? t('웹에서 찾는 중', 'Searching the web') : live.length ? t('다른 표현으로 더 찾기', 'Search with other words') : t('웹에서 찾기', 'Search the web')}</button>
+        {!signedIn && <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="text-[13px] text-tertiary underline underline-offset-2 hover:text-ink">{t('로그인 없이는 하루 4번까지', 'Up to 4 a day without signing in')}</Link>}
       </div>
       {signedIn && (
         <form

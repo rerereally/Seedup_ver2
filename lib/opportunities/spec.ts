@@ -6,7 +6,7 @@ import type { Lang } from '../i18n';
 import { citedQuotes, prdSentenceParts } from './prd-markdown';
 import { normalizeDifferentiation, normalizeTechnicalDesign, renderTechnicalDesign } from './prd-design';
 import { groundRivalComparisons } from './prd-rivals';
-import { findingFromLine, findingLine, groundedFinding, isSlotFinding, normalizeFinding, normalizeModules, renderPrdModules } from './prd-modules';
+import { findingFromLine, findingLine, groundedFinding, isSlotFinding, normalizeFinding, normalizeModules, renderPrdModules, withoutPrdRefs } from './prd-modules';
 import type { PrdFinding, PrdModule } from './prd-modules';
 import { isCutOffEvidenceQuote } from './quote-completeness';
 import type { Differentiation, TechnicalDesign } from './prd-design';
@@ -221,7 +221,10 @@ export function normalizeSlots(raw: unknown, sources?: readonly Evidence[]): Rea
     slots[key] = stringList(record[key], 5, sources ? 450 : 240).flatMap((line) => {
       if (!sources) return [line];
       const finding = findingFromLine(line);
-      if (finding.evidence === undefined) return [isSlotFinding(line) ? line.slice(0, 265) : line.slice(0, 240)];
+      if (finding.evidence === undefined) {
+        const clean = withoutPrdRefs(line).slice(0, isSlotFinding(line) ? 265 : 240);
+        return clean ? [clean] : [];
+      }
       const checked = groundedFinding(finding, sources);
       return checked ? [findingLine(checked)] : [];
     });
@@ -565,12 +568,14 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
     const linked = feature.requirementIds.map((id) => requirements.get(id)).filter((row) => row !== undefined);
     const serves = linked.map((row) => {
       const basis = row.id.startsWith('H-') ? 'hypothesis, no source evidence' : `evidence ${cite(row.evidence)}`;
-      return `${row.id} ${row.title} (${basis})${row.followup ? ` — ${row.followup.evidence ? 'Research quote' : 'Planner answer'}: ${findingLine(row.followup)}` : ''}`;
+      return `${row.id} ${row.title} (${basis})`;
     }).join('; ');
     const accept = linked.flatMap((row) => row.acceptance ?? []);
     return `- [ ] ${feature.id} ${feature.title}\n  - ${p0.has(feature.id) ? '(P0) ' : ''}${feature.detail}\n  - Serves: ${serves}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
+  const followups = spec.hypotheses.flatMap(({ id, title, followup }) => followup
+    ? [`- ${id} ${title} — ${followup.evidence ? 'Research quote' : 'Planner answer'}: ${findingLine(followup)}`] : []).join('\n');
   const flow = mermaidFlow(spec);
   const goal = format === 'agents' ? context?.goal : undefined;
   const recentDecisions = format === 'agents' ? context?.decisions : undefined;
@@ -598,7 +603,7 @@ ${goal?.statement ?? spec.summary}
 ${input.problem}
 
 ${spec.differentiation ? `## Differentiation\n${renderDifferentiation(spec.differentiation, 'en')}\n\n` : ''}${spec.technicalDesign ? `## Technical design\n\n${renderTechnicalDesign(spec.technicalDesign, 'en')}\n\n` : ''}
-${renderPrdModules(spec, 'en')}${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
+${renderPrdModules(spec, 'en')}${followups ? `## Follow-up on hypotheses\n${followups}\n\n` : ''}${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 
 ${spec.screens.length ? `## Screens, in order (a draft, confirm with users)\n${spec.screens.map((screen) => `${screen.id}. ${screen.name}${screen.does ? `: ${screen.does}` : ''} (${screen.featureIds.join(', ')})`).join('\n')}\n\n` : ''}${flow ? `## User flow\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}## Do not build

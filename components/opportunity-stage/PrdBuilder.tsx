@@ -20,7 +20,7 @@ import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
 import { citedQuotes } from '@/lib/opportunities/prd-markdown';
 import { technicalSections } from '@/lib/opportunities/prd-design';
-import { findingLine, MODULE_HEADING } from '@/lib/opportunities/prd-modules';
+import { findingFromLine, findingLine, groundedFinding, MODULE_HEADING, withoutPrdRefs } from '@/lib/opportunities/prd-modules';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
 import PrdSend, { NotionImportHint } from './PrdSend';
@@ -584,6 +584,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   );
   // Prose keeps the model's [E1] tags; each becomes a clickable chip that highlights its quote via traceOf.
   const prose = (text: string) => text.split(/(\[\s*E\s*-?\s*\d+(?:\s*[,，]\s*E?\s*-?\s*\d+)*\s*\])/gi).map((part, index) => (index % 2 ? <span key={index}>{cites(citedQuotes(part), true)}</span> : part));
+  const slotProse = (line: string) => {
+    const checked = groundedFinding(findingFromLine(line), input?.evidence ?? []);
+    return checked ? findingLine(checked) : withoutPrdRefs(line);
+  };
   const strengthText = (row: SpecRequirement) => t(...EVIDENCE_STRENGTH_LABELS[evidenceStrengthFor(row.evidence, input?.evidence ?? [])]);
   const taggedProse = (value: string) => input ? prdSentenceKinds(value, input).map(({ kind, text }, index) => (
     <span key={index}>
@@ -705,7 +709,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <dt>{slotLabels(lang)[key]}</dt>
                       <dd className={slotIsOpen(feature.slots![key]) ? 'text-muted' : 'font-medium text-seed'}>{slotIsOpen(feature.slots![key]) ? t('확인 필요', 'Needs review') : t('채움', 'Filled')}</dd>
                     </div>
-                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? prose(feature.slots![key].join('; ')) : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
+                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? prose(feature.slots![key].map(slotProse).join('; ')) : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
                   </div>
                 ))}
               </dl>

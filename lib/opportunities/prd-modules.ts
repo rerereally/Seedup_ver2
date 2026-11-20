@@ -36,15 +36,16 @@ export type PrdModule = { id: PrdModuleId; reason: string; fields: Record<string
 export const MODULE_HEADING = ['추가 모듈', 'PRD modules'] as const;
 const OPEN = ['확인 필요', 'Open question'] as const;
 const HYPOTHESIS = ['가설', 'Hypothesis'] as const;
+const MODULE_ANSWER = ['가설 · 기획자 답변', 'Hypothesis · planner answer'] as const;
 export const moduleFields = (id: PrdModuleId) => Object.entries(PRD_MODULES[id].fields);
-export const moduleId = (id: string): id is PrdModuleId => Object.hasOwn(PRD_MODULES, id);
+const moduleId = (id: string): id is PrdModuleId => Object.hasOwn(PRD_MODULES, id);
 
-export const prdLine = (value: unknown, limit = 400) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, limit) : '';
-const CITATION = /\s*\[E-(\d+)\]$/i;
-const withoutRefs = (value: string) => value.replace(/[[(]\s*[EH]\s*-?\s*\d+(?:\s*[,，/]\s*[EH]?\s*-?\s*\d+)*\s*[\])]/gi, '').trim();
+const prdLine = (value: unknown, limit = 400) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, limit) : '';
+const CITATION = /\s*\[\s*E\s*-?\s*(\d+)\s*\]$/i;
+export const withoutPrdRefs = (value: string) => value.replace(/[[(]\s*[EH]\s*-?\s*\d+(?:\s*[,，/]\s*[EH]?\s*-?\s*\d+)*\s*[\])]/gi, '').trim();
 const pending = /^(?:(?:확인 필요|open question)\s*(?::|$)|\(?\s*(?:미정|없음|tbd|unknown|not defined)\s*\)?$)/i;
-const ANSWER_MARKER = /^(?:기획자 답변|Planner answer)\s*:\s*/i;
-const trimProposedAnswer = (text: unknown, limit = 240) => withoutRefs(prdLine(text, limit));
+const ANSWER_MARKER = /^(?:(?:가설|hypothesis) · )?(?:기획자 답변|Planner answer)\s*:\s*/i;
+const trimProposedAnswer = (text: unknown, limit = 240) => withoutPrdRefs(prdLine(text, limit));
 export const isSlotFinding = (line: string) => CITATION.test(line) || ANSWER_MARKER.test(line);
 
 /** Only a copy of an entire verified source quote can fill an item with an E-number. */
@@ -53,7 +54,7 @@ export function groundedFinding(value: unknown, sources: readonly Evidence[]): P
   const index = row?.evidence;
   const source = typeof index === 'number' && Number.isInteger(index) ? sources[index - 1] : undefined;
   const text = prdLine(row?.text);
-  if (!source || source.platform === 'own' || !source.url || isCutOffEvidenceQuote(source.quote) || pending.test(text) || withoutRefs(text) !== text) return;
+  if (!source || source.platform === 'own' || !source.url || isCutOffEvidenceQuote(source.quote) || pending.test(text) || withoutPrdRefs(text) !== text) return;
   if (!isVerbatimQuote(text, source.quote) || normalizeForMatch(text) !== normalizeForMatch(source.quote)) return;
   return { text: prdLine(source.quote), evidence: index };
 }
@@ -70,7 +71,7 @@ export function findingLine(finding: PrdFinding) {
 export function normalizeFinding(value: unknown, sources: readonly Evidence[]): PrdFinding | undefined {
   const row = value as Partial<PrdFinding> | null;
   if (row?.evidence !== undefined) return groundedFinding(row, sources);
-  const text = withoutRefs(prdLine(row?.text));
+  const text = withoutPrdRefs(prdLine(row?.text));
   return text && !pending.test(text) ? { text, ...(row?.answered === true ? { answered: true as const } : {}) } : undefined;
 }
 
@@ -80,7 +81,7 @@ export function normalizeModules(value: unknown, sources: readonly Evidence[] = 
   for (const row of value.slice(0, 10)) {
     if (typeof row?.id !== 'string' || !moduleId(row.id) || modules.some(({ id }) => id === row.id)) continue;
     const id = row.id;
-    const reason = withoutRefs(prdLine(row.reason, 180));
+    const reason = withoutPrdRefs(prdLine(row.reason, 180));
     if (!reason) continue;
     const fields = Object.fromEntries(moduleFields(id).flatMap(([key]) => {
       const item = row.fields?.[key];
@@ -104,7 +105,7 @@ export function moduleEntries(spec: Spec, lang: Lang = 'ko') {
       const label = t(labels[0], labels[1]);
       const hypothesisId = `H-${String(++hypothesis).padStart(2, '0')}`;
       const id = item?.evidence ? `E-${item.evidence}` : hypothesisId;
-      const status = item?.evidence ? t('원문', 'Source quote') : item?.answered ? t('기획자 답변', 'Planner answer') : item ? t(...HYPOTHESIS) : t(...OPEN);
+      const status = item?.evidence ? t('원문', 'Source quote') : item?.answered ? t(...MODULE_ANSWER) : item ? t(...HYPOTHESIS) : t(...OPEN);
       return { key, label, item, id, status };
     }),
   }));

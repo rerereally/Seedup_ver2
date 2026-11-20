@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { PrdEnrichment, PrdModuleSection } from '../components/opportunity-stage/PrdEnrichment';
 import type { callJsonModel } from '../lib/llm';
 import { parsePrdMarkdown } from '../lib/opportunities/prd-markdown';
 import { answerPrdGaps, moduleFields, normalizeModules, PRD_MODULES, prdGaps } from '../lib/opportunities/prd-modules';
@@ -24,8 +27,8 @@ Show the active alerts for the current handoff.
 ### F1. Export alerts (R1)
 Return a list of active alerts.
 ## Hypotheses to validate
-### H1. Daily summaries
-The team might need one report every morning.`;
+### H1. Handoff edit history
+The team might need a history of edits to the handoff.`;
 
 const enterprise = {
   id: 'enterprise', reason: 'The product is used by on-call teams.',
@@ -85,9 +88,12 @@ test('Markdown round-trips modules in Korean and English and every export shows 
 ## PRD modules
 ### enterprise
 - reason: ${enterprise.reason}
-- audit: ${original.quote} [E-1]
+- audit: ${original.quote} [E1]
 - compliance: Keep the audit log for 90 days.
-- permissions: TBD`)!;
+- permissions: TBD
+### data_ai
+- reason: The draft benchmarks a model.
+- cost: Planner answer: Cap the budget at ten dollars.`)!;
   const spec = normalizeSpec(raw, input.evidence, false, { idea: true });
   for (const lang of ['ko', 'en'] as const) {
     const markdown = renderSpecMarkdown(input, { ...spec, lang });
@@ -97,11 +103,26 @@ test('Markdown round-trips modules in Korean and English and every export shows 
     assert.match(markdown, /\[H-\d+\] (가설|Hypothesis): Keep the audit log for 90 days/);
     assert.match(markdown, /\[H-\d+\] (확인 필요|Open question)/);
     assert.match(markdown, /edited them\. \[E-1\]/);
+    assert.match(markdown, /\[H-\d+\] (가설 · 기획자 답변|Hypothesis · planner answer): Cap the budget/);
   }
   for (const format of ['agents', 'claude', 'cursor', 'prompt'] as const) {
     const result = renderAgentBrief(input, spec, format);
     assert.match(result, /## PRD modules/);
     assert.match(result, /Audit logs \(audit\)\*\*: .* \[E-1\]/);
+  }
+});
+
+test('the document module section and enrichment entry render in both languages', () => {
+  const spec = normalizeSpec({ ...parsePrdMarkdown(legacy), modules: [enterprise] }, input.evidence);
+  for (const lang of ['ko', 'en'] as const) {
+    const section = renderToStaticMarkup(createElement(PrdModuleSection, { spec, lang, pick: () => undefined }));
+    assert.match(section, lang === 'ko' ? /추가 모듈/ : /PRD modules/);
+    assert.match(section, lang === 'ko' ? /확인 필요/ : /Open question/);
+    assert.match(section, /E-1/);
+    const enrichment = renderToStaticMarkup(createElement(PrdEnrichment, {
+      lang, busy: false, round: null, start: async () => undefined, apply: async () => undefined,
+    }));
+    assert.match(enrichment, lang === 'ko' ? /빈 곳 채우기/ : /Fill gaps/);
   }
 });
 
@@ -161,6 +182,7 @@ test('research uses only verified quotes, asks at most five unresolved questions
   assert.equal(prdGaps(result.spec).length, researched.remaining - 1);
 
   const enrichedInput = { ...input, evidence: [...input.evidence, ...researched.added] };
+  assert.match(renderAgentBrief(enrichedInput, result.spec), /H-01.*Research quote: .* \[E-1\]/);
   for (const lang of ['ko', 'en'] as const) {
     const markdown = renderSpecMarkdown(enrichedInput, { ...result.spec, lang });
     const restored = normalizeSpec(parsePrdMarkdown(markdown)!, enrichedInput.evidence, false, { idea: true });

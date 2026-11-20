@@ -299,7 +299,7 @@ ${requirements.map((row) => `- ${row.title}: ${row.detail}`).join('\n')}
 
 사용자 발언:
 ${quotes(input)}`, { maxTokens: 2_000, timeoutMs: 45_000, deadline, title: 'Seedup readiness slots', models, reasoning: 'low', attempts: 1, onUsage });
-  return normalizeSlots(raw);
+  return normalizeSlots(raw, input.evidence);
 }
 
 /** The current spec in the model's own numbering, so a revision answers in the same shape generatePrd uses. */

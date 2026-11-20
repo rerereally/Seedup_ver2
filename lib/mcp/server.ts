@@ -2,7 +2,7 @@
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
 import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, progressNote, projectPage, readAppResource, supervisorPage, verificationCard, withAppMeta } from '@/lib/mcp/apps';
 import type { MemoryEntry, ProjectMemory } from '@/lib/db/project-memory';
-import type { VerificationRecord } from '@/lib/db/verifications';
+import { completedVerificationTests, type VerificationRecord, type VerificationVerdict } from '@/lib/db/verifications';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { touchedDoneFeatures, type CommitFileStatus } from '@/lib/opportunities/feature-commits';
@@ -671,7 +671,7 @@ export function doneSummary(spec: Spec, progress: BuildProgress) {
   return `${done.length}/${spec.features.length} done (🟢 ${verified} supervisor verified, ⚪ ${done.length - verified} self-reported)`;
 }
 
-export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string, unlinkedCount?: number) {
+export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string, unlinkedCount?: number, tests: Record<string, string[]> = {}) {
   const lines = spec.features.map((feature) => {
     const mark = progress[feature.id];
     const status = mark?.status ?? 'todo';
@@ -680,7 +680,7 @@ export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: 
     return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}]${level} (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
   Done when:
-${criteria}${mark?.note ? `\n  Note: ${progressNote(mark.note)}` : ''}`;
+${criteria}${tests[feature.id]?.length ? `\n  ${tests[feature.id].join('\n  ')}` : ''}${mark?.note ? `\n  Note: ${progressNote(mark.note)}` : ''}`;
   });
   return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${doneSummary(spec, progress)}${spec.draft ? ', hypothesis draft' : ''}${unlinkedCount === undefined ? '' : `\nUnlinked commits: ${unlinkedCount}.`}
 Work on one feature at a time. Call update_feature_status when starting and ending. For verified completion, use the full SHA and token from verify_feature. In a non-strict project, one passing check per criterion is accepted as a self-report.
@@ -905,6 +905,21 @@ function mergeDriftFindings(existing: DriftFinding[], incoming: DriftFinding[]):
   return added.length ? [...existing, ...added] : existing;
 }
 
+function verificationTestLines(verdicts: VerificationVerdict[], criteria?: string[]) {
+  const listed = verdicts.flatMap(({ criterion, testEvidence }) => {
+    if (!testEvidence) return [];
+    if (criteria && (!testEvidence.files.length || testEvidence.criterionText !== scrubSecrets(criteria[Number(criterion) - 1] ?? '').scrubbed)) return [];
+    return [{ criterion, ...testEvidence }];
+  });
+  const limited = (items: string[]) => items.slice(0, 2).map((item) => oneLine(progressNote(item), 100)).join(', ')
+    + (items.length > 2 ? ` (+${items.length - 2})` : '');
+  return [
+    ...listed.slice(0, 3).map(({ criterion, files, checks }) =>
+      `Tests for criterion ${oneLine(criterion, 12)}: ${files.length ? limited(files) : 'no verified test citation'}${checks.length ? ` · CI: ${limited(checks)}` : ''}`),
+    ...(listed.length > 3 ? [`Test evidence for ${listed.length - 3} more criteria.`] : []),
+  ];
+}
+
 function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | undefined, lang?: Spec['lang']): ToolResult {
   const project = row.projectKey;
   const pending = row.status === 'queued' || row.status === 'running';
@@ -917,6 +932,7 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
   }));
   const blockers = row.findings.filter((finding) => finding.severity === 'blocker').map((finding) => finding.code);
   const warnings = row.findings.length - blockers.length;
+  const tests = verificationTestLines(row.verdicts);
   const scopeWarning = row.drift.length > 0;
   const driftItems = [...new Set(row.drift.flatMap((finding) => finding.files))].slice(0, 6);
   const groupedVerdicts = (['met', 'not_met', 'unclear'] as const).flatMap((verdict) => {
@@ -926,6 +942,7 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
   const body = [
     pending && `Verification ID: ${row.id}`,
     groupedVerdicts.length && `Criterion verdicts — ${groupedVerdicts.join(' · ')}.`,
+    tests.join('\n'),
     blockers.length && `Blockers: ${blockers.length} (${[...new Set(blockers)].slice(0, 5).join(', ')}).`,
     warnings > 0 && `Static warnings: ${warnings}.`,
     row.unseen.length > 0 && `Files the verifier could not read: ${row.unseen.length}.`,
@@ -939,7 +956,7 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
     : toolCall('resume_project', { project });
   return {
     ...projectReply(outcome, goal, body, next, row.status === 'error'),
-    structuredContent: verificationCard(row, shortGoal(goal), verdicts, blockers.length, warnings),
+    structuredContent: verificationCard(row, shortGoal(goal), verdicts, blockers.length, warnings, tests),
   };
 }
 
@@ -1029,7 +1046,7 @@ async function updateBuildStatus(args: Record<string, unknown>, opportunity: Opp
     const verified = sha && token && deps.matchesVerificationToken?.(token, project, feature.id, sha);
     if (verified) {
       completion = { featureId: feature.id, level: 'supervisor_verified' };
-      note = [`[supervisor_verified:${sha.slice(0, 8)}]`, note].filter(Boolean).join(' ');
+      note = [`[supervisor_verified:${sha}]`, note].filter(Boolean).join(' ');
     } else {
       if (settings?.strict) {
         return projectReply(`${feature.id} is not marked done. Strict mode requires a valid verification token for this feature and SHA.`, goal, '', verifyNext(project, feature.id, sha), true);
@@ -1097,9 +1114,21 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     const [project, goal, memory, progress, cached] = await Promise.all([
       deps.supervisorProject?.(key), deps.projectGoal?.(key), deps.projectMemory?.(key, 3), deps.progress(key), loadSpec().catch(() => null),
     ]);
-    const unlinkedCount = cached ? await deps.unlinkedCommitCount(key).catch(() => undefined) : undefined;
+    const commits = Object.fromEntries((cached?.spec.features ?? []).flatMap(({ id }) => {
+      const row = progress[id];
+      const sha = row?.status === 'done' && row.verificationLevel === 'supervisor_verified'
+        ? /^\[supervisor_verified:([a-f0-9]{40})\]/.exec(row.note)?.[1] : undefined;
+      return sha ? [[id, sha]] : [];
+    }));
+    const [unlinkedCount, verified = {}] = await Promise.all([
+      cached ? deps.unlinkedCommitCount(key).catch(() => undefined) : undefined,
+      project?.repo ? completedVerificationTests(project.userId, key, project.repo, commits).catch(() => undefined) : undefined,
+    ]);
+    const tests = cached ? Object.fromEntries(cached.spec.features.map((feature) => [
+      feature.id, verificationTestLines(verified[feature.id] ?? [], featureCriteria(cached.spec, feature)),
+    ])) : {};
     const working = Object.entries(progress).filter(([, row]) => ['in_progress', 'improving', 'blocked', 'needs_recheck'].includes(row.status));
-    const checklistText = cached ? renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount) : '';
+    const checklistText = cached ? renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount, tests) : '';
     const hasPriorWork = Object.keys(progress).length > 0 || Boolean(memory?.handoffs.length) || (unlinkedCount ?? 0) > 0;
     const needsSetup = Boolean(cached) && (typeof args.has_setup_files === 'boolean' ? !args.has_setup_files : !hasPriorWork);
     const body = [
@@ -1117,7 +1146,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
         : toolCall('get_next_task', { project: key });
     return {
       ...projectReply(`${opportunity.name} (project: ${key})`, goal, body, next),
-      ...(cached ? { structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal)) } : {}),
+      ...(cached ? { structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal), tests) } : {}),
     };
   }
   if (name === 'setup_project') {

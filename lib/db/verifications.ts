@@ -1,9 +1,14 @@
 import { createAdminClient } from '../supabase/admin';
 import { supervisorProject } from './supervisor-projects';
-import type { Verification } from '../supervisor/types';
+import type { CriterionVerdict, Verification } from '../supervisor/types';
 import type { UnseenFile } from '../verifier/github';
 
-export type VerificationRecord = Verification & {
+export type VerificationVerdict = CriterionVerdict & {
+  testEvidence?: { criterionText: string; files: string[]; checks: string[] };
+};
+
+export type VerificationRecord = Omit<Verification, 'verdicts'> & {
+  verdicts: VerificationVerdict[];
   unseen: UnseenFile[];
   githubRequests?: number;
   durationMs?: number | null;
@@ -23,7 +28,7 @@ export type VerificationStore = {
 const COLUMNS = 'id,user_id,project_key,feature_id,repo,sha,status,findings,verdicts,drift,checks,model,input_tokens,output_tokens,cost_usd,token,created_at,finished_at,unseen,github_requests,duration_ms,error_message';
 type Row = {
   id: string; user_id: string; project_key: string; feature_id: string; repo: string; sha: string;
-  status: Verification['status']; findings: Verification['findings']; verdicts: Verification['verdicts'];
+  status: Verification['status']; findings: Verification['findings']; verdicts: VerificationRecord['verdicts'];
   drift: Verification['drift']; checks: Verification['checks']; model: string | null;
   input_tokens: number; output_tokens: number; cost_usd: number; token: string | null;
   created_at: string; finished_at: string | null; unseen: UnseenFile[];
@@ -43,6 +48,20 @@ const toRow = (r: VerificationRecord): Row => ({
   created_at: r.createdAt, finished_at: r.finishedAt, unseen: r.unseen,
   github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null,
 });
+
+/** Load test evidence only from the verified SHAs recorded when these features were marked done. */
+export async function completedVerificationTests(userId: string, key: string, repo: string, commits: Record<string, string>): Promise<Record<string, VerificationVerdict[]>> {
+  const featureIds = Object.keys(commits);
+  if (!featureIds.length) return {};
+  const db = createAdminClient();
+  if (!db) return {};
+  const { data, error } = await db.from('verifications').select('feature_id,sha,verdicts')
+    .eq('user_id', userId).eq('project_key', key).eq('repo', repo.toLowerCase()).eq('status', 'passed')
+    .in('feature_id', featureIds).in('sha', [...new Set(Object.values(commits))]);
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).filter((row) => commits[row.feature_id] === row.sha)
+    .map((row) => [row.feature_id, row.verdicts as VerificationVerdict[]]));
+}
 
 /** Service-role queries stay here; every lookup and write is scoped to the authenticated caller. */
 export function verificationStore(): VerificationStore {

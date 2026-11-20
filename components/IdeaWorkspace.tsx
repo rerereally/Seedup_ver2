@@ -607,7 +607,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         </section>
 
         <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-white px-5 pb-28 pt-6 [scrollbar-width:thin] lg:order-2 lg:block lg:overflow-y-auto lg:px-10 lg:pb-10`}>
-          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={() => setGoalLocked(true)} />}
+          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
           <PrdBuilder
             title={idea}
             evidenceIds={keptIds}

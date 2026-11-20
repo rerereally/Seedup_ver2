@@ -1,6 +1,7 @@
 // The evidence-traced spec: every requirement cites verified quotes, every feature serves a requirement,
 // every screen serves a feature. Pure functions only, so the browser can re-render exports after edits.
 import { translator } from '../i18n';
+import { recommendToolkit, renderToolkit } from './toolkit';
 import type { Lang } from '../i18n';
 import { PLATFORM_LABELS } from './types';
 import type { Evidence } from './types';
@@ -392,7 +393,7 @@ ${spec.assumptions?.length ? `\n## ${t('가정', 'Assumptions')}\n${bullets(spec
 ## ${t('성공 지표', 'Success metrics')}
 ${bullets(spec.metrics, undefinedText)}
 ${spec.openQuestions?.length ? `\n## ${t('열린 질문', 'Open questions')}\n${bullets(spec.openQuestions, undefinedText)}\n` : ''}
-${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${citeTags(row.misses)}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}## ${t('근거 원문', 'Source quotes')}
+${spec.rivals?.length ? `## ${t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}\n${spec.rivals.map((row) => `- ${row.name}: ${citeTags(row.misses)}${row.answer ? ` → ${row.answer}` : ''}`).join('\n')}\n\n` : input.competitors.length ? `## ${t('이미 있는 도구', 'Existing tools')}\n${input.competitors.map((name) => `- ${name}`).join('\n')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), spec.lang === 'en' ? 'en' : 'ko')}## ${t('근거 원문', 'Source quotes')}
 ${evidenceSection(input.evidence, lang)}
 `;
 }
@@ -430,7 +431,7 @@ ${bullets(spec.nonGoals, 'Nothing listed yet.')}
 ## Done when
 ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 
-${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}## Rules
+${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
 - Ship one feature at a time and keep each change small.
 - For a Seedup opportunity, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
 - For a Seedup opportunity, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).

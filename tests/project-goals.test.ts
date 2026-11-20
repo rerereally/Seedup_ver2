@@ -69,7 +69,7 @@ test('a goal body is refused when a field is missing, out of range or the wrong 
   assert.ok(refused({ ...valid, criteria: [{ ...valid.criteria[0], featureIds: null }, valid.criteria[1]] }));
 });
 
-test('goal request input and storage preserve confirmed links, including an empty selection', async (t) => {
+test('a personal PRD with a related opportunity keeps confirmed links to hypothesis features', async (t) => {
   const env = {
     NEXT_PUBLIC_SUPABASE_URL: 'https://supabase.invalid',
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-public-key',
@@ -91,8 +91,8 @@ test('goal request input and storage preserve confirmed links, including an empt
     assert.equal(url.searchParams.get('user_id'), `eq.${USER}`);
     if (url.pathname.endsWith('/project_goals')) return { json: saved ? [saved] : [] };
     assert.ok(url.pathname.endsWith('/evidence_dossiers'));
-    return { json: [{ id: DOSSIER, evidence: [], opportunity_slug: null,
-      prd_markdown: '## 요구사항\n### R-01. 기록 저장\n## 기능\n### F-01. 기록하기 (R-01)' }] };
+    return { json: [{ id: DOSSIER, evidence: [], opportunity_slug: 'related-opportunity',
+      prd_markdown: '## 검증이 필요한 가설\n### H-01. 기록 저장\n## 기능\n### F-01. 기록하기 (H-01)' }] };
   });
   const project = await userProjectGoals(USER, `prd:${DOSSIER}`);
   assert.ok(project && project !== 'unavailable');

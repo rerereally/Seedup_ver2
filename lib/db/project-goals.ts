@@ -100,7 +100,7 @@ export async function lockProjectGoal(service: SupabaseClient, userId: string, k
 }
 
 /**
- * The project's spec as the MCP tools number it: a `prd:` key reads that saved PRD, a public slug the user's pinned PRD.
+ * The spec used to validate links and recheck features: a `prd:` key reads that PRD, a public slug the user's pinned PRD.
  * shortcut: a slug with no pinned PRD (only the shared PRD cache) gets no spec, so no recheck; read the cache too if
  * goals get locked on unpinned public opportunities.
  */
@@ -110,7 +110,8 @@ export async function projectSpec(service: SupabaseClient, userId: string, key: 
   const parsed = saved ? parsePrdMarkdown(saved.prd_markdown) : null;
   if (!saved || !parsed) return null;
   const evidence = Array.isArray(saved.evidence) ? (saved.evidence as Evidence[]) : [];
-  return normalizeSpec(parsed, evidence, false, { idea: !saved.opportunity_slug });
+  // A personal PRD can inherit an opportunity slug from its quotes and still include features tied to hypotheses.
+  return normalizeSpec(parsed, evidence, false, { idea: Boolean(id) || !saved.opportunity_slug });
 }
 
 // Only work that was started or finished can need a recheck; untouched features stay todo.

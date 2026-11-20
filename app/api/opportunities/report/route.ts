@@ -2,8 +2,9 @@ import { onboardingAnswers } from '@/lib/db/onboarding';
 import { prdPolicy, prdRun } from '@/lib/db/server';
 import { toLang, translator } from '@/lib/i18n';
 import { preferredStack } from '@/lib/onboarding';
+import { prdFreeModels } from '@/lib/llm';
 import { getOpportunities } from '@/lib/opportunities/data';
-import { pickPrdModel } from '@/lib/opportunities/models';
+import { DEFAULT_PAID_PRD_MODEL, lightWebModels, pickPrdModel } from '@/lib/opportunities/models';
 import { signEvidence } from '@/lib/opportunities/live-evidence';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
@@ -33,10 +34,10 @@ export async function POST(request: Request) {
   }
 
   const [{ opportunities }, answers, policy] = await Promise.all([getOpportunities(), onboardingAnswers(supabase, user.id), prdPolicy()]);
-  // Same menu and admin policy as PRDs: a model the admin has not opened falls back to the free default.
-  const model = pickPrdModel(body?.model, policy);
-  const run = prdRun(user, 'report', model ?? 'default');
-  const report = await buildValidationReport(idea, opportunities, { lang, stack: preferredStack(answers), searchCounterEvidence: true, model, onUsage: run.onUsage }).catch((error) => {
+  // Same menu and admin policy as PRDs: defaults to GPT 6.2 Sol, with lightweight subtasks on Claude Haiku 5.5.
+  const model = pickPrdModel(body?.model, policy) ?? DEFAULT_PAID_PRD_MODEL;
+  const run = prdRun(user, 'report', model);
+  const report = await buildValidationReport(idea, opportunities, { lang, stack: preferredStack(answers), searchCounterEvidence: true, model, subtaskModels: lightWebModels(prdFreeModels()), onUsage: run.onUsage }).catch((error) => {
     console.error('validation report failed', error);
     return null;
   });

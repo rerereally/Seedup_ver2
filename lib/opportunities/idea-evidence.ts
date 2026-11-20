@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { callJsonModel } from '../llm';
+import { callJsonModel, prdFreeModels } from '../llm';
 import type { ModelUsage } from '../llm';
 import { saveFoundEvidence, storedEvidence } from '../db/found-evidence';
 import { searchDemand } from './actors';
 import { searchAppReviews } from './app-reviews';
+import { carefulWebModels } from './models';
 import { isCutOffEvidenceQuote } from './quote-completeness';
 import { isWholeSourceQuote } from './report-checks';
 import { meetsEvidenceBar, uniqueQuotes } from './rules';
@@ -33,11 +34,12 @@ export type IdeaEvidenceOptions = {
   avoid?: string[];
   deadline?: number;
   model?: string;
+  models?: string[];
   onUsage?: (usage: ModelUsage) => void;
 };
 
 export const ideaEvidenceSources = {
-  ask: <T>(prompt: string, options: { maxTokens: number; timeoutMs: number; deadline?: number; model?: string; onUsage?: (usage: ModelUsage) => void }) => callJsonModel<T>(prompt, options),
+  ask: <T>(prompt: string, options: { maxTokens: number; timeoutMs: number; deadline?: number; model?: string; models?: string[]; onUsage?: (usage: ModelUsage) => void }) => callJsonModel<T>(prompt, options),
   demand: (phrase: string, sites: string[]) => searchDemand(phrase, sites),
   // Off unless APP_REVIEW_EVIDENCE=true: reuse rights for the App Store review feed are not confirmed (plan 3-10),
   // and a kept quote is stored for good in the user's PRD and the shared store.
@@ -105,10 +107,11 @@ ${posts.map((post, id) => `#${id} [${post.saved ? 'saved quote' : post.platform}
  * already found for the same words, then only quotes that match their post word for word.
  */
 export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOptions = {}, sources = ideaEvidenceSources): Promise<IdeaEvidence> {
-  const { deadline, model, onUsage } = options;
+  const { deadline, model, models: givenModels, onUsage } = options;
+  const models = givenModels?.length ? givenModels : model ? carefulWebModels(model, prdFreeModels()) : undefined;
   const normalizePhrase = (phrase: string) => phrase.trim().replace(/\s+/g, ' ');
   const avoid = (options.avoid ?? []).map(normalizePhrase).filter(Boolean).slice(0, 6);
-  const answer = await sources.ask<{ phrases?: unknown[]; sites?: unknown; everyday?: unknown }>(phrasePrompt(idea, avoid), { maxTokens: 400, timeoutMs: 25_000, deadline, model, onUsage });
+  const answer = await sources.ask<{ phrases?: unknown[]; sites?: unknown; everyday?: unknown }>(phrasePrompt(idea, avoid), { maxTokens: 400, timeoutMs: 25_000, deadline, model, ...(models ? { models } : {}), onUsage });
   const tried = new Set(avoid.map((row) => row.toLowerCase()));
   const phrases: string[] = [];
   for (const row of Array.isArray(answer?.phrases) ? answer.phrases : []) {
@@ -147,7 +150,7 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
   ];
   if (!posts.length) return { phrases, quotes: [], reused: 0, sites, ...mark };
 
-  const picked = await sources.ask<{ quotes?: Array<{ id?: number; quote?: string; quote_ko?: string }> }>(pickPrompt(idea, posts), { maxTokens: 1800, timeoutMs: 45_000, deadline, model, onUsage });
+  const picked = await sources.ask<{ quotes?: Array<{ id?: number; quote?: string; quote_ko?: string }> }>(pickPrompt(idea, posts), { maxTokens: 1800, timeoutMs: 45_000, deadline, model, ...(models ? { models } : {}), onUsage });
   const quotes: Evidence[] = [];
   const used = new Set<number>();
   let reused = 0;

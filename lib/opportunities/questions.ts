@@ -3,6 +3,7 @@
 // list for every idea. A fixed list remains the fallback when no model answers in time.
 import type { Lang } from '../i18n';
 import { callJsonModel, prdFreeModels } from '../llm';
+import { lightWebModels } from './models';
 
 export type PlanQuestion = { key: string; question: string; why: string; options: string[] };
 
@@ -37,7 +38,7 @@ ${idea}
 
 <원문>
 ${quotes.length ? quotes.map((quote, index) => `E${index + 1}. ${quote}`).join('\n') : '없음'}
-</원문>`, { system: lang === 'en' ? SYSTEM_EN : SYSTEM_KO, models: prdFreeModels(), maxTokens: 3_000, timeoutMs: 20_000, deadline: Date.now() + ANSWER_BUDGET_MS, reasoning: 'low', attempts: 1, title: 'Seedup planning questions' });
+</원문>`, { system: lang === 'en' ? SYSTEM_EN : SYSTEM_KO, models: lightWebModels(prdFreeModels()), maxTokens: 3_000, timeoutMs: 20_000, deadline: Date.now() + ANSWER_BUDGET_MS, reasoning: 'low', attempts: 1, title: 'Seedup planning questions' });
   return normalizeQuestions(raw?.questions);
 }
 
@@ -81,6 +82,6 @@ export function normalizeClarity(raw: unknown): IdeaClarity | null {
 
 /** One short call; null when no model answered in time, and the page then shows nothing. */
 export async function checkIdeaClarity(idea: string, lang: Lang = 'ko'): Promise<IdeaClarity | null> {
-  const raw = await callJsonModel<unknown>(`<아이디어>\n${idea}\n</아이디어>`, { system: lang === 'en' ? `${CLARITY_SYSTEM}\n\nWrite the suggestion in English.` : CLARITY_SYSTEM, models: prdFreeModels(), maxTokens: 600, timeoutMs: 20_000, deadline: Date.now() + ANSWER_BUDGET_MS, reasoning: 'low', attempts: 1, title: 'Seedup idea clarity' });
+  const raw = await callJsonModel<unknown>(`<아이디어>\n${idea}\n</아이디어>`, { system: lang === 'en' ? `${CLARITY_SYSTEM}\n\nWrite the suggestion in English.` : CLARITY_SYSTEM, models: lightWebModels(prdFreeModels()), maxTokens: 600, timeoutMs: 20_000, deadline: Date.now() + ANSWER_BUDGET_MS, reasoning: 'low', attempts: 1, title: 'Seedup idea clarity' });
   return normalizeClarity(raw);
 }

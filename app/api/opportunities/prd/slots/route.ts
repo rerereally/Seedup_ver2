@@ -2,7 +2,7 @@ import { prdPolicy, prdRun } from '@/lib/db/server';
 import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
-import { pickPrdModel } from '@/lib/opportunities/models';
+import { HAIKU_MODEL, pickPrdModel } from '@/lib/opportunities/models';
 import { generateSlots } from '@/lib/opportunities/prd';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `개발 준비 칸은 하루 ${DAILY_SLOT_LIMIT}번까지 채울 수 있습니다.` }, { status: 429 });
   }
   const model = pickPrdModel(body?.model, await prdPolicy());
-  const run = prdRun(data.user, 'slots', model ?? 'default');
+  const run = prdRun(data.user, 'slots', HAIKU_MODEL);
   const slots = await generateSlots(input, feature, requirements, toLang(body?.lang), model, run.onUsage).catch((error) => {
     console.error('Readiness slots failed', error);
     return null;

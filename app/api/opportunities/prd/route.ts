@@ -4,7 +4,7 @@ import { toLang } from '@/lib/i18n';
 import { isBeginner, preferredStack } from '@/lib/onboarding';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
-import { pickPrdModel } from '@/lib/opportunities/models';
+import { DEFAULT_PAID_PRD_MODEL, pickPrdModel } from '@/lib/opportunities/models';
 import { generatePrd } from '@/lib/opportunities/prd';
 import type { PrdEvent } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -51,9 +51,9 @@ export async function POST(request: Request) {
   const answers = await onboardingAnswers(supabase, data.user.id);
   const beginner = isBeginner(answers);
   const stack = preferredStack(answers).slice(0, 8).map((item) => item.trim().slice(0, 60));
-  // Every account may pick a model; the admin's policy decides which ones run. Anything else falls back to free.
-  const model = pickPrdModel(body?.model, await prdPolicy());
-  const run = prdRun(data.user, 'prd', model ?? 'default');
+  // Every account may pick a model; the admin's policy decides which ones run. Anything else defaults to GPT 6.2 Sol.
+  const model = pickPrdModel(body?.model, await prdPolicy()) ?? DEFAULT_PAID_PRD_MODEL;
+  const run = prdRun(data.user, 'prd', model);
   const lang = toLang(body?.lang);
   const ids = picked.map((item) => item.evidence.id);
 

@@ -1,4 +1,5 @@
-import { callJsonModel, createEmbedding } from '../llm';
+import { callJsonModel, createEmbedding, prdFreeModels } from '../llm';
+import { lightWebModels } from '../opportunities/models';
 import { cosineSimilarity } from '../opportunities/rules';
 import type { Opportunity, OpportunityStatus } from '../opportunities/types';
 import type { SeedRepo } from './github';
@@ -117,7 +118,7 @@ export function parseIdeas(raw: ModelIdeas | null, repos: SeedRepo[], opportunit
 }
 
 /** Works best with one repo per call: free models answer short prompts far more reliably. Null means no answer in time. */
-export async function suggestIdeas(repos: SeedRepo[], opportunities: Opportunity[], model?: string): Promise<Record<string, SeedIdea> | null> {
+export async function suggestIdeas(repos: SeedRepo[], opportunities: Opportunity[], _model?: string): Promise<Record<string, SeedIdea> | null> {
   if (!repos.length) return {};
   const repoBlock = repos.map((repo) => `- name: ${repo.name}
   description: ${repo.description || '(none)'}
@@ -144,7 +145,7 @@ Do not invent facts about the repository. Fewer features are better than vague o
 Return JSON only: {"repos":[{"name":"","summary":"","improvements":[{"title":"","why":""}],"features":[{"title":"","why":"","opportunity":""}],"paperQuery":""}]}`;
 
   const answer = await Promise.race([
-    callJsonModel<ModelIdeas>(prompt, { maxTokens: 3_000, timeoutMs: 40_000, title: 'Seedup seeds', model }),
+    callJsonModel<ModelIdeas>(prompt, { maxTokens: 3_000, timeoutMs: 40_000, title: 'Seedup seeds', models: lightWebModels(prdFreeModels()) }),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), IDEAS_DEADLINE_MS)),
   ]);
   if (!answer) return null;

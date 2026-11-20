@@ -10,7 +10,7 @@ import { readNotes, withNotes } from '@/lib/opportunities/idea';
 import { generateReverseSpec } from '@/lib/opportunities/prd';
 import type { GitHubLookupFailure, SeedRepo } from '@/lib/seeds/github';
 import { prdPolicy } from '@/lib/db/server';
-import { pickPrdModel } from '@/lib/opportunities/models';
+import { DEFAULT_PAID_PRD_MODEL, pickPrdModel } from '@/lib/opportunities/models';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -184,7 +184,8 @@ export async function POST(request: Request) {
   if (!(await consumeDailyUsage(supabase, 'reverse_spec', DAILY_REVERSE_LIMIT))) {
     return NextResponse.json({ error: `역기획 스펙은 하루 ${DAILY_REVERSE_LIMIT}번까지 만들 수 있습니다.` }, { status: 429 });
   }
-  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }, toLang(body?.lang), pickPrdModel(body?.model, await prdPolicy())).catch((error) => {
+  const model = pickPrdModel(body?.model, await prdPolicy()) ?? DEFAULT_PAID_PRD_MODEL;
+  const spec = await generateReverseSpec(input, { fullName: repo.fullName, description: repo.description, ...structure }, toLang(body?.lang), model).catch((error) => {
     console.error('Reverse spec failed', error);
     return null;
   });

@@ -52,8 +52,8 @@ export function firstUsersFrom(quotes: Evidence[], limit = 10) {
 }
 
 /** evidenceBudgetMs: time for the quote search; one search takes about 45 s on free models, a retry needs about 90 s. */
-type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean; evidenceBudgetMs?: number; model?: string; onUsage?: (usage: ModelUsage) => void };
-type ModelChoice = { model?: string; onUsage?: (usage: ModelUsage) => void };
+type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean; evidenceBudgetMs?: number; model?: string; subtaskModels?: string[]; onUsage?: (usage: ModelUsage) => void };
+type ModelChoice = { model?: string; models?: string[]; onUsage?: (usage: ModelUsage) => void };
 
 // By default the evidence search gets a minute, leaving the rival search time inside the web route's 120 s; callers
 // with more time (MCP, 160 s) pass a longer budget so the retry with other words can run.
@@ -70,9 +70,10 @@ const reportSources = {
 };
 
 export async function buildValidationReport(idea: string, opportunities: Opportunity[], options: ReportOptions = {}, sources = reportSources): Promise<ValidationReport> {
-  // The model the person picked (allowed by the admin policy) goes first in every call; free models stay behind it.
+  // The model the person picked (default GPT 6.2 Sol) picks quotes; lightweight subtasks use subtaskModels (Haiku 5.5) when given.
   const choice: ModelChoice = { model: options.model, onUsage: options.onUsage };
-  const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }, choice).catch(() => null);
+  const lightChoice: ModelChoice = { ...choice, ...(options.subtaskModels?.length ? { models: options.subtaskModels } : {}) };
+  const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }, lightChoice).catch(() => null);
   const search = async (query: string) => (await Promise.all([sources.supply(query).catch(() => []), sources.webSupply(query).catch(() => [])])).flat();
   const rawSupply = search(idea);
   const live = await sources.readEvidence(idea, options.evidenceBudgetMs, choice).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
@@ -88,7 +89,7 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   const lists = await Promise.all([rawSupply, ...queries.slice(1).map(search)]);
   for (const item of lists.flat()) if (item.name && item.url && !found.has(item.url)) found.set(item.url, item);
   const agent = options.rivalAgent ?? sources.rivalAgent();
-  const researchQueries = agent ? await researchRivals(idea, found, { ask: (prompt) => sources.askRivalQueries(prompt, choice), search }, queries) : [];
+  const researchQueries = agent ? await researchRivals(idea, found, { ask: (prompt) => sources.askRivalQueries(prompt, lightChoice), search }, queries) : [];
   const candidates = [...found.values()].slice(0, agent ? MAX_RESEARCHED : 16);
   const matchedRivals = compareRivalListings(phrases, candidates);
   const rivals = matchedRivals.slice(0, MAX_RIVALS);

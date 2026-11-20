@@ -24,12 +24,13 @@ function tokenHits(item: Matchable, token: string) {
 }
 
 /** Instant, local reaction while typing. Semantic matches replace this once they arrive. */
-export function matchOpportunities(query: string, items: Matchable[]) {
+/** minScore: how many query words an item must share. Search keeps 1; a report needs 2 so one shared word is not "related". */
+export function matchOpportunities(query: string, items: Matchable[], minScore = 1) {
   const tokens = queryTokens(query.trim());
   if (!tokens.length) return { active: false, tokens, slugs: [] as string[] };
   const scored = items.map((item) => ({ slug: item.slug, score: tokens.reduce((sum, token) => sum + (tokenHits(item, token) ? 1 : 0), 0) }));
   const best = Math.max(...scored.map((item) => item.score));
-  return { active: true, tokens, slugs: best > 0 ? scored.filter((item) => item.score === best).map((item) => item.slug) : [] };
+  return { active: true, tokens, slugs: best >= Math.max(1, minScore) ? scored.filter((item) => item.score === best).map((item) => item.slug) : [] };
 }
 
 export function quoteMentions(tokens: string[], quote: string) {

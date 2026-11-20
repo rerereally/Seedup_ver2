@@ -150,3 +150,32 @@ test('raw supply starts before evidence resolves and keeps first place when list
   ]);
   assert.deepEqual(result.rivals.map(({ description }) => description), ['Raw Slack issue digest listing']);
 });
+
+test('next-step criteria fit the case: missing quotes, a direct rival with a thin listing, and no counter-evidence', async () => {
+  const report = await buildValidationReport('Slack issue digest', [], { lang: 'en', rivalAgent: false }, {
+    readEvidence: async () => ({ phrases: ['slack issue digest'], quotes: [] }),
+    estimate: async () => null,
+    supply: async () => [tool('digestbot', 'Slack issue digest')],
+    demand: async () => [],
+    webSupply: async () => [],
+    rivalAgent: () => false,
+    askRivalQueries: async () => null,
+  });
+  const markdown = renderReport(report, 'https://seedup.example.com', 'en');
+  assert.match(markdown, /### When to move on/);
+  assert.match(markdown, /Evidence is below the bar \(0 quotes, 0 platforms\)/);
+  assert.match(markdown, /This search found no counter-evidence\. That is not proof there is none/);
+  if (report.rivals.some((row) => row.relation === 'direct')) {
+    assert.match(markdown, /4\. Have you tried /);
+    assert.match(markdown, /Direct competitors exist/);
+  }
+  assert.match(markdown, /The listing is too short to confirm its users and core features/);
+});
+
+test('a report links a related opportunity only on two shared words; search still takes one', async () => {
+  const { matchOpportunities } = await import('../lib/opportunities/match');
+  const items = [{ slug: 'papers', name: 'Paper backlog triage', keywords: ['사진', '기록'] }];
+  assert.deepEqual(matchOpportunities('누수 사진과 연락 남기기', items).slugs, ['papers']);
+  assert.deepEqual(matchOpportunities('누수 사진과 연락 남기기', items, 2).slugs, []);
+  assert.deepEqual(matchOpportunities('누수 사진과 처리 기록을 남기기', items, 2).slugs, ['papers']);
+});

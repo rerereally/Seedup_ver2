@@ -321,3 +321,18 @@ test('demand searches take the first three distinct plain phrases after normaliz
   assert.deepEqual(result.phrases, ['draft loss', 'sync draft history', 'restore laptop notes']);
   assert.deepEqual(calls.demand.map(({ phrase }) => phrase), result.phrases);
 });
+
+test('idea-list entries are not testimony: a problems repo or a JTBD template body is dropped, a real issue is kept', async () => {
+  const { isGeneratedProblemPost } = await import('../lib/opportunities/idea-evidence');
+  assert.equal(isGeneratedProblemPost({ url: 'https://github.com/muaddibco/RealWorldProblems/issues/710', title: 'Problem: Family parents waste evening time', text: 'x' }), true);
+  assert.equal(isGeneratedProblemPost({ url: 'https://github.com/acme/app/issues/1', title: 'Dinner', text: '**JTBD:** When everyone... **Pain / stakes:** Wasted time... **Current workaround:** Parents default' }), true);
+  assert.equal(isGeneratedProblemPost({ url: 'https://github.com/acme/app/issues/2', title: 'Sync loses my draft', text: 'Every time I switch laptops I lose the draft. Current workaround: email it to myself.' }), false);
+  assert.equal(isGeneratedProblemPost({ url: 'https://news.ycombinator.com/item?id=1', text: 'My pain is real.' }), false);
+});
+
+test('a generated issue never becomes a quote', async () => {
+  const generated: FakePost = { platform: 'github', url: 'https://github.com/muaddibco/RealWorldProblems/issues/710', title: 'Problem: dinner', text: `Honestly this is my biggest annoyance at work. ${QA} Anyone else?`, score: 9, postedAt: null };
+  const { sources } = fakeSources({ phrase: phraseAnswer(['draft lost laptops']), demand: () => [generated], pick: () => ({ quotes: [{ id: 0, quote: QA }] }) });
+  const result = await searchIdeaEvidence(IDEA, {}, sources);
+  assert.equal(result.quotes.length, 0);
+});

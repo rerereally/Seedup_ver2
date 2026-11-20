@@ -1,7 +1,7 @@
 import { translator, type Lang } from '../i18n';
 import { searchDemand, searchSupply } from './actors';
 import { estimateBuild } from './build';
-import { searchIdeaEvidenceWithRetry } from './idea-evidence';
+import { isGeneratedProblemPost, searchIdeaEvidenceWithRetry } from './idea-evidence';
 import { callJsonModel, type ModelUsage } from '../llm';
 import { matchOpportunities } from './match';
 import { discoveryReply } from './outreach';
@@ -96,11 +96,12 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   const [build, counterQuotes] = await Promise.all([estimate, counter]);
 
   const quotes = uniqueQuotes(live.quotes);
-  const match = matchOpportunities(idea, opportunities);
+  // Two shared words at least: one ("앱", "관리") tied a repair app to a paper backlog and made its posters first users.
+  const match = matchOpportunities(idea, opportunities, 2);
   const relatedItems = opportunities.filter((item) => match.slugs.includes(item.slug)).slice(0, 3);
   const platforms = new Set(quotes.map((row) => row.platform)).size;
   const direct = matchedRivals.filter((item) => item.relation === 'direct').length;
-  const firstUsers = firstUsersFrom([...quotes, ...relatedItems.flatMap((item) => item.evidence)].filter((row) => !isCutOffEvidenceQuote(row.quote)));
+  const firstUsers = firstUsersFrom([...quotes, ...relatedItems.flatMap((item) => item.evidence)].filter((row) => !isCutOffEvidenceQuote(row.quote) && !isGeneratedProblemPost(row)));
   const now = Date.now();
   return {
     idea,
@@ -117,6 +118,25 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
     counterQuotes,
     rivalStats: { candidates: found.size, direct, researchQueries: researchQueries.length },
   };
+}
+
+/** A listing too short to tell who a tool is for and what it does: under 8 words. */
+const thinListing = (description: string) => description.trim().split(/\s+/).filter(Boolean).length < 8;
+
+/** Success criteria fitted to this report: what is missing decides what the next interviews must show. */
+function nextStepCriteria(report: ValidationReport, platforms: number, direct: string[], t: (ko: string, en: string) => string) {
+  return [
+    !meetsEvidenceBar(report.quotes.length, platforms)
+      ? t(`- 원문이 기준(3건 · 2곳)에 못 미칩니다(지금 ${report.quotes.length}건 · ${platforms}곳). 같은 문제를 겪는 사람 5명과 이야기해 3명 이상이 최근 한 달 안에 겪었다고 하면 원문 대신 인터뷰 기록으로 근거를 채웁니다.`,
+        `- Evidence is below the bar (${report.quotes.length} quotes, ${platforms} platforms). Talk to 5 people with the problem; if 3 or more hit it in the last month, their notes stand in for the missing quotes.`)
+      : t('- 원문 기준은 채웠습니다. 인터뷰 5명 중 3명 이상이 지금 방법에 시간이나 돈을 쓰고 있다고 하면 첫 버전을 만듭니다.', '- The quote bar is met. Build a first version when 3 of 5 interviewees say they spend time or money on the problem today.'),
+    direct.length
+      ? t(`- 직접 경쟁(${direct.slice(0, 3).join(', ')})이 있습니다. 그 도구를 쓰는 사람 3명 이상이 같은 빈틈을 말해야 차별점으로 씁니다.`, `- Direct competitors exist (${direct.slice(0, 3).join(', ')}). Use a gap as your edge only when 3 or more of their users name the same one.`)
+      : t('- 직접 경쟁을 찾지 못했습니다. 이미 쓰는 방법(스프레드시트, 메신저 등)을 인터뷰에서 확인해 대체 대상을 정합니다.', '- No direct competitor found. Find what people use today (spreadsheets, chat) in the interviews; that is what you replace.'),
+    report.counterQuotes.length
+      ? t(`- 반대 의견 ${report.counterQuotes.length}건이 있습니다. 인터뷰에서 같은 이유("이미 쓰는 게 있다", "필요 없다")가 절반을 넘으면 멈춥니다.`, `- ${report.counterQuotes.length} counter-quotes found. Stop if over half of the interviews give the same reason ("already use something", "no need").`)
+      : t('- 반대 근거는 이번 검색에서 찾지 못했습니다. 없다는 뜻이 아니니 인터뷰에서 "필요 없다"는 답의 비율을 직접 셉니다.', '- This search found no counter-evidence. That is not proof there is none; count the "no need" answers in the interviews.'),
+  ];
 }
 
 /** The report as Markdown, for the result view and MCP. */
@@ -156,7 +176,8 @@ export function renderReport(report: ValidationReport, siteUrl: string, lang: La
     ...(report.quotes.length ? report.quotes.map((row) => `- “${row.quote}” (${PLATFORM_LABELS[row.platform] ?? row.platform}) ${row.url}`) : [t('- 찾지 못했습니다.', '- The search found none.')]),
     '',
     `## ${t('이미 있는 도구', 'Existing tools')}`,
-    ...(report.rivals.length ? report.rivals.map((row) => `- ${row.name} (${relation[row.relation]}) ${row.description} ${row.url}`) : [t('- 비교할 만한 도구를 찾지 못했습니다.', '- The search found no comparable tools.')]),
+    ...(report.rivals.length ? report.rivals.map((row) => `- ${row.name} (${relation[row.relation]}) ${row.description} ${row.url}${thinListing(row.description)
+      ? t(' — 공식 설명이 짧아 대상 사용자와 핵심 기능을 확인할 근거가 부족합니다. 제품 페이지를 직접 확인하세요.', ' — The listing is too short to confirm its users and core features. Check the product page.') : ''}`) : [t('- 비교할 만한 도구를 찾지 못했습니다.', '- The search found no comparable tools.')]),
     ...(report.gap ? [t(`- 제품 설명에 적힌 제약 예시: ${report.gap}`, `- Example of a limitation from a listing: ${report.gap}`)] : []),
     '',
     `## ${t('구현 규모 추정', 'Build size estimate')}`,
@@ -177,5 +198,9 @@ export function renderReport(report: ValidationReport, siteUrl: string, lang: La
     t('1. 마지막으로 이 문제를 겪은 때를 순서대로 설명해 주실 수 있나요?', '1. Can you walk me through the last time you ran into this problem?'),
     t('2. 지금은 어떻게 해결하시고, 그 방법에서 불편한 점은 무엇인가요?', '2. What do you do today, and where does that approach let you down?'),
     t('3. 새 방법을 한 번 써 보려면 무엇을 먼저 확인하셔야 하나요?', '3. What would you need to see before trying a different approach?'),
+    ...(direct.length ? [t(`4. ${direct[0].name}를 써 보셨나요? 그 도구로 안 되는 한 가지는 무엇인가요?`, `4. Have you tried ${direct[0].name}? What is the one thing it does not do for you?`)] : []),
+    '',
+    `### ${t('다음 단계로 갈 기준', 'When to move on')}`,
+    ...nextStepCriteria(report, platforms, direct.map((row) => row.name), t),
   ].join('\n');
 }

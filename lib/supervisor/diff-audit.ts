@@ -57,6 +57,8 @@ const SECRET_PATTERNS: Array<[string, RegExp]> = [
   ['Private key', /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----/g],
 ];
 // A long random-looking string assigned to a name that sounds secret.
+// A value that only names an environment variable (process.env.X, import.meta.env.X, Supabase config env(X)) holds no secret.
+const ENV_REF = /^(?:process\.env|import\.meta\.env|env\([A-Za-z_][A-Za-z0-9_]*\)$)/;
 const SECRET_ASSIGN = /\b[\w.-]*(?:secret|token|api[_-]?key|password|passwd|private[_-]?key)[\w.-]*["']?\s*[:=]\s*["'`]([^"'`\s]{20,})["'`]/gi;
 
 function entropy(value: string) {
@@ -134,7 +136,7 @@ export function auditDiff(diff: string): DiffAuditResult {
         }
         if (isCode(file.path)) {
           for (const match of line.text.matchAll(SECRET_ASSIGN)) {
-            if (entropy(match[1]) >= 3.5 && !/^(?:process\.env|import\.meta\.env)/.test(match[1]) && !SECRET_PATTERNS.some(([, pattern]) => new RegExp(pattern.source).test(match[1]))) {
+            if (entropy(match[1]) >= 3.5 && !ENV_REF.test(match[1]) && !SECRET_PATTERNS.some(([, pattern]) => new RegExp(pattern.source).test(match[1]))) {
               add(file, index, 'SEC_SECRET_LEAK', 'blocker', `${match[1].slice(0, 4)}…`, '비밀값 이름에 무작위 문자열이 들어갔습니다.', '값을 .env로 옮기고 코드에서는 환경 변수로 읽으세요.');
             }
           }
@@ -196,6 +198,7 @@ export const PORTABLE_AUDIT = {
   paths: { test: TEST_FILE.source, fixture: FIXTURE.source, doc: DOC.source, generated: GENERATED.source },
   secrets: SECRET_PATTERNS.map(([name, pattern]) => [name, pattern.source] as const),
   secretAssign: SECRET_ASSIGN.source,
+  envRef: ENV_REF.source,
   rules: RULE_DATA,
   auth: { call: AUTH_CALL.source, write: WRITE_HANDLER.source, route: API_ROUTE.source },
   allow: ALLOW.source,

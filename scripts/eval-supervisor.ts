@@ -1,5 +1,5 @@
 // Static diff-audit evaluation (read-only, offline):
-//   1) Evaluates tests/fixtures/bad-diffs.json (25 fixtures) against lib/supervisor/diff-audit.ts
+//   1) Evaluates tests/fixtures/bad-diffs.json against lib/supervisor/diff-audit.ts
 //   2) Scans recent first-parent merge commits on main to measure per-rule hit counts,
 //      affected commits, and blocker false-positive candidates.
 //
@@ -282,7 +282,7 @@ function formatConsoleReport(report: SupervisorAuditReport): string {
     `커밋 SHA: ${report.commitSha ?? 'unknown'}`,
     `대상 브랜치: ${mergeCommits.ref} (최근 머지 커밋 ${mergeCommits.commitsScanned}건)`,
     '',
-    '### 1. 불량 diff fixtures 25건 결과',
+    `### 1. 불량 diff fixtures ${fixtures.total}건 결과`,
     '',
     '| 항목 | 결과 |',
     '| :--- | :--- |',

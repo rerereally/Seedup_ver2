@@ -19,11 +19,11 @@ const fixtures = JSON.parse(
   readFileSync(resolve(process.cwd(), 'tests/fixtures/bad-diffs.json'), 'utf8'),
 ) as BadDiffFixture[];
 
-test('bad-diffs.json holds 25 realistic fixtures (10 lie, 10 sec, 5 clean)', () => {
-  assert.equal(fixtures.length, 25);
+test('bad-diffs.json holds 26 realistic fixtures (10 lie, 10 sec, 6 clean)', () => {
+  assert.equal(fixtures.length, 26);
   assert.equal(fixtures.filter((row) => row.id.startsWith('lie-')).length, 10);
   assert.equal(fixtures.filter((row) => row.id.startsWith('sec-')).length, 10);
-  assert.equal(fixtures.filter((row) => row.id.startsWith('clean-')).length, 5);
+  assert.equal(fixtures.filter((row) => row.id.startsWith('clean-')).length, 6);
 });
 
 for (const fixture of fixtures) {

@@ -173,5 +173,12 @@
     "expect": "clean",
     "expectedCodes": [],
     "diff": "diff --git a/lib/billing/overdue.ts b/lib/billing/overdue.ts\n--- a/lib/billing/overdue.ts\n+++ b/lib/billing/overdue.ts\n@@ -1,2 +1,11 @@\n+export async function loadOverdueCount(userId: string) {\n+  const apiKey = process.env.RESEND_API_KEY;\n+  if (!apiKey) return { ok: false, error: 'RESEND_API_KEY missing' };\n+  try {\n+    return { ok: true, userId, count: 0 };\n+  } catch (error) {\n+    return { ok: false, error: error instanceof Error ? error.message : 'unknown' };\n+  }\n+}\n"
+  },
+  {
+    "id": "clean-06",
+    "label": "Supabase config.toml의 env(…) 환경변수 참조 (오탐 주의 케이스, 성적표 재측정에서 발견)",
+    "expect": "clean",
+    "expectedCodes": [],
+    "diff": "diff --git a/supabase/config.toml b/supabase/config.toml\n--- a/supabase/config.toml\n+++ b/supabase/config.toml\n@@ -300,2 +300,4 @@\n+auth_token = \"env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)\"\n+secret = \"env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)\"\n"
   }
 ]

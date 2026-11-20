@@ -12,6 +12,7 @@ const isCode = (path) => !isTest(path) && !P.fixture.test(path) && !P.doc.test(p
 const inScope = (scope, path) => (scope === 'all' ? !P.generated.test(path) : scope === 'test' ? isTest(path) : isCode(path));
 const SECRETS = A.secrets.map(([name, source]) => [name, re(source, 'g')]);
 const ASSIGN = re(A.secretAssign, 'gi');
+const ENV_REF = re(A.envRef);
 const RULES = A.rules.map((rule) => ({ ...rule, regex: re(rule.pattern, rule.flags || ''), stripRegex: rule.strip ? re(rule.strip, 'g') : null }));
 const ALLOW = re(A.allow);
 const AUTH = re(A.auth.call, 'i');
@@ -63,7 +64,7 @@ function audit(diff) {
         for (const [name, pattern] of SECRETS) for (const _ of line.text.matchAll(pattern)) add(file, index, 'SEC_SECRET_LEAK', 'blocker', name + '로 보이는 값이 코드에 들어갔습니다.');
         if (isCode(file.path)) {
           for (const match of line.text.matchAll(ASSIGN)) {
-            if (entropy(match[1]) >= 3.5 && !/^(?:process\.env|import\.meta\.env)/.test(match[1]) && !SECRETS.some(([, pattern]) => re(pattern.source).test(match[1]))) {
+            if (entropy(match[1]) >= 3.5 && !ENV_REF.test(match[1]) && !SECRETS.some(([, pattern]) => re(pattern.source).test(match[1]))) {
               add(file, index, 'SEC_SECRET_LEAK', 'blocker', '비밀값 이름에 무작위 문자열이 들어갔습니다.');
             }
           }

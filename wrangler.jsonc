@@ -26,6 +26,10 @@
     { "name": "RL_1", "namespace_id": "1001", "simple": { "limit": 1, "period": 60 } }
   ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      // Fetch invocation logs include the full URL, and some MCP clients carry their connection token in its path.
+      "invocation_logs": false
+    }
   }
 }

@@ -3,7 +3,9 @@ import test, { type TestContext } from 'node:test';
 import type { MemoryEntry, ProjectMemory } from '../lib/db/project-memory';
 import { handleMcpRequest } from '../lib/mcp/endpoint';
 import { handleRpc, peopleFirst, type McpDeps, type SavedPrdDetail } from '../lib/mcp/server';
-import { normalizeSpec } from '../lib/opportunities/spec';
+import { normalizeSpec, renderAgentBrief } from '../lib/opportunities/spec';
+import { hookBundle } from '../lib/supervisor/hook-bundle';
+import { humanTasks } from '../lib/supervisor/human-queue';
 import type { ProjectGoal } from '../lib/supervisor/types';
 
 const USER = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -66,7 +68,19 @@ function deps(over: Partial<McpDeps> = {}): McpDeps {
 }
 
 const request = (name: string, args: Record<string, unknown>) => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
-type Reply = { result: { isError?: boolean; content: [{ text: string }]; structuredContent?: { id: string; goal?: string } } };
+type Reply = {
+  result: {
+    isError?: boolean;
+    content: [{ text: string }];
+    structuredContent?: {
+      id?: string;
+      goal?: string;
+      project?: string;
+      goalLocked?: boolean;
+      files?: Array<{ path: string; content: string; executable?: boolean }>;
+    };
+  };
+};
 
 async function call(name: string, args: Record<string, unknown>, dependencies = deps()) {
   const { result } = await handleRpc(request(name, args), dependencies, SITE) as Reply;
@@ -98,7 +112,10 @@ function mockEndpoint(t: TestContext, github: (url: URL, init?: RequestInit) => 
         return Response.json(url.searchParams.get('id') === `eq.${OWN}`
           ? [{ id: OWN, title: SAVED.title, opportunity_slug: null, evidence_ids: ['e1'], evidence: EVIDENCE, prd_markdown: MARKDOWN, updated_at: AT }]
           : []);
+      case '/rest/v1/project_goals':
+        return Response.json(null);
       case '/rest/v1/supervisor_projects': {
+        if (!init?.method || init.method === 'GET') return Response.json(null);
         const body = JSON.parse(String(init?.body));
         writes.push(body);
         if (init?.method === 'POST') {
@@ -115,10 +132,13 @@ function mockEndpoint(t: TestContext, github: (url: URL, init?: RequestInit) => 
   });
   return {
     writes,
-    async tool(name: string, args: Record<string, unknown>) {
-      const response = await handleMcpRequest(new Request(`${SITE}/api/mcp`, {
-        method: 'POST', headers: { authorization: `Bearer sdp_${'a'.repeat(48)}` }, body: JSON.stringify(request(name, args)),
-      }));
+    async tool(name: string, args: Record<string, unknown>, pathKey?: string) {
+      const token = `sdp_${'a'.repeat(48)}`;
+      const response = await handleMcpRequest(new Request(pathKey ? `${SITE}/api/mcp/${pathKey}` : `${SITE}/api/mcp`, {
+        method: 'POST',
+        headers: pathKey ? {} : { authorization: `Bearer ${token}` },
+        body: JSON.stringify(request(name, args)),
+      }), pathKey);
       assert.equal(response.status, 200);
       const { result } = await response.json() as Reply;
       return { ...result, body: result.content[0].text };
@@ -128,15 +148,25 @@ function mockEndpoint(t: TestContext, github: (url: URL, init?: RequestInit) => 
 
 test('the authenticated endpoint resolves a saved PRD only through the owner’s dossier', async (t) => {
   const { tool } = mockEndpoint(t);
-  const other = await tool('get_opportunity', { project: `prd:${OTHER}` });
-  assert.equal(other.isError, true);
-  assert.match(other.body, /not found/);
-  assert.doesNotMatch(other.body, /My PRD|scheduled reminders/);
+  for (const name of ['get_opportunity', 'setup_project'] as const) {
+    const other = await tool(name, { project: `prd:${OTHER}` });
+    assert.equal(other.isError, true);
+    assert.match(other.body, /not found/i);
+    assert.doesNotMatch(other.body, /My PRD|scheduled reminders/);
+  }
   const own = await tool('get_opportunity', { slug: PROJECT });
   assert.equal(own.isError, undefined);
   assert.match(own.body, /My PRD/);
   assert.match(own.body, /I miss scheduled reminders/);
   assert.match(own.body, /Existing calendar/);
+
+  const pathToken = `sdp_${'b'.repeat(48)}`;
+  const setupViaPathToken = await tool('setup_project', { project: PROJECT }, pathToken);
+  assert.equal(setupViaPathToken.isError, undefined);
+  assert.doesNotMatch(setupViaPathToken.body, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|fixture-service|fixture-github-token/i);
+  for (const file of setupViaPathToken.structuredContent?.files ?? []) {
+    assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|fixture-service|fixture-github-token/i);
+  }
 });
 
 test('get_next_task uses the locked goal, chooses by contribution, and includes short project memory', async () => {
@@ -202,9 +232,101 @@ test('a scope decision requires asking the user and records the terminal approva
   const args = { project: PROJECT, title: 'Add paid plans now', why: 'Users asked for billing', agent: 'Codex', scope_change: false };
   const pending = await call('record_decision', args, d);
   assert.match(pending.body, /ASK USER \(in the terminal, before acting\):/);
+  assert.match(pending.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111 \(planning: https:\/\/seedup\.test\/prd\)/);
   const approval = await call('record_decision', { ...args, approval: '대화에서 승인' }, d);
   assert.match(approval.body, /대화에서 승인/);
-  assert.deepEqual(entries.map((entry) => entry.kind === 'decision' && [entry.body.approved, entry.body.goalVersion]), [[null, 2], [true, 2]]);
+  assert.match(approval.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111/);
+  const explicitScope = await call('record_decision', { project: PROJECT, title: 'Expand target users', why: 'Teams asked', agent: 'Codex', scope_change: true }, d);
+  assert.match(explicitScope.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111/);
+  const nonScope = await call('record_decision', { project: PROJECT, title: 'Use ISO timestamps', why: 'Standard format', agent: 'Codex', scope_change: false }, d);
+  assert.doesNotMatch(nonScope.body, /Re-lock the goal on the web/);
+  assert.deepEqual(entries.map((entry) => entry.kind === 'decision' && [entry.body.approved, entry.body.goalVersion]), [[null, 2], [true, 2], [null, 2], [null, 2]]);
+});
+
+test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens, falls back without a locked goal, and resume_project guides setup_project first', async () => {
+  // 1. With a locked goal: returns AGENTS.md (matching web export), CLAUDE.md, and all 6 hookBundle files.
+  const withGoal = await call('setup_project', { project: PROJECT });
+  assert.equal(withGoal.isError, undefined);
+  assert.match(withGoal.body, /^Prepared 8 repository setup files for prd:11111111-1111-1111-1111-111111111111\./);
+  assert.match(withGoal.body, /Help people keep their appointments\./);
+  assert.match(withGoal.body, /\/hooks/);
+  assert.match(withGoal.body, /\nNext: connect_repo \{"project":"prd:11111111-1111-1111-1111-111111111111","repo":"<owner\/repo>"\}$/);
+
+  const files = withGoal.structuredContent?.files ?? [];
+  assert.equal(withGoal.structuredContent?.goalLocked, true);
+  assert.deepEqual(files.map((file) => file.path), [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.seedup/goal.md',
+    '.seedup/hook.mjs',
+    '.seedup/pre-commit.sh',
+    '.seedup/audit.mjs',
+    '.claude/settings.json',
+    '.codex/hooks.json',
+  ]);
+  const byPath = new Map(files.map((file) => [file.path, file.content]));
+  const agentsMd = byPath.get('AGENTS.md') ?? '';
+  assert.ok(agentsMd.includes(`## Project key\n\`${PROJECT}\``));
+  assert.ok(agentsMd.includes(`## Locked goal (v2)\n${GOAL.statement}`));
+  assert.match(agentsMd, /G-1 Schedule reminders \(measure: Deliver within one minute\)/);
+  assert.match(agentsMd, /## Do not build\n- Paid plans/);
+  assert.doesNotMatch(agentsMd, /Recent decisions/);
+  assert.match(byPath.get('CLAUDE.md') ?? '', /AGENTS\.md/);
+  assert.equal((byPath.get('CLAUDE.md') ?? '').trim().split('\n').length, 1);
+
+  for (const file of files) {
+    assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|svt1\./i, `${file.path} must not contain any token`);
+  }
+
+  // When a repo is already connected, setup_project Next: points directly to get_next_task.
+  const withRepo = await call('setup_project', { project: PROJECT }, deps({
+    supervisorProject: async () => ({ userId: USER, projectKey: PROJECT, repo: 'owner/reminders', track: 'personal', strict: false, goalVersion: 2, updatedAt: AT }),
+  }));
+  assert.match(withRepo.body, /\nNext: get_next_task \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
+
+  // 2. Without a locked goal: AGENTS.md uses the existing byte-for-byte format and hook bundle is omitted.
+  const withoutGoal = await call('setup_project', { project: PROJECT }, deps({ projectGoal: async () => null }));
+  assert.equal(withoutGoal.isError, undefined);
+  assert.equal(withoutGoal.structuredContent?.goalLocked, false);
+  const noGoalFiles = withoutGoal.structuredContent?.files ?? [];
+  assert.deepEqual(noGoalFiles.map((file) => file.path), ['AGENTS.md', 'CLAUDE.md']);
+  const withGoalWithoutContext = renderAgentBrief(
+    { title: SAVED.title, problem: 'Plan tasks and reminders.', gap: '', evidence: EVIDENCE, competitors: ['Existing calendar'] },
+    {
+      ...normalizeSpec({
+        summary: 'Plan tasks and reminders.',
+        requirements: [
+          { title: 'Archive notes', evidence: [1] },
+          { title: 'Schedule reminders', evidence: [1] },
+        ],
+        features: [
+          { title: 'Archive notes', detail: 'Move old notes to an archive.', requirements: [1] },
+          { title: 'Send reminders', detail: 'Send a reminder using Resend.', requirements: [2] },
+        ],
+      }, EVIDENCE, true, { idea: true }),
+      rivals: [{ name: 'Existing calendar', misses: 'Manual reminders', answer: '' }],
+    },
+    'agents',
+    PROJECT,
+  );
+  assert.equal(noGoalFiles[0].content, withGoalWithoutContext);
+  assert.doesNotMatch(noGoalFiles[0].content, /## Locked goal/);
+  assert.equal(hookBundle(PROJECT, GOAL, humanTasks(normalizeSpec({ summary: 's', requirements: [], features: [] }, 0))).length, 6);
+
+  // 3. resume_project guides setup_project first when repository files are not set up yet (fresh project or has_setup_files: false).
+  const freshResume = await call('resume_project', { project: PROJECT }, deps({
+    projectMemory: async () => ({ decisions: [], handoffs: [], facts: [] }),
+  }));
+  assert.match(freshResume.body, /call setup_project first/);
+  assert.match(freshResume.body, /\nNext: setup_project \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
+
+  const explicitMissing = await call('resume_project', { project: PROJECT, has_setup_files: false });
+  assert.match(explicitMissing.body, /\nNext: setup_project \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
+
+  const explicitPresent = await call('resume_project', { project: PROJECT, has_setup_files: true }, deps({
+    projectMemory: async () => ({ decisions: [], handoffs: [], facts: [] }),
+  }));
+  assert.match(explicitPresent.body, /\nNext: get_next_task \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
 });
 
 test('handoff writes exclude credentials and resume uses summaries while full memory keeps details', async () => {

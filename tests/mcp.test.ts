@@ -48,7 +48,7 @@ test('initialize answers with a supported protocol version and tool capability',
   const answer = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }, deps(), 'https://x.test') as { result: { protocolVersion: string; capabilities: object; instructions: string } };
   assert.equal(answer.result.protocolVersion, '2025-03-26');
   assert.ok('tools' in answer.result.capabilities);
-  assert.match(answer.result.instructions, /^Development \(\[개발\]\):.*resume_project or get_next_task/);
+  assert.match(answer.result.instructions, /^Development \(\[개발\]\):.*resume_project.*setup_project.*get_next_task/);
   assert.match(answer.result.instructions.slice(0, 512), /goal or scope change.*record_decision/);
   assert.match(answer.result.instructions, /update_feature_status.*verify_feature.*link_commit.*Planning \(\[기획\]\)/);
 });
@@ -61,10 +61,11 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
   assert.equal(garbage.error.code, -32700);
 });
 
-test('tools/list exposes all 19 cleaned tools with [개발]/[기획] prefixes and MCP annotations', async () => {
+test('tools/list exposes all 20 tools with [개발]/[기획] prefixes and MCP annotations', async () => {
   const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; description: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
   assert.deepEqual(answer.result.tools.map((tool) => tool.name), [
     'resume_project',
+    'setup_project',
     'get_next_task',
     'update_feature_status',
     'verify_feature',
@@ -84,7 +85,7 @@ test('tools/list exposes all 19 cleaned tools with [개발]/[기획] prefixes an
     'get_kept_items',
     'find_related_content',
   ]);
-  assert.equal(answer.result.tools.length, 19);
+  assert.equal(answer.result.tools.length, 20);
   for (const tool of answer.result.tools) {
     assert.match(tool.description, /^\[(개발|기획)\] /, `${tool.name} missing [개발]/[기획] prefix`);
     assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `${tool.name} missing readOnlyHint`);
@@ -92,6 +93,7 @@ test('tools/list exposes all 19 cleaned tools with [개발]/[기획] prefixes an
   }
   const byName = new Map(answer.result.tools.map((tool) => [tool.name, tool]));
   assert.equal(byName.get('search_opportunities')?.annotations?.readOnlyHint, true);
+  assert.equal(byName.get('setup_project')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('explain_file')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('update_feature_status')?.annotations?.readOnlyHint, false);
 

@@ -133,6 +133,22 @@ MCP는 에이전트가 부를 때만 응답하므로, MCP만으로는 목표가 
 
 - 지금: 1층의 서버 안내문은 고정 문장으로 있음(`lib/mcp/server.ts:910`). 2층은 `get_next_task` 규칙만 있음. 3·4층은 없음.
 - 원칙: 에이전트가 협조하면 정확도가 오르고, 협조하지 않아도 감독은 계속됩니다.
+
+**클라이언트별 지원 수준** (2026-11-20 기준, 근거는 [research/2026-11-20-section9.md](research/2026-11-20-section9.md). Antigravity는 확인 조사 중)
+
+"작동"은 아래 다섯 가지를 실제 클라이언트에서 확인한 상태입니다: ① MCP 연결과 도구 호출 ② 세션 시작 때 잠긴 목표가 에이전트에 들어감(훅 또는 규칙 파일) ③ 종료 때 미검증 변경 인계 ④ 커밋 전 검사 ⑤ 개발과 다른 계열 모델이 판정.
+
+| 기준 | Claude Code | Codex | Antigravity |
+| :--- | :--- | :--- | :--- |
+| ① MCP 연결 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음(`~/.gemini/config/mcp_config.json`), 실제 연결 기록 없음 |
+| 규칙 파일 | `CLAUDE.md`를 기본으로 읽음 → `AGENTS.md`를 가리키는 `CLAUDE.md` 필요 | `AGENTS.md` | 확인 필요 |
+| 서버 안내문 | 4,096자까지 | 앞 512자가 중요 | 확인 필요 |
+| ② 시작 때 목표 | SessionStart 훅(묶음 있음, `clear` · `fork` 빠짐) | 훅 지원, `/hooks` 신뢰 필요, 묶음 없음 | 확인 필요 |
+| ③ 종료 인계 | Stop 훅(묶음 있음) | Stop 훅 지원, 묶음 없음 | 확인 필요 |
+| ④ 커밋 전 검사 | git `pre-commit`(설치는 사용자가 복사) | 같음 | 같음 |
+| ⑤ 교차 판정 | `developed_with: claude-code` → GPT | `developed_with: codex` → Haiku | 받는 값 없음 → `VERIFIER_MODELS` 순서대로 |
+| 공통 제약 | 훅 스크립트에 `sh` 필요(Windows) | 같음 | 같음 |
+
 - 클라이언트의 고급 기능(서버가 사용자에게 직접 묻기 등)은 있으면 쓰는 보너스로만.
 
 ### 3-3. 프로젝트 키와 저장소
@@ -380,12 +396,54 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 | 단계 | 담당 | 내용 | 파일 |
 | :--- | :--- | :--- | :--- |
 | 1단계(지금) | Codex(장차희가 지시, 기술 책임 정지훈) | 목표를 잠그면 진행 표시줄 "에이전트" 단계에 화면을 엶: 프로젝트 키, **시작 문장 복사**(키만, 토큰 없음), MCP 연결 상태(`McpConnect` 재사용), `AGENTS.md`(잠긴 목표 · 키 포함) · 스타터 팩 받기(`AgentPackDownload` 재사용), 사람이 먼저 할 일(`humanTasks`), `/supervisor/<키>` 링크. 같은 PR에서 PRD 화면의 `AGENTS.md` 내보내기와 에이전트 안내 문장이 개인 PRD(`prd:<id>`)에도 목표 · 키를 넣게 고침 | `components/goal/*`, `components/IdeaWorkspace.tsx`(에이전트 단계 부분), `components/opportunity-stage/PrdBuilder.tsx`(내보내기 · 안내 문장 부분), 테스트 |
-| 2단계(A2 뒤) | 정지훈 | MCP에 저장소 파일(`AGENTS.md`, 훅 묶음)을 돌려주는 도구(`setup_project` 등). 시작 문장이 "파일도 에이전트가 직접 써"로 바뀌어 사용자 할 일은 연결 1번 + 문장 1개 | `lib/mcp/server.ts`, 테스트 |
+| 2단계(A2 뒤) | 정지훈 | MCP에 저장소 파일(`AGENTS.md`, 훅 묶음)을 돌려주는 도구(`setup_project` 등). 시작 문장이 "파일도 에이전트가 직접 써"로 바뀌어 사용자 할 일은 연결 1번 + 문장 1개. 같은 칸에서 `record_decision`이 목표 · 범위 변경(scope_change)을 받으면 응답에 웹의 목표 재잠금 화면 링크를 줌(MCP에는 목표 잠금 도구가 없고 재잠금은 웹에서만) | `lib/mcp/server.ts`, 테스트 |
 
-- **시작 문장 형식**(웹 · MCP 공통): "Seedup 프로젝트 `<키>`를 이어서 진행해. `resume_project`로 잠긴 목표와 사람이 먼저 할 일을 확인하고, `get_next_task`로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 물어봐." 토큰은 절대 넣지 않음.
+- **시작 문장 형식**(웹 · MCP 공통): "Seedup 프로젝트 `<키>`를 이어서 진행해. `resume_project`로 잠긴 목표와 사람이 먼저 할 일을 확인하고, 연결된 저장소가 없으면 공개 GitHub 저장소를 만들거나 고른 뒤 `connect_repo`로 연결해. 그다음 `get_next_task`로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 물어봐." 토큰은 절대 넣지 않음. 서버 검증은 연결된 저장소를 읽으므로 저장소 연결이 첫 검증 전에 필요함.
 - Codex 훅은 사용자가 `/hooks`에서 신뢰해야 실행된다는 안내를 화면에 한 줄(9절 조사).
 - 저장소가 아직 없으면 에이전트가 만든 뒤 `connect_repo`를 부르게 시작 문장 흐름에 포함(2단계).
 - 뒤로 미룸: 도구별 한 줄 실행 명령(`claude "…"` 등, 도구별 확인 뒤), 입구 통합(세 모드를 한 흐름으로, 연결이 먼저 돌아간 뒤 계획 세션이 정함).
+
+### 세 입구, 한 출구 (기획 탭의 세 모드를 같은 출구로)
+
+기획 탭의 "PRD 만들기 · 아이디어 검증 · 레포 분석"을 하나로 합치는 큰 통합(입구 통합) 대신, 세 모드가 모두 **같은 출구(목표 잠금 → 에이전트 단계)**로 들어오게만 잇습니다. 연결 1단계(#163) 뒤에 합니다. 담당 정지훈 · Antigravity([프롬프트](prompts/antigravity-remaining.md) T6).
+
+| 작업 | 내용 | 파일 |
+| :--- | :--- | :--- |
+| ① 레포 분석 → 출구 | 역기획 PRD를 개인 PRD(`prd:<id>`)로 저장하고, 그 아래에 목표 잠금(`GoalLock`)과 에이전트 단계(`AgentHandoff`)를 붙임. 분석한 저장소를 프로젝트 저장소로 저장(첫 검증 전에 `connect_repo`가 필요 없게) | `components/SeedAdvisor.tsx`(PRD 부분), 필요하면 프로젝트 저장소를 저장하는 작은 API(`lib/db/supervisor-projects.ts`의 기존 함수 사용) |
+| ② 아이디어 검증 → PRD에 근거 | "이 아이디어로 PRD 만들기"가 리포트의 원문(증거 id) · 경쟁 도구까지 PRD 입력으로 넘김. 그다음은 기존 PRD 흐름 | `components/ValidationReportPanel.tsx`, `components/IdeaWorkspace.tsx`(받는 부분만) |
+| ③ MCP 연동 페이지 | `/agents`에서 내 프로젝트마다 시작 문장 복사(연결 1단계의 문장 함수 재사용) | `app/agents/page.tsx`, `components/AgentPackDownload.tsx` |
+
+### 흐름 전체 E2E
+
+로그인 → PRD → 목표 잠금 → 에이전트 단계(시작 문장) → MCP `resume_project` · `connect_repo` · `get_next_task` → `verify_feature` → 🟢 완료까지 한 번에 확인하는 테스트. GitHub와 검증 모델은 가짜로 바꿈. 세 입구 ① · ②가 들어오면 그 경로도 추가. 담당 정지훈(에이전트는 정지훈이 고름), 파일 `e2e/*`와 MCP 통합 테스트.
+
+
+
+### 클라이언트 호환과 실제 연결 확인
+
+Claude Code · Codex · Antigravity에서 위 "작동" 다섯 가지가 빠짐없이 되게 합니다. ②는 "실제 프로젝트 3개" 게이트의 첫 번째(운영 확인)를 겸합니다.
+
+| 작업 | 담당 | 내용 |
+| :--- | :--- | :--- |
+| ① Antigravity 확인 조사 | Codex(장차희 지시, 웹 검색, 코드 변경 없음) | 9절 조사와 같은 형식으로 Antigravity의 규칙 파일 위치(`AGENTS.md` · `GEMINI.md` 등), 훅 지원, 서버 안내문 반영, 카드 표시, 원격 MCP(`serverUrl`) 인증 방식. [프롬프트](prompts/codex-antigravity-research.md) |
+| ② 클라이언트별 실제 연결 확인 | 사람: 장차희(Claude Code, Codex), 정지훈(Antigravity, 운영 준비 직후) | 공개 테스트 저장소 하나로 연결 → `resume_project` → `connect_repo` → `get_next_task` → `update_feature_status`(in_progress) → 작은 커밋 push → `verify_feature` → `update_feature_status`(done, 토큰) → `/supervisor` 확인. 결과는 클라이언트별 다섯 기준 표로 `docs/research/<날짜>-client-check.md`. [확인 순서](prompts/client-check.md) |
+| ③ 호환 보완 코드 | 정지훈(단계 2 보완 ⑤를 넓힘) | Claude Code용 `CLAUDE.md`(`AGENTS.md`를 가리키는 한 줄) 제공(에이전트 단계 화면 · `setup_project`), 서버 안내문 앞 512자에 감독 핵심(프로젝트 키 → `resume_project` → `get_next_task`, 목표 · 범위 변경 전 확인)을 먼저 두고 리서치 설명은 뒤로, `developed_with`에 `antigravity` 추가와 개발 모델 계열을 직접 받는 입력(결정 대기), `.codex/hooks.json`, Windows `sh` 대응 |
+| ④ 스타터 팩 문구 버그 | 세 입구 ③에 포함(같은 파일, T6) | `AgentPackDownload`의 "현재 번들에는 pre-commit 검사가 없습니다"는 #157 뒤로 틀림. 실제 묶음 내용대로 고침 |
+
+### MCP 도구 정리 (결정 대기, 정지훈)
+
+실제 사용자가 아직 없어 이름을 바꾸기 가장 싼 때입니다. 만능 도구 하나(action 인자)로 몰지 않고, 읽기 전용 구분과 DESIGN.md 8절의 `Next:` 흐름은 유지합니다. **계획 세션 추천안**(23 → 19개):
+
+| 제안 | 추천 | 이유 |
+| :--- | :--- | :--- |
+| `mark_feature_done` 제거 | 제거 | `update_feature_status`(done)와 같은 옛 이름 |
+| `get_build_checklist`를 `resume_project`에 합침 | 합침 | 시작할 때 한 번에 받는 정보 |
+| `get_verification`을 `verify_feature` 재호출로 | 대체 | 같은 (SHA, 기능)은 서버가 저장 결과를 돌려줌(B1 재사용) |
+| `list_my_prds` + `get_my_prd` | 합침(`id`가 있으면 하나) | 둘 다 읽기 전용, 입력이 겹침 |
+| `verify_feature`가 커밋 연결까지 | 자동 연결만 하고 `link_commit`은 **유지** | 검증하지 않는 커밋도 이탈 · 재확인에 필요 |
+| 기획용 · 개발용 도구 분리(엔드포인트 둘 또는 프로젝트 세션은 개발용만) | **미룸** | 입구 통합 결정과 묶임. 대신 도구 설명 앞에 [기획] · [개발] 표시와 안내문 순서로 구분 |
+
+PR: 연결 2(`setup_project`) **앞**에 별도 PR(이름 정리와 새 도구를 나눠 리뷰를 쉽게). README · `/agents` 도구 목록 · 테스트를 같은 PR에서 고침.
 
 **단계 2에 함께 하는 것 (코드 칸 밖)**
 
@@ -404,7 +462,7 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 | :--- | :--- | :--- |
 | 역질문 루프 반복(멈춤 기준, 기본값 버튼), 트랙 자동 분류 | 2-1 | 지금은 기존 질문 + 사용자가 트랙 선택 |
 | 트랙 B 협업 세팅(컨벤션 · R&R · 권한 생성기) | 2-1 ④ | |
-| GitHub App · push 웹훅, 비공개 저장소 | 3-2 4층, 3-3 | 지금은 공개 저장소 + `link_commit` |
+| GitHub App · push 웹훅, 비공개 저장소 | 3-2 4층, 3-3 | 지금은 공개 저장소 + `link_commit`. **결정 대기:** 비공개 저장소 검증을 출시 전 필수로 꺼낼지 |
 | 화면 평가(브라우저 · 캡처 · 비전 모델) | 3-7 | |
 | 프로젝트 전체 · 아키텍처 · 트랙별 평가, 개선 루프 자동화 | 2-3 | 지금은 성공 기준별 진행만 |
 | 실측 토큰 · 비용 트래커, 단가표, 모델 등급 추천 | 3-8 | |
@@ -412,6 +470,7 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 | 근거 보강 | 3-10 | 엔진 동결 해제 후 |
 | codebase-memory-mcp 연동 | | |
 | 장기 실행(Cloudflare Workflows 등), tool calling 검증 루프 | 3-4 | 단순형으로 부족할 때만 |
+| 심층 감독(엄격 모드 · 여러 파일 기능만 읽기 전용 감독 에이전트, 근거 줄 서버 재대조, 단계 · 비용 상한, Workflows · Queues) | 3-4 | 1절 "검증은 단순형" 결정을 바꾸는 일. 여러 파일 불량 diff로 단순형과 비교 측정한 뒤 계획 세션이 정함 |
 
 ---
 
@@ -536,3 +595,6 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 단계 2 보완 칸 추가(B2 #153이 남긴 빈 곳 4개: 프로젝트 목록 함수, 기능별 검증 수준, pre-commit, 이탈 입력). 담당 정지훈.
 - 2026-11-20: 9절 조사 반영(Codex, 공식 문서 근거). 확인된 사실을 9절 요점으로, 단계 2 보완에 ⑤ 훅 형식 · ⑥ 검증 운영 추가, 1절 모델 줄에 OpenRouter ID와 deny의 의미.
 - 2026-11-20: "기획 → 에이전트 연결" 칸 추가. 1단계 웹 에이전트 단계 화면 + 개인 PRD 내보내기에 목표 · 키(지금, Codex), 2단계 MCP 파일 제공 도구(A2 뒤, 정지훈).
+- 2026-11-20: 시작 문장에 저장소 연결(`connect_repo`) 추가, 연결 2단계에 목표 변경 안내 추가, "세 입구, 한 출구"와 흐름 전체 E2E 칸 추가.
+- 2026-11-20: 정지훈 요청 반영. 3-2에 클라이언트별 지원 수준 표와 "작동" 기준, "클라이언트 호환과 실제 연결 확인" 칸, "MCP 도구 정리"(추천안, 결정 대기) 칸, 보류에 심층 감독 추가 · GitHub App 결정 대기 표시.
+- 2026-11-20: 단계 2 보완 ② · ④ · ⑤ · ⑥, 연결 2, 세 입구 한 출구, 흐름 E2E를 정지훈 · Antigravity가 진행(프롬프트 `prompts/antigravity-remaining.md` T1~T7). 세 입구 한 출구 담당을 장차희 Codex에서 정지훈 Antigravity로 옮김.

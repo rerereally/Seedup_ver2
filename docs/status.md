@@ -50,10 +50,32 @@
 | 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `20261120160000_verifications.sql` 적용 확인 대기(정지훈), `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
 | 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 머지 | 신호등은 아직 모두 ⚪(검증 수준 필드는 2 보완 ②). 알리기 전 베타 표시 또는 숨김(단계 0) |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
-| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완 | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함 |
+| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완 | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함. ② · ④ · ⑤ · ⑥은 정지훈 · Antigravity [프롬프트](prompts/antigravity-remaining.md) T1 · T2 · T5 · T4 |
 | 2 | 9절 확인 조사 | Codex(GPT 6.1 Sol · 웹 검색, 장차희 계획 세션이 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-section9.md). 계획 9절 · 단계 2 보완 ⑤ · ⑥에 반영 |
-| 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md) |
-| 연결 2 | MCP 파일 제공 도구(`setup_project`) | 정지훈 | 시작 가능(A2 머지됨) | |
+| 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md). 시작 문장에 저장소 연결(`connect_repo`) 포함 |
+| 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | 도구 정리 결정 · 보완 ④ 뒤 | [프롬프트](prompts/antigravity-remaining.md) T3 |
+| 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
+| E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | T1 · T3 · T6 뒤 | [프롬프트](prompts/antigravity-remaining.md) T7 |
+| 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 시작 가능 | [프롬프트](prompts/codex-antigravity-research.md), 코드 변경 없음 |
+| 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
+| 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |
+| 도구 정리 | MCP 도구 23 → 19(추천안) | 정지훈 | 결정 대기 | 연결 2 앞 별도 PR |
+
+## 2-1. 운영 준비 (정지훈, 🟢가 운영에서 나오려면 필요)
+
+- 운영 DB `20261120160000_verifications.sql` 적용 + `check-schema`
+- `VERIFIER_MODELS`에 `openai/gpt-6.2-sol`, `anthropic/claude-haiku-5.5`
+- OpenRouter 계정 privacy · Safety Retention 설정, 두 모델이 deny 필터 아래 호출되는지 1회씩
+- GitHub 토큰 종류(시간당 요청 한도)
+- 대시보드 🟢 표시는 단계 2 보완 ②(검증 수준 칸) 뒤
+
+## 2-2. 추천 순서 (계획 세션, 2026-11-20)
+
+1. 운영 준비(2-1) → 호환 ② 실제 연결 확인(운영 확인 겸)
+2. 단계 2 보완 ②(검증 수준 칸, 대시보드 🟢)
+3. MCP 도구 정리 → 연결 2(`setup_project`)
+4. 호환 ③(보완 ⑤ 포함) → 보완 ⑥ → 보완 ④ → 흐름 E2E
+- 동시에 장차희 쪽: 세 입구 한 출구(Codex), 호환 ① Antigravity 조사(Codex)
 
 ## 3. 결정 대기
 
@@ -64,6 +86,11 @@
 | 머지 위임(PR #135) | 모든 단계 | #135로 규약 반영됨. 장차희의 확인과 `decisions.md` 기록은 결정 대기 |
 | 3-4 메뉴 정리 · 범위 동결 | 단계 0 | 출시 때 앞에 둘 메뉴와 숨기거나 베타로 표시할 화면 |
 | 로그인 없이 PRD 만들기 | 단계 0 | 허용 여부와 한도 |
+| MCP 도구 정리 범위 | 단계 2 | 정지훈: 계획 세션 추천안(23 → 19, `link_commit` 유지, 기획/개발 분리는 미룸)대로 할지 |
+| `developed_with` 확장 방식 | 단계 2 | 정지훈: `antigravity` 값만 추가할지, 개발 모델 계열을 직접 받는 입력을 더할지 |
+| 비공개 저장소 검증(GitHub App) | 출시 | 장차희 · 정지훈: 보류에서 꺼내 출시 전 필수로 할지 |
+| 심층 감독 | 단계 3 이후 | 계획 세션 추천은 보류 유지(단순형과 비교 측정 뒤 결정) |
+| 출시 메시지 | 출시 | 장차희: "감독(목표 이탈 방지 + 다른 모델의 완료 확인)" 하나로 좁히고 리서치 · PRD는 입구로 둘지 |
 
 ## 3-1. 후속으로 정해진 일
 

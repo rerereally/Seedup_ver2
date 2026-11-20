@@ -19,6 +19,18 @@ export async function saveFoundEvidence(quotes: Evidence[], terms: string[]) {
   if (error) console.error('found evidence save failed', error.message);
 }
 
+/** Stores a batch of verified import rows with their own search terms. */
+export async function saveFoundEvidenceRows(quotes: Array<Evidence & { terms: string[] }>) {
+  if (!quotes.length) return;
+  const service = createAdminClient();
+  if (!service) throw new Error('Supabase admin configuration is missing.');
+  const rows = quotes.map(({ id, platform, quote, quoteKo, url, score, postedAt, terms }) => ({
+    id, platform, quote, quote_ko: quoteKo, url, score, posted_at: postedAt, terms,
+  }));
+  const { error } = await service.rpc('save_found_evidence', { p_rows: rows });
+  if (error) throw new Error(`save_found_evidence: ${error.message}`);
+}
+
 /** Quotes found earlier whose search words share any of `terms`, most often found first. */
 export async function storedEvidence(terms: string[], limit = 40): Promise<Array<Evidence & { terms: string[] }>> {
   const service = terms.length ? createAdminClient() : null;

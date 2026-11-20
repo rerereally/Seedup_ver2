@@ -548,7 +548,8 @@ async function projectContext(deps: McpDeps, key: ProjectKey) {
   return { goal, memory };
 }
 
-function contextText(goal: ProjectGoal | null | undefined, memory: ProjectMemory | undefined) {
+/** The goal and memory lines resume_project and get_next_task hand the agent (memory read with a limit of 3). */
+export function contextText(goal: ProjectGoal | null | undefined, memory: ProjectMemory | undefined) {
   const decisions = recentDecisions(memory);
   const handoff = memory?.handoffs[0];
   return [
@@ -1622,6 +1623,9 @@ function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
   return null;
 }
 
+/** One goal as the MCP initialize instructions list it (recent PRDs with an unmet criterion, two at most). */
+export const activeGoalLine = (goal: ProjectGoal) => `- ${goal.projectKey} (v${goal.version}): ${oneLine(goal.statement, 300)}`;
+
 async function activeGoalInstructions(deps: McpDeps) {
   if (!deps.myPrds || !deps.projectGoal) return '';
   // shortcut: use recent saved PRDs to discover keys; switch to a user-wide goal query when the DB layer provides one.
@@ -1632,7 +1636,7 @@ async function activeGoalInstructions(deps: McpDeps) {
     .filter((goal): goal is ProjectGoal => Boolean(goal?.criteria.some((criterion) => criterion.status !== 'met')))
     .sort((a, b) => b.lockedAt.localeCompare(a.lockedAt))
     .slice(0, 2);
-  return goals.length ? `\n\nActive locked goals from recent PRDs:\n${goals.map((goal) => `- ${goal.projectKey} (v${goal.version}): ${oneLine(goal.statement, 300)}`).join('\n')}` : '';
+  return goals.length ? `\n\nActive locked goals from recent PRDs:\n${goals.map(activeGoalLine).join('\n')}` : '';
 }
 
 async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {

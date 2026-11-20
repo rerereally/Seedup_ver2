@@ -1,6 +1,9 @@
+import Link from 'next/link';
 import GoalLock from '@/components/goal/GoalLock';
+import MarkdownContent from '@/components/MarkdownContent';
 import { translator, type Lang } from '@/lib/i18n';
 import type { FeatureStatus } from '@/lib/opportunities/build-progress';
+import { SLOT_KEYS, slotLabels } from '@/lib/opportunities/spec';
 import type { SupervisorDetail } from './data';
 import { ActivityTime } from './ProjectList';
 import VerificationHistory from './VerificationHistory';
@@ -16,10 +19,47 @@ const DRIFT_MESSAGES = {
   touched_done: 'Files of a completed feature changed. Recheck that feature.',
 };
 
-export default function Dashboard({ project, lang }: { project: SupervisorDetail; lang: Lang }) {
+export const DASHBOARD_TABS = ['overview', 'work', 'files', 'flow', 'prd', 'activity', 'memory', 'setup'] as const;
+export type DashboardTab = (typeof DASHBOARD_TABS)[number];
+const TAB_LABELS: Record<DashboardTab, [string, string]> = {
+  overview: ['개요', 'Overview'], work: ['작업 현황', 'Work'], files: ['파일 지도', 'File map'], flow: ['흐름', 'Flow'], prd: ['PRD · 원문', 'PRD · quotes'], activity: ['검증 · 커밋', 'Checks · commits'],
+  memory: ['기록', 'Memory'], setup: ['에이전트 설정', 'Agent setup'],
+};
+const TASK_KINDS: Record<string, [string, string]> = {
+  auth: ['로그인', 'Auth'], database: ['데이터베이스', 'Database'], payment: ['결제', 'Payment'], api_key: ['API 키', 'API key'], deploy: ['배포', 'Deploy'], decision: ['결정', 'Decision'],
+};
+const WORKING = new Set<FeatureStatus>(['in_progress', 'improving', 'needs_recheck']);
+const dirOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.');
+
+export const pickTab = (value: unknown): DashboardTab => DASHBOARD_TABS.find((tab) => tab === value) ?? 'overview';
+const FACT_LABELS: Record<string, [string, string]> = {
+  stack: ['스택', 'Stack'], command: ['명령', 'Command'], env_name: ['환경 변수 이름', 'Env key name'], do_not_touch: ['건드리지 말 것', 'Do not touch'], other: ['기타', 'Other'],
+};
+
+/** One project's supervisor page, split into tabs (?tab=) so everything the MCP tools recorded has a place on the web. */
+/** `flow` is the PRD flow view (SpecFlow), passed in by the page because it is a client component with CSS modules. */
+export default function Dashboard({ project, lang, tab = 'overview', flow }: { project: SupervisorDetail; lang: Lang; tab?: DashboardTab; flow?: React.ReactNode }) {
   const t = translator(lang);
   const goal = project.goal;
+  const spec = project.spec;
+  const statusOf = (id: string): FeatureStatus => project.progress[id]?.status ?? 'todo';
+  const working = spec ? spec.features.filter((row) => WORKING.has(statusOf(row.id))) : [];
+  // explain_file for every linked file at once: path → the features that touched it, their requirements and quotes.
+  const fileMap = new Map<string, string[]>();
+  for (const [featureId, { files }] of Object.entries(project.featureFiles)) for (const file of files) fileMap.set(file, [...(fileMap.get(file) ?? []), featureId]);
+  const dirs = [...new Set([...fileMap.keys()].map(dirOf))].sort();
+  const featureLine = (id: string) => {
+    const feature = spec?.features.find((row) => row.id === id);
+    const reqs = feature ? feature.requirementIds : [];
+    const quotes = spec ? [...new Set([...spec.requirements, ...spec.hypotheses].filter((row) => reqs.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b) : [];
+    return <span key={id} className="block"><span className="font-mono text-muted">{id}</span> {feature?.title ?? ''} <span className="text-muted">· {t(...STATUSES[statusOf(id)])}{reqs.length ? ` · ${reqs.join(', ')}` : ''}{quotes.length ? ` · ${quotes.map((n) => `E-${n}`).join(', ')}` : ''}</span></span>;
+  };
+  const href = (next: DashboardTab) => `/supervisor/${encodeURIComponent(project.key)}${next === 'overview' ? '' : `?tab=${next}`}`;
   return <div className="min-w-0 space-y-7 [overflow-wrap:anywhere]">
+    <nav aria-label={t('프로젝트 보기', 'Project views')} className="tabs">
+      {DASHBOARD_TABS.map((key) => <Link key={key} href={href(key)} aria-current={tab === key ? 'page' : undefined} className="tab">{t(...TAB_LABELS[key])}</Link>)}
+    </nav>
+    {tab === 'overview' && <>
     <section className="card min-w-0 p-5 sm:p-6" aria-labelledby="goal-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="goal-heading" className="text-xl font-semibold text-ink">{t('잠긴 목표', 'Locked goal')}</h2>
@@ -69,7 +109,113 @@ export default function Dashboard({ project, lang }: { project: SupervisorDetail
           </li>)}</ul>}
       </section>
     </div>
+    </>}
+    {tab === 'work' && <>
+    <section className="min-w-0" aria-labelledby="human-heading">
+      <h2 id="human-heading" className="text-xl font-semibold text-ink">{t('사람이 먼저 할 일', 'Set up first (by a person)')} <span className="num text-muted">{project.humanTasks.length}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('get_next_task가 코드보다 먼저 알려 주는 계정 · 키 · 결정. 그동안 에이전트는 가짜 값으로 진행할 수 있습니다.', 'Accounts, keys and decisions get_next_task puts before code. Meanwhile the agent can work against mocks.')}</p>
+      {!project.humanTasks.length ? <p className="mt-4 text-sm text-muted">{t('PRD에서 찾은 사람 할 일이 없습니다.', 'No setup tasks found in the PRD.')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{project.humanTasks.map((task) => <li key={task.id} className="py-3 text-sm">
+          <p className="flex flex-wrap items-baseline justify-between gap-2"><b className="font-semibold text-ink">{task.title}</b><span className="text-[13px] text-muted">{t(...(TASK_KINDS[task.category] ?? TASK_KINDS.decision))}{task.estimatedMinutes ? ` · ${t(`약 ${task.estimatedMinutes}분`, `~${task.estimatedMinutes} min`)}` : ''}{task.unblocksFeatureIds.length ? ` · ${task.unblocksFeatureIds.join(', ')}` : ''}</span></p>
+          {task.envVars.length > 0 && <p className="mt-1 break-all font-mono text-[13px] text-tertiary">{task.envVars.join(', ')}</p>}
+          {task.guideSteps.length > 0 && <details className="mt-1 text-[13px] text-muted"><summary className="cursor-pointer">{t('하는 방법', 'How to')}</summary>
+            <ol className="mt-1 list-decimal space-y-1 pl-5">{task.guideSteps.map((step, index) => <li key={index}>{step}</li>)}</ol>
+            {task.mockContractHint && <p className="mt-2">{t('그동안 가짜로', 'Meanwhile, mock')}: {task.mockContractHint}</p>}
+          </details>}
+        </li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="env-heading">
+      <h2 id="env-heading" className="text-xl font-semibold text-ink">{t('필요한 환경 변수 이름', 'Required env key names')} <span className="num text-muted">{project.envNames.length}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('check_env가 로컬의 키 이름과 비교하는 목록입니다. 값은 Seedup에 보내지도 저장되지도 않습니다.', 'The list check_env compares local key names against. Values are never sent or stored.')}</p>
+      {!project.envNames.length ? <p className="mt-4 text-sm text-muted">{t('아직 알려진 키 이름이 없습니다.', 'No key names known yet.')}</p>
+        : <ul className="mt-3 flex flex-wrap gap-2">{project.envNames.map((name) => <li key={name} className="rounded border border-outline-soft px-2 py-1 font-mono text-[13px] text-ink">{name}</li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="working-heading">
+      <h2 id="working-heading" className="text-xl font-semibold text-ink">{t('지금 작업 중', 'In progress now')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('update_feature_status로 에이전트가 보고한 상태', 'Status the agents reported with update_feature_status')}</p>
+      {!working.length ? <p className="mt-4 text-sm text-muted">{t('작업 중으로 보고된 기능이 없습니다.', 'No feature is reported in progress.')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{working.map((row) => <li key={row.id} className="py-3 text-sm">
+          <p><span className="font-mono text-muted">{row.id}</span> <b className="font-semibold text-ink">{row.title}</b> <span className="text-tertiary">· {t(...STATUSES[statusOf(row.id)])}</span></p>
+          {project.progress[row.id]?.note && <p className="mt-1 whitespace-pre-wrap text-tertiary">{project.progress[row.id].note}</p>}
+          <p className="mt-1 text-[13px] text-muted"><ActivityTime at={project.progress[row.id]?.updatedAt ?? null} lang={lang} /></p>
+        </li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="next-heading">
+      <h2 id="next-heading" className="text-xl font-semibold text-ink">{t('다음 작업', 'Next task')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('get_next_task가 에이전트에게 주는 것과 같은 결과', 'The same pick get_next_task gives the agent')}</p>
+      {!project.next ? <p className="mt-4 text-sm text-muted">{t('명세가 없어 고를 수 없습니다.', 'No spec to pick from.')}</p>
+        : project.next.feature ? <div className="card mt-3 p-4 text-sm">
+          <p><span className="font-mono text-muted">{project.next.feature.id}</span> <b className="font-semibold text-ink">{project.next.feature.title}</b></p>
+          {project.next.feature.detail && <p className="mt-1 text-tertiary">{project.next.feature.detail}</p>}
+          <p className="mt-2 text-[13px] text-muted">{project.next.why}</p>
+          {project.next.feature.slots && <dl className="mt-3 grid gap-3 border-t border-outline-soft pt-3 sm:grid-cols-2">
+            {SLOT_KEYS.filter((key) => project.next?.feature?.slots?.[key]?.length).map((key) => <div key={key}>
+              <dt className="text-[13px] font-semibold text-ink">{slotLabels(lang)[key]}</dt>
+              <dd><ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px] text-tertiary">{project.next!.feature!.slots![key].map((line, index) => <li key={index}>{line}</li>)}</ul></dd>
+            </div>)}
+          </dl>}
+        </div> : <p className="mt-4 text-sm text-muted">{project.next.why}</p>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="board-heading">
+      <h2 id="board-heading" className="text-xl font-semibold text-ink">{t('기능별 진행', 'Features')}</h2>
+      {!spec?.features.length ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{spec.features.map((row) => {
+          const events = project.history[row.id] ?? [];
+          const files = project.featureFiles[row.id]?.files ?? [];
+          return <li key={row.id} className="py-3 text-sm">
+            <p className="flex flex-wrap items-baseline justify-between gap-2"><span><span className="font-mono text-muted">{row.id}</span> <span className="text-ink">{row.title}</span></span><span className={statusOf(row.id) === 'done' ? 'font-semibold text-seed' : 'text-tertiary'}>{t(...STATUSES[statusOf(row.id)])}</span></p>
+            {(events.length > 0 || files.length > 0) && <details className="mt-1 text-[13px] text-muted">
+              <summary className="cursor-pointer">{t(`상태 이력 ${events.length}개 · 파일 ${files.length}개`, `${events.length} status changes · ${files.length} files`)}</summary>
+              {events.length > 0 && <ol className="mt-2 space-y-1">{events.map((event) => <li key={event.id}><ActivityTime at={event.createdAt} lang={lang} /> · {t(...STATUSES[event.status])}{event.note && ` · ${event.note}`}</li>)}</ol>}
+              {files.length > 0 && <ul className="mt-2 space-y-1 font-mono">{files.map((file) => <li key={file} className="break-all">{file}</li>)}</ul>}
+            </details>}
+          </li>;
+        })}</ul>}
+    </section>
+    </>}
+    {tab === 'files' && <section className="min-w-0" aria-labelledby="filemap-heading">
+      <h2 id="filemap-heading" className="text-xl font-semibold text-ink">{t('파일 지도', 'File map')} <span className="num text-muted">{fileMap.size}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('link_commit으로 연결된 파일마다 어떤 기능 · 요구사항 · 원문에서 나왔는지(explain_file과 같은 연결)', 'Each linked file traced back to its features, requirements and quotes (the same links explain_file uses)')}</p>
+      {!fileMap.size ? <p className="mt-4 text-sm text-muted">{t('아직 연결된 파일이 없습니다. 에이전트가 커밋 뒤 link_commit 또는 verify_feature를 부르면 채워집니다.', 'No linked files yet. They fill in when the agent calls link_commit or verify_feature after a commit.')}</p>
+        : dirs.map((dir) => <details key={dir} open className="border-b border-outline-soft py-3">
+          <summary className="cursor-pointer font-mono text-sm font-semibold text-ink">{dir === '.' ? '/' : `${dir}/`}</summary>
+          <ul className="mt-2 space-y-3">{[...fileMap.entries()].filter(([file]) => dirOf(file) === dir).sort(([a], [b]) => a.localeCompare(b)).map(([file, ids]) => <li key={file} className="pl-4 text-sm">
+            <p className="break-all font-mono text-ink">{file.slice(dir === '.' ? 0 : dir.length + 1)}</p>
+            <div className="mt-1 text-[13px]">{ids.map(featureLine)}</div>
+          </li>)}</ul>
+        </details>)}
+    </section>}
+    {tab === 'flow' && (spec && flow ? flow : <p className="text-sm text-muted">{t('PRD 명세가 없어 흐름을 그릴 수 없습니다.', 'No PRD spec to draw.')}</p>)}
+    {tab === 'prd' && <>
+    <section className="min-w-0" aria-labelledby="prd-heading">
+      <h2 id="prd-heading" className="text-xl font-semibold text-ink">PRD</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('generate_verified_prd · get_my_prd가 쓰는 같은 PRD입니다.', 'The same PRD generate_verified_prd and get_my_prd use.')}</p>
+      {project.prd.markdown ? <div className="mt-4"><MarkdownContent content={project.prd.markdown.replace(/^# .*\n+/, '')} /></div>
+        : <p className="mt-4 text-sm text-muted">{t('아직 PRD가 없습니다. 원문만 있는 초안이면 generate_verified_prd로 만드세요.', 'No PRD yet. For a quotes-only draft, make one with generate_verified_prd.')}</p>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="quotes-heading">
+      <h2 id="quotes-heading" className="text-xl font-semibold text-ink">{t('근거 원문', 'Source quotes')} <span className="num text-muted">{project.prd.quotes.length}</span></h2>
+      {!project.prd.quotes.length ? <p className="mt-4 text-sm text-muted">{t('저장된 원문이 없습니다.', 'No quotes saved.')}</p>
+        : <ol className="mt-3 divide-y divide-outline-soft">{project.prd.quotes.map((row, index) => <li key={index} className="py-3 text-sm">
+          <p className="whitespace-pre-wrap text-ink">“{row.quote}”</p>
+          <a href={row.url} target="_blank" rel="noreferrer" className="link-seed mt-1 inline-block break-all text-[13px]">{row.platform || new URL(row.url).host}</a>
+        </li>)}</ol>}
+    </section>
+    </>}
+    {tab === 'activity' && <>
     <VerificationHistory rows={project.verifications} lang={lang} />
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="commits-heading">
+      <h2 id="commits-heading" className="text-xl font-semibold text-ink">{t('연결된 커밋', 'Linked commits')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('link_commit · verify_feature가 기록한 최근 30개', 'Latest 30 recorded by link_commit and verify_feature')}</p>
+      {!project.commits.length ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{project.commits.map((row) => <li key={`${row.sha}-${row.featureId}`} className={`py-3 text-sm ${row.dismissed ? 'opacity-60' : ''}`}>
+          <p className="font-mono text-[13px] text-muted">{project.repo ? <a href={`https://github.com/${project.repo}/commit/${row.sha}`} target="_blank" rel="noreferrer" className="link-seed">{row.sha.slice(0, 12)}</a> : row.sha.slice(0, 12)} · {row.featureId || t('기능 미연결', 'no feature')} · {t(`파일 ${row.files}개`, `${row.files} files`)}{row.dismissed ? ` · ${t('범위 밖으로 처리', 'dismissed')}` : ''}</p>
+          <p className="mt-1 text-ink">{row.message.split('\n')[0]}</p>
+          <p className="mt-1 text-[13px] text-muted"><ActivityTime at={row.at} lang={lang} /></p>
+        </li>)}</ul>}
+    </section>
+    </>}
+    {tab === 'memory' && <>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="handoff-heading">
       <h2 id="handoff-heading" className="text-xl font-semibold text-ink">{t('최근 인수인계', 'Recent handoffs')}</h2>
       {project.handoffs.length === 0 && <p className="mt-3 text-sm text-muted">{t('기록된 인수인계가 없습니다.', 'No handoffs recorded.')}</p>}
@@ -95,5 +241,48 @@ export default function Dashboard({ project, lang }: { project: SupervisorDetail
           <p className="mt-2 text-[13px] text-muted"><ActivityTime at={decision.at} lang={lang} /></p>
         </li>)}</ol>}
     </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="facts-heading">
+      <h2 id="facts-heading" className="text-xl font-semibold text-ink">{t('프로젝트 사실', 'Project facts')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('check_env가 남긴 키 이름(값은 저장하지 않음)과 에이전트가 기록한 스택 · 명령', 'Key names from check_env (never values) and stack or commands the agents recorded')}</p>
+      {!project.facts.length ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{project.facts.map((fact, index) => <li key={fact.at + index} className="py-3 text-sm">
+          <p className="text-[13px] text-muted">{t(...(FACT_LABELS[fact.kind] ?? FACT_LABELS.other))} · {fact.author} · <ActivityTime at={fact.at} lang={lang} /></p>
+          <p className={`mt-1 whitespace-pre-wrap text-ink ${fact.kind === 'env_name' || fact.kind === 'command' ? 'font-mono' : ''}`}>{fact.text}</p>
+        </li>)}</ul>}
+    </section>
+    </>}
+    {tab === 'setup' && <>
+    <section className="min-w-0" aria-labelledby="setup-heading">
+      <h2 id="setup-heading" className="text-xl font-semibold text-ink">{t('연결 상태', 'Connection')}</h2>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+        <div><dt className="text-muted">{t('저장소 (connect_repo)', 'Repository (connect_repo)')}</dt><dd className="mt-1 break-all text-ink">{project.repo ? <a href={`https://github.com/${project.repo}`} target="_blank" rel="noreferrer" className="link-seed">{project.repo}</a> : t('연결 안 됨', 'Not connected')}</dd></div>
+        <div><dt className="text-muted">{t('트랙', 'Track')}</dt><dd className="mt-1 text-ink">{project.track === 'launch' ? t('출시용', 'Launch') : project.track === 'personal' ? t('개인용', 'Personal') : t('목표를 잠그면 정해짐', 'Set when a goal is locked')}</dd></div>
+        <div><dt className="text-muted">{t('엄격 모드', 'Strict mode')}</dt><dd className="mt-1 text-ink">{project.strict ? t('켜짐: 자가 보고로 완료 불가', 'On: no self-reported done') : t('꺼짐', 'Off')}</dd></div>
+      </dl>
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="context-heading">
+      <h2 id="context-heading" className="text-xl font-semibold text-ink">{t('에이전트가 받는 컨텍스트', 'What the agent is handed')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('세션이 바뀌거나 대화가 압축돼도 목표를 잃지 않게, 에이전트에게 그대로 들어가는 문장입니다.', 'Word for word what reaches the agent, so a new session or a compacted chat keeps the goal.')}</p>
+      {([
+        ['MCP 연결할 때', 'When MCP connects', t('최근 PRD 중 아직 충족 안 된 목표 2개까지 서버 안내문에 붙습니다.', 'Added to the server instructions for up to two unmet goals among recent PRDs.'), project.context.initialize, t('잠긴 목표가 없거나 모두 충족돼 붙지 않습니다.', 'Not added: no locked goal, or every criterion is met.')],
+        ['세션 시작 · 압축 뒤 (SessionStart 훅)', 'Session start and after compaction (SessionStart hook)', t('.seedup/goal.md를 그대로 넣고, 압축 · 재개 뒤에는 resume_project를 부르라는 안내를 덧붙입니다. 압축 직전(PreCompact)에는 save_handoff로 인계를 남기라고 알립니다.', 'Injects .seedup/goal.md; after compaction or resume it adds a call to resume_project. Before compaction (PreCompact) it asks for save_handoff.'), project.context.sessionStart, t('목표를 잠그고 저장소에 훅 파일을 넣으면 들어갑니다.', 'Starts once a goal is locked and the hook files are in the repository.')],
+        ['resume_project · get_next_task 응답', 'resume_project and get_next_task replies', t('목표 요약, 최근 결정 3개, 마지막 인수인계', 'Goal summary, last three decisions, last handoff'), project.context.memory || null, t('아직 목표 · 결정 · 인수인계가 없습니다.', 'No goal, decisions or handoff yet.')],
+      ] as const).map(([ko, en, note, body, empty]) => <details key={ko} open={Boolean(body)} className="border-b border-outline-soft py-3 text-sm">
+        <summary className="cursor-pointer font-semibold text-ink">{t(ko, en)}</summary>
+        <p className="mt-1 text-[13px] text-muted">{note}</p>
+        {body ? <pre className="terminal mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5">{body}</pre>
+          : <p className="mt-2 text-[13px] text-muted">{empty}</p>}
+      </details>)}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="files-heading">
+      <h2 id="files-heading" className="text-xl font-semibold text-ink">{t('저장소에 넣을 파일 (setup_project)', 'Files for the repository (setup_project)')}</h2>
+      {!project.files.length ? <p className="mt-4 text-sm text-muted">{t('목표를 잠그면 훅과 검사 파일이 만들어집니다.', 'Hook and check files appear once a goal is locked.')}</p>
+        : project.files.map((file) => <details key={file.path} className="border-b border-outline-soft py-3 text-sm">
+          <summary className="cursor-pointer font-mono text-ink">{file.path}</summary>
+          <pre className="terminal mt-3 max-h-80 overflow-auto whitespace-pre text-[12px] leading-5">{file.content}</pre>
+        </details>)}
+      <p className="mt-4 text-sm"><Link href="/agents" className="link-seed">{t('MCP 연결과 스타터 팩 받기', 'MCP connection and starter pack')}</Link></p>
+    </section>
+    </>}
   </div>;
 }

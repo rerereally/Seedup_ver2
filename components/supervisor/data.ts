@@ -7,9 +7,11 @@ import { projectMemory } from '@/lib/db/project-memory';
 import { resolveProjectKey, supervisorProject, userSupervisorProjects } from '@/lib/db/supervisor-projects';
 import { cachedPrd } from '@/lib/db/server';
 import { getOpportunities, getOpportunity } from '@/lib/opportunities/data';
-import { readBuildProgress } from '@/lib/opportunities/build-progress';
-import { readFeatureCommits } from '@/lib/opportunities/feature-commits';
+import { readBuildProgress, readBuildProgressHistory, type BuildProgressHistory } from '@/lib/opportunities/build-progress';
+import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
+import { activeGoalLine, contextText, pickNextTask } from '@/lib/mcp/server';
 import { hookBundle, hookSettings } from '@/lib/supervisor/hook-bundle';
+import { humanTasks } from '@/lib/supervisor/human-queue';
 import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
 
 export async function supervisorDetail(client: SupabaseClient, userId: string, rawKey: string) {
@@ -23,10 +25,11 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
   // A public opportunity existing does not make it this user's supervisor project.
   if (!project && !dossier) return null;
   const evidenceIds = dossier?.evidence_ids ?? opportunity?.evidence.slice(0, 12).map((row) => row.id) ?? [];
-  const [goal, memory, progress, commits, cached, verifications] = await Promise.all([
+  const [goal, memory, progress, commits, cached, verifications, history] = await Promise.all([
     currentProjectGoal(client, userId, key), projectMemory(client, userId, key),
     readBuildProgress(client, userId, key), readFeatureCommits(client, userId, key), cachedPrd(evidenceIds),
     recentProjectVerifications(client, userId, key).catch(() => null),
+    readBuildProgressHistory(client, userId, key).catch((): BuildProgressHistory => ({})),
   ]);
   const spec = cached?.spec ?? null;
   const lastActivityAt = latestActivity([
@@ -43,9 +46,41 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     // Only until a goal is locked: the dashboard drafts the goal from it (a PRD made over MCP has no other lock screen).
     lockSpec: goal ? null : spec,
     drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
+    // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
+    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence) },
+    repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
+    commits: [...commits].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 30).map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
+    facts: memory.facts,
+    // What get_next_task, explain_file and the PRD's flow views work from, for the work, file map and flow tabs.
+    spec, progress, history,
+    next: spec ? pickNextTask(spec, progress, goal) : null,
+    // What the agent is handed, word for word: the MCP initialize line, the session-start hook file, the memory lines.
+    context: {
+      initialize: goal?.criteria.some((row) => row.status !== 'met') ? activeGoalLine(goal) : null,
+      sessionStart: goal ? hookBundle(key, goal).find((file) => file.path === '.seedup/goal.md')?.content ?? null : null,
+      memory: contextText(goal, { decisions: memory.decisions.slice(0, 3), handoffs: memory.handoffs.slice(0, 3), facts: memory.facts.slice(0, 3) }),
+    },
+    // What get_next_task puts before code (setup a person does) and what check_env compares the local names against.
+    humanTasks: spec ? humanTasks(spec) : [],
+    envNames: [...new Set([...(spec ? humanTasks(spec).flatMap((task) => task.envVars) : []),
+      ...memory.facts.filter((fact) => fact.kind === 'env_name').map((fact) => fact.text)])],
+    featureFiles: summarizeFeatureCommits(commits.filter((row) => !row.dismissed_at)),
+    specQuotes: (cached?.input.evidence ?? []).map((row) => ({ quote: row.quote, url: row.url, platform: row.platform })),
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'
       ? { ...file, content: `${JSON.stringify(hookSettings(), null, 2)}\n` } : file) : [],
   };
+}
+
+/** Quotes saved with a PRD (evidence_dossiers.evidence), kept only when they have text and a link. */
+function dossierQuotes(evidence: unknown) {
+  return (Array.isArray(evidence) ? evidence : []).flatMap((row: { quote?: unknown; url?: unknown; platform?: unknown }) =>
+    typeof row?.quote === 'string' && typeof row.url === 'string' ? [{ quote: row.quote, url: row.url, platform: typeof row.platform === 'string' ? row.platform : '' }] : []).slice(0, 30);
+}
+
+/** Every saved PRD and idea draft, for the supervisor's PRD tab: MCP ones without a locked goal are not projects yet. */
+export async function supervisorPrds(client: SupabaseClient, userId: string) {
+  const rows = await userPrds(client, userId, 100);
+  return rows.map((row) => ({ key: `prd:${row.id}`, title: row.title || row.id, hasPrd: Boolean(row.prd_markdown), quotes: row.evidence_ids.length, updatedAt: row.updated_at }));
 }
 
 export type SupervisorDetail = NonNullable<Awaited<ReturnType<typeof supervisorDetail>>>;

@@ -83,7 +83,7 @@ test('human tasks come first with key names only, then open decisions', () => {
 
 test('hook bundle: goal file, settings for start/resume/compact and stop, and refuses an unsafe key', () => {
   const files = hookBundle(goal.projectKey, goal, humanTasks(spec));
-  assert.deepEqual(files.map((file) => file.path), ['.seedup/goal.md', '.seedup/session-start.sh', '.seedup/stop.sh', '.claude/settings.json']);
+  assert.deepEqual(files.map((file) => file.path), ['.seedup/goal.md', '.seedup/session-start.sh', '.seedup/stop.sh', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json']);
   assert.match(files[0].content, /get_next_task/);
   assert.match(files[0].content, /SUPABASE_SECRET_KEY/);
   assert.equal(hookSettings().hooks.SessionStart[0].matcher, 'startup|resume|compact');

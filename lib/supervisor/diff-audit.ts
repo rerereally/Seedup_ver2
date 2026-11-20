@@ -65,41 +65,33 @@ function entropy(value: string) {
   return [...counts.values()].reduce((sum, count) => sum - (count / value.length) * Math.log2(count / value.length), 0);
 }
 
-type Rule = { code: AuditCode; severity: AuditSeverity; applies: (file: DiffFile) => boolean; test: (text: string) => string | null; message: string; fixHint: string };
+type Scope = 'all' | 'test' | 'code';
+/** A rule as plain data, so the local pre-commit script (lib/supervisor/local-audit.ts) reads the very same rules. */
+export type RuleData = { code: AuditCode; severity: AuditSeverity; scope: Scope; pattern: string; flags?: string; strip?: string; message: string; fixHint: string };
 
-const COMMENT_TODO = /(?:\/\/|\/\*|#|<!--|\{\/\*)\s*(TODO|FIXME|XXX|HACK)\b/;
-const MOCK = /\b(mock|dummy|fake|placeholder|lorem ipsum|hard-?coded)\b/i;
-const JSX_PLACEHOLDER = /\bplaceholder\s*=\s*["{]/g;
-
-const RULES: Rule[] = [
-  { code: 'SEC_CLIENT_SECRET', severity: 'blocker', applies: (file) => !GENERATED.test(file.path),
-    test: (text) => /\bNEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|SERVICE_ROLE|PASSWORD|_TOKEN)\b/.exec(text)?.[0] ?? null,
+export const RULE_DATA: RuleData[] = [
+  { code: 'SEC_CLIENT_SECRET', severity: 'blocker', scope: 'all', pattern: String.raw`\bNEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|SERVICE_ROLE|PASSWORD|_TOKEN)\b`,
     message: '브라우저로 내려가는 NEXT_PUBLIC_ 변수에 비밀값 이름이 붙었습니다.', fixHint: '서버 전용 이름(NEXT_PUBLIC_ 없이)으로 바꾸고 서버에서만 읽으세요.' },
-  { code: 'LIE_SKIPPED_TEST', severity: 'blocker', applies: (file) => isTest(file.path),
-    test: (text) => /\b(?:it|test|describe)\.(?:skip|todo)\s*\(|\bx(?:it|describe)\s*\(|\{\s*skip:\s*true\s*\}/.exec(text)?.[0] ?? null,
+  { code: 'LIE_SKIPPED_TEST', severity: 'blocker', scope: 'test', pattern: String.raw`\b(?:it|test|describe)\.(?:skip|todo)\s*\(|\bx(?:it|describe)\s*\(|\{\s*skip:\s*true\s*\}`,
     message: '새로 건너뛴 테스트가 있습니다.', fixHint: '테스트를 고치거나, 건너뛰는 이유를 seedup-allow로 남기세요.' },
-  { code: 'LIE_EMPTY_IMPL', severity: 'blocker', applies: (file) => isCode(file.path),
-    test: (text) => /throw new Error\(\s*["'`][^"'`]*not implemented|NotImplementedError|todo!\(\)|unimplemented!\(\)/i.exec(text)?.[0] ?? null,
+  { code: 'LIE_EMPTY_IMPL', severity: 'blocker', scope: 'code', pattern: String.raw`throw new Error\(\s*["'\`][^"'\`]*not implemented|NotImplementedError|todo!\(\)|unimplemented!\(\)`, flags: 'i',
     message: '구현 대신 "not implemented" 예외가 들어갔습니다.', fixHint: '기능을 구현하거나 완료 보고에서 빼세요.' },
-  { code: 'LIE_TODO', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => COMMENT_TODO.exec(text)?.[0] ?? null,
+  { code: 'LIE_TODO', severity: 'warning', scope: 'code', pattern: String.raw`(?:\/\/|\/\*|#|<!--|\{\/\*)\s*(TODO|FIXME|XXX|HACK)\b`,
     message: 'TODO 주석이 남았습니다.', fixHint: '끝내거나, 남은 일로 기능 상태에 적으세요.' },
-  { code: 'LIE_MOCK', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => MOCK.exec(text.replace(JSX_PLACEHOLDER, ''))?.[0] ?? null,
+  { code: 'LIE_MOCK', severity: 'warning', scope: 'code', pattern: String.raw`\b(mock|dummy|fake|placeholder|lorem ipsum|hard-?coded)\b`, flags: 'i', strip: String.raw`\bplaceholder\s*=\s*["{]`,
     message: '가짜 · 임시 값으로 보이는 코드가 있습니다.', fixHint: '실제 구현으로 바꾸거나 Mock이 의도된 것인지 적으세요.' },
-  { code: 'LIE_EMPTY_CATCH', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => /\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}/.exec(text)?.[0] ?? null,
+  { code: 'LIE_EMPTY_CATCH', severity: 'warning', scope: 'code', pattern: String.raw`\bcatch\s*(?:\([^)]*\))?\s*\{\s*\}`,
     message: '오류를 삼키는 빈 catch가 있습니다.', fixHint: '처리하거나, 무시해도 되는 이유를 catch 안 주석으로 남기세요.' },
-  { code: 'LIE_EMPTY_IMPL', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => /\bfunction\s+\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/.exec(text)?.[0] ?? null,
+  { code: 'LIE_EMPTY_IMPL', severity: 'warning', scope: 'code', pattern: String.raw`\bfunction\s+\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}`,
     message: '본문이 빈 함수가 있습니다.', fixHint: '구현하거나 빈 이유를 주석으로 남기세요.' },
-  { code: 'SEC_XSS', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => /dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=|\beval\s*\(|new Function\s*\(/.exec(text)?.[0] ?? null,
+  { code: 'SEC_XSS', severity: 'warning', scope: 'code', pattern: String.raw`dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=|\beval\s*\(|new Function\s*\(`,
     message: 'HTML을 그대로 넣거나 문자열을 코드로 실행합니다.', fixHint: '사용자 입력이 들어가지 않는지 확인하고, 들어가면 이스케이프하세요.' },
-  { code: 'SEC_SQLI', severity: 'warning', applies: (file) => isCode(file.path),
-    test: (text) => /`[^`]*\b(?:select|insert|update|delete)\b[^`]*\$\{|["'][^"']*\b(?:select|insert into|update|delete from)\b[^"']*["']\s*\+/i.exec(text)?.[0] ?? null,
+  { code: 'SEC_SQLI', severity: 'warning', scope: 'code', pattern: String.raw`\`[^\`]*\b(?:select|insert|update|delete)\b[^\`]*\$\{|["'][^"']*\b(?:select|insert into|update|delete from)\b[^"']*["']\s*\+`, flags: 'i',
     message: 'SQL을 문자열로 이어 붙입니다.', fixHint: '매개변수 쿼리나 쿼리 빌더를 쓰세요.' },
 ];
+
+const inScope = (scope: Scope, path: string) => (scope === 'all' ? !GENERATED.test(path) : scope === 'test' ? isTest(path) : isCode(path));
+const RULES = RULE_DATA.map((rule) => ({ ...rule, regex: new RegExp(rule.pattern, rule.flags), stripRegex: rule.strip ? new RegExp(rule.strip, 'g') : null }));
 
 const AUTH_CALL = /getCurrentUser|getUser\(|getClaims|auth\(\)|userForToken|requireAdmin|isAdmin|verifyToken|verifySignature|CRON_SECRET|authorization/i;
 const WRITE_HANDLER = /export\s+(?:async\s+)?function\s+(POST|PUT|PATCH|DELETE)\b|export\s+const\s+(POST|PUT|PATCH|DELETE)\b/;
@@ -144,8 +136,8 @@ export function auditDiff(diff: string): DiffAuditResult {
         }
       }
       for (const rule of RULES) {
-        if (!rule.applies(file)) continue;
-        const hit = rule.test(line.text);
+        if (!inScope(rule.scope, file.path)) continue;
+        const hit = rule.regex.exec(rule.stripRegex ? line.text.replace(rule.stripRegex, '') : line.text)?.[0];
         if (hit) add(file, index, rule.code, rule.severity, hit, rule.message, rule.fixHint);
       }
     });
@@ -184,3 +176,13 @@ export function scrubSecrets(diff: string) {
   });
   return { scrubbed, count };
 }
+
+/** Everything the standalone local script needs, as plain strings (lib/supervisor/local-audit.ts). */
+export const PORTABLE_AUDIT = {
+  paths: { test: TEST_FILE.source, fixture: FIXTURE.source, doc: DOC.source, generated: GENERATED.source },
+  secrets: SECRET_PATTERNS.map(([name, pattern]) => [name, pattern.source] as const),
+  secretAssign: SECRET_ASSIGN.source,
+  rules: RULE_DATA,
+  auth: { call: AUTH_CALL.source, write: WRITE_HANDLER.source, route: API_ROUTE.source },
+  allow: ALLOW.source,
+};

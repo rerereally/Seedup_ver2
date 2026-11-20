@@ -1,5 +1,6 @@
-// The goal's first draft from a PRD, and which requirements and features no success criterion covers. Pure, so tests run it.
+// The goal's first draft from a PRD, criterion ids, and what no success criterion covers. Pure, so tests run it.
 import type { Spec } from '@/lib/opportunities/spec';
+import { unlinkedItems as unlinkedGoalItems } from '@/lib/supervisor/goal';
 import type { SuccessCriterion } from '@/lib/supervisor/types';
 
 export type GoalDraft = { statement: string; criteria: SuccessCriterion[]; inScope: string[]; outOfScope: string[] };
@@ -7,7 +8,7 @@ export type GoalDraft = { statement: string; criteria: SuccessCriterion[]; inSco
 export const MIN_CRITERIA = 2;
 export const MAX_CRITERIA = 4;
 
-export const criterion = (index: number, text = '', measure = ''): SuccessCriterion => ({ id: `G-${index + 1}`, text, measure, status: 'open' });
+export const criterion = (index: number, text = '', measure = '', id = `G-${index + 1}`): SuccessCriterion => ({ id, text, measure, status: 'open' });
 
 /** Goals give the statement, metrics the criteria ("text: how to measure"), features the scope, non-goals what is left out. */
 export function goalDraft(spec: Spec, idea: string): GoalDraft {
@@ -24,24 +25,11 @@ export function goalDraft(spec: Spec, idea: string): GoalDraft {
   };
 }
 
-// Words too common in PRDs to show that a line serves a criterion.
-const STOP = new Set(['사용자', '기능', '화면', '데이터', '서비스', '관리', 'user', 'users', 'the', 'and', 'for', 'with', 'can', 'app', 'data', 'feature']);
-const words = (text: string) => text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length >= (/[a-z]/.test(word) ? 3 : 2) && !STOP.has(word));
-// A prefix match lets a Korean noun meet itself with a particle attached ("알림" and "알림을").
-const near = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
+/** The next free G-n after the ones in use, so removing a criterion never makes a new one reuse its id. */
+export const nextCriterionId = (rows: SuccessCriterion[]) =>
+  `G-${Math.max(0, ...rows.map((row) => Number(/^G-(\d+)$/.exec(row.id)?.[1] ?? 0))) + 1}`;
 
-/**
- * Requirements, hypotheses and features that share no word with any success criterion; a feature also counts as linked
- * through a linked requirement. shortcut: 단어 겹침으로 연결 판정, A1 goal.ts의 연결 검사가 머지되면 그것으로 교체.
- */
-export function unlinkedItems(spec: Spec, criteria: SuccessCriterion[]): Array<{ id: string; title: string }> {
-  const goalWords = criteria.flatMap((row) => words(`${row.text} ${row.measure}`));
-  if (!goalWords.length) return [];
-  const serves = (text: string) => words(text).some((word) => goalWords.some((goal) => near(word, goal)));
-  const requirements = [...spec.requirements, ...spec.hypotheses];
-  const linked = new Set(requirements.filter((row) => serves(`${row.title} ${row.detail} ${(row.acceptance ?? []).join(' ')}`)).map((row) => row.id));
-  return [
-    ...requirements.filter((row) => !linked.has(row.id)),
-    ...spec.features.filter((row) => !row.requirementIds.some((id) => linked.has(id)) && !serves(`${row.title} ${row.detail}`)),
-  ].map((row) => ({ id: row.id, title: row.title }));
+/** Requirements, hypotheses and features no success criterion covers (A1 goal.ts); empty criteria rows are ignored. */
+export function unlinkedItems(spec: Spec, criteria: SuccessCriterion[]) {
+  return unlinkedGoalItems(spec, criteria.filter((row) => row.text.trim() || row.measure.trim()));
 }

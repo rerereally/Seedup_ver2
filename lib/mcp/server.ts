@@ -504,8 +504,9 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
   const args = { slug, feature_id: feature.id };
   const checks = criteria.map((_, index) => ({ criterion: index + 1, passed: true, evidence: '' }));
   const note = progress[feature.id]?.note;
+  const setup = peopleFirst(cached.spec, feature.id);
   return {
-    ...text(`${intro}${feature.id} ${feature.title} [${status}]
+    ...text(`${intro}${setup}${feature.id} ${feature.title} [${status}]
 ${feature.detail}
 ${why}${task.scopeCheck ? `\n${ASK_USER}` : ''}${note ? `\nPrevious status note: ${note}` : ''}
 
@@ -531,6 +532,22 @@ If blocked, describe what is blocking work
 update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<what is blocking work>' })}`),
     structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files, goal ? goalSummary(goal, 'en') : undefined),
   };
+}
+
+/**
+ * "Environment first" (plan 2-2 ①): setup only a person can do for this feature, ahead of the task, with the mock to
+ * build against meanwhile. Key names only; the agent checks them with check_env and never asks for values.
+ */
+export function peopleFirst(spec: Spec, featureId: string) {
+  const tasks = humanTasks(spec);
+  const mine = tasks.filter((task) => task.unblocksFeatureIds.includes(featureId)).slice(0, 3);
+  const decisions = tasks.filter((task) => task.category === 'decision').length;
+  if (!mine.length) return '';
+  return `People first (ask the user to do these; build against the mock meanwhile)
+${mine.map((task) => `- ${task.id} ${task.title}${task.envVars.length ? ` (key names: ${task.envVars.join(', ')})` : ''}. Mock: ${task.mockContractHint}`).join('\n')}
+Check key names with check_env; never ask for or store values.${decisions ? ` ${decisions} open decision${decisions === 1 ? '' : 's'} in the PRD.` : ''}
+
+`;
 }
 
 type Check = { criterion: number; passed: boolean; evidence: string };

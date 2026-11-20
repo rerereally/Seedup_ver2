@@ -25,7 +25,8 @@ const RETRY_MIN_MS = 35_000;
 type Post = Omit<RawSignal, 'id' | 'actor'>;
 type Stored = Evidence & { terms: string[] };
 
-export type IdeaEvidence = { phrases: string[]; quotes: Evidence[]; reused: number; sites: string[] };
+/** fallback: the model gave no usable phrase, so the search ran on phrases made from the idea itself. */
+export type IdeaEvidence = { phrases: string[]; quotes: Evidence[]; reused: number; sites: string[]; fallback?: true };
 
 export type IdeaEvidenceOptions = {
   /** Phrases an earlier search already tried; the model writes different ones. */
@@ -52,6 +53,17 @@ const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into
 export function termsOf(phrases: string[]) {
   const words = phrases.flatMap((phrase) => phrase.toLowerCase().split(/[^a-z0-9]+/)).filter((word) => word.length >= 3 && !STOP.has(word));
   return [...new Set(words)].slice(0, 12);
+}
+
+/**
+ * Search phrases made from the idea alone, for when the model returns none (empty or cut-off output): the English
+ * words in it (product names like Slack, GitHub) and its first words. Weaker than the model's, but the search still runs.
+ */
+export function fallbackPhrases(idea: string, avoid: string[] = []) {
+  const tried = new Set(avoid.map((row) => row.toLowerCase()));
+  const latin = (idea.match(/[A-Za-z][A-Za-z0-9.+#-]*/g) ?? []).filter((word) => word.length >= 2 && !STOP.has(word.toLowerCase()));
+  const head = idea.replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ');
+  return [...new Set([latin.slice(0, 5).join(' '), head].map((phrase) => phrase.trim()).filter((phrase) => phrase.length >= 2 && !tried.has(phrase.toLowerCase())))].slice(0, MAX_PHRASES);
 }
 
 export function phrasePrompt(idea: string, avoid: string[] = []) {
@@ -97,7 +109,11 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
     if (phrases.length >= MAX_PHRASES) break;
   }
   const sites = pickStackSites(answer?.sites);
+  // A model that spends its whole output on reasoning returns no phrase; searching the idea's own words beats none.
+  const fallback = !phrases.length;
+  if (fallback) phrases.push(...fallbackPhrases(idea, avoid));
   if (!phrases.length) return { phrases: [], quotes: [], reused: 0, sites };
+  const mark = fallback ? { fallback: true as const } : {};
   const terms = termsOf(phrases);
   const everyday = answer?.everyday === true || sites.length > 0;
 
@@ -116,7 +132,7 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
     ...fresh.map((post) => ({ ...post, saved: false })),
     ...saved.map((row) => ({ platform: row.platform, url: row.url, title: '', text: row.quote, score: row.score, postedAt: row.postedAt, saved: true })),
   ];
-  if (!posts.length) return { phrases, quotes: [], reused: 0, sites };
+  if (!posts.length) return { phrases, quotes: [], reused: 0, sites, ...mark };
 
   const picked = await sources.ask<{ quotes?: Array<{ id?: number; quote?: string; quote_ko?: string }> }>(pickPrompt(idea, posts), { maxTokens: 1800, timeoutMs: 45_000, deadline, model, onUsage });
   const quotes: Evidence[] = [];
@@ -154,7 +170,7 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
   const unique = uniqueQuotes(quotes);
   // Shared for the next person: quotes only, with the search words that found them; never the idea or who searched.
   await sources.save(unique, terms).catch(() => undefined);
-  return { phrases, quotes: unique, reused, sites };
+  return { phrases, quotes: unique, reused, sites, ...mark };
 }
 
 /**
@@ -179,5 +195,6 @@ export async function searchIdeaEvidenceWithRetry(idea: string, options: IdeaEvi
     quotes: uniqueQuotes([...first.quotes, ...second.quotes.filter((row) => !first.quotes.some((item) => item.id === row.id))]).slice(0, MAX_QUOTES),
     reused: first.reused + second.reused,
     sites: [...new Set([...first.sites, ...second.sites])],
+    ...(first.fallback || second.fallback ? { fallback: true as const } : {}),
   };
 }

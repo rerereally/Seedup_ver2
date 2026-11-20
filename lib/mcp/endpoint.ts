@@ -165,7 +165,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       }));
     },
     myPrd: readMyPrd,
-    draftPrd: async (id) => {
+    draftPrd: async (id, paid) => {
       const row = await userIdeaDraft(service, userId, id);
       if (!row) return null;
       const evidence = Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [];
@@ -178,7 +178,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       const checked = publicEvidence(evidence);
       const draft = !meetsEvidenceBar(checked.length, new Set(checked.map((item) => item.platform)).size);
       // Ends inside the MCP route's 160 s even after the reads above; generatePrd trims its own steps to fit.
-      const result = await generatePrd(input, { draft, lang, idea: true, deadline: requestStarted + DRAFT_PRD_BUDGET_MS });
+      const result = await generatePrd(input, { paid, draft, lang, idea: true, deadline: requestStarted + DRAFT_PRD_BUDGET_MS });
       if (!result) throw new Error('PRD model gave no answer');
       // Kept out of the shared PRD cache: an idea PRD is the user's own, as on the web.
       await setIdeaDraftPrd(service, userId, id, result.markdown);
@@ -204,8 +204,8 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       if (found?.private !== false || found.visibility !== 'public' || typeof found.full_name !== 'string') return null;
       return (await updateSupervisorProject(service, userId, key, { repo: found.full_name })).repo;
     },
-    generate: async (input, draft) => {
-      const result = await generatePrd(input, { draft }).catch(() => null);
+    generate: async (input, draft, paid) => {
+      const result = await generatePrd(input, { paid, draft, deadline: requestStarted + DRAFT_PRD_BUDGET_MS }).catch(() => null);
       if (result) await writePrdCache(service, input.evidence.map((item) => item.id), input, result.spec);
       return result?.spec ?? null;
     },

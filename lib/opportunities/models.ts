@@ -2,6 +2,32 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { cached, forget } from '../cache';
 import { isFreeOpenRouterModel } from '../llm';
 
+export const DEFAULT_PAID_PRD_MODEL = 'openai/gpt-6.2-sol';
+export const HAIKU_MODEL = 'anthropic/claude-haiku-5.5';
+export const PAID_PRD_MODELS = [DEFAULT_PAID_PRD_MODEL, HAIKU_MODEL] as const;
+export const PRD_REASONING_LEVELS = ['low', 'medium', 'high'] as const;
+export const DEFAULT_PRD_REASONING = 'high';
+
+type PaidPrdModel = (typeof PAID_PRD_MODELS)[number];
+type PrdReasoning = (typeof PRD_REASONING_LEVELS)[number];
+export type PaidPrdOptions = { model: PaidPrdModel; reasoning: PrdReasoning };
+
+export function pickPaidPrdModel(value: unknown): PaidPrdModel {
+  return value === HAIKU_MODEL ? HAIKU_MODEL : DEFAULT_PAID_PRD_MODEL;
+}
+
+export function pickReasoning(value: unknown): PrdReasoning {
+  return value === 'low' || value === 'medium' || value === 'high' ? value : DEFAULT_PRD_REASONING;
+}
+
+export function otherFamilyModel(model: PaidPrdModel): PaidPrdModel {
+  return model === HAIKU_MODEL ? DEFAULT_PAID_PRD_MODEL : HAIKU_MODEL;
+}
+
+export function paidPrdModelChain(model: PaidPrdModel) {
+  return [model, otherFamilyModel(model)];
+}
+
 /** Menu id for LG K-EXAONE 2.5, called on LG's own API with its own key instead of through OpenRouter. */
 export const EXAONE_ID = 'exaone';
 
@@ -13,7 +39,7 @@ type Choice = { id: string; label: string; note: string; usdPerMillion: { input:
 // OpenRouter ids and prices checked on 2026-11-17 (US$ per million tokens). The notes give the cost of one PRD
 // (about 5k tokens in, 3k out), up to twice that when the quality check asks for one repair.
 const PAID: Choice[] = [
-  { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', note: '저렴하고 빠름 · 1건 약 3~6원', usdPerMillion: { input: 0.1, output: 0.5 } },
+  { id: HAIKU_MODEL, label: 'Claude Haiku 5.5', note: '저렴하고 빠름 · 1건 약 3~6원', usdPerMillion: { input: 0.1, output: 0.5 } },
   { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek V4.1 Flash', note: '가장 저렴 · 1건 약 2~5원', usdPerMillion: { input: 0.04, output: 0.5 } },
   { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5', note: '꼼꼼함 · 1건 약 60~110원', usdPerMillion: { input: 2, output: 10 } },
   { id: 'openai/gpt-6.1-sol', label: 'GPT-6.1 Sol', note: '꼼꼼함 · 1건 약 60~110원', usdPerMillion: { input: 2, output: 10 } },
@@ -80,7 +106,7 @@ export function pickPrdModel(requested: unknown, policy: PrdPolicy): string | un
 
 /** Estimated US$ for one call, from the token counts the provider reported. Free models cost nothing. */
 export function estimateCost(model: string, promptTokens: number, completionTokens: number) {
-  const price = PAID.find((row) => row.id === model)?.usdPerMillion;
+  const price = model === DEFAULT_PAID_PRD_MODEL ? { input: 2, output: 10 } : PAID.find((row) => row.id === model)?.usdPerMillion;
   return price ? (promptTokens * price.input + completionTokens * price.output) / 1_000_000 : 0;
 }
 

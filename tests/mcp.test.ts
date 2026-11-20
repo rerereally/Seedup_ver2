@@ -70,7 +70,7 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
 });
 
 test('tools/list exposes all 20 tools with [개발]/[기획] prefixes and MCP annotations', async () => {
-  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; description: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
+  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; description: string; inputSchema: { properties: Record<string, { enum?: string[]; default?: string }> }; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
   assert.deepEqual(answer.result.tools.map((tool) => tool.name), [
     'resume_project',
     'setup_project',
@@ -110,6 +110,13 @@ test('tools/list exposes all 20 tools with [개발]/[기획] prefixes and MCP an
     assert.equal(res.result.isError, true, `${removed} should be removed`);
     assert.match(res.result.content[0].text, /Unknown tool/);
   }
+  for (const name of ['generate_verified_prd', 'validate_idea']) {
+    const schema = answer.result.tools.find((tool) => tool.name === name)!.inputSchema.properties;
+    assert.deepEqual(schema.model.enum, ['openai/gpt-6.2-sol', 'anthropic/claude-haiku-5.5']);
+    assert.equal(schema.model.default, 'openai/gpt-6.2-sol');
+    assert.deepEqual(schema.reasoning.enum, ['low', 'medium', 'high']);
+    assert.equal(schema.reasoning.default, 'high');
+  }
 });
 
 test('search ranks keyword hits first', () => {
@@ -148,6 +155,20 @@ test('a cached PRD is returned without spending the daily limit; a used-up limit
   assert.deepEqual(cached.calls, []);
   const limited = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), deps({ consume: async () => false }), '') as { result: { isError?: boolean } };
   assert.equal(limited.result.isError, true);
+});
+
+test('new public PRDs forward the selected model and effort, with safe defaults for unknown values', async () => {
+  const options: unknown[] = [];
+  const d = deps({ generate: async (_input, _draft, selected) => {
+    options.push(selected);
+    return null;
+  } });
+  await handleRpc(call('generate_verified_prd', { slug: 'memory', fresh: true, model: 'anthropic/claude-haiku-5.5', reasoning: 'medium' }), d, '');
+  await handleRpc(call('generate_verified_prd', { slug: 'memory', model: 'vendor/unknown', reasoning: 'max' }), d, '');
+  assert.deepEqual(options, [
+    { model: 'anthropic/claude-haiku-5.5', reasoning: 'medium' },
+    { model: 'openai/gpt-6.2-sol', reasoning: 'high' },
+  ]);
 });
 
 test('a batch answers every request and drops notifications', async () => {
@@ -468,11 +489,16 @@ test('validate_idea hands back the saved draft key, and generate_verified_prd ma
   assert.match(saved.result.content[0].text, new RegExp(`saved as your project ${key}[\\s\\S]*generate_verified_prd \\{"project":"${key}"\\}`));
 
   const draft = { id: key.slice(4), title: 'meal plan for picky kids', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-20T00:00:00Z', prdMarkdown: '# Meal plan PRD', evidence: [] };
-  const made = deps({ myPrd: async () => null, draftPrd: async (id) => { made.calls.push(`draft:${id}`); return draft; } });
-  const answer = await handleRpc(call('generate_verified_prd', { project: key, format: 'prd' }), made, 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  const selected = { model: 'anthropic/claude-haiku-5.5', reasoning: 'low' };
+  const chosen = await handleRpc(call('validate_idea', { idea: draft.title, ...selected }), deps({ validate: async () => ({ text: '# report', projectKey: key }) }), '') as typeof saved;
+  assert.ok(chosen.result.content[0].text.includes(`generate_verified_prd ${JSON.stringify({ project: key, ...selected })}`));
+  let received: unknown;
+  const made = deps({ myPrd: async () => null, draftPrd: async (id, options) => { made.calls.push(`draft:${id}`); received = options; return draft; } });
+  const answer = await handleRpc(call('generate_verified_prd', { project: key, format: 'prd', ...selected }), made, 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
   assert.equal(answer.result.isError, undefined);
   assert.match(answer.result.content[0].text, /Meal plan PRD/);
   assert.deepEqual(made.calls, ['consume', `draft:${key.slice(4)}`]);
+  assert.deepEqual(received, selected);
 
   const releases: string[] = [];
   const missing = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => null, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { isError?: boolean } };

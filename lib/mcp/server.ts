@@ -8,6 +8,7 @@ import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { touchedDoneFeatures, type CommitFileStatus } from '@/lib/opportunities/feature-commits';
 import { specInputFor } from '@/lib/opportunities/context';
+import { DEFAULT_PAID_PRD_MODEL, DEFAULT_PRD_REASONING, PAID_PRD_MODELS, pickPaidPrdModel, pickReasoning, PRD_REASONING_LEVELS, type PaidPrdOptions } from '@/lib/opportunities/models';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
@@ -69,7 +70,7 @@ export type McpDeps = {
   addProjectMemory?: (key: ProjectKey, entry: MemoryEntry) => Promise<{ id: string }>;
   supervisorProject?: (key: ProjectKey) => Promise<SupervisorProject | null>;
   connectRepo?: (key: ProjectKey, repo: string) => Promise<string | null>;
-  generate: (input: SpecInput, draft: boolean) => Promise<Spec | null>;
+  generate: (input: SpecInput, draft: boolean, options: PaidPrdOptions) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   /** Refunds one metered use when the downstream model call fails or returns nothing usable. */
   release?: (feature: string) => Promise<void>;
@@ -93,7 +94,7 @@ export type McpDeps = {
    */
   validate: (idea: string) => Promise<{ text: string; projectKey?: string | null } | null>;
   /** Makes and saves the PRD for a draft that validate_idea saved; null when no such draft exists, throws when the model fails. */
-  draftPrd?: (id: string) => Promise<SavedPrdDetail | null>;
+  draftPrd?: (id: string, options: PaidPrdOptions) => Promise<SavedPrdDetail | null>;
   /** Starts a weekly watch on one idea; false when the person already watches the most allowed. */
   watch: (idea: string) => Promise<boolean>;
 };
@@ -156,6 +157,15 @@ const APPROVED = '대화에서 승인';
 const REJECTED = '대화에서 거절';
 const CLAUDE_POINTER = 'Read and follow @AGENTS.md before making changes.\n';
 const briefArgument = { type: 'string', maxLength: 240, description: 'Optional: the full Seedup brief version line from AGENTS.md or CLAUDE.md.' };
+
+const prdModelSchema = {
+  model: { type: 'string', enum: PAID_PRD_MODELS, default: DEFAULT_PAID_PRD_MODEL, description: 'Model for new PRD generation. Default GPT 6.2 Sol.' },
+  reasoning: { type: 'string', enum: PRD_REASONING_LEVELS, default: DEFAULT_PRD_REASONING, description: 'Reasoning effort for new PRD generation. Default high.' },
+};
+
+function prdOptions(args: Record<string, unknown>): PaidPrdOptions {
+  return { model: pickPaidPrdModel(args.model), reasoning: pickReasoning(args.reasoning) };
+}
 
 export const TOOLS = [
   {
@@ -298,8 +308,9 @@ export const TOOLS = [
     name: 'generate_verified_prd',
     description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft. With a prd:<id> key from validate_idea it makes and saves that idea\'s PRD the first time.',
     inputSchema: projectSchema({
+      ...prdModelSchema,
       format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
-      fresh: { type: 'boolean', description: 'Generate again for a public opportunity' },
+      fresh: { type: 'boolean', description: 'Generate again for a public opportunity to apply model or reasoning to an existing PRD' },
     }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
@@ -318,8 +329,8 @@ export const TOOLS = [
   },
   {
     name: 'validate_idea',
-    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Takes about a minute; 3 a day.',
-    inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
+    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Model and reasoning apply to that next PRD call. Takes about a minute; 3 a day.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' }, ...prdModelSchema }, required: ['idea'] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
@@ -1341,8 +1352,9 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       await deps.release?.('mcp_report').catch(() => undefined);
       return text('The report could not be made. Try again in a minute.', true);
     }
+    const { model, reasoning } = prdOptions(args);
     return text(report.projectKey
-      ? `${report.text}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey })}`
+      ? `${report.text}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey, ...(args.model !== undefined ? { model } : {}), ...(args.reasoning !== undefined ? { reasoning } : {}) })}`
       : report.text);
   }
   if (name === 'watch_idea') {
@@ -1373,7 +1385,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   if (personal && !saved && name === 'generate_verified_prd' && deps.draftPrd) {
     if (!(await deps.consume('mcp_prd', MCP_DAILY_PRD_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_PRD_LIMIT} PRDs). Try again tomorrow.`, true);
     try {
-      saved = await deps.draftPrd(slug.slice(4));
+      saved = await deps.draftPrd(slug.slice(4), prdOptions(args));
     } catch {
       await deps.release?.('mcp_prd').catch(() => undefined);
       return text('The model did not answer. Try again in a minute.', true);
@@ -1414,7 +1426,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
       let spec: Spec | null = null;
       try {
-        spec = await deps.generate(input, draft);
+        spec = await deps.generate(input, draft, prdOptions(args));
       } catch (error) {
         await deps.release?.('mcp_prd').catch(() => undefined);
         throw error;

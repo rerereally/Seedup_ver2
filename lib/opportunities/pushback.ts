@@ -39,6 +39,7 @@ const AUDIENCES: RegExp[] = [
 ];
 const AUDIENCE_ANSWER = /^(?:users?|audience|target(?:_users?)?|first_team|first_users?|who)$|대상 사용자|누가|먼저 쓸|먼저 쓰|who (?:uses|will use|are)|which team.*first/i;
 const FEATURE_ANSWER = /^(?:must|features?|must_have|first_feature|mvp|scope)$|어떤 기능|꼭 .*(?:기능|해야)|첫 버전.*(?:기능|무엇)|\b(?:must-have|first feature|what must|which feature)\b/i;
+const UNSURE = /^(?:잘 모르겠|모르겠|아직 모르|not sure\b|i (?:am unsure|don['’]t know)\b)/i;
 const FIRST_PERSON = /(?:^\s*as|\b(?:i am|i['’]m|i work as|we are|we['’]re|our team is))\s+(?:(?:a|an|the)\s+)?|(?:저는|나는|우리는|저희는|우리 팀은|저희 팀은)\s*/i;
 const DENIAL = /\b(?:not|no|cannot|can['’]t|without|won['’]t|planned|upcoming)\b|없습니다|않습니다|미지원|예정/u;
 const CAPABILITY = /\b(?:support\w*|allow\w*|can|lets?|export\w*|send\w*|generat\w*|sync\w*|import\w*|creat\w*|schedul\w*|filter\w*|convert\w*|show\w*)\b|제공|지원|내보내|내보냅|동기화|전송|생성|예약|변환/i;
@@ -51,8 +52,9 @@ export function assessPushback(idea: string, answers: readonly Answer[], evidenc
   const quotes = evidence.flatMap((row, index) => row.platform !== 'own' && row.url && row.quote.trim()
     ? [{ number: index + 1, text: `${row.quote} ${row.quoteKo}`, words: words(`${row.quote} ${row.quoteKo}`), url: row.url }] : []);
   const listings = competitorListings(competitorNotes);
+  const explicit = answers.filter((row) => row.answer.trim() && !UNSURE.test(row.answer.trim()));
   const results: Pushback[] = [];
-  const audience = cleanClaim(answers.find((row) => AUDIENCE_ANSWER.test(row.key ?? '') || AUDIENCE_ANSWER.test(row.question))?.answer
+  const audience = cleanClaim(explicit.find((row) => AUDIENCE_ANSWER.test(row.key ?? '') || AUDIENCE_ANSWER.test(row.question))?.answer
     || idea.match(/\b(?:for|aimed at)\s+([^,.!?]+)/i)?.[1]
     || idea.match(/([가-힣0-9 ]{2,36})(?:를 위한|을 위한|용)/u)?.[1] || '');
   const pickedRoles = AUDIENCES.filter((role) => role.test(audience));
@@ -70,7 +72,7 @@ export function assessPushback(idea: string, answers: readonly Answer[], evidenc
     }
   }
 
-  const featureAnswers = answers.filter((row) => FEATURE_ANSWER.test(row.key ?? '') || FEATURE_ANSWER.test(row.question));
+  const featureAnswers = explicit.filter((row) => FEATURE_ANSWER.test(row.key ?? '') || FEATURE_ANSWER.test(row.question));
   const firstCapability = idea.match(/\b(?:to|that)\s+((?:export|send|generate|sync|import|create|schedule|filter|convert|show)\w*\s+[^.!?]{3,90})/i)?.[1]
     ?? idea.match(/((?:[\p{L}\p{N}]+\s+){1,3}(?:내보내기|동기화|전송|변환|예약))/u)?.[1] ?? '';
   const features = [...new Set(featureAnswers.length ? featureAnswers.flatMap((row) => featureList(row.answer)) : featureList(firstCapability))].slice(0, 10);

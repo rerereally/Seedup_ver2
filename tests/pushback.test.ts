@@ -43,6 +43,7 @@ test('ambiguous authors, unrelated evidence, unsupported names and negative list
   const mixed = assessPushback(idea, answers.slice(0, 1), [quote, { ...quote, quote: 'I am a designer and alert history disappears.' }], []);
   assert.ok(mixed.every((row) => row.kind !== 'audience'));
   assert.equal(assessPushback('A tool to export CSV alerts.', [], [quote], notes)[0]?.competitor, 'AlertDesk');
+  assert.deepEqual(assessPushback('Alert history', [{ ...answers[1], answer: 'Not sure. Decide what fits the idea and the quotes.' }], [quote], notes), []);
 });
 
 test('directions carry real quote and direct-competitor counts and exclude unmatched or ungrounded topics', () => {

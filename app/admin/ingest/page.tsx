@@ -454,7 +454,7 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                         <tr key={`${row.created_at}-${row.email}-${row.kind}`}>
                           <td className="whitespace-nowrap py-2 pr-4 text-muted">{new Date(row.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-2 pr-4">{row.email ?? '-'}</td>
-                          <td className="py-2 pr-4">{{ prd: '생성', revise: '수정', slots: '개발 준비' }[row.kind] ?? row.kind}</td>
+                          <td className="py-2 pr-4">{{ prd: '생성', revise: '수정', slots: '개발 준비', report: '검증 리포트' }[row.kind] ?? row.kind}</td>
                           <td className="py-2 pr-4">{modelLabel(row.model)}{row.requested_model !== row.model && row.requested_model !== 'default' && <span className="block text-xs text-muted">요청: {modelLabel(row.requested_model)}</span>}</td>
                           <td className="max-w-[16rem] truncate py-2 pr-4" title={row.title}>{row.title}</td>
                           <td className={`py-2 pr-4 ${row.ok ? 'text-emerald-700' : 'text-red-700'}`}>{row.ok ? '성공' : '실패'}<span className="ml-1 text-xs text-muted">{Math.round(row.duration_ms / 1000)}초</span></td>

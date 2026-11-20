@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ModelUsage } from '../llm';
 import { estimateCost } from './models';
 
-export type PrdRunKind = 'prd' | 'revise' | 'slots';
+export type PrdRunKind = 'prd' | 'revise' | 'slots' | 'report';
 
 /**
  * Collects the token usage of one PRD request and writes one row per request to prd_runs, so an admin can see who ran

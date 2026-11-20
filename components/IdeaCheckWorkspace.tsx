@@ -7,6 +7,7 @@ import ValidationReportPanel from '@/components/ValidationReportPanel';
 import WorkSplit, { Bubble, ChatInput, showInResult } from '@/components/WorkSplit';
 import type { Stage } from '@/components/WorkSplit';
 import { translator } from '@/lib/i18n';
+import type { PrdModel } from '@/lib/opportunities/models';
 
 const EXAMPLES = [
   ['데일리 이슈 리포트 봇', 'Daily issue digest bot', '놓치기 쉬운 GitHub 이슈 변경을 요약해 매일 팀 Slack으로 보내는 도구', 'Send a daily Slack digest of GitHub issue updates teams might otherwise miss.'],
@@ -15,7 +16,7 @@ const EXAMPLES = [
 ] as const;
 const chip = 'min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink';
 
-export default function IdeaCheckWorkspace({ initialIdea, signedIn }: { initialIdea: string; signedIn: boolean }) {
+export default function IdeaCheckWorkspace({ initialIdea, signedIn, models = [] }: { initialIdea: string; signedIn: boolean; models?: PrdModel[] }) {
   const t = translator(useLang());
   const [idea, setIdea] = useState(initialIdea);
   const [ran, setRan] = useState(false);
@@ -72,7 +73,7 @@ export default function IdeaCheckWorkspace({ initialIdea, signedIn }: { initialI
       result={(
         <div className="mx-auto grid max-w-[1000px] gap-6">
           {valid ? <div id="check-report" className="scroll-mt-6">
-            <ValidationReportPanel key={idea} idea={idea} isLoggedIn={signedIn} onComplete={() => setRan(true)} onUseIdea={selectIdea} />
+            <ValidationReportPanel key={idea} idea={idea} isLoggedIn={signedIn} models={models} onComplete={() => setRan(true)} onUseIdea={selectIdea} />
           </div> : <p className="rounded-xl border border-dashed border-outline-strong p-6 text-sm text-muted">{t('아이디어를 한 줄로 적으면 검증을 시작할 수 있습니다.', 'Enter an idea to start validation.')}</p>}
         </div>
       )}

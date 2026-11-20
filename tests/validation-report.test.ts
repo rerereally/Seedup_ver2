@@ -106,3 +106,19 @@ test('the explicit agent switch measures direct, total candidates and extra quer
   const on = await buildValidationReport('Slack issue digest', [], { rivalAgent: true }, sources);
   assert.deepEqual(on.rivalStats, { candidates: 3, direct: 2, researchQueries: 1 });
 });
+
+test('the model the person picked reaches every model call in the report', async () => {
+  const seen: Array<string | undefined> = [];
+  const note = (choice?: { model?: string }) => { seen.push(choice?.model); };
+  const sources = {
+    readEvidence: async (_idea: string, _budget?: number, choice?: { model?: string }) => { note(choice); return { phrases: ['slack issue digest'], quotes: [] }; },
+    estimate: async (_item: unknown, choice?: { model?: string }) => { note(choice); return null; },
+    supply: async () => [],
+    demand: async () => [],
+    webSupply: async () => [],
+    rivalAgent: () => true,
+    askRivalQueries: async (_prompt: string, choice?: { model?: string }) => { note(choice); return { queries: [] }; },
+  };
+  await buildValidationReport('Slack issue digest', [], { model: 'anthropic/claude-haiku-5.5' }, sources);
+  assert.deepEqual(seen.sort(), ['anthropic/claude-haiku-5.5', 'anthropic/claude-haiku-5.5', 'anthropic/claude-haiku-5.5']);
+});

@@ -2,8 +2,10 @@
 
 import { useLang } from '@/components/LangProvider';
 import MarkdownContent from '@/components/MarkdownContent';
+import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { translator } from '@/lib/i18n';
+import type { PrdModel } from '@/lib/opportunities/models';
 import type { IdeaClarity } from '@/lib/opportunities/questions';
 import type { Platform } from '@/lib/opportunities/types';
 import { Loader2 } from 'lucide-react';
@@ -187,7 +189,7 @@ const linkify = (markdown: string) => markdown.replace(/(^|\s)(https?:\/\/[^\s)]
   }
 });
 
-export default function ValidationReportPanel({ idea, isLoggedIn, onComplete, onUseIdea }: { idea: string; isLoggedIn: boolean; onComplete: () => void; onUseIdea?: (idea: string) => void }) {
+export default function ValidationReportPanel({ idea, isLoggedIn, models = [], onComplete, onUseIdea }: { idea: string; isLoggedIn: boolean; models?: PrdModel[]; onComplete: () => void; onUseIdea?: (idea: string) => void }) {
   const lang = useLang();
   const t = translator(lang);
   const active = useRef<AbortController | null>(null);
@@ -196,6 +198,7 @@ export default function ValidationReportPanel({ idea, isLoggedIn, onComplete, on
   const [error, setError] = useState('');
   const [clarity, setClarity] = useState<IdeaClarity | null>(null);
   const text = idea.trim();
+  const model = usePrdModel(models);
   useEffect(() => () => active.current?.abort(), []);
 
   // A hint only: a vague idea makes vague search phrases, so say what is missing before a report spends a search.
@@ -218,7 +221,7 @@ export default function ValidationReportPanel({ idea, isLoggedIn, onComplete, on
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/opportunities/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text, lang }), signal: controller.signal });
+      const response = await fetch('/api/opportunities/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text, lang, model }), signal: controller.signal });
       const body = await response.json().catch(() => null) as (Report & { error?: string }) | null;
       if (controller.signal.aborted) return;
       if (!response.ok || !body?.markdown) {
@@ -252,10 +255,13 @@ export default function ValidationReportPanel({ idea, isLoggedIn, onComplete, on
       {!isLoggedIn ? (
         <Link href={`/login?next=${encodeURIComponent(`/prd/validate?idea=${encodeURIComponent(text)}`)}`} className="btn mt-4 h-11 px-5">{t('로그인하고 검증하기', 'Sign in to validate')}</Link>
       ) : (
-        <button type="button" className="btn mt-4 h-11 px-5" onClick={() => void run()} disabled={loading || text.length < 4}>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button type="button" className="btn h-11 px-5" onClick={() => void run()} disabled={loading || text.length < 4}>
           {loading ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />{t('원문을 찾는 중', 'Searching sources')}</>
             : report ? t('다시 만들기', 'Run again') : vague ? t('그대로 검증하기', 'Validate as written') : t('검증 리포트 만들기', 'Create validation report')}
         </button>
+        <ModelPicker models={models} />
+        </div>
       )}
       {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
       {report && (

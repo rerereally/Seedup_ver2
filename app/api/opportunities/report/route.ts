@@ -1,7 +1,9 @@
 import { onboardingAnswers } from '@/lib/db/onboarding';
+import { prdPolicy, prdRun } from '@/lib/db/server';
 import { toLang, translator } from '@/lib/i18n';
 import { preferredStack } from '@/lib/onboarding';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { pickPrdModel } from '@/lib/opportunities/models';
 import { signEvidence } from '@/lib/opportunities/live-evidence';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
@@ -30,11 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: t(`검증 리포트는 하루 ${DAILY_REPORT_LIMIT}건까지 만들 수 있습니다.`, `You can create up to ${DAILY_REPORT_LIMIT} validation reports per day.`) }, { status: 429 });
   }
 
-  const [{ opportunities }, answers] = await Promise.all([getOpportunities(), onboardingAnswers(supabase, user.id)]);
-  const report = await buildValidationReport(idea, opportunities, { lang, stack: preferredStack(answers), searchCounterEvidence: true }).catch((error) => {
+  const [{ opportunities }, answers, policy] = await Promise.all([getOpportunities(), onboardingAnswers(supabase, user.id), prdPolicy()]);
+  // Same menu and admin policy as PRDs: a model the admin has not opened falls back to the free default.
+  const model = pickPrdModel(body?.model, policy);
+  const run = prdRun(user, 'report', model ?? 'default');
+  const report = await buildValidationReport(idea, opportunities, { lang, stack: preferredStack(answers), searchCounterEvidence: true, model, onUsage: run.onUsage }).catch((error) => {
     console.error('validation report failed', error);
     return null;
   });
+  await run.finish(Boolean(report), idea).catch(() => undefined);
   if (!report) {
     await releaseDailyUsage(supabase, 'validation_report');
     return NextResponse.json({ error: t('리포트를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not create the report. Try again shortly.') }, { status: 502 });

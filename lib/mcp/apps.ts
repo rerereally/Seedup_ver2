@@ -1,12 +1,14 @@
 // MCP Apps (io.modelcontextprotocol/ui, spec 2026-01-26): tools also draw a small card in hosts that render
 // apps (Claude web and desktop, VS Code Copilot). Hosts that do not keep showing the text result, which stays complete.
+import type { VerificationRecord } from '@/lib/db/verifications';
 import type { BuildProgress } from '@/lib/opportunities/build-progress';
 import type { Spec } from '@/lib/opportunities/spec';
 import type { Opportunity } from '@/lib/opportunities/types';
+import { scrubSecrets } from '@/lib/supervisor/diff-audit';
 
 export const APP_URI = 'ui://seedup/card';
 export const APP_MIME = 'text/html;profile=mcp-app';
-const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'mark_feature_done', 'update_feature_status']);
+const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'mark_feature_done', 'update_feature_status', 'verify_feature', 'get_verification']);
 
 /** The tool list with the card linked to the tools that have one. */
 export function withAppMeta<T extends { name: string }>(tools: readonly T[]) {
@@ -23,6 +25,10 @@ export function readAppResource(uri: unknown) {
 
 export const projectPage = (siteUrl: string, key: string) =>
   key.startsWith('prd:') ? `${siteUrl}/prd` : `${siteUrl}/prd?opportunity=${encodeURIComponent(key)}`;
+
+export const progressNote = (note: string) => scrubSecrets(note
+  .replace(/\[(?:supervisor_verified|self_reported|local_checked)(?::[^\]\r\n]*)?\]/gi, '')
+  .replace(/\bsvt1\.[\w-]+\.[\w-]+/g, '[REDACTED verification token]')).scrubbed.trim();
 
 /** What the card draws for search_opportunities. */
 export function opportunitiesCard(found: Opportunity[], siteUrl: string) {
@@ -62,13 +68,18 @@ export function prdCard(opportunity: Opportunity, spec: Spec, siteUrl: string) {
 }
 
 /** What the card draws for get_build_checklist and mark_feature_done. */
-export function checklistCard(opportunity: Opportunity, spec: Spec, progress: BuildProgress, criteria: (feature: Spec['features'][number]) => string[], siteUrl: string) {
+export function checklistCard(
+  opportunity: Opportunity, spec: Spec, progress: BuildProgress, criteria: (feature: Spec['features'][number]) => string[],
+  siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'self_reported' }, goal?: string,
+) {
   return {
     kind: 'checklist',
     slug: opportunity.slug,
     name: opportunity.name,
-    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progress[feature.id]?.note ?? '' })),
+    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? '') })),
     url: projectPage(siteUrl, opportunity.slug),
+    ...(completion ? { completion } : {}),
+    ...(goal ? { goal } : {}),
   };
 }
 
@@ -76,34 +87,48 @@ export function nextTaskCard(feature: Spec['features'][number], why: string, cri
   return { kind: 'next', id: feature.id, title: feature.title, why, criteria, quotes, files, ...(goal ? { goal } : {}) };
 }
 
+export function verificationCard(
+  row: VerificationRecord, goal: string, verdicts: Array<{ criterion: string; verdict: string; citations: number }>,
+  blockers: number, warnings: number,
+) {
+  return {
+    kind: 'verification', project: row.projectKey, id: row.id, feature: row.featureId, sha: row.sha.slice(0, 8),
+    status: row.status, verified: row.status === 'passed' && Boolean(row.token), goal, verdicts, blockers, warnings, drift: row.drift.length,
+  };
+}
+
 // The card: plain DOM, no libraries. Text from the server goes in through textContent only (quotes come from the web).
 const APP_HTML = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-:root{--bg:#fff;--ink:#16181d;--muted:#5d6470;--line:#e4e7ec;--soft:#f4f6f8;--seed:#127a4c;--seed-soft:#ecf7f1;--warn:#9a5b00;--warn-soft:#fdf4e3;color-scheme:light}
-:root[data-theme=dark]{--bg:#16181d;--ink:#eef0f3;--muted:#a1a8b3;--line:#2c3038;--soft:#1f2228;--seed:#3ecf8e;--seed-soft:#0f241a;--warn:#f0b75a;--warn-soft:#2a2112;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",sans-serif}
-main{padding:14px 16px}h1{font-size:15px;margin:0 0 2px;font-weight:650}.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
-.list>*{border-top:1px solid var(--line);padding:10px 0}.list>:last-child{border-bottom:1px solid var(--line)}
+:root{--surface:#ffffff;--white:#ffffff;--ink:#121214;--tertiary:#4b4b53;--muted:#6c6c74;--outline-soft:#e6e6ea;--surface-low:#f4f4f6;--seed:#127a4c;--seed-soft:#ecf7f1;--on-seed:#ffffff;--warn:#9a5b00;--warn-soft:#fbf2e3;color-scheme:light}
+:root[data-theme=dark]{--surface:#0f1012;--white:#17181b;--ink:#ececef;--tertiary:#b9bdc6;--muted:#9096a0;--outline-soft:#2a2b30;--surface-low:#1c1d21;--seed:#3ecf8e;--seed-soft:#0f241a;--on-seed:#04140c;--warn:#f0b75a;--warn-soft:#2a1f0c;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--white);color:var(--ink);font:14px/1.5 "Pretendard",system-ui,sans-serif}
+main{padding:14px 16px;overflow-wrap:anywhere}h1{font-size:15px;margin:0 0 2px;font-weight:600}.sub{color:var(--tertiary);font-size:13px;margin:0 0 12px}
+.list>*{border-top:1px solid var(--outline-soft);padding:10px 0}.list>:last-child{border-bottom:1px solid var(--outline-soft)}
 .row{display:flex;gap:10px;align-items:baseline;justify-content:space-between}.name{font-weight:600}.muted{color:var(--muted);font-size:13px}
+.goal{white-space:pre-line;color:var(--tertiary);font-size:13px}
 .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.tag{display:inline-block;border-radius:8px;padding:1px 7px;font-size:13px;background:var(--surface-low);color:var(--tertiary)}
 .tag.ok{background:var(--seed-soft);color:var(--seed)}.tag.warn{background:var(--warn-soft);color:var(--warn)}
-.num{font-variant-numeric:tabular-nums}.id{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);margin-right:6px}
+.num{font-variant-numeric:tabular-nums}.id{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);margin-right:6px}
 .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-button{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:5px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-button.primary{background:var(--seed);border-color:var(--seed);color:#fff}:root[data-theme=dark] button.primary{color:#0b1a12}
+button{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:5px 11px;cursor:pointer;border:1px solid var(--outline-soft);background:var(--surface);color:var(--ink)}
+button.primary{background:var(--seed);border-color:var(--seed);color:var(--on-seed)}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 button:disabled{opacity:.5;cursor:default}
-.bar{height:6px;border-radius:99px;background:var(--soft);overflow:hidden;margin:6px 0 12px}.bar>i{display:block;height:100%;background:var(--seed)}
-.check{display:inline-flex;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);align-items:center;justify-content:center;font-size:11px;flex:none;margin-right:8px}
-.check.done{background:var(--seed);border-color:var(--seed);color:#fff}.feat{display:flex;align-items:flex-start}
+.bar{height:6px;border-radius:99px;background:var(--surface-low);overflow:hidden;margin:6px 0 12px}.bar>i{display:block;height:100%;background:var(--muted)}
+.check{display:inline-flex;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--outline-soft);align-items:center;justify-content:center;font-size:13px;flex:none;margin-right:8px}
+.check.done{background:var(--surface-low);color:var(--ink)}.feat{display:flex;align-items:flex-start}
 .status{color:var(--muted);font-size:13px;min-height:18px;margin-top:8px}
 </style></head><body><main id="root"><p class="muted">Seedup</p></main>
 <script>
 (function(){
   var ko = !/^en/i.test(navigator.language || 'ko');
   var T = function(k, e){ return ko ? k : e; };
-  var STATUS = { in_progress: T('작업 중', 'In progress'), improving: T('개선 중', 'Improving'), blocked: T('막힘', 'Blocked'), needs_recheck: T('다시 확인 필요', 'Recheck') };
+  function progressLabel(status){
+    return { in_progress: T('작업 중', 'In progress'), improving: T('개선 중', 'Improving'), blocked: T('막힘', 'Blocked'), needs_recheck: T('다시 확인 필요', 'Recheck') }[status];
+  }
   var root = document.getElementById('root');
   var seq = 0, waiting = {};
   function post(m){ window.parent.postMessage(m, '*'); }
@@ -149,27 +174,57 @@ button:disabled{opacity:.5;cursor:default}
   }
   function checklist(data){
     var done = data.features.filter(function(f){ return f.done; }).length, total = data.features.length || 1;
-    return [h('h1', { text: data.name }), h('p', { class: 'sub num', text: T('기능 ', 'Features ') + done + ' / ' + data.features.length + T(' 완료', ' done') }),
+    return [h('h1', { text: data.name }), data.goal ? h('p', { class: 'goal', text: data.goal }) : null,
+      h('p', { class: 'sub num', text: T('기능 ', 'Features ') + done + ' / ' + data.features.length + T(' 완료', ' done') }),
       h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(done / total * 100) + '%' })),
       h('div', { class: 'list' }, ...data.features.map(function(f){
+        var level = f.done && data.completion && data.completion.featureId === f.id ? data.completion.level : null;
+        var status = progressLabel(f.status);
+        var marker = level === 'supervisor_verified' ? h('span', { class: 'tag ok', text: T('🟢 감독관 검증', '🟢 Supervisor verified') })
+          : level === 'self_reported' ? h('span', { class: 'tag', text: T('⚪ 자가 보고', '⚪ Self-reported') })
+          : status ? h('span', { class: f.status === 'blocked' || f.status === 'needs_recheck' ? 'tag warn' : 'tag', text: status }) : null;
         return h('div', { class: 'feat' }, h('span', { class: f.done ? 'check done' : 'check', 'aria-label': f.done ? T('완료', 'Done') : T('남음', 'To do'), text: f.done ? '✓' : '' }),
-          h('div', null, h('div', null, h('span', { class: 'id', text: f.id }), f.title), h('div', { class: 'muted', text: (f.status && f.status !== 'todo' && f.status !== 'done' ? (STATUS[f.status] || f.status) + ' · ' : '') + (f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass'))) })));
+          h('div', null, h('div', null, h('span', { class: 'id', text: f.id }), f.title), marker,
+            h('div', { class: 'muted', text: f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass')) })));
       })),
       h('div', { class: 'actions' }, h('button', { text: T('웹에서 보기', 'Open on the web'), on: function(){ open(data.url); } })),
       h('p', { class: 'muted', text: T('상태는 에이전트가 update_feature_status로 보고합니다. 완료는 기준을 모두 확인해야 기록됩니다.', 'The agent reports status with update_feature_status; done needs every criterion checked.') })];
   }
   function next(data){
     return [h('h1', null, h('span', { class: 'id', text: data.id }), h('span', { text: data.title })),
+      data.goal ? h('p', { class: 'goal', text: data.goal }) : null,
       h('p', { class: 'sub', text: data.why }),
-      data.goal ? h('p', { class: 'muted', style: 'white-space:pre-line;overflow-wrap:anywhere', text: data.goal }) : null,
       h('p', { class: 'muted num', text: T('완료 기준 ', 'Done criteria: ') + data.criteria + T('개, 원문 ', ', quotes: ') + data.quotes + T('개', '') }),
       data.files.length
         ? h('div', { class: 'list' }, ...data.files.map(function(file){ return h('div', { class: 'muted', style: 'overflow-wrap:anywhere', text: file }); }))
         : h('p', { class: 'muted', text: T('관련 파일 정보 없음', 'No related file information') })];
   }
+  function verification(data){
+    var pending = data.status === 'queued' || data.status === 'running';
+    var status = {
+      queued: T('검증 대기 중', 'Verification queued'), running: T('검증 중', 'Verification running'),
+      passed: T('검증 증표 없음', 'Verification proof unavailable'), blocked: T('검증 차단', 'Verification blocked'),
+      failed: T('검증 미통과', 'Verification failed'), error: T('검증 오류', 'Verification error')
+    }[data.status];
+    var outcome = data.verified ? T('🟢 감독관 검증', '🟢 Supervisor verified') : status;
+    var verdict = { met: T('충족', 'Met'), not_met: T('미충족', 'Not met'), unclear: T('판정 불가', 'Unclear') };
+    return [h('h1', null, h('span', { class: 'id', text: data.feature + ' @ ' + data.sha }), h('span', { class: data.verified ? 'tag ok' : pending ? 'tag' : 'tag warn', text: outcome })),
+      data.goal ? h('p', { class: 'goal', text: data.goal }) : null,
+      data.verdicts.length ? h('div', { class: 'list' }, ...data.verdicts.map(function(row){
+        return h('div', { class: 'row' }, h('span', null, h('span', { class: 'id', text: T('기준 ', 'Criterion ') + row.criterion }),
+          h('span', { class: 'muted', text: T('인용 대조 ', 'Checked citations: ') + row.citations })),
+          h('span', { class: row.verdict === 'met' ? 'tag' : 'tag warn', text: verdict[row.verdict] }));
+      })) : null,
+      data.blockers ? h('p', { class: 'tag warn', text: T('차단 항목 ', 'Blockers: ') + data.blockers }) : null,
+      data.warnings ? h('p', { class: 'tag warn', text: T('정적 검사 경고 ', 'Static warnings: ') + data.warnings }) : null,
+      data.drift ? h('p', { class: 'tag warn', text: T('범위 경고 ', 'Scope warnings: ') + data.drift }) : null,
+      pending ? h('div', { class: 'actions' }, h('button', { class: 'primary', text: T('검증 결과 확인', 'Check verification'),
+        on: function(){ call('get_verification', { project: data.project, id: data.id }, T('검증 결과를 불러오는 중입니다.', 'Loading the verification.')); } })) : null,
+      h('p', { id: 'status', class: 'status', role: 'status' })];
+  }
   function render(data){
     if (!data || !data.kind) return;
-    var parts = data.kind === 'opportunities' ? opportunities(data) : data.kind === 'prd' ? prd(data) : data.kind === 'checklist' ? checklist(data) : data.kind === 'next' ? next(data) : null;
+    var parts = data.kind === 'opportunities' ? opportunities(data) : data.kind === 'prd' ? prd(data) : data.kind === 'checklist' ? checklist(data) : data.kind === 'next' ? next(data) : data.kind === 'verification' ? verification(data) : null;
     if (!parts) return;
     root.replaceChildren.apply(root, parts.filter(Boolean));
   }

@@ -6,15 +6,18 @@ import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
 /** Real quotes drifting past under the hero. Hover, focus or the button stops it; reduced motion shows it still (globals.css). */
-export default function QuoteMarquee({ quotes }: { quotes: Array<{ id: string; text: string; source: string }> }) {
-  const t = translator(useLang());
+export default function QuoteMarquee({ quotes }: { quotes: Array<{ id: string; text: string; quoteKo?: string; source: string }> }) {
+  const lang = useLang();
+  const t = translator(lang);
+  const en = lang === 'en';
   const [paused, setPaused] = useState(false);
   const row = (copy: boolean) => (
     <ul className="flex shrink-0 gap-3 pr-3" aria-hidden={copy || undefined}>
       {quotes.map((quote) => (
-        <li key={quote.id} className="w-[22rem] shrink-0 rounded-xl border border-outline-soft bg-white px-5 py-4">
+        <li key={quote.id} className="w-[min(22rem,calc(100vw-2.5rem))] shrink-0 rounded-xl border border-outline-soft bg-white px-5 py-4">
           <q lang="en" className="line-clamp-2 text-[14px] leading-6 text-ink">{quote.text}</q>
-          <p className="mt-2 text-[12.5px] text-muted">{quote.source}</p>
+          {!en && quote.quoteKo && <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-tertiary">{quote.quoteKo}</p>}
+          <p className="mt-2 truncate text-[12.5px] text-muted">{quote.source}</p>
         </li>
       ))}
     </ul>

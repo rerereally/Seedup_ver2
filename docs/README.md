@@ -38,5 +38,6 @@
 | [prompts/antigravity-s1-a3.md](prompts/antigravity-s1-a3.md) | Antigravity 시작 프롬프트: 단계 1 A3 (기준 측정 · 발표 서사) | 현행 (지금 사용 가능) |
 | `hackathon-judging-2026-11-19.md` | 해커톤 모의 심사와 발표안 | 현행, 해커톤이 끝나면 보관. 아직 저장소에 커밋되지 않음(메인 체크아웃에만 있음) |
 | [research/project-check-template.md](research/project-check-template.md) | 실제 프로젝트 검증 기록 양식 | 현행 |
+| [research/2026-11-20-antigravity.md](research/2026-11-20-antigravity.md) | Antigravity 확인 조사(규칙 파일 · 원격 MCP · 훅 · 개발 모델) | 참고 |
 | [research/2026-11-20-section9.md](research/2026-11-20-section9.md) | 계획 9절 확인 조사 보고서(훅 · MCP 클라이언트 · GitHub · Workers · 외부 출처 · OpenRouter · DB) | 참고 |
 | [archive/](archive/README.md) | 대체되거나 최상위 계획으로 흡수된 문서 17개, 문서마다 옮긴 이유 | 보관 |

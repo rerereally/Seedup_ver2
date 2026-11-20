@@ -50,15 +50,15 @@
 | 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `20261120160000_verifications.sql` 적용 확인 대기(정지훈), `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
 | 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 머지 | 신호등은 아직 모두 ⚪(검증 수준 필드는 2 보완 ②). 알리기 전 베타 표시 또는 숨김(단계 0) |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
-| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완 | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함. ② · ④ · ⑤ · ⑥은 정지훈 · Antigravity [프롬프트](prompts/antigravity-remaining.md) T1 · T2 · T5 · T4 |
+| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완, ⑦ 정적 검사 오탐(`env(…)`) | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함. ② · ④ · ⑤ · ⑥은 정지훈 · Antigravity [프롬프트](prompts/antigravity-remaining.md) T1 · T2 · T5 · T4 |
 | 2 | 9절 확인 조사 | Codex(GPT 6.1 Sol · 웹 검색, 장차희 계획 세션이 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-section9.md). 계획 9절 · 단계 2 보완 ⑤ · ⑥에 반영 |
 | 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md). 시작 문장에 저장소 연결(`connect_repo`) 포함 |
 | 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | 도구 정리 결정 · 보완 ④ 뒤 | [프롬프트](prompts/antigravity-remaining.md) T3 |
 | 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
 | E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | T1 · T3 · T6 뒤 | [프롬프트](prompts/antigravity-remaining.md) T7 |
-| 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-antigravity-research.md), 코드 변경 없음 |
-| 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-scorecard-refresh.md) |
-| 처리방침 | 입력별 모델(무료 모델 / GPT 6.2 Sol · Haiku 5.5)과 보관 범위 | Codex(장차희 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-privacy-wording.md). 출시 전 준비, 정지훈에서 옮김 |
+| 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-antigravity.md). `AGENTS.md` 지원, 훅은 형식이 달라 어댑터 필요, 개발 모델 계열 입력 필요 |
+| 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex 시도 → 샌드박스 실패, 계획 세션이 측정 | PR #168 열림 | 불량 diff 25/25, 새 오탐 후보(`env(…)`) → 보완 ⑦ |
+| 처리방침 | 입력별 모델(무료 모델 / GPT 6.2 Sol · Haiku 5.5)과 보관 범위 | Codex(장차희 지시 · 기술 책임 정지훈) | PR #167 열림 | [프롬프트](prompts/codex-privacy-wording.md). 출시 전 준비 |
 | 실제 프로젝트 검증 | 프로젝트 3개(트랙 A · 트랙 B · 기존 저장소), 목표 도달률 첫 측정 | 장차희 · 정지훈 | 시작 조건 대기(운영 준비, 보완 ②, 실제 연결 확인 1개) | 계획 5절 "실제 프로젝트 검증", [양식](research/project-check-template.md) |
 | 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
 | 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |

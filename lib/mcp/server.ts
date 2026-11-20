@@ -1,6 +1,6 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
-import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, progressNote, projectPage, readAppResource, verificationCard, withAppMeta } from '@/lib/mcp/apps';
+import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, progressNote, projectPage, readAppResource, supervisorPage, verificationCard, withAppMeta } from '@/lib/mcp/apps';
 import type { MemoryEntry, ProjectMemory } from '@/lib/db/project-memory';
 import type { VerificationRecord } from '@/lib/db/verifications';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
@@ -18,6 +18,7 @@ import { isGitHubLogin } from '@/lib/seeds/github';
 import { parseDiff, scrubSecrets } from '@/lib/supervisor/diff-audit';
 import { driftCommitFromDiff, findDrift } from '@/lib/supervisor/drift';
 import { featureContribution, goalSummary } from '@/lib/supervisor/goal';
+import { hookBundle, type BundleFile } from '@/lib/supervisor/hook-bundle';
 import { humanTasks } from '@/lib/supervisor/human-queue';
 import type { Decision, DriftFinding, ProjectGoal, ProjectKey, SupervisorProject, VerificationLevel } from '@/lib/supervisor/types';
 import { validateGitHubCommit } from '@/lib/verifier/github';
@@ -144,11 +145,20 @@ const memoryLine = { type: 'string', maxLength: 500 };
 const memoryLines = { type: 'array', maxItems: 10, items: memoryLine };
 const APPROVED = '대화에서 승인';
 const REJECTED = '대화에서 거절';
+const CLAUDE_POINTER = 'Read and follow @AGENTS.md before making changes.\n';
 
 export const TOOLS = [
   {
     name: 'resume_project',
     description: '[개발] Resume a project with its locked goal, connected repository, full build checklist (F-n status, done criteria, unlinked commits), recent decisions, and last handoff.',
+    inputSchema: projectSchema({
+      has_setup_files: { type: 'boolean', description: 'Optional: whether AGENTS.md, CLAUDE.md, and .seedup/ are already present in the local repository' },
+    }),
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'setup_project',
+    description: '[개발] Return the repository files to write for a project: AGENTS.md (with locked goal and project key), CLAUDE.md (pointing to AGENTS.md), and local hook bundle files (pre-commit and Claude Code / Codex hooks when a goal is locked). Never includes tokens.',
     inputSchema: projectSchema(),
     annotations: READ_ONLY,
   },
@@ -769,7 +779,7 @@ const OPPORTUNITY_TOOLS = new Set([
   'explain_file',
 ]);
 
-const SUPERVISOR_TOOLS = new Set(['resume_project', 'connect_repo', 'check_env', 'record_decision', 'save_handoff', 'get_project_memory']);
+const SUPERVISOR_TOOLS = new Set(['resume_project', 'setup_project', 'connect_repo', 'check_env', 'record_decision', 'save_handoff', 'get_project_memory']);
 
 const verifyNext = (project: ProjectKey, feature: string, sha: string | undefined) =>
   toolCall('verify_feature', { project, feature, sha: sha ?? '<full GitHub SHA>' });
@@ -1041,19 +1051,76 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     const unlinkedCount = cached ? await deps.unlinkedCommitCount(key).catch(() => undefined) : undefined;
     const working = Object.entries(progress).filter(([, row]) => ['in_progress', 'improving', 'blocked', 'needs_recheck'].includes(row.status));
     const checklistText = cached ? renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount) : '';
+    const hasPriorWork = Object.keys(progress).length > 0 || Boolean(memory?.handoffs.length) || (unlinkedCount ?? 0) > 0;
+    const needsSetup = Boolean(cached) && (typeof args.has_setup_files === 'boolean' ? !args.has_setup_files : !hasPriorWork);
     const body = [
       project?.repo ? `Repository: ${project.repo}` : 'Repository: not connected',
       !goal && 'No locked goal yet.',
+      needsSetup && 'Setup: If AGENTS.md, CLAUDE.md, or .seedup/ are not in the repository yet, call setup_project first.',
       contextText(null, memory),
       working.length && `Active features: ${working.slice(0, 5).map(([id, row]) => `${id} [${row.status}]`).join(', ')}`,
       checklistText,
     ].filter(Boolean).join('\n\n');
     const next = !cached && !key.startsWith('prd:')
       ? toolCall('generate_verified_prd', { project: key })
-      : toolCall('get_next_task', { project: key });
+      : needsSetup
+        ? toolCall('setup_project', { project: key })
+        : toolCall('get_next_task', { project: key });
     return {
       ...projectReply(`${opportunity.name} (project: ${key})`, goal, body, next),
       ...(cached ? { structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal)) } : {}),
+    };
+  }
+  if (name === 'setup_project') {
+    const [project, goal, cached] = await Promise.all([
+      deps.supervisorProject?.(key).catch(() => null),
+      deps.projectGoal?.(key).catch(() => null),
+      loadSpec().catch(() => null),
+    ]);
+    if (!cached) {
+      return projectReply(
+        key.startsWith('prd:')
+          ? 'This saved PRD has no readable feature spec. Update it in Seedup.'
+          : `No PRD for "${key}" yet. Call generate_verified_prd first.`,
+        goal,
+        '',
+        key.startsWith('prd:') ? toolCall('get_my_prd', { id: key.slice(4) }) : toolCall('generate_verified_prd', { project: key }),
+        true,
+      );
+    }
+    const files: BundleFile[] = [
+      { path: 'AGENTS.md', content: renderAgentBrief(cached.input, cached.spec, 'agents', key, { goal }) },
+      { path: 'CLAUDE.md', content: CLAUDE_POINTER },
+      ...(goal ? hookBundle(key, goal, humanTasks(cached.spec)) : []),
+    ];
+    const relockUrl = `${supervisorPage(siteUrl, key)} (planning: ${projectPage(siteUrl, key)})`;
+    const fileList = files.map((file) => `- ${file.path}${file.executable ? ' (executable)' : ''}`).join('\n');
+    const notes = goal
+      ? [
+        '- Claude Code: if .claude/settings.json already exists, merge the hooks block instead of overwriting.',
+        '- Codex CLI: hooks in .codex/hooks.json run only after the user reviews and trusts them in /hooks.',
+        '- Pre-commit: run `cp .seedup/pre-commit.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit` (or add `node .seedup/hook.mjs pre-commit` on Windows / existing hooks).',
+        '- No MCP token or path-token is included in any file.',
+      ]
+      : [
+        `- No locked goal yet: AGENTS.md uses the existing PRD format and the local hook bundle is omitted. Lock a goal on the web and re-run setup_project: ${relockUrl}`,
+        '- Codex CLI: once hooks are added, .codex/hooks.json runs only after the user reviews and trusts them in /hooks.',
+        '- No MCP token or path-token is included in any file.',
+      ];
+    const body = [
+      `Files to write to the repository root:\n${fileList}`,
+      `Notes:\n${notes.join('\n')}`,
+      `\`\`\`json\n${JSON.stringify({ files }, null, 2)}\n\`\`\``,
+    ].join('\n\n');
+    const outcome = goal
+      ? `Prepared ${files.length} repository setup files for ${key}.`
+      : `Prepared ${files.length} repository setup files for ${key} (no locked goal yet; hook bundle omitted).`;
+    const next = !project?.repo
+      ? toolCall('connect_repo', { project: key, repo: '<owner/repo>' })
+      : toolCall('get_next_task', { project: key });
+    return {
+      ...projectReply(outcome, goal, body, next),
+      structuredContent: { project: key, goalLocked: Boolean(goal), files },
     };
   }
   if (name === 'connect_repo') {
@@ -1120,8 +1187,11 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     title, why, rejected, goalVersion: goal?.version ?? 0, author: { kind: 'agent', name: agent }, approved, featureIds, criterionIds,
   };
   const saved = await deps.addProjectMemory(key, { kind: 'decision', body });
-  const note = scopeChange && approved === null ? askScope(prdLanguage(), key, featureIds[0])
-    : approval === APPROVED && scopeChange ? `${APPROVED}. Have the user lock the revised goal before implementing the change.`
+  const relockHint = scopeChange && approved !== false
+    ? `Re-lock the goal on the web (MCP has no goal-lock tool): ${supervisorPage(siteUrl, key)} (planning: ${projectPage(siteUrl, key)})`
+    : '';
+  const note = scopeChange && approved === null ? [askScope(prdLanguage(), key, featureIds[0]), relockHint].filter(Boolean).join('\n')
+    : approval === APPROVED && scopeChange ? `${APPROVED}. Have the user lock the revised goal before implementing the change.\n${relockHint}`
     : approval ?? '';
   return text(`Recorded decision ${saved.id} for ${key}.${note ? `\n${note}` : ''}`);
 }
@@ -1425,7 +1495,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {}, resources: {}, prompts: {} },
         serverInfo: { name: 'seedup', version: '1.1.0' },
-        instructions: 'Development ([개발]): Start each build session with resume_project or get_next_task using project (slug or prd:<id>) and build one feature at a time. Ask the user in the terminal before any goal or scope change and log it with record_decision. Report in_progress, blocked, or done with update_feature_status; verify pushed commits via verify_feature (re-call with the same feature and SHA while running; auto-links commits). Use link_commit for unverified commits and explain_file before editing done files. Planning ([기획]): Search with search_opportunities, inspect with get_opportunity, validate with validate_idea, draft PRDs with generate_verified_prd, or list/read saved PRDs with get_my_prd.'
+        instructions: 'Development ([개발]): Start with resume_project (and setup_project if AGENTS.md/.seedup are missing), then get_next_task using project (slug or prd:<id>), one feature at a time. Ask the user in the terminal before any goal or scope change and log it with record_decision. Report status via update_feature_status; verify pushed commits via verify_feature (re-call while running; auto-links commits). Use link_commit for unverified commits and explain_file before editing done files. Planning ([기획]): Search with search_opportunities, inspect with get_opportunity, validate with validate_idea, draft PRDs with generate_verified_prd, or list/read saved PRDs with get_my_prd.'
           + await activeGoalInstructions(deps),
       });
     }

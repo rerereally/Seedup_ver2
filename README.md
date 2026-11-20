@@ -139,12 +139,13 @@ flowchart TB
 ### 5. MCP 연동 (`/agents`)
 - **도구 9가지 연결:** Claude Code, Claude 앱, Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT마다 맞는 설정을 보여 주고, 복사하거나 열 때 토큰 발급까지 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
 - **MCP Apps 카드 UI (`lib/mcp/apps.ts`):** Claude 데스크톱·웹, VS Code Copilot 등 MCP Apps 지원 클라이언트에서는 검색 결과·PRD·체크리스트·다음 작업을 인터랙티브 카드로 함께 렌더링합니다.
-- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 19개(`[개발]` 11개 · `[기획]` 8개)와 프롬프트 4개(`discover-and-spec`, `build-next-feature`, `pre-ship-audit`, `why-this-file`), 리소스(`seedup://prds/active`, `seedup://kept/recent`). 도구마다 `readOnlyHint` 등 annotations를 달아, 하루 한도를 쓰는 도구는 실행 전에 확인을 받습니다.
+- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 20개(`[개발]` 12개 · `[기획]` 8개)와 프롬프트 4개(`discover-and-spec`, `build-next-feature`, `pre-ship-audit`, `why-this-file`), 리소스(`seedup://prds/active`, `seedup://kept/recent`). 도구마다 `readOnlyHint` 등 annotations를 달아, 하루 한도를 쓰는 도구는 실행 전에 확인을 받습니다.
 - **진행 중 PRD 고정:** 에이전트가 만들거나 사이트에서 저장한 PRD를 사용자별로 고정해, 매일 엔진이 원문을 더해도 기능 번호(`F-n`)와 진행 기록이 어긋나지 않습니다.
 
 | 도구 | 하는 일 |
 | :--- | :--- |
 | `resume_project` | `[개발]` 잠긴 목표, 연결 저장소, 전체 기능(`F-n`) 체크리스트(상태·완료 기준·미연결 커밋 수), 최근 결정과 마지막 인수인계로 작업 재개 |
+| `setup_project` | `[개발]` 저장소에 쓸 파일(`AGENTS.md`, `AGENTS.md`를 가리키는 한 줄 `CLAUDE.md`, 목표 잠금 시 pre-commit 포함 로컬 훅 묶음)을 `{ path, content }`로 반환(토큰 없음) |
 | `get_next_task` | `[개발]` 잠긴 목표와 최근 프로젝트 기억을 보여 주고 목표 기여도 순으로 다음 기능을 선택. 준비 슬롯·검증 원문·관련 파일·상태 보고 명령 포함 |
 | `update_feature_status` | `[개발]` 기능 상태 보고. `done`에 해당 SHA의 검증 토큰이 있으면 🟢 감독관 검증. 일반 모드에서는 기준별 통과 증빙으로 ⚪ 자가 보고 가능. `blocked` 진입 시 웹훅 알림 |
 | `verify_feature` | `[개발]` 연결한 공개 GitHub 저장소에서 전체 40자리 커밋 SHA와 CI를 읽어 서버의 기능 완료 기준으로 검증하고 커밋을 자동 연결. 같은 `(feature, sha)` 재호출로 진행 중·저장 결과를 조회 |
@@ -207,7 +208,7 @@ flowchart TB
 | 사용자 검증 | 실사용자 테스트를 진행·준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
 | 테스트 | 단위 테스트 318개(48개 파일) 중 317개 통과. 실패 1개(`prd-exports`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나고 Linux CI에서는 통과합니다 |
 | DB 마이그레이션 | 30개. 운영 DB에는 `20261120130000_section_views.sql` 하나가 아직 적용되지 않았습니다 |
-| MCP | 도구 19개, 프롬프트 4개, 리소스 2개 |
+| MCP | 도구 20개, 프롬프트 4개, 리소스 2개 |
 
 지금 상태는 [docs/status.md](docs/status.md), 계획은 [docs/supervisor-plan.md](docs/supervisor-plan.md)(최상위 계획), 문서 목록은 [docs/README.md](docs/README.md)에 있습니다.
 

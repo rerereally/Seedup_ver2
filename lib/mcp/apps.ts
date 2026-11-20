@@ -24,7 +24,10 @@ export function readAppResource(uri: unknown) {
 }
 
 export const projectPage = (siteUrl: string, key: string) =>
-  key.startsWith('prd:') ? `${siteUrl}/prd` : `${siteUrl}/prd?opportunity=${encodeURIComponent(key)}`;
+  key.startsWith('prd:') ? `${siteUrl.replace(/\/+$/, '')}/prd` : `${siteUrl.replace(/\/+$/, '')}/prd?opportunity=${encodeURIComponent(key)}`;
+
+export const supervisorPage = (siteUrl: string, key: string) =>
+  `${siteUrl.replace(/\/+$/, '')}/supervisor/${encodeURIComponent(key)}`;
 
 export const progressNote = (note: string) => scrubSecrets(note
   .replace(/\[(?:supervisor_verified|self_reported|local_checked)(?::[^\]\r\n]*)?\]/gi, '')

@@ -17,6 +17,10 @@ import { translator } from '@/lib/i18n';
 import { ideaAudience } from '@/lib/ideas/input';
 import { matchOpportunities } from '@/lib/opportunities/match';
 import { assessPushback, pushbackText, suggestDirections, type DirectionSource } from '@/lib/opportunities/pushback';
+import {
+  canAskQuestionRound, CLOSING_QUESTION_TEXT, MAX_QUESTION_ROUNDS, restoreQuestionProgress,
+  type QuestionHistory, type QuestionPlan, type QuestionProgress, type SavedQuestions, type WorkspaceQuestion as Question,
+} from '@/lib/opportunities/questions';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Platform } from '@/lib/opportunities/types';
 
@@ -31,13 +35,10 @@ export type PoolItem = {
 export type WorkspacePoolItem = PoolItem & DirectionSource & { competitorNotes: string[] };
 
 type FixedQuestion = { key: string; ko: string; en: string; hintKo?: string; hintEn?: string; chips: Array<[string, string]> };
-/** One question as the chat shows it, in the reader's language: fixed, or written for this idea by the server. */
-type Question = { key: string; text: string; hint?: string; chips: string[] };
-type Plan = { idea: string; questions: Question[] };
 /** A quote found on the web for this idea; the server signed it, so the PRD route will accept it as evidence. */
 type LiveQuote = PoolItem['quotes'][number] & { score: number; postedAt: string | null; sig: string };
 type Search = { state: 'idle' | 'busy' | 'done' | 'error'; message?: string };
-type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[]; plan?: Plan; own?: string[]; competitors?: string[] };
+type Saved = SavedQuestions & { kept: string[]; touched: boolean; live?: LiveQuote[]; own?: string[]; competitors?: string[] };
 type Note = { id: number; role: 'user' | 'assistant'; text: string };
 
 const STORAGE_KEY = 'seedup:idea-workspace';
@@ -52,7 +53,7 @@ const QUESTIONS: FixedQuestion[] = [
   { key: 'must', ko: '첫 버전에 꼭 있어야 할 기능은 무엇인가요?', en: 'What must the first version do?', hintKo: '세 가지 이내로 적어 주세요.', hintEn: 'Three things at most.', chips: [] },
   { key: 'platform', ko: '어디에서 쓰게 할까요?', en: 'Where will people use it?', chips: [['웹', 'Web'], ['모바일 앱', 'Mobile app'], ['CLI', 'CLI'], ['에디터 확장', 'Editor extension'], ['Slack·Discord 봇', 'Slack or Discord bot']] },
   { key: 'out', ko: '이번 버전에서 하지 않을 것은 무엇인가요?', en: 'What will this version not do?', chips: [['결제', 'Payments'], ['팀 협업', 'Team collaboration'], ['모바일 앱', 'Mobile app'], ['다국어', 'Other languages']] },
-  { key: 'extra', ko: '그 밖에 PRD에 꼭 반영할 생각이 있나요?', en: 'Anything else the PRD must reflect?', hintKo: '방향, 기술 선택, 피하고 싶은 것 등 무엇이든 좋습니다.', hintEn: 'Direction, tech choices, things to avoid: anything goes.', chips: [] },
+  { key: 'extra', ...CLOSING_QUESTION_TEXT, hintKo: '방향, 기술 선택, 피하고 싶은 것 등 무엇이든 좋습니다.', hintEn: 'Direction, tech choices, things to avoid: anything goes.', chips: [] },
 ];
 const EXTRA = QUESTIONS[QUESTIONS.length - 1];
 
@@ -111,9 +112,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [live, setLive] = useState<LiveQuote[]>([]);
   const [search, setSearch] = useState<Search>({ state: 'idle' });
   const searchVersion = useRef(0);
-  // Questions written for this idea; null while they are being written, then the fixed list if none came back.
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [planFailed, setPlanFailed] = useState(false);
+  const [progress, setProgress] = useState<QuestionProgress>({ rounds: [] });
   // Sentences the maker heard in interviews or wrote down: shown as their own notes, never counted for the bar.
   const [own, setOwn] = useState<string[]>([]);
   // Competitors carried over from the validation report entry.
@@ -138,9 +137,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       setLive(restoredLive);
       setOwn(Array.isArray(saved.own) ? saved.own : []);
       if (Array.isArray(saved.competitors)) setValidationCompetitors(saved.competitors);
-      if (saved.plan?.idea === saved.idea) setPlan(saved.plan);
-      // Answers saved before questions were tailored belong to the fixed list.
-      else if (saved.answers && Object.keys(saved.answers).length) setPlanFailed(true);
+      setProgress(restoreQuestionProgress(saved));
     }
     let storedValidation: string | null = null;
     try {
@@ -200,31 +197,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   useEffect(() => {
     if (!restored) return;
     try {
-      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live, own, ...(validationCompetitors.length ? { competitors: validationCompetitors } : {}), ...(plan ? { plan } : {}) } satisfies Saved));
+      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live, own, progress, ...(validationCompetitors.length ? { competitors: validationCompetitors } : {}) } satisfies Saved));
     } catch {
       // Private mode or full storage: the chat still works, it just will not survive a reload.
     }
-  }, [restored, idea, answers, keptIds, touched, live, plan, own, validationCompetitors]);
-
-  // Once per idea: questions about what this idea leaves open, with options from it and its closest quotes.
-  const planFor = useRef('');
-  const answersRef = useRef(answers);
-  useEffect(() => {
-    answersRef.current = answers;
-  }, [answers]);
-  useEffect(() => {
-    if (!restored || !idea || plan?.idea === idea || planFailed || planFor.current === idea) return;
-    planFor.current = idea;
-    const quotes = matchOpportunities(idea, pool).slugs.flatMap((slug) => pool.find((item) => item.slug === slug)?.quotes ?? []).slice(0, 4).map((row) => row.quote);
-    fetch('/api/ideas/questions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea, quotes, lang }) })
-      .then((response) => (response.ok ? response.json() : { questions: null }))
-      .then((json: { questions?: Array<{ key: string; question: string; why: string; options: string[] }> | null }) => {
-        if (planFor.current !== idea) return;
-        if (!json.questions?.length || Object.keys(answersRef.current).length > 0) return setPlanFailed(true);
-        setPlan({ idea, questions: json.questions.map((row) => ({ key: row.key, text: row.question, hint: row.why, chips: row.options })) });
-      })
-      .catch(() => { if (planFor.current === idea) setPlanFailed(true); });
-  }, [restored, idea, plan, planFailed, pool, lang]);
+  }, [restored, idea, answers, keptIds, touched, live, progress, own, validationCompetitors]);
 
   const offered = useMemo(() => [...live, ...saved.filter((row) => !live.some((item) => item.id === row.id))], [live, saved]);
   const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...offered.map((row) => [row.id, row] as const)]), [pool, offered]);
@@ -234,31 +211,58 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
 
-  // Wait for the model's questions (about 15s) instead of showing the fixed list at once: an answer to a fixed question
-  // used to throw the tailored ones away, so most people never saw them. The fixed list stays as the fallback when the
-  // model fails, and for answers saved before questions were tailored, so those never disappear.
+  // Keep the fixed closing question with the first tailored batch. Only a failed first batch uses the fixed list.
   const audience = useMemo(() => ideaAudience(idea, lang), [idea, lang]);
-  const waitingForPlan = Boolean(idea) && !planFailed && plan?.idea !== idea && Object.keys(answers).length === 0;
-  const useTailored = Boolean(
-    !planFailed
-    && plan?.idea === idea
-    && !Object.keys(answers).some((key) => !plan.questions.some((q) => q.key === key) && key !== EXTRA.key),
-  );
-  const questions = useMemo<Question[]>(
-    () => (waitingForPlan ? [] : useTailored && plan ? [...plan.questions, fixedQuestion(EXTRA, en)] : QUESTIONS.map((row) => fixedQuestion(row, en, audience))),
-    [waitingForPlan, useTailored, plan, en, audience],
-  );
-  const planning = Boolean(idea) && !questions.length;
-  const step = questions.findIndex((question) => !(question.key in answers));
-  const current = step === -1 ? null : questions[step];
-  const answered = questions.filter((question) => answers[question.key]).length;
+  const rounds = useMemo(() => {
+    const [first, ...rest] = progress.rounds;
+    if (first) return [[...first, fixedQuestion(EXTRA, en)], ...rest];
+    return progress.fallback ? [QUESTIONS.map((row) => fixedQuestion(row, en, audience))] : [];
+  }, [progress.rounds, progress.fallback, en, audience]);
+  const questions = useMemo(() => rounds.flat(), [rounds]);
+  const step = questions.findIndex((question) => !Object.hasOwn(answers, question.key));
+  const questionsClosed = progress.defaults || generated || pending !== null;
+  const current = step === -1 || questionsClosed ? null : questions[step];
+  const answered = questions.filter((question) => Object.hasOwn(answers, question.key)).length;
+  const canAskMore = !progress.fallback && !progress.done && canAskQuestionRound(rounds.length, questions.length);
+  const planning = Boolean(idea) && !questionsClosed && step === -1 && canAskMore;
+  const history = useMemo<QuestionHistory[] | undefined>(() => planning && questions.length
+    ? questions.map(({ key, text }) => ({ key, question: text, answer: answers[key] }))
+    : undefined, [planning, questions, answers]);
+
+  useEffect(() => {
+    if (!restored || !planning) return;
+    const controller = new AbortController();
+    const apply = (result: QuestionPlan | null) => {
+      if (controller.signal.aborted) return;
+      setProgress((before) => {
+        if (before !== progress) return before;
+        const track = result?.track ?? before.track ?? 'A';
+        const trackReason = result?.trackReason || before.trackReason;
+        if (!result?.questions?.length) {
+          return { ...before, track, trackReason, done: true, fallback: !history };
+        }
+        const batch = result.questions.map((row) => ({ key: row.key, text: row.question, hint: row.why, chips: row.options }));
+        return { ...before, track, trackReason, done: result.done, rounds: [...before.rounds, batch] };
+      });
+    };
+    // Strict Mode cleans up its first effect before this microtask can send the request.
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      const quotes = matchOpportunities(idea, pool).slugs.flatMap((slug) => pool.find((item) => item.slug === slug)?.quotes ?? []).slice(0, 4).map((row) => row.quote);
+      fetch('/api/ideas/questions', { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ idea, quotes, lang, track: progress.track, history }) })
+        .then((response) => (response.ok ? response.json() : null))
+        .then(apply)
+        .catch(() => apply(null));
+    });
+    return () => controller.abort();
+  }, [restored, planning, idea, pool, lang, progress, history]);
 
   const brief = useMemo(() => {
     const answeredRows = questions.filter((question) => answers[question.key]).map((question) => ({ key: question.key, question: question.text, answer: answers[question.key] }));
     const extraCompetitors = validationCompetitors.length
       ? [{ key: 'validation_competitors', question: en ? 'Competitors found in validation report' : '검증 리포트에서 찾은 경쟁 도구', answer: validationCompetitors.join('; ').slice(0, 400) }]
       : [];
-    return { idea, answers: [...answeredRows, ...extraCompetitors].slice(0, 8) };
+    return { idea, answers: [...answeredRows, ...extraCompetitors] };
   }, [idea, answers, questions, validationCompetitors, en]);
 
   const selectedProblems = useMemo(() => {
@@ -269,12 +273,12 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }).filter(({ count }) => count).sort((a, b) => b.count - a.count || a.first - b.first).map(({ item }) => item);
   }, [evidenceIds, pool]);
   const findings = generated || pending ? [] : assessPushback(idea, brief.answers, keptQuotes, [...new Set([...validationCompetitors, ...selectedProblems.flatMap((item) => item.competitorNotes)])].slice(0, 8));
-  const showingReview = findings.length > 0 && (!current || reviewRequested);
+  const showingReview = findings.length > 0 && ((!current && !planning) || reviewRequested);
   const directions = showingReview ? suggestDirections(idea, pool, [...new Set([...matched, ...selectedProblems].map((item) => item.slug))]) : [];
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
-  }, [idea, answers, notes, pending, matched.length, showingReview]);
+  }, [idea, answers, notes, pending, matched.length, showingReview, rounds.length, planning]);
 
   const say = (role: Note['role'], text: string) => {
     const id = nextId.current++;
@@ -290,11 +294,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       return;
     }
     if (current) {
-      setAnswers((before) => {
-        const next = { ...before, [current.key]: text.slice(0, 400) };
-        answersRef.current = next;
-        return next;
-      });
+      setAnswers((before) => ({ ...before, [current.key]: text.slice(0, 400) }));
       return;
     }
     if (generated && pending === null) {
@@ -305,6 +305,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }
   };
 
+  const finishWithDefaults = () => {
+    setDraft('');
+    setProgress((before) => ({ ...before, defaults: true }));
+  };
+
   const startGeneration = () => {
     setPending('generate');
     setSignal((n) => n + 1);
@@ -312,6 +317,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   };
 
   const generate = () => {
+    if (current || planning) finishWithDefaults();
     if (findings.length) {
       setReviewRequested(true);
       return;
@@ -319,20 +325,37 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     startGeneration();
   };
 
+  const changeTrack = () => {
+    const track = progress.track === 'B' ? 'A' : 'B';
+    setProgress((before) => Object.keys(answers).length
+      ? { ...before, track, trackReason: '' }
+      : { rounds: [], track });
+    if (!Object.keys(answers).length) setDraft('');
+  };
+
+  const redoAnswer = (question: Question) => {
+    const round = rounds.findIndex((batch) => batch.includes(question));
+    const keys = questions.slice(0, questions.indexOf(question)).map((row) => row.key);
+    setAnswers((before) => Object.fromEntries(keys.filter((key) => Object.hasOwn(before, key)).map((key) => [key, before[key]])));
+    setProgress((before) => ({ ...before, rounds: before.rounds.slice(0, round + 1), done: false, defaults: false }));
+    setReviewRequested(false);
+    setDraft('');
+  };
+
   const chooseDirection = (direction: string, quoteIds: string[]) => {
     searchVersion.current++;
-    setIdea(direction.slice(0, 300));
+    const nextIdea = direction.slice(0, 300);
+    window.history.replaceState(null, '', `/prd/new?idea=${encodeURIComponent(nextIdea)}`);
+    setIdea(nextIdea);
     setAnswers({});
-    answersRef.current = {};
     setDraft('');
     setKept(quoteIds);
     setTouched(true);
     setLive([]);
     setOwn([]);
     setSearch({ state: 'idle' });
-    setPlan(null);
-    setPlanFailed(false);
-    planFor.current = '';
+    setProgress({ rounds: [] });
+    setValidationCompetitors([]);
     setReviewRequested(false);
   };
 
@@ -341,19 +364,19 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* nothing saved */ }
     searchVersion.current++;
     forgetStoredPrd(idea);
+    window.history.replaceState(null, '', '/prd/new');
     setIdea('');
     setAnswers({});
+    setDraft('');
     setKept([]);
     setTouched(false);
     setLive([]);
     setSearch({ state: 'idle' });
     setNotes([]);
-    setPlan(null);
-    setPlanFailed(false);
+    setProgress({ rounds: [] });
     setReviewRequested(false);
     setOwn([]);
     setValidationCompetitors([]);
-    planFor.current = '';
     setGenerated(false);
     setSpec(null);
     setProjectKey(null);
@@ -459,13 +482,17 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     : current ? t('직접 적거나 질문 아래에서 고르세요', 'Type, or pick one under the question')
     : generated ? t('고칠 점을 적어 주세요. 예: 타겟을 초보 개발자로 좁혀줘', 'Ask for a change, e.g. narrow it to beginners')
       : t('질문이 끝났습니다. PRD를 만들어 보세요.', 'Questions are done. Make the PRD.');
+  const round = Math.max(1, rounds.length);
+  const roundLabel = t(`라운드 ${round}/${MAX_QUESTION_ROUNDS}`, `Round ${round}/${MAX_QUESTION_ROUNDS}`);
+  const questionLabel = planning && questions.length === 0 ? t('질문 준비 중', 'Preparing questions') : t(`질문 ${answered}/${questions.length}`, `Questions ${answered}/${questions.length}`);
+  const canChangeTrack = !questionsClosed && (!answered || canAskMore);
 
   // Where the work stands, left to right, so the person always knows the next step.
   const stages: Array<{ label: string; state: 'done' | 'now' | 'todo' }> = [
     { label: t('아이디어', 'Idea'), state: 'done' },
     // No quotes is a fact about the idea, not a step to do now: it never competes with the current question.
     { label: keptQuotes.length ? t(`근거 ${keptQuotes.length}건`, `${keptQuotes.length} quotes`) : t('근거 없음', 'No quotes'), state: keptQuotes.length ? 'done' : 'todo' },
-    { label: planning ? t('질문 준비 중', 'Preparing questions') : t(`질문 ${answered}/${questions.length}`, `Questions ${answered}/${questions.length}`), state: current || planning ? 'now' : 'done' },
+    { label: `${questionLabel} · ${roundLabel}`, state: current || planning ? 'now' : 'done' },
     { label: 'PRD', state: generated ? 'done' : current || planning ? 'todo' : 'now' },
     { label: t('목표', 'Goal'), state: goalLocked ? 'done' : generated ? 'now' : 'todo' },
     { label: t('에이전트', 'Agent'), state: goalLocked ? 'now' : 'todo' },
@@ -527,12 +554,18 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               )}
             </Bubble>
 
-            {planning && (
+            {progress.track && (
               <Bubble role="assistant">
-                <p className="flex items-center gap-2 text-muted"><span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />{t('이 아이디어에서 아직 정해지지 않은 것을 찾아 질문을 고르는 중입니다.', 'Finding what this idea leaves open and choosing questions.')}</p>
+                <p>
+                  {progress.track === 'A'
+                    ? t('개인용으로 보고 질문합니다.', 'These questions are for a personal or internal tool.')
+                    : t('출시용으로 보고 질문합니다.', 'These questions are for a public release.')}
+                  {progress.trackReason && ` ${progress.trackReason}`}
+                  {canChangeTrack && <> · <button type="button" onClick={changeTrack} className="font-semibold text-ink underline underline-offset-4">{t('바꾸기', 'Change')}</button></>}
+                </p>
               </Bubble>
             )}
-            {questions.slice(0, step === -1 ? questions.length : step + 1).map((question) => (
+            {questions.slice(0, step === -1 ? questions.length : step + Number(Boolean(current))).map((question) => (
               <div key={question.key} className="space-y-6">
                 <Bubble role="assistant">
                   <p className="font-semibold text-ink">{question.text}</p>
@@ -542,18 +575,23 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
                       {chips.map((label) => (
                         <button key={label} type="button" onClick={() => send(label)} className="min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink">{label}</button>
                       ))}
-                      {useTailored && question.key !== EXTRA.key && <button type="button" onClick={() => send(t('잘 모르겠어요. 원문과 아이디어에 맞게 정해 주세요.', 'Not sure. Decide what fits the idea and the quotes.'))} className="min-h-10 rounded-2xl border border-outline-soft bg-white px-3.5 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{t('잘 모르겠어요', 'Not sure')}</button>}
-                      <button type="button" onClick={() => setAnswers((before) => { const next = { ...before, [question.key]: '' }; answersRef.current = next; return next; })} className="min-h-10 rounded-2xl border border-dashed border-outline-strong px-3.5 text-[13px] text-tertiary hover:border-ink hover:text-ink">{t('건너뛰기', 'Skip')}</button>
+                      {progress.rounds.length > 0 && question.key !== EXTRA.key && <button type="button" onClick={() => send(t('잘 모르겠어요. 원문과 아이디어에 맞게 정해 주세요.', 'Not sure. Decide what fits the idea and the quotes.'))} className="min-h-10 rounded-2xl border border-outline-soft bg-white px-3.5 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{t('잘 모르겠어요', 'Not sure')}</button>}
+                      <button type="button" onClick={() => setAnswers((before) => ({ ...before, [question.key]: '' }))} className="min-h-10 rounded-2xl border border-dashed border-outline-strong px-3.5 text-[13px] text-tertiary hover:border-ink hover:text-ink">{t('건너뛰기', 'Skip')}</button>
                     </div>
                   )}
                 </Bubble>
-                {question.key in answers && (
-                  <Bubble role="user" onEdit={() => setAnswers((before) => Object.fromEntries(Object.entries(before).filter(([key]) => questions.findIndex((row) => row.key === key) < questions.indexOf(question))))} editLabel={t('이 답부터 다시', 'Redo from here')}>
+                {Object.hasOwn(answers, question.key) && (
+                  <Bubble role="user" onEdit={generated || pending ? undefined : () => redoAnswer(question)} editLabel={t('이 답부터 다시', 'Redo from here')}>
                     {answers[question.key] || <span className="text-muted">{t('건너뜀', 'Skipped')}</span>}
                   </Bubble>
                 )}
               </div>
             ))}
+            {planning && (
+              <Bubble role="assistant">
+                <p className="flex items-center gap-2 text-muted"><span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />{t('이 아이디어에서 아직 정해지지 않은 것을 찾아 질문을 고르는 중입니다.', 'Finding what this idea leaves open and choosing questions.')}</p>
+              </Bubble>
+            )}
 
             {showingReview && (
               <Bubble role="assistant">
@@ -583,7 +621,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               </Bubble>
             )}
 
-            {!current && !planning && !generated && !showingReview && (
+            {!current && !planning && !pending && !generated && !showingReview && (
               <Bubble role="assistant">
                 <p>{t('질문이 끝났습니다. 지금 내용으로 PRD 문서를 만들까요? 문서를 먼저 쓰고, 화면 설계와 개발 준비 칸은 문서를 확인한 뒤 버튼 하나로 이어서 만듭니다.', 'That is everything. Write the PRD document now? The document comes first; screens and readiness slots follow with one click once you have checked it.')}</p>
                 <p className={`mt-2 text-[14px] ${passes ? 'text-seed' : 'text-muted'}`}>
@@ -614,10 +652,16 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
           </div>
 
           <div className="border-t border-outline-soft px-4 pb-4 pt-3">
+            {!generated && <p className="mb-2 text-[13px] text-muted md:hidden">{questionLabel} · {roundLabel}</p>}
+            {(current || planning) && (
+              <button type="button" className="mb-2 min-h-9 text-[13px] font-semibold text-ink underline underline-offset-4" onClick={signedIn ? generate : finishWithDefaults}>
+                {t('나머지는 기본값으로', 'Use defaults for the rest')}
+              </button>
+            )}
             {!generated && !showingReview && (
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="text-[13px] leading-5 text-muted">
-                  {current || planning ? t('지금 만들면 답하지 않은 칸은 가설로 채워집니다', 'Make it now and unanswered parts are filled as hypotheses') : t('질문 끝', 'All answered')}
+                  {current || planning || progress.defaults ? t('지금 만들면 답하지 않은 칸은 가설로 채워집니다', 'Make it now and unanswered parts are filled as hypotheses') : t('질문 끝', 'Questions finished')}
                 </span>
                 {signedIn
                   ? <button type="button" className="btn h-9 shrink-0 whitespace-nowrap px-3.5" onClick={generate} disabled={pending !== null}>{pending === 'generate' ? t('작성 중', 'Writing') : t('PRD 만들기', 'Make PRD')}</button>

@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import PrdReportForm from '@/components/PrdReportForm';
 import { listedPrds } from '@/lib/db/dossiers';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { forkHref, problemGroups } from '@/lib/opportunities/public-prds';
 
-// Kept out of search until there is a way to report a listed PRD; each one is user content.
+// Each card is user content.
 export const metadata: Metadata = { title: '공개 PRD', robots: { index: false, follow: true } };
 export const revalidate = 300;
 
@@ -60,6 +61,7 @@ export default async function PublicPrdsPage() {
                   <div className="mt-auto flex flex-wrap gap-2 pt-3">
                     <Link href={`/spec/${row.id}`} className="btn-quiet h-9">{t('읽기', 'Read')}</Link>
                     <Link href={forkHref(row)} className="btn-quiet h-9">{t('이 근거로 내 PRD 만들기', 'Start mine from this')}</Link>
+                    <PrdReportForm id={row.id} />
                   </div>
                 </li>
               );

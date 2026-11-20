@@ -3,14 +3,19 @@ import type { SourceState } from '@/lib/ingest/health';
 import type { Metadata } from 'next';
 import { runFullIngest, runManualIngest } from '@/app/actions/ingest';
 import { previewOpportunityDigestMail, sendOpportunityDigestMail } from '@/app/actions/opportunity-digest';
+import { moderatePrdReport } from '@/app/actions/prd-report';
 import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
 import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
 import { isAdminUser } from '@/lib/auth/admin';
+import { pendingPrdReports } from '@/lib/db/prd-reports';
+import { translator } from '@/lib/i18n';
+import { getLang } from '@/lib/i18n-server';
 import { prebuildDemoPrd, savePrdModelPolicy } from '@/app/actions/prd-models';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { REPORT_REASONS } from '@/lib/opportunities/prd-report-input';
 import { PRD_MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { loadPrdPolicy, modelLabel, prdModels } from '@/lib/opportunities/models';
 import { recentPrdRuns } from '@/lib/opportunities/prd-runs';
@@ -20,6 +25,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { digestSiteUrl, sendOpportunityDigest } from '@/lib/newsletter/opportunity-digest-send';
 import { Activity, CheckCircle2, Clock3, DatabaseZap, Eye, FileWarning, Mail, Play, ShieldCheck, XCircle } from 'lucide-react';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 export const metadata: Metadata = {
@@ -86,7 +92,7 @@ const DIGEST_SKIP_MESSAGES: Record<string, string> = {
 // For showing costs in won; an estimate, not an exchange-rate feed.
 const KRW_PER_USD = 1_400;
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string; demo?: string }> }) {
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string; demo?: string; prdReport?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   // Anyone who is not an admin, signed in or not, gets the same 404 as a page that does not exist.
@@ -94,7 +100,8 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
 
   const params = await searchParams;
   const service = createAdminClient();
-  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns, funnelRows, apiSpec] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service), loadFunnelRows(service), readApiSpec()]);
+  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns, funnelRows, apiSpec, reports, lang] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service), loadFunnelRows(service), readApiSpec(), pendingPrdReports(), getLang()]);
+  const t = translator(lang);
   const funnels = recentFunnels(funnelRows);
   const schemaGaps = apiSpec ? missingSchema(apiSpec) : null;
   const prdMenu = prdModels(prdPolicy);
@@ -164,6 +171,35 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                     : `수집 실행 요청에 실패했습니다.${params.reason ? ` 사유: ${params.reason}` : ' 환경 변수와 서버 로그를 확인하세요.'}`}
             </div>
           )}
+
+          <section id="prd-reports" className="scroll-mt-20 border border-outline-soft bg-white p-5 md:p-6" aria-labelledby="prd-reports-heading">
+            <h2 id="prd-reports-heading" className="text-2xl font-bold text-ink">{t('공개 PRD 신고', 'Public PRD reports')}</h2>
+            {params.prdReport && <p className="mt-2 text-sm" role="status">{
+              params.prdReport === 'removed' ? t('공개 목록에서 내렸습니다.', 'Removed from the public list.')
+                : params.prdReport === 'ignored' ? t('이 신고를 무시했습니다.', 'Dismissed this report.')
+                  : t('신고 상태를 바꾸지 못했습니다. 목록을 확인해 주세요.', 'Could not update the report. Check the list.')
+            }</p>}
+            {reports.length ? (
+              <ul className="mt-3 divide-y divide-outline-soft">
+                {reports.map((report) => (
+                  <li key={report.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 break-words text-sm">
+                      {report.evidence_dossiers?.shared
+                        ? <Link className="link-seed font-semibold" href={`/spec/${report.dossier_id}`}>{report.evidence_dossiers.title}</Link>
+                        : <p className="font-semibold">{report.evidence_dossiers?.title ?? t('공유가 종료된 PRD', 'PRD no longer shared')}</p>}
+                      <p className="mt-1">{t(REPORT_REASONS[report.reason][0], REPORT_REASONS[report.reason][1])} · {report.note}</p>
+                      <time className="text-muted" dateTime={report.created_at}>{formatDate(report.created_at)}</time>
+                    </div>
+                    <form action={moderatePrdReport} className="flex shrink-0 flex-wrap gap-2">
+                      <input name="id" type="hidden" value={report.id} />
+                      <button type="submit" name="status" value="removed" className="btn-quiet h-9">{t('목록에서 내리기', 'Remove from list')}</button>
+                      <button type="submit" name="status" value="ignored" className="btn-quiet h-9">{t('신고 무시', 'Dismiss report')}</button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-2 text-sm text-muted">{t('처리할 신고가 없습니다.', 'No reports to review.')}</p>}
+          </section>
 
           <section className="grid gap-3 md:grid-cols-4">
             {[

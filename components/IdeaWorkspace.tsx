@@ -11,6 +11,7 @@ import PrdBuilder, { forgetStoredPrd } from '@/components/opportunity-stage/PrdB
 import type { PrdModel } from '@/lib/opportunities/models';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
+import { ideaAudience } from '@/lib/ideas/input';
 import { matchOpportunities } from '@/lib/opportunities/match';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Platform } from '@/lib/opportunities/types';
@@ -50,7 +51,13 @@ const QUESTIONS: FixedQuestion[] = [
 ];
 const EXTRA = QUESTIONS[QUESTIONS.length - 1];
 
-const fixedQuestion = (row: FixedQuestion, en: boolean): Question => ({ key: row.key, text: en ? row.en : row.ko, hint: en ? row.hintEn : row.hintKo, chips: row.chips.map(([ko, enLabel]) => (en ? enLabel : ko)) });
+const fixedQuestion = (row: FixedQuestion, en: boolean, audience?: string | null): Question => {
+  const baseChips = row.chips.map(([ko, enLabel]) => (en ? enLabel : ko));
+  const chips = row.key === 'users' && audience && !baseChips.some((chip) => chip.toLowerCase() === audience.toLowerCase())
+    ? [audience, ...baseChips]
+    : baseChips;
+  return { key: row.key, text: en ? row.en : row.ko, hint: en ? row.hintEn : row.hintKo, chips };
+};
 
 // [short name ko, short name en, the idea ko, the idea en]
 const EXAMPLES: Array<[string, string, string, string]> = [
@@ -164,6 +171,10 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
   // Once per idea: questions about what this idea leaves open, with options from it and its closest quotes.
   const planFor = useRef('');
+  const answersRef = useRef(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
   useEffect(() => {
     if (!restored || !idea || plan?.idea === idea || planFailed || planFor.current === idea) return;
     planFor.current = idea;
@@ -172,7 +183,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       .then((response) => (response.ok ? response.json() : { questions: null }))
       .then((json: { questions?: Array<{ key: string; question: string; why: string; options: string[] }> | null }) => {
         if (planFor.current !== idea) return;
-        if (!json.questions?.length) return setPlanFailed(true);
+        if (!json.questions?.length || Object.keys(answersRef.current).length > 0) return setPlanFailed(true);
         setPlan({ idea, questions: json.questions.map((row) => ({ key: row.key, text: row.question, hint: row.why, chips: row.options })) });
       })
       .catch(() => { if (planFor.current === idea) setPlanFailed(true); });
@@ -185,8 +196,18 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
 
-  // The free-text "anything else" question always closes the list, tailored or fixed.
-  const questions = useMemo<Question[]>(() => (plan?.idea === idea ? [...plan.questions, fixedQuestion(EXTRA, en)] : planFailed ? QUESTIONS.map((row) => fixedQuestion(row, en)) : []), [plan, idea, planFailed, en]);
+  // Show fixed questions right away while waiting for the model. Once tailored questions arrive, switch to them only if
+  // the person has not answered any fixed question yet; otherwise keep the fixed list so their answers never disappear.
+  const audience = useMemo(() => ideaAudience(idea, lang), [idea, lang]);
+  const useTailored = Boolean(
+    !planFailed
+    && plan?.idea === idea
+    && !Object.keys(answers).some((key) => !plan.questions.some((q) => q.key === key) && key !== EXTRA.key),
+  );
+  const questions = useMemo<Question[]>(
+    () => (useTailored && plan ? [...plan.questions, fixedQuestion(EXTRA, en)] : QUESTIONS.map((row) => fixedQuestion(row, en, audience))),
+    [useTailored, plan, en, audience],
+  );
   const planning = Boolean(idea) && !questions.length;
   const step = questions.findIndex((question) => !(question.key in answers));
   const current = step === -1 ? null : questions[step];
@@ -215,7 +236,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       return;
     }
     if (current) {
-      setAnswers((before) => ({ ...before, [current.key]: text.slice(0, 400) }));
+      setAnswers((before) => {
+        const next = { ...before, [current.key]: text.slice(0, 400) };
+        answersRef.current = next;
+        return next;
+      });
       return;
     }
     if (generated && pending === null) {
@@ -399,8 +424,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
                       {chips.map((label) => (
                         <button key={label} type="button" onClick={() => send(label)} className="min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink">{label}</button>
                       ))}
-                      {plan?.idea === idea && question.key !== EXTRA.key && <button type="button" onClick={() => send(t('잘 모르겠어요. 원문과 아이디어에 맞게 정해 주세요.', 'Not sure. Decide what fits the idea and the quotes.'))} className="min-h-10 rounded-2xl border border-outline-soft bg-white px-3.5 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{t('잘 모르겠어요', 'Not sure')}</button>}
-                      <button type="button" onClick={() => setAnswers((before) => ({ ...before, [question.key]: '' }))} className="min-h-10 rounded-2xl border border-dashed border-outline-strong px-3.5 text-[13px] text-tertiary hover:border-ink hover:text-ink">{t('건너뛰기', 'Skip')}</button>
+                      {useTailored && question.key !== EXTRA.key && <button type="button" onClick={() => send(t('잘 모르겠어요. 원문과 아이디어에 맞게 정해 주세요.', 'Not sure. Decide what fits the idea and the quotes.'))} className="min-h-10 rounded-2xl border border-outline-soft bg-white px-3.5 text-[13px] text-tertiary hover:border-outline-strong hover:text-ink">{t('잘 모르겠어요', 'Not sure')}</button>}
+                      <button type="button" onClick={() => setAnswers((before) => { const next = { ...before, [question.key]: '' }; answersRef.current = next; return next; })} className="min-h-10 rounded-2xl border border-dashed border-outline-strong px-3.5 text-[13px] text-tertiary hover:border-ink hover:text-ink">{t('건너뛰기', 'Skip')}</button>
                     </div>
                   )}
                 </Bubble>

@@ -352,7 +352,7 @@ export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: 
 | A1 | 정적 검사(3-5), 검증 토큰, 이탈 판정 규칙(3-6), 훅 번들에 1단 검사 추가(`pre-commit` · 종료 훅) | `lib/supervisor/diff-audit.ts`, `verify-token.ts`, `drift.ts`, `hook-bundle.ts`, `tests/supervisor-core.test.ts` |
 | A2 | MCP: SHA 기반 `verify_feature`(응답 안 결과 또는 작업 ID) + `get_verification`, 완료 게이트(🟢 · 🔵 · ⚪, 엄격 모드), 이탈 경고를 응답에 | `lib/mcp/*`, `tests/mcp-supervisor.test.ts` |
 | A3 | 불량 diff 25건, Seedup 최근 커밋 100여 개로 규칙별 오탐률, 데모 스크립트 | `tests/fixtures/bad-diffs.json`, `scripts/eval-supervisor.ts`, `scripts/demo-seedup-supervisor.ts` |
-| B1 | 서버 검증(단순형): GitHub SHA 자료 모으기, 마스킹 후 모델 1~2회 판정(기존 `callJsonModel` 사용, tool 루프 없음), 코드 인용 대조, 재사용 · 사용량 차감 | `lib/verifier/*`, `lib/db/verifications.ts`, `supabase/migrations/<시각>_verifications.sql`, `tests/verifier.test.ts` |
+| B1 | 서버 검증(단순형): GitHub SHA 자료 모으기, 마스킹 후 모델 1~2회 판정(기존 `callJsonModel` 사용, tool 루프 없음, **데이터 수집을 거부하는 유료 경로만**), 코드 인용 대조, 재사용 · 사용량 차감. 0-4 결정(A안)에 따라 처리방침 문구와 아이디어 입력 화면 안내 한 줄 | `lib/verifier/*`, `lib/db/verifications.ts`, `supabase/migrations/<시각>_verifications.sql`, `tests/verifier.test.ts`, `lib/legal.ts`(처리방침 문구만), `components/IdeaWorkspace.tsx`(안내 한 줄만), `lib/llm.ts`(데이터 수집 거부 옵션 추가만, 공용 파일) |
 | B2 | 최소 `/supervisor` 대시보드(목표 카드, 성공 기준별 진행, 기능 신호등, 이탈 경고, 결정 이력), `/agents` 스타터 팩(MCP 설정 · 훅 · `pre-commit`) | `app/api/supervisor/[key]/route.ts`, `app/supervisor/*`, `components/supervisor/*`, `app/agents/page.tsx`, `components/AgentPackDownload.tsx` |
 
 머지 순서: A1 → B1 → A2 → B2 + `Header.tsx` 메뉴 → A3 실측 반영.
@@ -441,7 +441,7 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 
 | 기존 항목 | 상태 | 이 문서에서 |
 | :--- | :--- | :--- |
-| 0-4 사용자 코드 · 아이디어가 무료 모델로 감 | 결정 대기 | 단계 2 전제 조건. 검증 · 평가는 유료 모델(1절)로 가므로, 무엇이 어느 모델로 가는지 개인정보 처리방침에 밝힘 |
+| 0-4 사용자 코드 · 아이디어가 무료 모델로 감 | 결정됨(A안) | 아이디어 · PRD는 무료 모델 유지 + 처리방침과 화면에 "무료 모델 제공사가 입력을 기록 · 학습에 쓸 수 있음" 명시. 코드(검증)는 데이터 수집을 거부하는 유료 경로로만 보내고 처리방침에 명시. 구현은 단계 2 B1 |
 | 0-7 SSRF(Node 사설 IP) | 엔진 동결 | 동결 해제 후 첫 작업 |
 | 1-1 인용 정밀도 사람 라벨 · KPI | 사람 일 | 계속 진행(트랙 B 근거 신뢰의 바탕) |
 | 1-3 조사 에이전트 켜기 · 엔진 적용 | 일부 | 보류(3-10과 묶음, 동결 해제 후) |
@@ -488,3 +488,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 3-3에 공개 slug 키는 실제 기회인지 확인한다는 규칙 추가(PR #131 검토 중 결정).
 - 2026-11-20: 단계 1 보완 칸 추가(정지훈 제안: 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시). 담당 정지훈 · Claude Code.
 - 2026-11-20: 단계 2에 코드 칸 밖 작업 2개 추가(MCP 화면 · 응답 기준, 9절 조사). 정지훈 제안 반영.
+- 2026-11-20: 0-4 결정(A안). 단계 2 B1 칸에 데이터 수집 거부 유료 경로, 처리방침 문구, 화면 안내 한 줄 추가.

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { repairCachedSpec } from './spec';
 import type { Spec, SpecInput } from './spec';
 
 /** A PRD is made from at most this many quotes; the API and the PRD page cut the list the same way. */
@@ -8,10 +9,16 @@ export const PRD_MAX_EVIDENCE = 12;
 /** Same quotes, same key, whatever order they were picked in. */
 export const prdCacheKey = (evidenceIds: string[]) => createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 40);
 
+// Every read goes through here, so the site, MCP and the admin page all get the repaired PRD.
+const cachedRow = (data: { input: unknown; spec: unknown; created_at: unknown }) => {
+  const input = data.input as SpecInput;
+  return { input, spec: repairCachedSpec(input, data.spec as Spec), createdAt: String(data.created_at) };
+};
+
 export async function readPrdCache(service: SupabaseClient | null, evidenceIds: string[]) {
   if (!service || !evidenceIds.length) return null;
   const { data } = await service.from('prd_cache').select('input,spec,created_at').eq('evidence_key', prdCacheKey(evidenceIds)).maybeSingle();
-  return data ? { input: data.input as SpecInput, spec: data.spec as Spec, createdAt: String(data.created_at) } : null;
+  return data ? cachedRow(data) : null;
 }
 
 /**
@@ -28,7 +35,7 @@ export async function readLatestPrdCacheForTitle(service: SupabaseClient | null,
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data ? { input: data.input as SpecInput, spec: data.spec as Spec, createdAt: String(data.created_at) } : null;
+  return data ? cachedRow(data) : null;
 }
 
 export async function writePrdCache(service: SupabaseClient | null, evidenceIds: string[], input: SpecInput, spec: Spec) {

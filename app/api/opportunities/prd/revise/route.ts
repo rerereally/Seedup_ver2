@@ -12,6 +12,7 @@ import { normalizeRivals, normalizeSlots, withEvidenceStrength, withPrdReadiness
 import type { Priority, Spec, SpecFeature, SpecInput, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
+import { resolveProjectKey } from '@/lib/db/supervisor-projects';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -113,7 +114,8 @@ export async function POST(request: Request) {
     console.error('PRD revise failed', error);
     return null;
   });
-  const runKey = await run.finish(Boolean(spec), input.title);
+  const usageProject = typeof body?.usageProject === 'string' ? await resolveProjectKey(supabase, data.user.id, body.usageProject).catch(() => null) : null;
+  const runKey = await run.finish(Boolean(spec), input.title, undefined, usageProject);
   if (!spec) {
     await releaseDailyUsage(supabase, 'prd_revise');
     return NextResponse.json({ error: screensOnly ? '화면을 설계하지 못했습니다. 잠시 후 다시 시도해주세요.' : '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });

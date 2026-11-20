@@ -369,7 +369,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   // Follow-up calls rebuild the same context on the server: the idea brief and the maker's notes go along.
   // Web quotes and the maker's own notes go along too: the server numbers the evidence afresh on every call, and
   // without them a revision would renumber E-n and drop the citations to them.
-  const ideaBrief = { ...(requestBody?.brief ? { brief: requestBody.brief } : {}), ...(requestBody?.liveEvidence ? { liveEvidence: requestBody.liveEvidence } : {}), ...(requestBody?.ownNotes ? { ownNotes: requestBody.ownNotes } : {}), notes };
+  const ideaBrief = { ...(requestBody?.brief ? { brief: requestBody.brief } : {}), ...(requestBody?.liveEvidence ? { liveEvidence: requestBody.liveEvidence } : {}), ...(requestBody?.ownNotes ? { ownNotes: requestBody.ownNotes } : {}), notes, usageProject: exportKey };
 
   const fillSlots = async (feature: SpecFeature) => {
     if (!spec) return;

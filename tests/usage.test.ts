@@ -37,6 +37,20 @@ test('PRD runs still log to the old schema without issuing a claim key', async (
   assert.equal(inserts[1].user_id, user);
 });
 
+test('runs with a resolved project key are attributed without another dossier save', async () => {
+  const projectKey = `prd:${session}`;
+  let logged: Record<string, unknown> | undefined;
+  const service = createClient('https://db.invalid', 'service', { global: { fetch: async (_url, init) => {
+    logged = JSON.parse(String(init?.body));
+    return new Response(null, { status: 201 });
+  } } });
+  const key = await prdRunLog(service, { id: user }, 'revise', 'openai/gpt-6.2-sol').finish(true, 'Example', undefined, projectKey);
+  assert.ok(key);
+  assert.equal(logged?.run_key, key);
+  assert.equal(logged?.user_id, user);
+  assert.equal(logged?.project_key, projectKey);
+});
+
 test('usage upload checks token ownership and quota, and repeated batches append only new rows', async () => {
   const stored = new Map<string, Record<string, unknown>>();
   let calls = 0;

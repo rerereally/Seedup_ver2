@@ -19,10 +19,12 @@ const WRITING_RULES = `작성 규칙:
 - "쉽게", "빠르게", "효율적으로", "직관적인" 같은 말 대신 숫자나 조건을 씁니다. 예: "3초 안에", "설정 파일 한 줄로".
 - 기능 detail에는 무엇을 받아 무엇을 돌려주는지 씁니다. 화면 does는 사용자가 하는 행동으로 시작합니다.
 - 모든 요구사항은 적어도 한 기능이 충족하고, 모든 기능은 적어도 한 화면에 나옵니다.
-- metrics는 코딩 에이전트가 테스트로 확인할 수 있는 완료 기준입니다. 하나하나에 숫자나 조건과 기대 결과를 씁니다. "오류율" 같은 지표 이름만 쓰지 않습니다. 예: "Tenor가 410을 돌려주면 2초 안에 대체 API 결과를 보여준다".
+- metrics는 목표와 측정 방법을 함께 씁니다. 예: "대체 API 응답 2초 이내. 측정: 410 응답을 재현하는 테스트에서 대체 결과가 표시될 때까지의 시간을 기록한다".
 좋은 예(형식만 참고): {"title":"사용자는 설정 한 줄로 모델을 바꿀 수 있어야 한다","detail":"설정 파일의 model 값만 바꾸면 코드 수정 없이 다음 요청부터 새 모델로 호출된다","evidence":[2]}`;
 
 const VAGUE = /쉽게|쉬운|빠르게|빠른|효율적|편리|직관적|사용자 친화|원활|다양한|최적화|\b(easy|easily|fast|quick|efficient|intuitive|user-friendly|seamless|various|optimi[sz]e)\b/i;
+const MEASUREMENT = /(?:측정(?:\s*방법)?|집계\s*방법|measure(?:ment)?|how to measure)\s*[:：]\s*(.+)/i;
+const MEASUREMENT_ACTION = /로그|기록|실행|테스트|집계|세어|센다|계산|비교|표본|\b(logs?|run|tests?|count|compare|calculate|record|sample|query|collect|benchmark)\b/i;
 
 /**
  * What a reviewer would send back, found by code so it costs nothing and never invents a problem. Cheap models get one
@@ -33,6 +35,22 @@ export function specIssues(spec: Spec, input: SpecInput) {
   const issues: string[] = [];
   if (rows.length < 3) issues.push(`요구사항이 ${rows.length}개뿐입니다. 3개 이상으로 나눠 주세요.`);
   if (input.evidence.length && !spec.requirements.length) issues.push('원문 번호를 인용한 요구사항이 없습니다. 원문이 뒷받침하는 요구사항에는 evidence 번호를 넣으세요.');
+  if (!spec.metrics.length) issues.push('metrics가 비어 있습니다.');
+  const loose = spec.metrics.filter((metric) => !/\d/.test(metric));
+  if (loose.length) issues.push(`metrics ${loose.length}개에 숫자나 조건이 없습니다: "${loose[0]}". 테스트로 확인할 수 있게 바꾸세요.`);
+  const unmeasured = spec.metrics.flatMap((metric, index) => {
+    const method = MEASUREMENT.exec(metric)?.[1] ?? '';
+    return MEASUREMENT_ACTION.test(method) ? [] : [index + 1];
+  });
+  if (unmeasured.length) issues.push(`metrics ${unmeasured.join(', ')}번에 측정 방법이 없습니다. 각 지표에 "측정: ..." 또는 "Measure: ..."로 어떤 데이터나 테스트로 잴지 쓰세요.`);
+
+  for (const row of rows.filter(({ priority }) => priority === 'P0')) {
+    const acceptance = row.acceptance ?? [];
+    const invalid = acceptance.flatMap((line, index) => isTestableCriterion(line) ? [] : [index + 1]);
+    if (!acceptance.length || invalid.length) issues.push(
+      `${row.id} "${row.title}"(P0)의 수락 기준${invalid.length ? ` ${invalid.join(', ')}번` : ''}에 확인 가능한 입력과 기대 결과를 쓰세요. 사용자의 마음이나 다음 행동은 수락 기준으로 쓰지 마세요.`,
+    );
+  }
   for (const row of rows) {
     if (row.detail.length < 20) issues.push(`${row.id} "${row.title}"의 detail이 너무 짧습니다. 입력·결과·조건을 쓰세요.`);
     const vague = VAGUE.exec(`${row.title} ${row.detail}`);
@@ -40,17 +58,11 @@ export function specIssues(spec: Spec, input: SpecInput) {
     // Outside an idea PRD a hypothesis is not built yet, so it has no feature on purpose.
     const buildable = row.evidence.length || spec.origin === 'idea';
     if (buildable && !spec.features.some((feature) => feature.requirementIds.includes(row.id))) issues.push(`${row.id} "${row.title}"을 충족하는 기능이 없습니다.`);
-    if (row.priority === 'P0' && !(row.acceptance ?? []).some(isTestableCriterion)) {
-      issues.push(`${row.id} "${row.title}"(P0)에 테스트 가능한 수락 기준이 없습니다. 숫자나 조건을 포함한 수락 기준을 쓰세요.`);
-    }
   }
   // A document-first PRD has no screens yet; they are designed on request (generateScreens).
   for (const feature of spec.screens.length ? spec.features : []) {
     if (!spec.screens.some((screen) => screen.featureIds.includes(feature.id))) issues.push(`${feature.id} "${feature.title}"이 어느 화면에도 없습니다.`);
   }
-  // Every done criterion must be checkable by a test, so each needs a number or a condition, not just a metric's name.
-  const loose = spec.metrics.filter((metric) => !/\d/.test(metric));
-  if (!spec.metrics.length || loose.length) issues.push(loose.length ? `metrics ${loose.length}개에 숫자나 조건이 없습니다: "${loose[0]}". 테스트로 확인할 수 있게 바꾸세요.` : 'metrics가 비어 있습니다.');
   return issues.slice(0, 10);
 }
 
@@ -95,7 +107,7 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
     raw = await structurePrd(written.text, options.model, options.onUsage, deadline);
   }
   if (!raw) return null;
-  let spec: Spec = { ...normalizeSpec(raw, input.evidence.length, Boolean(options.draft), { idea: options.idea }), lang, rivals: coverRivals(normalizeRivals(raw.rivals, input.competitors), input.competitors, lang), ...(options.beginner ? { beginner: true } : {}) };
+  let spec: Spec = { ...normalizeSpec(raw, input.evidence, Boolean(options.draft), { idea: options.idea }), lang, rivals: coverRivals(normalizeRivals(raw.rivals, input.competitors), input.competitors, lang), ...(options.beginner ? { beginner: true } : {}) };
   if (!spec.summary || !(spec.requirements.length + (options.idea ? spec.hypotheses.length : 0))) return null;
 
   // One repair pass on what the code check found; kept only when it really has fewer problems.
@@ -184,7 +196,7 @@ JSON만 반환합니다: {"screens":[{"name":"화면 이름","does":"여기서 �
 기능:
 ${spec.features.map((row, index) => `${index + 1}. ${row.title}: ${row.detail}`).join('\n')}`, { maxTokens: 2_000, timeoutMs: 60_000, deadline, title: 'Seedup screens', models: writerModels(model), reasoning: 'low', attempts: 1, onUsage });
   // The spec's own normaliser gives screen ids and feature links by the same rules as a full PRD.
-  const screens = normalizeSpec({ ...specAsRaw(spec), screens: raw?.screens }, input.evidence.length, spec.draft, { idea: spec.origin === 'idea' }).screens;
+  const screens = normalizeSpec({ ...specAsRaw(spec), screens: raw?.screens }, input.evidence, spec.draft, { idea: spec.origin === 'idea' }).screens;
   return screens.length ? screens : null;
 }
 
@@ -250,7 +262,7 @@ ${quotes(input)}`, { maxTokens: 8_000, timeoutMs, deadline, title: 'Seedup PRD r
   const idea = spec.origin === 'idea';
   // A revision keeps the rival comparison unless it returns a new one.
   const rivals = normalizeRivals(raw.rivals, input.competitors);
-  const revised: Spec = { ...normalizeSpec(raw, input.evidence.length, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: coverRivals(rivals.length ? rivals : spec.rivals ?? [], input.competitors, spec.lang ?? 'ko') };
+  const revised: Spec = { ...normalizeSpec(raw, input.evidence, spec.draft, { idea }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: coverRivals(rivals.length ? rivals : spec.rivals ?? [], input.competitors, spec.lang ?? 'ko') };
   if (!revised.summary || !(revised.requirements.length + (idea ? revised.hypotheses.length : 0))) return null;
   return keepUnchanged(spec, revised);
 }
@@ -303,7 +315,7 @@ ${repo.manifest || ''}
 사용자 발언:
 ${quotes(input)}`, { maxTokens: 8_000, timeoutMs: 95_000, title: 'Seedup reverse spec', ...(model ? { model } : { models: prdFreeModels() }), reasoning: 'low' });
   if (!raw) return null;
-  const spec = { ...normalizeSpec(raw, input.evidence.length, false), lang };
+  const spec = { ...normalizeSpec(raw, input.evidence, false), lang };
   if (!spec.summary || !spec.existing?.length) return null;
   return spec;
 }

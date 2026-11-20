@@ -4,7 +4,9 @@ import { OPEN_SLOT_MARKER } from './spec';
 import type { ReadinessSlots, Spec, SpecFeature, SpecInput, SpecRequirement } from './spec';
 
 const VAGUE_WORDS = /쉽게|쉬운|빠르게|빠른|효율적|편리|직관적|사용자 친화|원활|다양한|최적화|\b(easy|easily|fast|quick|efficient|intuitive|user-friendly|seamless|various|optimi[sz]e)\b/i;
-const TESTABLE_SIGNAL = /\d|하면|경우|때|이면|반환|출력|보여|표시|차단|실패|통과|저장|거부|리다이렉트|초과|미만|이상|이하|\b(when|if|returns?|renders?|shows?|blocks?|fails?|passes?|saves?|rejects?|must|http|status|json|csv|cli|error|timeout|redirect)\b/i;
+const TEST_CONDITION = /\d|하면|나면|경우|때|이면|받으면|되면|요청 시|실행 시|누르면|입력이|\b(given|when|if|after|before|with|for|within|on|across)\b/i;
+const OBSERVABLE_RESULT = /반환|응답|출력|보여|보이|표시|차단|실패|통과|저장|거부|도착|생성|삭제|다운로드|리다이렉트|종료|요약|\b(return(?:s|ed)?|render(?:s|ed)?|show(?:s|n)?|block(?:s|ed)?|fail(?:s|ed)?|pass(?:es|ed)?|sav(?:e|es|ed)|reject(?:s|ed)?|redirect(?:s|ed)?|display(?:s|ed)?|creat(?:e|es|ed)|sent|deliver(?:s|ed)?|delet(?:e|es|ed)|exit(?:s|ed)?)\b/i;
+const SUBJECTIVE_CRITERION = /만족(?:한다|하면|해야|할 때)|마음에 들어(?:하면|할 때)|안심(?:한다|하면)|적절하다고 (?:느끼|판단)|\b(?:users?|readers?|people|they)\s+(?:(?:must|should|will|can)\s+)?(?:feels?|likes?|(?:is|are|be)\s+satisfied)\b|\bintuitive to users\b/i;
 
 const CRITICAL_SLOTS: Array<{ key: keyof ReadinessSlots; labelKo: string; labelEn: string; promptKo: string; promptEn: string }> = [
   {
@@ -72,14 +74,13 @@ export type P0AuditChange = {
 };
 
 /**
- * Checks whether an acceptance criterion contains concrete, testable conditions or numbers
- * rather than vague prose alone.
+ * A test needs a condition and an observable result from the product.
  */
 export function isTestableCriterion(value: string) {
   const trimmed = value.trim();
-  if (trimmed.length < 10) return false;
+  if (trimmed.length < 10 || SUBJECTIVE_CRITERION.test(trimmed)) return false;
   if (VAGUE_WORDS.test(trimmed) && !/\d/.test(trimmed)) return false;
-  return TESTABLE_SIGNAL.test(trimmed);
+  return TEST_CONDITION.test(trimmed) && OBSERVABLE_RESULT.test(trimmed);
 }
 
 /**
@@ -231,7 +232,7 @@ export function applyP0Audit(spec: Spec, verdicts: P0AuditVerdict[]): { spec: Sp
         : `구현 전 대상 사용자 5명에게 실제 필요 여부를 확인한다 (${verdict.reason}).`);
     demoted.push({
       oldId: row.id,
-      row: { ...row, evidence: [], check: check.slice(0, 300) },
+      row: { ...row, evidence: [], evidenceStrength: 'none', check: check.slice(0, 300) },
     });
   }
 

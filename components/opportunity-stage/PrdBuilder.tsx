@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
 import { recommendToolkit } from '@/lib/opportunities/toolkit';
-import { EXPORT_FILES, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
-import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
+import { EVIDENCE_STRENGTH_LABELS, EXPORT_FILES, PRD_SENTENCE_LABELS, evidenceStrengthFor, prdSentenceKinds, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
+import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRequirement } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
@@ -501,6 +501,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   );
   // Prose keeps the model's [E1] tags; each becomes a clickable chip that highlights its quote via traceOf.
   const prose = (text: string) => text.split(/(\[\s*E\s*-?\s*\d+(?:\s*[,，]\s*E?\s*-?\s*\d+)*\s*\])/gi).map((part, index) => (index % 2 ? <span key={index}>{cites(citedQuotes(part), true)}</span> : part));
+  const strengthText = (row: SpecRequirement) => t(...EVIDENCE_STRENGTH_LABELS[evidenceStrengthFor(row.evidence, input?.evidence ?? [])]);
+  const taggedProse = (value: string) => input ? prdSentenceKinds(value, input).map(({ kind, text }, index) => (
+    <span key={index}>
+      {index > 0 && ' '}
+      <span className="mr-1.5 rounded bg-surface-mid px-1.5 py-px text-xs font-medium text-tertiary">{t(...PRD_SENTENCE_LABELS[kind])}</span>{' '}
+      {prose(text)}
+    </span>
+  )) : prose(value);
   const priorityBadge = (priority?: string) => priority && <span className={`mr-2 rounded px-1.5 py-px align-[2px] text-[11.5px] font-semibold ${priority === 'P0' ? 'bg-ink text-white' : 'bg-surface-mid text-tertiary'}`}>{priority}</span>;
   const acceptanceLines = (lines?: string[]) => lines?.length ? lines.map((line) => <span key={line} className="mt-1 block text-[13.5px] leading-6 text-tertiary"><span aria-hidden="true" className="mr-1.5 text-seed">✓</span>{line}</span>) : null;
   // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
@@ -545,6 +553,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       title = requirement.title;
       body = requirement.detail;
       rows.push([t('근거', 'Evidence'), hypothesis ? t('원문 없음', 'No quote') : <span key="evidence" className="font-medium text-seed">{requirement.evidence.map((n) => `E${n}`).join(', ')} ({checkedNote(requirement.evidence)})</span>]);
+      rows.push([t('근거 강도', 'Evidence strength'), strengthText(requirement)]);
       rows.push([t('기능', 'Features'), names(spec.features.filter((row) => row.requirementIds.includes(requirement.id)).map((row) => row.id), spec.features) || '-']);
     } else if (feature) {
       kind = t('기능', 'Feature');
@@ -628,8 +637,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     ['toolkit', t('추천 도구와 점검', 'Tools and checks'), true],
   ] : [];
   const toolkit = spec ? recommendToolkit(spec) : [];
-  const bullets = (rows: string[]) => rows.length
-    ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{row}</li>)}</ul>
+  const bullets = (rows: string[], render: (row: string) => React.ReactNode = (row) => row) => rows.length
+    ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{render(row)}</li>)}</ul>
     : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
 
   const agentPrompt = agentSlug ? t(
@@ -866,7 +875,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <h4 id="prd-problem" className={h2}>{t('배경', 'Background')}</h4>
                       {spec.background ? (
                         <>
-                          <p className="mt-3 text-[15px] leading-7">{prose(spec.background)}</p>
+                          <p className="mt-3 text-[15px] leading-7">{taggedProse(spec.background)}</p>
                           <details className="mt-3 text-[13px] text-muted">
                             <summary className="cursor-pointer">{t('처음 입력한 문제', 'The problem as entered')}</summary>
                             <p className="mt-2 whitespace-pre-line leading-6">{input.problem}</p>
@@ -948,14 +957,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     {spec.risks.length > 0 && (
                       <section>
                         <h4 id="prd-risks" className={h2}>{t('위험 요소', 'Risks')}</h4>
-                        {bullets(spec.risks)}
+                        {bullets(spec.risks, taggedProse)}
                       </section>
                     )}
                     {spec.assumptions?.length ? (
                       <section>
                         <h4 id="prd-assumptions" className={h2}>{t('가정', 'Assumptions')}</h4>
                         <p className="mt-1 text-[13px] text-muted">{t('증명되지 않았지만 이 계획이 기대는 것입니다. 틀리면 계획이 바뀝니다.', 'Not proven, but the plan leans on them. If one is wrong, the plan changes.')}</p>
-                        {bullets(spec.assumptions)}
+                        {bullets(spec.assumptions, taggedProse)}
                       </section>
                     ) : null}
                     <section>
@@ -1028,8 +1037,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     </div>
                     <div className={styles.specCol}>
                       <h4>{t('요구사항', 'Requirements')}</h4>
-                      {spec.requirements.map((row) => item(row.id, <><span>{row.title}</span><small>{t('원문', 'Quotes')} {row.evidence.map((n) => `E-${n}`).join(', ')}</small></>))}
-                      {spec.hypotheses.map((row) => item(row.id, <><span>{row.title}</span><small>{t('가설, 원문 없음', 'Hypothesis, no quote')}</small></>, styles.specHypo))}
+                      {spec.requirements.map((row) => item(row.id, <><span>{row.title}</span><small>{strengthText(row)} · {row.evidence.map((n) => `E-${n}`).join(', ')}</small></>))}
+                      {spec.hypotheses.map((row) => item(row.id, <><span>{row.title}</span><small>{t('가설', 'Hypothesis')} · {strengthText(row)}</small></>, styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>

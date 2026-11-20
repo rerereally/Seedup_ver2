@@ -30,7 +30,7 @@ async function lockGoalAndVerifyHandoff(page: Page) {
 
 test('idea → tailored questions → streamed PRD → AGENTS.md export → goal lock → agent start prompt', async ({ page }) => {
   await page.goto('/prd/new');
-  const idea = page.getByPlaceholder(/Tenor 대신/);
+  const idea = page.getByLabel('만들고 싶은 것');
   await idea.fill('온콜 인수인계 메모와 Tenor GIF API를 자동으로 정리해 주는 슬랙 봇');
   await idea.press('Enter');
 

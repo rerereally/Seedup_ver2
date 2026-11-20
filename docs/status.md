@@ -46,7 +46,7 @@
 | 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 전 | |
 | 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 전 | |
 | 2 | B1 서버 검증(단순형) | Claude Code(기술 책임 정지훈) | 시작 전 | 결정 대기 0-4가 전제 조건 |
-| 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(기술 책임 정지훈) | 시작 전 | |
+| 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.2 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-s2-b2.md). 서버 검증 전이라 ⚪ · 🔵만 표시 |
 
 ## 3. 결정 대기
 

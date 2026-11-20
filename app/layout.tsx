@@ -1,6 +1,7 @@
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import LangProvider from '@/components/LangProvider';
+import SectionView from '@/components/SectionView';
 import { getLang } from '@/lib/i18n-server';
 
 const COPY = {
@@ -40,6 +41,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
       <body className="antialiased font-sans flex flex-col min-h-screen" suppressHydrationWarning>
         <a href="#main-content" className="skip-link">{lang === 'en' ? 'Skip to content' : '본문으로 건너뛰기'}</a>
         <LangProvider lang={lang}>{children}</LangProvider>
+        <SectionView />
       </body>
     </html>
   );

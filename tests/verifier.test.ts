@@ -254,6 +254,7 @@ test('GitHub collector uses SHA-bound public REST data, paginates CI, and lists 
     paths.push(path);
     assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer test-token');
     assert.equal(init?.redirect, 'manual');
+    assert.equal((init?.headers as Record<string, string>)['user-agent'], 'seedup');
     if (!path) return Response.json({ private: false, visibility: 'public' });
     if (path.includes('/commits/') && path.includes('?per_page=')) return Response.json({ sha, commit: { tree: { sha: 'b'.repeat(40) } }, files: [{ filename: 'src/answer.ts', status: 'modified' }, { filename: 'large.ts', status: 'modified' }] });
     if (path === `/commits/${sha}`) return new Response(diff);

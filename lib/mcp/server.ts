@@ -912,7 +912,8 @@ async function fetchVerificationDiff(repo: string, sha: string, override?: McpDe
   if (!token) return null;
   validateGitHubCommit(repo, sha);
   const response = await fetch(`https://api.github.com/repos/${repo}/commits/${sha.toLowerCase()}`, {
-    headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github.diff', 'X-GitHub-Api-Version': '2022-11-28' },
+    // GitHub answers 403 to a request without a User-Agent; Node adds one by itself, Workers do not.
+    headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github.diff', 'X-GitHub-Api-Version': '2022-11-28', 'user-agent': 'seedup' },
     // Workers reject 'error' outright; 'manual' leaves a 3xx unfollowed and the ok check below refuses it.
     redirect: 'manual',
     signal: AbortSignal.timeout(10_000),

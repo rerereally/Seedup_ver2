@@ -43,10 +43,10 @@ const EXAMPLE_KO = `# 한 줄 요약
 ## 요구사항
 ### R1. [P0] 사용자는 두 lock 파일 사이에서 빌드를 깨뜨린 패키지 하나를 찾을 수 있어야 한다 [E1, E2]
 성공한 커밋과 실패한 커밋의 package-lock.json에서 바뀐 패키지만 골라, 절반씩 되돌리며 테스트 명령을 다시 실행한다.
-- 수락 기준: 바뀐 패키지 40개 중 원인 1개를 테스트 실행 7번 이하로 찾는다.
-- 수락 기준: 결과에 패키지 이름, 이전 버전, 새 버전을 함께 보여 준다.
+- 수락 기준: 서로 다른 패키지 40개와 테스트 명령을 받으면, 7번 이하로 실행해 원인 패키지 1개의 이름을 출력한다.
+- 수락 기준: 원인 패키지가 하나로 좁혀지면 결과에 패키지 이름, 이전 버전, 새 버전을 보여 준다.
 ### R2. [P0] 사용자는 원인 패키지를 이전 버전으로 고정하는 명령을 받을 수 있어야 한다 [E2]
-- 수락 기준: \`npm install 패키지@이전버전 --save-exact\` 형태의 명령을 출력하고, 그 명령으로 테스트가 통과하는지 한 번 더 확인한다.
+- 수락 기준: \`npm install 패키지@이전버전 --save-exact\` 형태의 명령을 출력한다. 그 명령을 임시 디렉터리에서 실행하면 테스트 통과 여부를 결과에 표시한다.
 ### R3. [P1] 사용자는 원인 패키지의 두 버전 사이 변경 기록을 볼 수 있어야 한다 [E3]
 npm 레지스트리의 repository 필드에서 GitHub 저장소를 찾아 릴리스 비교 주소를 만든다.
 - 수락 기준: repository가 GitHub이면 비교 링크를, 아니면 "링크 없음"을 보여 준다.
@@ -76,8 +76,8 @@ npm 레지스트리의 repository 필드에서 GitHub 저장소를 찾아 릴리
 - 사용자는 로컬에서 테스트 명령을 반복해서 실행할 수 있다.
 
 ## 성공 지표
-- 원인 패키지가 하나인 실패 사례 20개 중 18개 이상에서 정답을 찾는다.
-- 바뀐 패키지 40개 기준으로 탐색이 테스트 1회 시간의 7배 안에 끝난다.
+- 원인 패키지 일치율 90% 이상. 측정: 정답이 기록된 실패 사례 20개에 CLI를 실행하고 출력이 정답과 일치한 횟수를 센다.
+- 바뀐 패키지 40개 기준으로 탐색 시간은 테스트 1회 시간의 7배 이내. 측정: 같은 저장소에서 각각 걸린 시간을 기록해 비교한다.
 
 ## 열린 질문
 - 첫 사용자 10명 중 pnpm 사용자가 3명을 넘으면 다음 버전에서 지원할 것인가?
@@ -107,7 +107,7 @@ function systemKo(beginner: boolean) {
 # ${h.summary}
 한 문장. 누구의 어떤 문제를 무엇으로 푸는지.
 ## ${h.background}
-3~5문장. 문제가 왜 생기고 사람들이 지금 어떻게 버티는지. 사실을 말하는 문장마다 원문 번호 [E번호]를 붙인다. 원문으로 받칠 수 없는 사실은 배경에 쓰지 않는다.
+3~5문장. 문제가 왜 생기고 사람들이 지금 어떻게 버티는지. 원문에 근거한 문장 끝에는 [E번호]를 붙인다. 경쟁 도구 설명에서 가져온 사실은 도구 이름과 설명의 문구를 그대로 쓴다. 근거 없는 추정은 가정에 적는다.
 ## ${h.users}
 1~3개 목록. 한 부류로 좁게. 원문 작성자가 스스로 밝힌 직군과 상황에서 고르고 [E번호]를 붙인다. 원문에 없으면 기획자 답변을 따르고, 둘 다 없으면 아이디어 문장에서 가장 좁게 읽히는 부류를 쓰고 '${h.assumptions}'에 그 추정을 적는다.
 ## ${h.scenario}
@@ -120,7 +120,7 @@ function systemKo(beginner: boolean) {
 ${beginner ? '3~5' : '4~7'}개. 요구사항마다 아래 모양으로 쓴다.
 ### R번호. [P0, P1, P2 중 하나] 사용자는 ~할 수 있어야 한다 [E번호, E번호]
 (필요하면) 한두 문장 설명.
-- ${h.acceptance}: 테스트로 확인할 수 있는 조건. 1~3개.
+- ${h.acceptance}: 1~3개. 주어진 입력에서 Y를 하면 Z가 보이거나 반환된다는 식으로 쓴다. 사용자의 마음이나 다음 행동 대신, 제품에서 확인 가능한 결과를 정한다.
 - ${h.check}: 원문 번호가 없는 요구사항에만 쓴다. 누구에게 무엇을 물어 맞는지 확인할지와 판단 기준.
 ## ${h.features}
 ${beginner ? '2~3' : '3~6'}개. 기능마다 아래 모양으로 쓴다.
@@ -133,7 +133,7 @@ ${beginner ? '2~3' : '3~6'}개. 기능마다 아래 모양으로 쓴다.
 ## ${h.assumptions}
 1~3개 목록. 증명되지 않았지만 이 계획이 기대는 것.
 ## ${h.metrics}
-2~4개 목록. 숫자와 조건이 있어서 테스트나 측정으로 확인할 수 있는 문장.
+2~4개 목록. 목표 값이나 조건을 쓰고, 각 지표에 “측정: ...”을 붙여 어떤 데이터, 기간, 테스트로 재는지 적는다.
 ## ${h.openQuestions}
 아직 정하지 않은 결정. 없으면 "- 없음".
 
@@ -156,7 +156,7 @@ function systemEn(beginner: boolean) {
   const h = HEADINGS.en;
   return `${systemKo(beginner)}
 
-Write the whole PRD in English. Use these English headings instead of the Korean ones, in the same order: ${Object.values(h).slice(0, 13).map((title) => `"${title}"`).join(', ')}. Inside requirements use "- ${h.acceptance}:" and "- ${h.check}:". Requirement titles read "Users can ...".`;
+Write the whole PRD in English. Use these English headings instead of the Korean ones, in the same order: ${Object.values(h).slice(0, 13).map((title) => `"${title}"`).join(', ')}. Inside requirements use "- ${h.acceptance}:" and "- ${h.check}:". Requirement titles read "Users can ...". For each acceptance criterion, give a starting input or action and the observable result returned or displayed by the product. For each success metric, include the target and a "Measure: ..." clause describing the test or data to use.`;
 }
 
 export const prdSystemPrompt = (lang: Lang = 'ko', beginner = false) => (lang === 'en' ? systemEn(beginner) : systemKo(beginner));

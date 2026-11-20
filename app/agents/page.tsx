@@ -8,6 +8,8 @@ import { mcpTokenStatus } from '@/lib/db/mcp-tokens';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import AgentPackDownload from '@/components/AgentPackDownload';
+import { supervisorList } from '@/components/supervisor/data';
 
 export const metadata: Metadata = {
   title: 'MCP 연동',
@@ -45,6 +47,9 @@ export default async function AgentsPage() {
   if (!user) redirect('/login?next=/agents');
 
   const status = await mcpTokenStatus(user.id);
+  let projects: Awaited<ReturnType<typeof supervisorList>> = [];
+  let packUnavailable = false;
+  try { projects = await supervisorList(supabase, user.id); } catch { packUnavailable = true; }
 
   return (
     <>
@@ -77,6 +82,7 @@ export default async function AgentsPage() {
             </section>
           </aside>
         </div>
+        <AgentPackDownload projects={projects.map(({ key, title }) => ({ key, title }))} unavailable={packUnavailable} />
       </WorkShell>
       <Footer />
     </>

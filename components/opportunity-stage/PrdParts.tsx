@@ -4,6 +4,7 @@
 // They read only their props, so they live apart from PrdBuilder's state.
 import { useRef, useState, useMemo, useLayoutEffect } from 'react';
 import MarkdownContent from '@/components/MarkdownContent';
+import AgentCursor, { type CursorTarget } from './AgentCursor';
 import { translator } from '@/lib/i18n';
 import styles from './stage.module.css';
 import type { Spec, SpecFeature, traceOf } from '@/lib/opportunities/spec';
@@ -135,6 +136,16 @@ const PHASES: Record<LivePhase, [string, string]> = {
   auditing: ['P0 요구사항의 원문 근거를 대조하는 중', 'Auditing P0 requirements against cited quotes'],
 };
 
+// The few words on the working pointer beside the document.
+const CURSOR_LABELS: Record<LivePhase, [string, string]> = {
+  waiting: ['연결 중', 'Connecting'],
+  thinking: ['생각하는 중', 'Thinking'],
+  writing: ['쓰는 중', 'Writing'],
+  structuring: ['나누는 중', 'Structuring'],
+  checking: ['점검 중', 'Checking'],
+  auditing: ['근거 대조 중', 'Auditing'],
+};
+
 /**
  * What the reader sees while the PRD is made: the real step the server reports, and the document itself as the model
  * writes it. A generator that does not stream (live is null) shows only the step and the time.
@@ -142,6 +153,13 @@ const PHASES: Record<LivePhase, [string, string]> = {
 export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; phase: LivePhase; restarted: boolean } | null; elapsed: number; lang: 'ko' | 'en'; title?: string }) {
   const t = translator(lang);
   const phase = live?.phase ?? 'writing';
+  const page = useRef<HTMLDivElement>(null);
+  // Before any text it waits where writing starts; while writing it rests on the newest section; the later steps go to
+  // the section they work on (requirements for structuring and the evidence audit, features for the gap check).
+  const target: CursorTarget = !live?.text || phase === 'waiting' || phase === 'thinking' ? { kind: 'first' }
+    : phase === 'writing' ? { kind: 'latest' }
+    : { kind: 'match', pattern: phase === 'checking' ? /기능|Features/ : /요구사항|Requirements/ };
+  const cursor = <AgentCursor rootRef={page} target={target} label={`Seedup · ${t(CURSOR_LABELS[phase][0], CURSOR_LABELS[phase][1])}`} tick={live?.text.length ?? 0} />;
   return (
     <div className="rise-in max-w-[52em]" role="status" aria-live="polite" aria-busy="true">
       {/* The title stays where the draft had it, so starting to write does not move the page. */}
@@ -155,7 +173,8 @@ export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; 
       </div>
       {live?.restarted && <p className="mt-2 text-[13px] text-muted">{t('첫 모델이 답하지 않아 다른 모델로 다시 쓰고 있습니다.', 'The first model did not answer, so another one is writing it again.')}</p>}
       {live?.text ? (
-        <div className="mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-4 [&_.article-markdown]:text-[15px]">
+        <div ref={page} className="relative mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-4 [&_.article-markdown]:text-[15px]">
+          {cursor}
           {/* The renderer knows ## and ### only; the PRD opens with "# 한 줄 요약". */}
           <MarkdownContent content={live.text.replace(/^# /gm, '## ')} />
         </div>
@@ -163,10 +182,11 @@ export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; 
         <>
           <p className="mt-3 text-[13px] text-muted">{phase === 'thinking' ? t('무료 모델은 쓰기 전에 잠시 생각합니다. 글이 나오기 시작하면 여기에 바로 보입니다.', 'Free models think for a while before writing. The text shows up here as soon as it starts.') : t('곧 문서가 여기에 쓰이기 시작합니다.', 'The document will start appearing here shortly.')}</p>
           {/* The outline of what is coming, in the place the text will fill, instead of an empty page. */}
-          <div aria-hidden="true" className="mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-5">
+          <div ref={page} aria-hidden="true" className="relative mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-5">
+            {cursor}
             {[t('한 줄 요약', 'Summary'), t('배경', 'Background'), t('요구사항', 'Requirements'), t('기능', 'Features')].map((heading) => (
               <div key={heading} className="mb-5 last:mb-0">
-                <p className="text-[15px] font-semibold text-muted">{heading}</p>
+                <p data-cursor-stop className="text-[15px] font-semibold text-muted">{heading}</p>
                 <div className="mt-2.5 h-3 w-full animate-pulse rounded bg-surface-mid motion-reduce:animate-none" />
                 <div className="mt-2 h-3 w-4/5 animate-pulse rounded bg-surface-mid motion-reduce:animate-none" />
               </div>

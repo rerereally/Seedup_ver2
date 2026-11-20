@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import { featureContribution, goalChange, goalSummary, linkSpecToGoal, unlinkedItems } from '../lib/supervisor/goal';
-import { hookBundle, hookSettings } from '../lib/supervisor/hook-bundle';
+import { codexHookSettings, hookBundle, hookSettings } from '../lib/supervisor/hook-bundle';
 import { humanTasks } from '../lib/supervisor/human-queue';
 import type { ProjectGoal, SuccessCriterion } from '../lib/supervisor/types';
 
@@ -81,23 +81,174 @@ test('human tasks come first with key names only, then open decisions', () => {
   assert.deepEqual(tasks.map((task) => task.id), ['H-1', 'H-2', 'H-3', 'H-4']);
 });
 
-test('hook bundle: goal file, settings for start/resume/compact and stop, and refuses an unsafe key', () => {
+function writeBundle(dir: string, projectKey = goal.projectKey, tasks = humanTasks(spec)) {
+  const files = hookBundle(projectKey, goal, tasks);
+  for (const file of files) {
+    mkdirSync(join(dir, file.path, '..'), { recursive: true });
+    writeFileSync(join(dir, file.path), file.content);
+  }
+  return files;
+}
+
+function initGitRepo(dir: string) {
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
+  execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: dir });
+}
+
+function runHookCommand(command: string, opts: { cwd: string; input?: string; env?: NodeJS.ProcessEnv }) {
+  const prefix = 'node -e "';
+  assert.ok(command.startsWith(prefix) && command.endsWith('"'), `unexpected command shape: ${command}`);
+  const code = command.slice(prefix.length, -1);
+  return spawnSync(process.execPath, ['-e', code], {
+    cwd: opts.cwd,
+    input: opts.input ?? '',
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PROJECT_DIR: '', ...opts.env },
+  });
+}
+
+test('hook bundle: goal file, Node runner, Claude and Codex configs with full matchers, /hooks notice and key validation', () => {
   const files = hookBundle(goal.projectKey, goal, humanTasks(spec));
-  assert.deepEqual(files.map((file) => file.path), ['.seedup/goal.md', '.seedup/session-start.sh', '.seedup/stop.sh', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json']);
+  assert.deepEqual(
+    files.map((file) => file.path),
+    ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json'],
+  );
   assert.match(files[0].content, /get_next_task/);
   assert.match(files[0].content, /SUPABASE_SECRET_KEY/);
-  assert.equal(hookSettings().hooks.SessionStart[0].matcher, 'startup|resume|compact');
+  assert.match(files[0].content, /\/hooks/);
+  assert.match(files[0].content, /Windows/);
+
+  const claude = hookSettings();
+  const codex = codexHookSettings();
+  assert.equal(claude.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact|fork');
+  assert.equal(claude.hooks.PreCompact[0].matcher, 'manual|auto');
+  assert.equal('matcher' in claude.hooks.Stop[0], false);
+  assert.deepEqual(JSON.parse(files[4].content), claude);
+
+  assert.equal(codex.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact|fork');
+  assert.equal(codex.hooks.PreCompact[0].matcher, 'manual|auto');
+  assert.equal('matcher' in codex.hooks.Stop[0], false);
+  assert.deepEqual(JSON.parse(files[5].content), codex);
+
+  // Hook commands run via Node without sh or shell-dependent expansion characters so Windows cmd/PowerShell/sh share one command.
+  for (const command of [
+    claude.hooks.SessionStart[0].hooks[0].command,
+    claude.hooks.PreCompact[0].hooks[0].command,
+    claude.hooks.Stop[0].hooks[0].command,
+    codex.hooks.SessionStart[0].hooks[0].command,
+    codex.hooks.PreCompact[0].hooks[0].command,
+    codex.hooks.Stop[0].hooks[0].command,
+  ]) {
+    assert.ok(command.startsWith('node -e "'));
+    assert.doesNotMatch(command, /[$%`\\!]/);
+  }
   assert.throws(() => hookBundle("x'; rm -rf ~", goal));
 });
 
-test('stop hook blocks once on uncommitted work, then lets the stop through', { skip: process.platform === 'win32' }, () => {
-  const dir = mkdtempSync(join(tmpdir(), 'seedup-hook-'));
-  const stop = hookBundle(goal.projectKey, goal).find((file) => file.path === '.seedup/stop.sh')!;
-  writeFileSync(join(dir, 'stop.sh'), stop.content);
-  execFileSync('git', ['init', '-q'], { cwd: dir });
-  const run = (input: string) => execFileSync('sh', ['stop.sh'], { cwd: dir, input }).toString();
-  const first = JSON.parse(run('{"stop_hook_active":false}')) as { decision: string; reason: string };
+test('SessionStart and PreCompact resolve the project root from a subdirectory or stdin cwd without sh', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'seedup-hook-root-'));
+  const outside = mkdtempSync(join(tmpdir(), 'seedup-hook-outside-'));
+  const sub = join(dir, 'packages', 'web', 'src');
+  mkdirSync(sub, { recursive: true });
+  writeBundle(dir);
+  initGitRepo(dir);
+
+  const claude = hookSettings();
+  const codex = codexHookSettings();
+
+  // Launched from a nested subdirectory with no CLAUDE_PROJECT_DIR (Codex path).
+  const startFromSub = runHookCommand(codex.hooks.SessionStart[0].hooks[0].command, {
+    cwd: sub,
+    input: JSON.stringify({ source: 'clear', cwd: sub, hook_event_name: 'SessionStart' }),
+  });
+  assert.equal(startFromSub.status, 0);
+  assert.match(startFromSub.stdout, /Renters never miss rent/);
+
+  // Launched from outside the repo, locating root via stdin JSON cwd.
+  const startFromOutside = runHookCommand(claude.hooks.SessionStart[0].hooks[0].command, {
+    cwd: outside,
+    input: JSON.stringify({ source: 'fork', cwd: sub, hook_event_name: 'SessionStart' }),
+  });
+  assert.equal(startFromOutside.status, 0);
+  assert.match(startFromOutside.stdout, /Renters never miss rent/);
+
+  // Missing .seedup/hook.mjs exits cleanly with a helpful notice on SessionStart.
+  const missingHook = runHookCommand(claude.hooks.SessionStart[0].hooks[0].command, {
+    cwd: outside,
+    input: JSON.stringify({ source: 'startup', cwd: outside, hook_event_name: 'SessionStart' }),
+  });
+  assert.equal(missingHook.status, 0);
+  assert.match(missingHook.stdout, /\.seedup\/hook\.mjs/);
+
+  // Real shell invocation of the exact settings.json command string (verifies quoting end-to-end on Unix).
+  if (process.platform !== 'win32') {
+    const viaShell = spawnSync('sh', ['-c', claude.hooks.SessionStart[0].hooks[0].command], {
+      cwd: sub,
+      input: JSON.stringify({ source: 'compact', cwd: sub, hook_event_name: 'SessionStart' }),
+      encoding: 'utf8',
+    });
+    assert.equal(viaShell.status, 0, viaShell.stderr);
+    assert.match(viaShell.stdout, /Renters never miss rent/);
+  }
+
+  // PreCompact reminds the agent to call save_handoff using valid universal hook JSON.
+  const preCompact = runHookCommand(codex.hooks.PreCompact[0].hooks[0].command, {
+    cwd: sub,
+    input: JSON.stringify({ trigger: 'auto', cwd: sub, hook_event_name: 'PreCompact' }),
+  });
+  assert.equal(preCompact.status, 0);
+  const compactOut = JSON.parse(preCompact.stdout) as { continue: boolean; systemMessage: string };
+  assert.equal(compactOut.continue, true);
+  assert.match(compactOut.systemMessage, /save_handoff/);
+  assert.match(compactOut.systemMessage, new RegExp(goal.projectKey));
+});
+
+test('Stop hook parses stop_hook_active structurally, catches upstream-less commits, and stays silent when pushed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'seedup-hook-stop-'));
+  const remote = mkdtempSync(join(tmpdir(), 'seedup-hook-remote-'));
+  const sub = join(dir, 'apps', 'api');
+  mkdirSync(sub, { recursive: true });
+  writeBundle(dir);
+  initGitRepo(dir);
+  execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+  execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: dir });
+
+  const stopCmd = hookSettings().hooks.Stop[0].hooks[0].command;
+  const runStop = (input: string, cwd = sub) => runHookCommand(stopCmd, { cwd, input });
+
+  // 1. Dirty worktree blocks once; a string mention inside last_assistant_message must NOT bypass structural parsing.
+  const spoofed = JSON.stringify({
+    cwd: sub,
+    stop_hook_active: false,
+    last_assistant_message: 'Earlier text mentioned "stop_hook_active":true as an example.',
+  });
+  const first = JSON.parse(runStop(spoofed).stdout) as { decision: string; reason: string };
   assert.equal(first.decision, 'block');
   assert.match(first.reason, /save_handoff/);
-  assert.equal(run('{"stop_hook_active":true}'), '');
+
+  // 2. Formatted multiline JSON with stop_hook_active: true allows the retry through without looping.
+  const multilineActive = '{\n  "cwd": ' + JSON.stringify(sub) + ',\n  "stop_hook_active" :\n    true\n}';
+  assert.equal(runStop(multilineActive).stdout, '');
+
+  // 3. Clean tree with a local commit on a branch that has NO upstream is still treated as unpushed.
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['commit', '-q', '-m', 'local only commit'], { cwd: dir });
+  const unpushedNoUpstream = JSON.parse(runStop(JSON.stringify({ cwd: sub, stop_hook_active: false })).stdout) as { decision: string; reason: string };
+  assert.equal(unpushedNoUpstream.decision, 'block');
+  assert.match(unpushedNoUpstream.reason, /save_handoff/);
+
+  // 4. Once pushed to origin with upstream tracking, a clean branch passes silently.
+  const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+  execFileSync('git', ['push', '-q', '-u', 'origin', branch], { cwd: dir });
+  assert.equal(runStop(JSON.stringify({ cwd: sub, stop_hook_active: false })).stdout, '');
+
+  // 5. A fresh local branch without upstream at the same commit as origin/<branch> does NOT false-alarm; one new commit DOES block.
+  execFileSync('git', ['checkout', '-q', '-b', 'feat/no-upstream'], { cwd: dir });
+  assert.equal(runStop(JSON.stringify({ cwd: sub, stop_hook_active: false })).stdout, '');
+  writeFileSync(join(dir, 'extra.txt'), 'work\n');
+  execFileSync('git', ['add', 'extra.txt'], { cwd: dir });
+  execFileSync('git', ['commit', '-q', '-m', 'unpushed feature commit'], { cwd: dir });
+  const featureUnpushed = JSON.parse(runStop(JSON.stringify({ cwd: sub, stop_hook_active: false })).stdout) as { decision: string };
+  assert.equal(featureUnpushed.decision, 'block');
 });

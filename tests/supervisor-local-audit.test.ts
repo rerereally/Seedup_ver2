@@ -49,9 +49,11 @@ test('the local script finds exactly what auditDiff finds, on every rule', { ski
   assert.ok(!blocked.stdout.includes(fakeKey), 'the script never prints the secret');
 });
 
-test('pre-commit stops a staged secret and lets a clean commit through', { skip: !unix }, () => {
+test('pre-commit stops a staged secret and lets a clean commit through from repo root or a subdirectory', () => {
   const goal: ProjectGoal = { projectKey: 'demo', version: 1, track: 'personal', statement: 's', criteria: [], inScope: [], outOfScope: [], lockedAt: '', changeReason: null };
   const dir = mkdtempSync(join(tmpdir(), 'seedup-precommit-'));
+  const sub = join(dir, 'packages', 'app');
+  mkdirSync(sub, { recursive: true });
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
   git('init', '-q');
   for (const file of hookBundle('demo', goal)) {
@@ -59,13 +61,20 @@ test('pre-commit stops a staged secret and lets a clean commit through', { skip:
     writeFileSync(join(dir, file.path), file.content);
     if (file.executable) chmodSync(join(dir, file.path), 0o755);
   }
-  const preCommit = () => spawnSync('sh', ['.seedup/pre-commit.sh'], { cwd: dir, encoding: 'utf8' });
+  const nodePreCommit = (cwd: string) => spawnSync(process.execPath, [join(dir, '.seedup/hook.mjs'), 'pre-commit'], { cwd, encoding: 'utf8' });
+  const shPreCommit = (cwd: string) => spawnSync('sh', [join(dir, '.seedup/pre-commit.sh')], { cwd, encoding: 'utf8' });
   writeFileSync(join(dir, 'ok.ts'), 'export const n = 1;\n');
   git('add', 'ok.ts');
-  assert.equal(preCommit().status, 0);
+  assert.equal(nodePreCommit(sub).status, 0);
+  if (unix) assert.equal(shPreCommit(sub).status, 0);
   writeFileSync(join(dir, 'leak.ts'), `export const key = '${fakeKey}';\n`);
   git('add', 'leak.ts');
-  const result = preCommit();
-  assert.equal(result.status, 1);
-  assert.match(result.stdout, /SEC_SECRET_LEAK leak\.ts:1/);
+  const nodeResult = nodePreCommit(sub);
+  assert.equal(nodeResult.status, 1);
+  assert.match(nodeResult.stdout, /SEC_SECRET_LEAK leak\.ts:1/);
+  if (unix) {
+    const shResult = shPreCommit(sub);
+    assert.equal(shResult.status, 1);
+    assert.match(shResult.stdout, /SEC_SECRET_LEAK leak\.ts:1/);
+  }
 });

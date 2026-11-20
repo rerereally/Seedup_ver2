@@ -133,8 +133,9 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   assert.equal(result.features[0].verification, 'self_reported');
   assert.equal(result.drift, null);
   assert.equal(result.decisions[0].title, '범위 축소');
-  assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/session-start.sh', '.seedup/stop.sh', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json']);
+  assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json']);
   assert.ok(result.files[0].content.includes(goal.statement));
+  assert.ok(JSON.parse(result.files[4].content).hooks.SessionStart);
   assert.ok(JSON.parse(result.files[5].content).hooks.SessionStart);
   const list = await supervisorList(client, USER);
   assert.ok(list.some((row) => row.key === KEY && row.criteriaMet === 1));

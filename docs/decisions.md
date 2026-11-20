@@ -14,9 +14,9 @@
 
 ## 2026-11-20 Antigravity 지원 중단, server.ts 나누기 보류, 머지 경합은 merge queue 희망
 
-- 결정: (1) Antigravity를 Seedup의 지원 대상(클라이언트 호환 · 훅 어댑터 · 실제 연결 확인 · 실제 프로젝트 3번)과 팀 작업 도구에서 뺀다. `developed_with`는 `codex` · `claude-code`만 받고 확장하지 않는다. (2) `lib/mcp/server.ts` 나누기는 실제 프로젝트 검증 뒤로 미룬다. (3) 머지 경합은 merge queue로 막는다. 저장소가 개인 계정 소유라 merge queue를 쓸 수 없으므로 GitHub 조직으로 옮긴다(해커톤 발표 뒤, 실행 정지훈).
+- 결정: (1) Antigravity를 Seedup의 지원 대상(클라이언트 호환 · 훅 어댑터 · 실제 연결 확인 · 실제 프로젝트 3번)과 팀 작업 도구에서 뺀다. `developed_with`는 `codex` · `claude-code`만 받고 확장하지 않는다. (2) `lib/mcp/server.ts` 나누기는 실제 프로젝트 검증 뒤로 미룬다. (3) 머지 경합은 merge queue로 막기를 원했으나, 저장소가 개인 계정 소유라 쓸 수 없고 조직으로 옮기지도 않는다. 브랜치 보호로 대신할지는 결정 대기.
 - 이유: Antigravity는 팀이 쓰지 않고, 훅 형식이 달라 어댑터와 계열 입력이 따로 필요해 핵심 고리 대비 비용이 크다. 파일 나누기는 실제 사용 흐름을 본 뒤가 덜 낭비다.
-- 버린 대안: `developed_with`에 `antigravity` 값 추가, 개발 모델 계열을 직접 받는 입력, 지금 `server.ts` 나누기, 개인 저장소에 브랜치 보호(최신 필수)만 켜기(머지마다 브랜치 업데이트를 눌러야 함).
+- 버린 대안: `developed_with`에 `antigravity` 값 추가, 개발 모델 계열을 직접 받는 입력, 지금 `server.ts` 나누기, 저장소를 GitHub 조직으로 옮기기(배포 · Secrets · 주소 재확인 부담).
 - 누가: 장차희(계획 세션, Claude Code)
 - 남은 것: 웹 MCP 연동 화면(`lib/mcp/clients.ts`)의 Antigravity 설치 안내를 뺄지는 따로 정함(사용자 화면 변경)
 

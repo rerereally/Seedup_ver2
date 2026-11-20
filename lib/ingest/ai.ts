@@ -7,7 +7,6 @@ export type * from './ai-types';
 export { analyzePaper } from './ai-paper';
 export { generateProjectIdea } from './ai-project';
 export { generateArticleDraft, validateArticleLinks, validateGeneratedArticleDraft } from './ai-article';
-export { evaluateIdea, applyIdeaEvidencePolicy } from './ai-idea';
 export { answerArticleQuestion } from './ai-qa';
 
 const REPO_ANALYSIS_JSON_SCHEMA = {

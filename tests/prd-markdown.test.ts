@@ -3,7 +3,7 @@ import test from 'node:test';
 import { ownEvidence } from '../lib/opportunities/idea';
 import { citedQuotes, parsePrdMarkdown, prdGlance } from '../lib/opportunities/prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from '../lib/opportunities/prd-prompt';
-import { normalizeQuestions } from '../lib/opportunities/questions';
+import { normalizeClarity, normalizeQuestions } from '../lib/opportunities/questions';
 import { normalizeSpec, renderSpecMarkdown } from '../lib/opportunities/spec';
 import { publicEvidence } from '../lib/opportunities/types';
 
@@ -136,4 +136,11 @@ test('a saved PRD reads back as requirement lines and a feature count for its th
   assert.equal(glance?.features, 2);
   assert.equal(prdGlance(null), null);
   assert.equal(prdGlance('그냥 메모'), null);
+});
+
+test('normalizeClarity keeps only who, problem and how, and drops the suggestion when nothing is missing', () => {
+  assert.deepEqual(normalizeClarity({ missing: ['how', 'who', 'budget', 'who'], suggestion: '  예시  문장 ' }), { missing: ['who', 'how'], suggestion: '예시 문장' });
+  assert.deepEqual(normalizeClarity({ missing: [], suggestion: '쓸모없는 제안' }), { missing: [], suggestion: '' });
+  assert.equal(normalizeClarity({ suggestion: 'x' }), null);
+  assert.equal(normalizeClarity(null), null);
 });

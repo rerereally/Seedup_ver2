@@ -60,7 +60,7 @@ export default function ModelPicker({ models }: { models: PrdModel[] }) {
       <select value={current} onChange={(event) => choose(event.target.value)} className="h-10 min-w-0 max-w-[22rem] border bg-white px-2.5 text-sm text-ink">
         {models.map((row) => (
           <option key={row.id} value={row.id} disabled={!row.available}>
-            {row.label}, {row.available ? row.note : row.reason ?? t('지금은 쓸 수 없음', 'not available now')}
+            {row.base ? t('기본 무료 모델', 'Default free model') : `${row.label} (${row.free ? t('무료', 'free') : t('유료', 'paid')})`}
           </option>
         ))}
       </select>

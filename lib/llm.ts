@@ -503,12 +503,6 @@ export function getPreprocessModels() {
   return isFreeOpenRouterModel(writingModels[0]) ? writingModels : [DEFAULT_PREPROCESS_MODEL];
 }
 
-export function getIdeaEvaluationModels() {
-  // Keep an interactive request bounded: the primary writing model plus one
-  // configured fallback. callOpenRouter tries them sequentially.
-  return getWritingModels().slice(0, 2);
-}
-
 export function parseJsonResponse<T>(content: string) {
   // Log a short preview when parsing fails to help debugging without dumping the full model output.
   // Strip markdown code fences (```json ... ``` or ``` ... ```)

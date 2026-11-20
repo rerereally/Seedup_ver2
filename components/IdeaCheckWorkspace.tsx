@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { EvaluationPanel, normalizeEvaluation } from '@/components/IdeaEvaluation';
-import type { RecentIdea } from '@/components/IdeaEvaluation';
 import { useLang } from '@/components/LangProvider';
 import ValidationReportPanel from '@/components/ValidationReportPanel';
 import WorkSplit, { Bubble, ChatInput, showInResult } from '@/components/WorkSplit';
@@ -17,29 +15,20 @@ const EXAMPLES = [
 ] as const;
 const chip = 'min-h-10 max-w-full rounded-2xl border border-outline-soft bg-white px-3.5 py-2 text-left text-[13px] leading-5 text-tertiary hover:border-outline-strong hover:text-ink';
 
-export default function IdeaCheckWorkspace({ initialIdea, previous, recent, signedIn }: {
-  initialIdea: string;
-  previous: RecentIdea | null;
-  recent: Array<Pick<RecentIdea, 'id' | 'idea_text' | 'score'>>;
-  signedIn: boolean;
-}) {
+export default function IdeaCheckWorkspace({ initialIdea, signedIn }: { initialIdea: string; signedIn: boolean }) {
   const t = translator(useLang());
   const [idea, setIdea] = useState(initialIdea);
   const [ran, setRan] = useState(false);
-  const [keepPrevious, setKeepPrevious] = useState(true);
   const valid = idea.trim().length >= 4;
   const here = (text: string) => `/prd/validate?idea=${encodeURIComponent(text)}`;
-  const saved = keepPrevious ? previous : null;
-  const otherRecent = recent.filter((item) => item.id !== saved?.id);
 
   const selectIdea = (text: string) => {
-    if (text === idea && !saved) {
+    if (text === idea) {
       showInResult('check-report');
       return;
     }
     setIdea(text);
     setRan(false);
-    setKeepPrevious(false);
     window.history.replaceState(null, '', text ? here(text) : '/prd/validate');
     if (text.length >= 4) showInResult('check-report');
   };
@@ -71,21 +60,6 @@ export default function IdeaCheckWorkspace({ initialIdea, previous, recent, sign
           </div>
         </Bubble>
       )}
-      {otherRecent.length > 0 && (
-        <Bubble role="assistant">
-          <p className="text-[13px] text-muted">{t('저장된 AI 참고 평가', 'Saved AI assessments')}</p>
-          <ul className="rows mt-1">
-            {otherRecent.map((item) => (
-              <li key={item.id}>
-                <Link href={`/prd/validate?evaluation=${encodeURIComponent(item.id)}`} className="group flex items-baseline gap-3 py-2.5 text-sm">
-                  <span className="line-clamp-1 min-w-0 flex-1 text-ink group-hover:underline">{item.idea_text}</span>
-                  <span className="num shrink-0 text-muted">{item.score ?? '–'}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Bubble>
-      )}
     </>
   );
 
@@ -98,12 +72,8 @@ export default function IdeaCheckWorkspace({ initialIdea, previous, recent, sign
       result={(
         <div className="mx-auto grid max-w-[1000px] gap-6">
           {valid ? <div id="check-report" className="scroll-mt-6">
-            <ValidationReportPanel key={idea} idea={idea} isLoggedIn={signedIn} onComplete={() => setRan(true)} />
+            <ValidationReportPanel key={idea} idea={idea} isLoggedIn={signedIn} onComplete={() => setRan(true)} onUseIdea={selectIdea} />
           </div> : <p className="rounded-xl border border-dashed border-outline-strong p-6 text-sm text-muted">{t('아이디어를 한 줄로 적으면 검증을 시작할 수 있습니다.', 'Enter an idea to start validation.')}</p>}
-          {saved && <details className="rounded-xl border border-outline-soft p-4">
-            <summary className="cursor-pointer font-semibold">{t('저장된 AI 평가 보기 (참고)', 'View saved AI assessment (reference)')}</summary>
-            <EvaluationPanel run={{ id: saved.id, idea: saved.idea_text, saved: true, result: normalizeEvaluation(saved.result) }} />
-          </details>}
         </div>
       )}
       resultLabel={t('검증 결과', 'Validation result')}

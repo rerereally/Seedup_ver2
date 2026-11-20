@@ -1,5 +1,6 @@
 import { translator, type Lang } from '../i18n';
-import { isPromotion, isVerbatimQuote, meetsEvidenceBar } from './rules';
+import { isCutOffEvidenceQuote } from './quote-completeness';
+import { isPromotion, meetsEvidenceBar } from './rules';
 import type { BuildEstimate, Evidence, RawSignal, SupplyItem } from './types';
 import { safeSourceUrl } from './web';
 
@@ -17,6 +18,26 @@ const overlap = (group: Set<string>, words: Set<string>) => [...group].filter((t
 const OPPOSITION = /\b(?:no need|(?:do not|don't|don’t|does not|doesn't|doesn’t) need|not (?:needed|necessary|worth)|already (?:use|using|do|does|works?(?: for us)?)|works fine without)\b|필요\s*(?:없|하지 않)|이미\s+.+(?:쓰고|사용)/iu;
 const LIMITATION = /\b(?:only|limited to|does not support|doesn't support|no support for|unsupported)\b|만 지원|지원하지 않|미지원/iu;
 const sentences = (text: string) => text.split(/(?:\r?\n)+|(?<=[.!?。])\s+/u).map((line) => line.trim());
+
+const sentenceSegmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+
+function isCompleteEvidenceQuote(quote: string) {
+  const text = quote.trim();
+  return text.length >= 15 && !isCutOffEvidenceQuote(text) && /[.!?。！？]["'”’»）)\]}]*$/u.test(text);
+}
+
+export function isWholeSourceQuote(quote: string, source: string) {
+  if (!isCompleteEvidenceQuote(quote)) return false;
+  const segments = sentenceSegmenter.segment(source);
+  for (const { index, segment } of segments) {
+    const start = index + segment.length - segment.trimStart().length;
+    if (!source.startsWith(quote, start)) continue;
+    const end = start + quote.length;
+    const last = segments.containing(end - 1);
+    if (last && last.index + last.segment.trimEnd().length === end) return true;
+  }
+  return false;
+}
 
 export function compareRivalListings(phrases: string[], found: Array<Omit<SupplyItem, 'relation'>>): SupplyItem[] {
   const groups = termGroups(phrases);
@@ -40,10 +61,14 @@ export function counterQuotesFrom(phrases: string[], posts: Array<Omit<RawSignal
   for (const post of posts) {
     const url = safeSourceUrl(post.url);
     if (!url || found.has(url.href) || isPromotion(post)) continue;
-    const source = `${post.title}\n${post.text}`;
-    const quote = sentences(source).find((line) => line.length >= 16 && line.length <= 280 && OPPOSITION.test(line)
-      && groups.some((group) => overlap(group, terms(`${post.title} ${line}`)) >= 2)
-      && isVerbatimQuote(line, source));
+    const quote = [post.title, post.text]
+      .flatMap((source) => Array.from(sentenceSegmenter.segment(source), ({ segment }) => segment.trim()))
+      .find((line) => {
+        if (line.length < 16 || line.length > 280 || !isCompleteEvidenceQuote(line) || !OPPOSITION.test(line)) return false;
+        const quoteWords = terms(line);
+        const contextualWords = terms(`${post.title} ${line}`);
+        return groups.some((group) => overlap(group, quoteWords) > 0 && overlap(group, contextualWords) >= 2);
+      });
     if (quote) found.set(url.href, { platform: post.platform, url: url.href, quote });
     if (found.size >= 4) break;
   }

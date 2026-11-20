@@ -245,3 +245,56 @@ test('pasted-link quotes are shared only from public developer and Q&A sites', a
   const row = (platform: 'github' | 'stackexchange' | 'web' | 'forum') => ({ id: `lv_${platform}`, platform, quote: 'q', quoteKo: '', url: 'u', score: 0, postedAt: null });
   assert.deepEqual(shareableLinkQuotes([row('github'), row('web'), row('stackexchange'), row('forum')]).map((item) => item.platform), ['github', 'stackexchange']);
 });
+
+test('fresh evidence needs a literal whole sentence from one source field', async () => {
+  const cut = "I've repeatedly hit the same failure mode: at any moment, it's hard to answer";
+  const full = `${cut} which agent changed my project settings.`;
+  const title = 'Context after restart';
+  const post = { ...postA('github', 10), title, text: `${full} I have to trace each change by hand.` };
+  const { sources, calls } = fakeSources({
+    phrase: phraseAnswer(['agent settings history']),
+    demand: () => [post],
+    pick: () => ({ quotes: [
+      { id: 0, quote: cut, quote_ko: 'truncated translation' },
+      { id: 0, quote: "at any moment, it's hard to answer which agent changed my project settings." },
+      { id: 0, quote: `${title} ${full}` },
+      { id: 0, quote: `${cut} which agent changed my project settings!` },
+      { id: 0, quote: full, quote_ko: '프로젝트 설정을 바꾼 에이전트를 알아내기 어렵다.' },
+    ] }),
+  });
+  const result = await searchIdeaEvidence(IDEA, {}, sources);
+  assert.deepEqual(result.quotes.map(({ quote, quoteKo }) => [quote, quoteKo]), [[full, '프로젝트 설정을 바꾼 에이전트를 알아내기 어렵다.']]);
+  assert.deepEqual(calls.save[0][0], result.quotes);
+});
+
+test('legacy evidence drops visible truncation and keeps complete unpunctuated excerpts', async () => {
+  const quotes = [
+    "I've repeatedly hit the same failure mode: at any moment, it's hard to answer",
+    'The two laptops keep losing the draft,',
+    'The two laptops keep losing the draft...',
+    'The two laptops keep losing the draft',
+  ];
+  const stored: FakeStored[] = quotes.map((quote, index) => ({
+    id: `saved-${index}`, platform: 'hn', quote, quoteKo: '', url: `https://example.com/${index}`, score: 3, postedAt: null, terms: ['draft'],
+  }));
+  const { sources } = fakeSources({
+    phrase: phraseAnswer(['laptop draft loss']),
+    stored,
+    pick: (prompt) => {
+      for (const cut of quotes.slice(0, 3)) assert.ok(!prompt.includes(cut));
+      return { quotes: [{ id: 0, quote: quotes[3] }] };
+    },
+  });
+  const result = await searchIdeaEvidence(IDEA, {}, sources);
+  assert.deepEqual(result.quotes.map(({ id, quote }) => [id, quote]), [['saved-3', quotes[3]]]);
+  assert.equal(result.reused, 1);
+});
+
+test('demand searches take the first three distinct plain phrases after normalization', async () => {
+  const { sources, calls } = fakeSources({
+    phrase: phraseAnswer(['  draft   loss ', 'DRAFT LOSS', 'lost OR draft', 'repo:seedup drafts', 'old search', 'sync draft history', 'restore laptop notes', 'ignored fourth phrase']),
+  });
+  const result = await searchIdeaEvidence(IDEA, { avoid: [' old   SEARCH '] }, sources);
+  assert.deepEqual(result.phrases, ['draft loss', 'sync draft history', 'restore laptop notes']);
+  assert.deepEqual(calls.demand.map(({ phrase }) => phrase), result.phrases);
+});

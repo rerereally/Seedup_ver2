@@ -1,10 +1,8 @@
-## 계획 문서의 어느 칸인가
-
-<!-- docs/supervisor-plan.md의 단계 · 에이전트 칸 또는 11절 묶음. 예: 단계 1 B1, 묶음 D2 -->
-
-## 무엇을 바꿨나
+## 무엇을 왜 바꿨나
 
 -
+
+<!-- 계획 칸(예: 단계 1 B1)이 있으면 적고, 없으면 지워도 됩니다. 바꾼 동작 때문에 틀려진 문서(status.md, README.md 등)도 같이 고쳤는지 적어 주세요. -->
 
 ## 확인한 것
 
@@ -21,4 +19,4 @@
 ## 공용 파일
 
 - [ ] 건드리지 않음
-- [ ] 건드림(상대에게 알림): `Header.tsx` / `README.md` / `schema-manifest.json` / `lib/llm.ts` / `lib/mcp/server.ts`
+- [ ] 건드림(상대에게 알림): `Header.tsx` / `schema-manifest.json` / `lib/llm.ts` / `lib/mcp/server.ts`

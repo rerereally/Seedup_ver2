@@ -1,6 +1,6 @@
 # Codex 시작 프롬프트: 단계 2 B2 (최소 `/supervisor` 대시보드 · `/agents` 스타터 팩)
 
-계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 6.2 모델은 이 계정의 Codex CLI에서 쓸 수 없어 6.1 Sol로 실행했습니다. 리뷰 · 머지는 정지훈. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 2 B2, 설계는 2-2 · 3-1 · 3-2 · 3-6 · 3-11절.
+계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 6.2 모델은 이 계정의 Codex CLI에서 쓸 수 없어 6.1 Sol로 실행했습니다. 리뷰 · 머지는 정지훈. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 2 B2, 설계는 2-2 · 3-1 · 3-2 · 3-6 · 3-11절.
 
 ## 실행 방식
 

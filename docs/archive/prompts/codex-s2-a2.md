@@ -1,6 +1,6 @@
 # Codex 시작 프롬프트: 단계 2 A2 (`verify_feature`를 서버 검증에 연결, 완료 게이트)
 
-담당 정지훈 · Codex. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 2 A2, 설계는 1절 결정 표(검증 방식 · 판정 위치 · 승인 · 게이트 · 모델) · 3-4 · 3-6절, 화면 · 응답 기준은 [DESIGN.md](../../DESIGN.md) 8절. 관련 결정은 [decisions.md](../decisions.md)의 "검증 모델: GPT 6.2 Sol · Haiku 5.5", "DESIGN.md 8.5".
+담당 정지훈 · Codex. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 2 A2, 설계는 1절 결정 표(검증 방식 · 판정 위치 · 승인 · 게이트 · 모델) · 3-4 · 3-6절, 화면 · 응답 기준은 [DESIGN.md](../../../DESIGN.md) 8절. 관련 결정은 [decisions.md](../../decisions.md)의 "검증 모델: GPT 6.2 Sol · Haiku 5.5", "DESIGN.md 8.5".
 
 ## 시작 전에 사람이 확인할 것
 

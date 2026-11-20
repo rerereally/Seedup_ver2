@@ -1,6 +1,6 @@
 # Antigravity 시작 프롬프트: 단계 2 A3 (불량 diff · 규칙별 오탐률 · 데모)
 
-담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 2 A3, 설계는 3-5절(정적 검사와 오탐 줄이기), 숫자 원칙은 1절 "숫자: 실측값만".
+담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 2 A3, 설계는 3-5절(정적 검사와 오탐 줄이기), 숫자 원칙은 1절 "숫자: 실측값만".
 
 ## 시작 전에 사람이 확인할 것
 

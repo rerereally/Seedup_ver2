@@ -1,6 +1,6 @@
 # Antigravity 시작 프롬프트: 단계 1 A3 (기준 측정 · 발표 서사)
 
-담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 1 A3, 확인할 것은 9절 마지막 줄("운영 PRD에서 `goals` · `nonGoals` · `metrics`가 실제로 채워지는 비율")입니다.
+담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 1 A3, 확인할 것은 9절 마지막 줄("운영 PRD에서 `goals` · `nonGoals` · `metrics`가 실제로 채워지는 비율")입니다.
 
 ## 시작 전에 사람이 확인할 것
 

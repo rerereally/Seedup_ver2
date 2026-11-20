@@ -1,6 +1,6 @@
 # Codex 시작 프롬프트: 단계 2 B1 (서버 검증 단순형)
 
-계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 리뷰 · 머지는 정지훈(마이그레이션 포함이라 정지훈이 직접 머지하고 운영 DB에 적용). 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 2 B1, 설계는 1절 결정 표 · 3-4 · 3-5 · 3-6절, 결정은 [decisions.md](../decisions.md)의 "0-4(A안)".
+계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 리뷰 · 머지는 정지훈(마이그레이션 포함이라 정지훈이 직접 머지하고 운영 DB에 적용). 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 2 B1, 설계는 1절 결정 표 · 3-4 · 3-5 · 3-6절, 결정은 [decisions.md](../../decisions.md)의 "0-4(A안)".
 
 ## 실행 방식
 

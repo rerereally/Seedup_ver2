@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createClient } from '@supabase/supabase-js';
-import { lockProjectGoal, readGoalInput, recheckForGoalChange } from '../lib/db/project-goals';
+import { lockProjectGoal, readGoalInput, recheckForGoalChange, userProjectGoals } from '../lib/db/project-goals';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import type { ProjectGoal } from '../lib/supervisor/types';
 import { addProjectMemory } from '../lib/db/project-memory';
@@ -65,6 +65,51 @@ test('a goal body is refused when a field is missing, out of range or the wrong 
   assert.ok(refused({ ...valid, inScope: [1] }));
   assert.ok(refused({ ...valid, changeReason: 3 }));
   assert.ok(refused({ ...valid, changeReason: 'a'.repeat(501) }));
+  assert.ok(refused({ ...valid, criteria: [{ ...valid.criteria[0], featureIds: ['R-01'] }, valid.criteria[1]] }));
+  assert.ok(refused({ ...valid, criteria: [{ ...valid.criteria[0], featureIds: null }, valid.criteria[1]] }));
+});
+
+test('a personal PRD with a related opportunity keeps confirmed links to hypothesis features', async (t) => {
+  const env = {
+    NEXT_PUBLIC_SUPABASE_URL: 'https://supabase.invalid',
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-public-key',
+    SUPABASE_SECRET_KEY: 'test-secret-key',
+  };
+  for (const [key, value] of Object.entries(env)) {
+    const previous = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
+  }
+  let saved: Record<string, unknown> | undefined;
+  supabase(t, (url, body) => {
+    if (url.pathname.endsWith('/rpc/lock_project_goal')) {
+      const input = body as { p_criteria: unknown };
+      saved = { project_key: `prd:${DOSSIER}`, version: 1, track: 'personal', statement: valid.statement,
+        criteria: input.p_criteria, in_scope: [], out_of_scope: [], change_reason: null, locked_at: '2026-11-20T09:00:00Z' };
+      return { json: saved };
+    }
+    assert.equal(url.searchParams.get('user_id'), `eq.${USER}`);
+    if (url.pathname.endsWith('/project_goals')) return { json: saved ? [saved] : [] };
+    assert.ok(url.pathname.endsWith('/evidence_dossiers'));
+    return { json: [{ id: DOSSIER, evidence: [], opportunity_slug: 'related-opportunity',
+      prd_markdown: '## 검증이 필요한 가설\n### H-01. 기록 저장\n## 기능\n### F-01. 기록하기 (H-01)' }] };
+  });
+  const project = await userProjectGoals(USER, `prd:${DOSSIER}`);
+  assert.ok(project && project !== 'unavailable');
+  const input = (featureIds: string[]) => readGoalInput({ ...valid, criteria: [
+    { ...valid.criteria[0], featureIds }, { ...valid.criteria[1], featureIds: [] },
+  ] });
+  const invalid = input(['F-99']);
+  assert.ok('goal' in invalid);
+  assert.equal(await project.lock(invalid.goal), 'invalid-feature-ids');
+  assert.equal(saved, undefined);
+
+  const confirmed = input(['F-01', 'F-01']);
+  assert.ok('goal' in confirmed);
+  const goal = await project.lock(confirmed.goal);
+  assert.ok(typeof goal !== 'string');
+  assert.deepEqual(goal.criteria.map((row) => row.featureIds), [['F-01'], []]);
+  assert.deepEqual(await project.current(), goal);
 });
 
 test('a prd: key resolves only when the saved PRD belongs to the signed-in user', async (t) => {

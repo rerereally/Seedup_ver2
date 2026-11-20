@@ -4,7 +4,7 @@
 export type ProjectKey = string; // '<slug>' | `prd:${string}`
 export type Track = 'personal' | 'launch';
 
-export type SuccessCriterion = { id: string; text: string; measure: string; status: 'open' | 'partial' | 'met' };
+export type SuccessCriterion = { id: string; text: string; measure: string; status: 'open' | 'partial' | 'met'; featureIds?: string[] };
 export type ProjectGoal = {
   projectKey: ProjectKey; version: number; track: Track;
   statement: string; criteria: SuccessCriterion[]; inScope: string[]; outOfScope: string[];

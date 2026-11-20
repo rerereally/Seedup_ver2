@@ -5,6 +5,7 @@ import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import type { Spec } from '@/lib/opportunities/spec';
 import { MAX_CRITERIA, MIN_CRITERIA, criterion, goalDraft, nextCriterionId, unlinkedItems, type GoalDraft } from './draft';
+import { linkSpecToGoal } from '@/lib/supervisor/goal';
 import { humanTasks } from '@/lib/supervisor/human-queue';
 import type { ProjectGoal, SuccessCriterion, Track } from '@/lib/supervisor/types';
 
@@ -72,6 +73,8 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
 
   const criteria = editing?.criteria ?? goal?.criteria;
   const unlinked = useMemo(() => unlinkedItems(spec, criteria ?? []), [spec, criteria]);
+  const links = useMemo(() => linkSpecToGoal(spec, criteria ?? []), [spec, criteria]);
+  const featuresFor = (criterionId: string) => spec.features.filter((feature) => links.features[feature.id].includes(criterionId)).map((feature) => feature.id);
   // "Environment first" (plan 2-2 ①): setup only a person can do, so it happens before the agent needs it.
   const setup = useMemo(() => humanTasks(spec).filter((task) => task.category !== 'decision').slice(0, 5), [spec]);
 
@@ -107,7 +110,7 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
   const lock = () => {
     if (!editing) return;
     // Ids stay as they are: decisions and feature links point at G-n, so a removed criterion must not pass its id on.
-    const rows = filledCriteria(editing.criteria).map((row) => ({ ...row, text: row.text.trim(), measure: row.measure.trim() }));
+    const rows = filledCriteria(editing.criteria).map((row) => ({ ...row, text: row.text.trim(), measure: row.measure.trim(), featureIds: featuresFor(row.id) }));
     const scope = [lines(editing.inScope), lines(editing.outOfScope)];
     const problem = !editing.statement.trim() ? t('목표 문장을 적어 주세요.', 'Write the goal statement.')
       : !editing.track ? t('트랙을 골라 주세요.', 'Pick a track.')
@@ -187,13 +190,22 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
         <p className="break-words px-5 pt-2 text-[17px] leading-7 text-ink">{goal.statement}</p>
         {goal.changeReason && <p className="break-words px-5 pt-1 text-[13px] text-muted">{t('바꾼 이유', 'Why it changed')}: {goal.changeReason}</p>}
         <ol className="mt-4 border-t border-outline-soft px-5 py-3">
-          {goal.criteria.map((row) => (
-            <li key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 py-1.5 text-[14px] leading-6">
-              <span className="font-mono text-[13px] leading-6 text-muted">{row.id}</span>
-              <span className="min-w-0 break-words"><span className="text-ink">{row.text}</span><span className="block text-[13px] text-muted">{row.measure}</span></span>
-              <span className={`text-[13px] ${row.status === 'met' ? 'font-semibold text-seed' : 'text-muted'}`}>{status[row.status]}</span>
-            </li>
-          ))}
+          {goal.criteria.map((row) => {
+            const featureIds = featuresFor(row.id);
+            return (
+              <li key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 py-1.5 text-[14px] leading-6">
+                <span className="font-mono text-[13px] leading-6 text-muted">{row.id}</span>
+                <span className="min-w-0 break-words">
+                  <span className="text-ink">{row.text}</span>
+                  <span className="block text-[13px] text-muted">{row.measure}</span>
+                  {featureIds.length > 0 && <span className="block text-[13px] text-muted">
+                    {row.featureIds ? t('확인한 기능', 'Confirmed features') : t('제안된 기능', 'Suggested features')} <span className="font-mono">{featureIds.join(', ')}</span>
+                  </span>}
+                </span>
+                <span className={`text-[13px] ${row.status === 'met' ? 'font-semibold text-seed' : 'text-muted'}`}>{status[row.status]}</span>
+              </li>
+            );
+          })}
         </ol>
         <div className="grid gap-4 border-t border-outline-soft px-5 py-4 sm:grid-cols-2">
           {([[t('포함 범위', 'In scope'), goal.inScope], [t('하지 않는 것', 'Out of scope'), goal.outOfScope]] as const).map(([label, rows]) => (
@@ -247,18 +259,35 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
         <fieldset className="px-5 pt-4">
           <legend className="text-[14px] font-semibold text-ink">{t(`성공 기준 ${MIN_CRITERIA}~${MAX_CRITERIA}개`, `${MIN_CRITERIA} to ${MAX_CRITERIA} success criteria`)}</legend>
           <ol className="mt-2 space-y-3">
-            {editing.criteria.map((row, index) => (
-              <li key={index} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
-                <span className="pt-2 font-mono text-[13px] text-muted">{row.id}</span>
-                <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                  <input aria-label={t(`성공 기준 ${index + 1}`, `Criterion ${index + 1}`)} value={row.text} maxLength={300} onChange={(event) => setCriterion(index, { text: event.target.value })} placeholder={t('무엇이 되면 성공인가', 'What counts as success')} className={`${field} h-10`} />
-                  <div className="flex min-w-0 gap-2">
-                    <input aria-label={t(`재는 방법 ${index + 1}`, `How to measure ${index + 1}`)} value={row.measure} maxLength={300} onChange={(event) => setCriterion(index, { measure: event.target.value })} placeholder={t('어떻게 잴까 (예: 3분 안에 완료)', 'How to measure (e.g. done in 3 min)')} className={`${field} h-10 min-w-0`} />
-                    {editing.criteria.length > MIN_CRITERIA && <button type="button" onClick={() => update({ criteria: editing.criteria.filter((_, i) => i !== index) })} className="h-10 shrink-0 rounded-lg px-2 text-[13px] text-muted hover:bg-surface-low hover:text-ink">{t('빼기', 'Remove')}<span className="sr-only"> {row.id}</span></button>}
+            {editing.criteria.map((row, index) => {
+              const featureIds = featuresFor(row.id);
+              return (
+                <li key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
+                  <span className="pt-2 font-mono text-[13px] text-muted">{row.id}</span>
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                    <input aria-label={t(`성공 기준 ${index + 1}`, `Criterion ${index + 1}`)} value={row.text} maxLength={300} onChange={(event) => setCriterion(index, { text: event.target.value })} placeholder={t('무엇이 되면 성공인가', 'What counts as success')} className={`${field} h-10`} />
+                    <div className="flex min-w-0 gap-2">
+                      <input aria-label={t(`재는 방법 ${index + 1}`, `How to measure ${index + 1}`)} value={row.measure} maxLength={300} onChange={(event) => setCriterion(index, { measure: event.target.value })} placeholder={t('어떻게 잴까 (예: 3분 안에 완료)', 'How to measure (e.g. done in 3 min)')} className={`${field} h-10 min-w-0`} />
+                      {editing.criteria.length > MIN_CRITERIA && <button type="button" onClick={() => update({ criteria: editing.criteria.filter((_, i) => i !== index) })} className="h-10 shrink-0 rounded-lg px-2 text-[13px] text-muted hover:bg-surface-low hover:text-ink">{t('빼기', 'Remove')}<span className="sr-only"> {row.id}</span></button>}
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                  {spec.features.length > 0 && (
+                    <details open={spec.features.length <= 4} className="col-start-2 text-[13px] text-muted">
+                      <summary className="cursor-pointer py-1">{t(`연결할 기능 ${featureIds.length}개 선택`, `${featureIds.length} linked features selected`)}</summary>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 pb-1" role="group" aria-label={t(`${row.id}에 연결할 기능`, `Features linked to ${row.id}`)}>
+                        {spec.features.map((feature) => (
+                          <label key={feature.id} className="flex cursor-pointer items-start gap-2 py-1 text-ink">
+                            <input type="checkbox" checked={featureIds.includes(feature.id)} className="mt-0.5 h-4 w-4 shrink-0 accent-seed"
+                              onChange={(event) => setCriterion(index, { featureIds: event.target.checked ? [...featureIds, feature.id] : featureIds.filter((id) => id !== feature.id) })} />
+                            <span><span className="font-mono">{feature.id}</span> {feature.title}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </li>
+              );
+            })}
           </ol>
           {editing.criteria.length < MAX_CRITERIA && <button type="button" onClick={() => update({ criteria: [...editing.criteria, criterion(editing.criteria.length, '', '', nextCriterionId(editing.criteria))] })} className="link-seed mt-2">{t('기준 더하기', 'Add a criterion')}</button>}
         </fieldset>

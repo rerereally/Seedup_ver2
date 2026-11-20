@@ -9,6 +9,8 @@ export type GoalLinks = {
   requirements: Record<string, string[]>;
   /** Feature id → criterion ids it serves, directly or through its requirements. */
   features: Record<string, string[]>;
+  /** Feature id → criterion ids explicitly confirmed by the person who locked the goal. */
+  confirmedFeatures: Record<string, string[]>;
 };
 export type UnlinkedItem = { id: string; title: string; kind: 'requirement' | 'hypothesis' | 'feature' };
 export type FeatureContribution = { featureId: string; criterionIds: string[]; openCriteria: number };
@@ -29,8 +31,9 @@ const requirementText = (row: SpecRequirement) => `${row.title} ${row.detail} ${
  * shortcut: word overlap misses synonyms and can link on a shared noun; upgrade to embeddings if the false rate is high.
  */
 export function linkSpecToGoal(spec: Spec, criteria: SuccessCriterion[]): GoalLinks {
-  const known = new Set(criteria.map((row) => row.id));
-  const vocab = criteria.map((row) => ({ id: row.id, words: words(`${row.text} ${row.measure}`) }));
+  const inferred = criteria.filter((row) => row.featureIds === undefined);
+  const known = new Set(inferred.map((row) => row.id));
+  const vocab = inferred.map((row) => ({ id: row.id, words: words(`${row.text} ${row.measure}`) }));
   const serves = (text: string) => {
     const named = [...text.matchAll(CRITERION_ID)].map((match) => match[0]).filter((id) => known.has(id));
     const lineWords = words(text);
@@ -38,11 +41,20 @@ export function linkSpecToGoal(spec: Spec, criteria: SuccessCriterion[]): GoalLi
     return [...new Set([...named, ...shared])].sort();
   };
   const requirements = Object.fromEntries([...spec.requirements, ...spec.hypotheses].map((row) => [row.id, serves(requirementText(row))]));
+  const confirmedFeatures = Object.fromEntries(spec.features.map((row) => [row.id, criteria
+    .filter((criterion) => criterion.featureIds?.includes(row.id)).map((criterion) => criterion.id).sort()]));
   const features = Object.fromEntries(spec.features.map((row) => [row.id, [...new Set([
+    ...confirmedFeatures[row.id],
     ...serves(`${row.title} ${row.detail}`),
     ...row.requirementIds.flatMap((id) => requirements[id] ?? []),
   ])].sort()]));
-  return { requirements, features };
+  // A confirmed feature covers the requirements it serves without linking other features to that criterion.
+  for (const feature of spec.features) {
+    for (const id of feature.requirementIds) {
+      if (requirements[id]) requirements[id] = [...new Set([...requirements[id], ...confirmedFeatures[feature.id]])].sort();
+    }
+  }
+  return { requirements, features, confirmedFeatures };
 }
 
 /** Requirements, hypotheses and features no success criterion covers: "목표와 무관", to tie to a criterion, drop or move out of scope. */
@@ -74,21 +86,33 @@ export function featureContribution(spec: Spec, criteria: SuccessCriterion[]): F
 }
 
 /**
- * The criteria a new goal version changed (text or measure edited) or removed, and the features linked to them under the
- * previous version, which go to needs_recheck. A status change alone is progress, not a goal change.
+ * Recheck features of edited or removed criteria and features whose confirmed link was added or removed.
+ * A status change alone is progress, not a goal change.
  */
 export function goalChange(spec: Spec, previous: Pick<ProjectGoal, 'criteria'>, next: Pick<ProjectGoal, 'criteria'>) {
+  const before = new Map(previous.criteria.map((row) => [row.id, row]));
   const after = new Map(next.criteria.map((row) => [row.id, row]));
-  const before = new Set(previous.criteria.map((row) => row.id));
-  const removed = previous.criteria.filter((row) => !after.has(row.id)).map((row) => row.id);
-  const changed = previous.criteria.filter((row) => {
-    const now = after.get(row.id);
-    return now && (now.text.trim() !== row.text.trim() || now.measure.trim() !== row.measure.trim());
-  }).map((row) => row.id);
-  const added = next.criteria.filter((row) => !before.has(row.id)).map((row) => row.id);
-  const touched = new Set([...removed, ...changed]);
-  const links = linkSpecToGoal(spec, previous.criteria);
-  const recheckFeatureIds = spec.features.filter((row) => (links.features[row.id] ?? []).some((id) => touched.has(id))).map((row) => row.id);
+  const beforeLinks = linkSpecToGoal(spec, previous.criteria).features;
+  const afterLinks = linkSpecToGoal(spec, next.criteria).features;
+  const added = [...after.keys()].filter((id) => !before.has(id));
+  const removed = [...before.keys()].filter((id) => !after.has(id));
+  const changed: string[] = [];
+  const recheck = new Set<string>();
+  for (const id of new Set([...before.keys(), ...after.keys()])) {
+    const was = before.get(id);
+    const now = after.get(id);
+    const edited = was && now && (was.text.trim() !== now.text.trim() || was.measure.trim() !== now.measure.trim());
+    const explicit = was?.featureIds !== undefined || now?.featureIds !== undefined;
+    let linksChanged = false;
+    for (const feature of spec.features) {
+      const linkedBefore = beforeLinks[feature.id].includes(id);
+      const linkChanged = explicit && linkedBefore !== afterLinks[feature.id].includes(id);
+      linksChanged ||= linkChanged;
+      if (linkChanged || (linkedBefore && (!now || edited))) recheck.add(feature.id);
+    }
+    if (was && now && (edited || linksChanged)) changed.push(id);
+  }
+  const recheckFeatureIds = spec.features.filter((row) => recheck.has(row.id)).map((row) => row.id);
   return { added, changed, removed, recheckFeatureIds };
 }
 

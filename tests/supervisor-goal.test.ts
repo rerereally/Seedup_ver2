@@ -43,6 +43,21 @@ test('links by shared words (Korean particles included) and by naming G-n; featu
   assert.deepEqual(links.requirements[login.id], ['G-2']);
   assert.deepEqual(links.features[sender.id], ['G-1']);
   assert.deepEqual(links.features[account.id], ['G-2']);
+  assert.deepEqual(links.confirmedFeatures[sender.id], []);
+});
+
+test('confirmed feature links override matching words and keep legacy requirement inheritance', () => {
+  const confirmed = [{ ...criteria[0], featureIds: [csv.id, 'F-99'] }, criteria[1]];
+  const links = linkSpecToGoal(spec, confirmed);
+  assert.deepEqual(links.confirmedFeatures, { [sender.id]: [], [csv.id]: ['G-1'], [account.id]: [] });
+  assert.deepEqual(links.features, { [sender.id]: [], [csv.id]: ['G-1'], [account.id]: ['G-2'] });
+  assert.deepEqual(links.requirements, { [reminder.id]: [], [exportReq.id]: ['G-1'], [login.id]: ['G-2'] });
+  assert.deepEqual(featureContribution(spec, confirmed).map((row) => row.featureId), [csv.id, account.id, sender.id]);
+  assert.deepEqual(linkSpecToGoal(spec, [{ ...criteria[0], featureIds: [] }]).features[sender.id], []);
+  const sibling = { ...sender, id: 'F-04' };
+  const sharedRequirement = linkSpecToGoal({ ...spec, features: [...spec.features, sibling] }, [{ ...criteria[0], featureIds: [sender.id] }]);
+  assert.deepEqual(sharedRequirement.requirements[reminder.id], ['G-1']);
+  assert.deepEqual(sharedRequirement.features[sibling.id], []);
 });
 
 test('lists what serves no criterion, and nothing when there are no criteria', () => {
@@ -62,6 +77,15 @@ test('a goal change sends features of edited or removed criteria to recheck, not
   assert.deepEqual(edited.removed, ['G-2']);
   assert.deepEqual(edited.added, ['G-3']);
   assert.deepEqual(edited.recheckFeatureIds, [sender.id, account.id]);
+});
+
+test('relocking rechecks the features whose links changed, including newly added confirmed links', () => {
+  const previous = { criteria: [{ ...criteria[0], featureIds: [sender.id, account.id] }, criteria[1]] };
+  const next = { criteria: [{ ...criteria[0], featureIds: [csv.id, account.id] }, criteria[1]] };
+  assert.deepEqual(goalChange(spec, previous, next), { added: [], changed: ['G-1'], removed: [], recheckFeatureIds: [sender.id, csv.id] });
+  const added = { criteria: [...next.criteria, { ...criteria[0], id: 'G-3', featureIds: [account.id] }] };
+  assert.deepEqual(goalChange(spec, next, added), { added: ['G-3'], changed: [], removed: [], recheckFeatureIds: [account.id] });
+  assert.deepEqual(goalChange(spec, goal, { criteria: [{ ...criteria[0], featureIds: [sender.id] }, criteria[1]] }).recheckFeatureIds, []);
 });
 
 test('summary carries version, criteria status and non-goals', () => {

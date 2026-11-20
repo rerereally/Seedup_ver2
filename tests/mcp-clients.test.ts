@@ -14,6 +14,11 @@ test('every client setup carries the endpoint and the token', () => {
   }
 });
 
+test('the Codex snippet raises the tool timeout above the 60 s default', () => {
+  const codex = clients.find((client) => client.id === 'codex')!;
+  assert.ok(codex.snippet.includes('tool_timeout_sec = 180'));
+});
+
 test('install links decode back to the same server', () => {
   const cursor = clients.find((client) => client.id === 'cursor')!;
   const config = new URL(cursor.link!).searchParams.get('config')!;

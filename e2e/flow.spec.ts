@@ -29,6 +29,8 @@ async function lockGoalAndVerifyHandoff(page: Page) {
 }
 
 test('idea → tailored questions → streamed PRD → AGENTS.md export → goal lock → agent start prompt', async ({ page }) => {
+  await page.route('**/api/opportunities/match?*', (route) => route.fulfill({ json: { slugs: [] } }));
+  await page.route('**/api/opportunities/evidence-search', (route) => route.fulfill({ json: { phrases: [], quotes: [] } }));
   await page.goto('/prd/new');
   const idea = page.getByLabel('만들고 싶은 것');
   await idea.fill('온콜 인수인계 메모와 Tenor GIF API를 자동으로 정리해 주는 슬랙 봇');
@@ -38,7 +40,15 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export → goal
   await expect(page.getByText('온콜 인수인계 봇을 가장 먼저 쓸 팀은 어디인가요?').first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'SRE 팀', exact: true }).click();
 
+  const dossierRequests: unknown[] = [];
+  const briefRequests: unknown[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'POST') return;
+    if (request.url().endsWith('/api/opportunities/dossiers')) dossierRequests.push(request.postDataJSON());
+    if (/\/api\/projects\/.+\/brief$/.test(request.url())) briefRequests.push(request.postDataJSON());
+  });
   const dossierSaved = page.waitForResponse((res) => res.url().includes('/api/opportunities/dossiers') && res.request().method() === 'POST' && res.ok());
+  const briefSaved = page.waitForResponse((res) => /\/api\/projects\/.+\/brief$/.test(res.url()) && res.request().method() === 'POST' && res.ok());
   await page.getByRole('button', { name: 'PRD 만들기', exact: true }).last().click();
   // While writing, the title stays put and the old question draft is gone.
   await expect(page.getByRole('heading', { name: /온콜 인수인계 메모와 Tenor GIF API를 자동으로 정리해 주는 슬랙 봇/ }).first()).toBeVisible();
@@ -47,7 +57,10 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export → goal
   await expect(prd).toBeVisible({ timeout: 90_000 });
   await expect(prd.getByText('H-01').first()).toBeVisible();
   await expect(prd.getByRole('heading', { name: '기술 설계' })).toBeVisible();
-  await dossierSaved;
+  const { id } = await (await dossierSaved).json();
+  await briefSaved;
+  expect(dossierRequests).toEqual([expect.objectContaining({ evidenceIds: [], prdMarkdown: expect.stringContaining('F-01') })]);
+  expect(briefRequests).toEqual([expect.objectContaining({ answers: expect.arrayContaining([expect.objectContaining({ answer: 'SRE 팀' })]) })]);
 
   await prd.getByText('에이전트로 보내기', { exact: true }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'AGENTS.md 받기', exact: true }).click()]);
@@ -57,7 +70,16 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export → goal
   expect(brief).toMatch(/슬랙/);
   expect(brief).toMatch(/### Implementation order\n1\. .*\(F-01\)/);
 
-  await lockGoalAndVerifyHandoff(page);
+  const { projectKey } = await lockGoalAndVerifyHandoff(page);
+  expect(projectKey).toBe(`prd:${id}`);
+  expect(dossierRequests).toHaveLength(1);
+  expect(briefRequests).toHaveLength(1);
+
+  const savedPath = `/supervisor/${encodeURIComponent(projectKey)}`;
+  for (const list of ['/prd', '/supervisor?tab=prds']) {
+    await page.goto(list);
+    await expect(page.locator(`a[href="${savedPath}"]`)).toBeVisible();
+  }
 });
 
 test('idea validation entry (/prd/validate) → PRD workspace with evidence & competitors → goal lock → agent handoff', async ({ page }) => {

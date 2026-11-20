@@ -15,13 +15,13 @@ export function prdRunLog(service: SupabaseClient | null, user: { id: string; em
     onUsage: (usage: ModelUsage) => {
       calls.push(usage);
     },
-    async finish(ok: boolean, title: string) {
+    async finish(ok: boolean, title: string, writerModel?: string) {
       if (!service) return;
       const promptTokens = calls.reduce((sum, call) => sum + call.promptTokens, 0);
       const completionTokens = calls.reduce((sum, call) => sum + call.completionTokens, 0);
       const cost = calls.reduce((sum, call) => sum + estimateCost(call.model, call.promptTokens, call.completionTokens), 0);
-      // The model that actually answered last; a failed paid model falls back to the free one, and the row says so.
-      const answered = calls.at(-1)?.model ?? chosen;
+      // Full PRD runs can name the writer even when a different model answered an auxiliary call later.
+      const answered = writerModel ?? calls.at(-1)?.model ?? chosen;
       const { error } = await service.from('prd_runs').insert({
         user_id: user.id,
         email: user.email ?? null,

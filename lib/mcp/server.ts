@@ -552,10 +552,13 @@ async function projectContext(deps: McpDeps, key: ProjectKey) {
 export function contextText(goal: ProjectGoal | null | undefined, memory: ProjectMemory | undefined) {
   const decisions = recentDecisions(memory);
   const handoff = memory?.handoffs[0];
+  const planning = memory?.facts.find((fact) => fact.author === 'seedup'
+    && /^(?:Planning answer\.|Evidence verdict:|Direct competitors found in planning:)/.test(fact.text));
   return [
     goal && goalSummary(goal, 'en'),
     decisions.length && `Recent decisions\n${decisions.map((decision) => `- ${decision}`).join('\n')}`,
     handoff && `Last handoff (${oneLine(handoff.agent, 80)})\nCurrent: ${oneLine(handoff.doing)}\nNext task: ${oneLine(handoff.next)}${handoff.cautions.length ? `\nCautions: ${oneLine(handoff.cautions.join('; '))}` : ''}${handoff.unverifiedShas.length ? `\nUnverified commits: ${oneLine(handoff.unverifiedShas.join(', '))}` : ''}`,
+    planning && `Planning notes: ${toolCall('get_project_memory', { project: planning.projectKey })}`,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -768,7 +771,7 @@ function renderSavedPrdList(items: SavedPrdSummary[], siteUrl: string) {
   ].join('\n')).join('\n\n')}`;
 }
 
-function savedProject(saved: SavedPrdDetail, key: ProjectKey) {
+export function savedProject(saved: Pick<SavedPrdDetail, 'title' | 'prdMarkdown' | 'evidence' | 'competitorNotes'>, key: ProjectKey) {
   const parsed = parsePrdMarkdown(saved.prdMarkdown);
   const rivals = (parsed?.rivals ?? []) as SpecRival[];
   const publicQuotes = publicEvidence(saved.evidence);

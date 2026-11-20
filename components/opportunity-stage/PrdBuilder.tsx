@@ -31,6 +31,7 @@ const MAX_VERSIONS = 20;
 // Versions kept in this browser, so a reload or a later visit picks the work up again. Ten keeps it well under the
 // storage quota (a spec is a few kilobytes).
 const STORED_VERSIONS = 10;
+const isFoundation = (row: SpecRequirement) => 'foundation' in row && row.foundation === true;
 const STORAGE_PREFIX = 'seedup:prd:';
 
 /** Where one PRD's versions live in this browser: per title and quote set. */
@@ -70,7 +71,7 @@ function changedCount(before: Spec, after: Spec) {
   return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug, projectKey, showAgentHandoff = false, preferredTool: initialPreferredTool = null }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, onSaved, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug, projectKey, showAgentHandoff = false, preferredTool: initialPreferredTool = null }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -89,6 +90,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   generateSignal?: number;
   /** Told when a PRD arrives, so a parent can react (the idea chat posts a reply). */
   onSpec?: (spec: Spec) => void;
+  /** Receive the dossier id from the save that wrote the PRD. */
+  onSaved?: (id: string) => Promise<boolean>;
   /** The parent owns the start button (the idea chat), so this panel does not show its own. */
   hideControls?: boolean;
   /** A change request typed somewhere else (the idea chat); each new id is sent once. */
@@ -186,6 +189,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [needsLogin, setNeedsLogin] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [savedShare, setSavedShare] = useState<{ markdown: string; path: string } | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // Pick up where this browser left off: the stored versions win over the shared cache when they are newer.
   const storageKey = useMemo(() => storageKeyFor(title, evidenceIds), [title, evidenceIds]);
@@ -244,17 +252,21 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   // A finished PRD (from the stream's last line or a plain JSON answer) replaces whatever was on screen.
   const accept = (json: Record<string, unknown>) => {
-    setInput(json.input as SpecInput);
-    setPickedIds(Array.isArray(json.evidenceIds) ? (json.evidenceIds as string[]) : null);
+    if (!mounted.current) return;
+    const nextInput = json.input as SpecInput;
+    const nextSpec = json.spec as Spec;
+    const nextIds = Array.isArray(json.evidenceIds) ? (json.evidenceIds as string[]) : null;
+    setInput(nextInput);
+    setPickedIds(nextIds);
     if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(String(json.cachedAt)).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(String(json.cachedAt)).toLocaleString('en-US')}.`));
-    setSpec(json.spec as Spec);
-    onSpec?.(json.spec as Spec);
-    setVersions([{ spec: json.spec as Spec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
+    setSpec(nextSpec);
+    onSpec?.(nextSpec);
+    setVersions([{ spec: nextSpec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
     setView('doc');
     setCompare(null);
     setFocus(null);
-    setSaveState('idle');
-    autoSave.current = true;
+    const quoteIds = onSaved ? nextInput.evidence.map((row) => row.id) : nextIds ?? evidenceIds;
+    void save(renderSpecMarkdown(nextInput, nextSpec), quoteIds);
   };
 
   const showLive = (phase: LivePhase, restarted = false) => {
@@ -454,40 +466,36 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     return changedLines(renderSpecMarkdown(input, versions[compare - 1].spec), renderSpecMarkdown(input, versions[compare].spec));
   }, [compare, input, versions]);
 
-  const save = async () => {
+  const save = async (document: string, quoteIds: string[]) => {
     setSaveState('saving');
     setError('');
     setNeedsLogin(false);
     try {
       const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', {
         title,
-        evidenceIds: ids,
-        ...(requestBody?.liveEvidence ? { liveEvidence: requestBody.liveEvidence } : {}),
+        evidenceIds: quoteIds,
+        ...(Array.isArray(requestBody?.liveEvidence) ? { liveEvidence: requestBody.liveEvidence.filter((row) => quoteIds.includes(row.id)) } : {}),
         ...(agentSlug ? { opportunitySlug: agentSlug } : {}),
-        prdMarkdown: markdown || undefined,
+        prdMarkdown: document || undefined,
       });
+      if (!mounted.current) return;
       if (!ok) {
         fail(code, json, t('저장하지 못했습니다.', 'Could not save.'));
         setSaveState('idle');
         return;
       }
-      setSavedShare(typeof json.sharePath === 'string' ? { markdown, path: json.sharePath } : null);
+      setSavedShare(typeof json.sharePath === 'string' ? { markdown: document, path: json.sharePath } : null);
+      if (onSaved && document && typeof json.id === 'string' && !(await onSaved(json.id))) {
+        setError(t('PRD는 저장했습니다. 기획 답변을 저장하려면 다시 눌러 주세요.', 'PRD saved. Click Save again to save the planning answers.'));
+        setSaveState('idle');
+        return;
+      }
       setSaveState('saved');
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
       setSaveState('idle');
     }
   };
-
-  // A newly made PRD goes to the bookmarks on its own, once its markdown has rendered; edits after that still need the button.
-  const autoSave = useRef(false);
-  useEffect(() => {
-    if (!autoSave.current || !markdown) return;
-    autoSave.current = false;
-    void save();
-    // save reads the just-rendered markdown and ids; it must not re-run when its identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdown]);
 
   const copy = async (label: string, text: string) => {
     try {
@@ -543,6 +551,17 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       {footer}
     </li>
   );
+
+  const docHypothesis = (row: SpecRequirement, first = false) => docRow(row.id, <>
+    {priorityBadge(row.priority)}{row.title}
+    <span className="ml-2 rounded border border-dashed border-outline-strong px-1.5 py-px align-[2px] text-[11.5px] font-semibold text-tertiary">
+      {isFoundation(row) ? t('기반 요구사항 · 추정', 'Foundation · Inference') : t('가설', 'Hypothesis')}
+    </span>
+    {first && <span className="ml-1.5 text-[12.5px] font-normal text-muted">({t('아직 확인 안 된 것: 원문 근거가 없어 직접 확인이 필요합니다', 'Not verified yet: no source quote, so check this directly')})</span>}
+    {row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}
+    {acceptanceLines(row.acceptance)}
+    {row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}
+  </>);
 
   const busy = status !== 'idle';
   const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
@@ -786,7 +805,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   </div>
                 </details>
               )}
-              <button type="button" className="btn-quiet h-11" disabled={(!ids.length && !markdown) || saveState === 'saving'} onClick={save}>
+              <button type="button" className="btn-quiet h-11" disabled={(!ids.length && !markdown) || saveState === 'saving'} onClick={() => void save(markdown, onSaved && input ? input.evidence.map((row) => row.id) : ids)}>
                 {saveState === 'saved' ? t('북마크에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('북마크에 저장', 'Save')}
               </button>
               <details className="relative">
@@ -944,8 +963,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       {/* Backed and unbacked lines read in one list, as a PRD does; the unbacked ones say so and how to check them. */}
                       {spec.requirements.length + spec.hypotheses.length ? (
                         <ul className="rows mt-3">
+                          {spec.hypotheses.filter(isFoundation).map((row) => docHypothesis(row))}
                           {spec.requirements.map((row) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}{cites(row.evidence)}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}</>))}
-                          {spec.hypotheses.map((row, index) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}<span className="ml-2 rounded border border-dashed border-outline-strong px-1.5 py-px align-[2px] text-[11.5px] font-semibold text-tertiary">{t('가설', 'Hypothesis')}</span>{index === 0 && <span className="ml-1.5 text-[12.5px] font-normal text-muted">({t('아직 확인 안 된 것: 원문 근거가 없어 직접 확인이 필요합니다', 'Not verified yet: no source quote, so check this directly')})</span>}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}{row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}</>))}
+                          {spec.hypotheses.filter((row) => !isFoundation(row)).map((row, index) => docHypothesis(row, index === 0))}
                         </ul>
                       ) : <p className="mt-3 text-[15px] leading-7 text-muted">{t('요구사항이 없습니다.', 'No requirements.')}</p>}
                     </section>

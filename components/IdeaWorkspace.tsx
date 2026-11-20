@@ -356,7 +356,6 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setSpec(null);
     setProjectKey(null);
     setGoalLocked(false);
-    keyFor.current = '';
     setPending(null);
     setPane('chat');
   };
@@ -439,28 +438,13 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restored, idea, passes, search.state, live.length]);
 
-  // The id of the saved PRD, for the goal API. The same title and evidence upsert the same bookmark PrdBuilder saves, and
-  // leave its markdown alone. shortcut: a PRD with no quotes gets no id here (422), until PrdBuilder reports its saved id.
-  const keyFor = useRef('');
-  useEffect(() => {
-    if (!signedIn || !generated || keyFor.current === idea) return;
-    keyFor.current = idea;
-    fetch('/api/opportunities/dossiers', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: idea, evidenceIds: keptIds, liveEvidence: keptLive }) })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((json: { id?: string } | null) => { if (keyFor.current === idea && json?.id) setProjectKey(`prd:${json.id}`); })
-      .catch(() => undefined);
-    // Once per generated idea; later quote edits do not move the PRD to a new bookmark.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn, generated, idea]);
-
-  // A locked goal is where the agent takes over, so what the chat learned goes to the project's memory then, as
-  // validate_idea does for MCP. The server skips lines it already has, so locking again repeats nothing.
-  const onGoalLocked = (locked: boolean) => {
-    setGoalLocked(locked);
-    if (!locked || !projectKey) return;
+  const onPrdSaved = async (id: string) => {
+    const key = `prd:${id}`;
+    setProjectKey(key);
     const competitors = [...new Set([...validationCompetitors, ...selectedProblems.flatMap((item) => item.competitorNotes)])].slice(0, 8);
     const rows = brief.answers.filter((row) => row.key !== 'validation_competitors');
-    fetch(`/api/projects/${encodeURIComponent(projectKey)}/brief`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ competitors, answers: rows }) }).catch(() => undefined);
+    const response = await fetch(`/api/projects/${encodeURIComponent(key)}/brief`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ competitors, answers: rows }) }).catch(() => null);
+    return Boolean(response?.ok);
   };
 
   if (restored && !idea) {
@@ -665,9 +649,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         </section>
 
         <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-white px-5 pb-28 pt-6 [scrollbar-width:thin] lg:order-2 lg:block lg:overflow-y-auto lg:px-10 lg:pb-10`}>
-          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={onGoalLocked} />}
+          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
           <PrdBuilder
+            key={idea}
             title={idea}
+            onSaved={onPrdSaved}
             projectKey={projectKey ?? undefined}
             showAgentHandoff={goalLocked}
             evidenceIds={keptIds}

@@ -187,6 +187,21 @@ test('get_next_task uses the locked goal, chooses by contribution, and includes 
   assert.match(complete.body, /All features are done/);
 });
 
+test('resume and next task point to saved planning notes, and full memory returns their text', async () => {
+  const facts = [
+    { ...MEMORY.facts[0], kind: 'other' as const, author: 'seedup', text: 'Planning answer. Who is first?: The SRE team' },
+    { ...MEMORY.facts[0], kind: 'other' as const, author: 'seedup', text: 'Direct competitors found in planning: PagerDuty' },
+  ];
+  const d = deps({ projectMemory: async () => ({ ...MEMORY, facts }) });
+  for (const name of ['resume_project', 'get_next_task']) {
+    const response = await call(name, { project: PROJECT }, d);
+    assert.ok(response.body.includes(`Planning notes: get_project_memory ${JSON.stringify({ project: PROJECT })}`));
+    assert.doesNotMatch(response.body, /The SRE team|PagerDuty/);
+  }
+  const full = await call('get_project_memory', { project: PROJECT }, d);
+  assert.deepEqual(JSON.parse(full.body).facts, facts);
+});
+
 test('initialize and AGENTS.md expose the locked goal for a saved PRD', async () => {
   const initialized = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize' }, deps(), SITE) as { result: { instructions: string } };
   assert.match(initialized.result.instructions, /Active locked goals from recent PRDs/);

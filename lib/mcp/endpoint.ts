@@ -17,7 +17,7 @@ import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
-import { saveDossier, saveIdeaDraft, setIdeaDraftPrd, updateSavedPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { saveDossier, saveDraftReport, saveIdeaDraft, setIdeaDraftPrd, updateSavedPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
 import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
@@ -247,7 +247,10 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       if (projectKey && rivals.length) {
         await addProjectMemory(service, userId, projectKey, { kind: 'fact', body: { kind: 'other', text: `${RIVALS_FACT} ${rivals.join('; ')}`, author: 'seedup' } }).catch(() => undefined);
       }
-      return { text: renderReport(report, siteUrl), projectKey };
+      const markdown = renderReport(report, siteUrl);
+      // Kept with the draft so the supervisor page shows the same report later, not only this chat.
+      if (projectKey) await saveDraftReport(service, userId, projectKey.slice(4), { markdown, level: report.verdict.level, generatedAt: report.generatedAt });
+      return { text: markdown, projectKey };
     },
     watch: async (idea) => typeof (await addWatch(service, userId, idea)) === 'object',
   };

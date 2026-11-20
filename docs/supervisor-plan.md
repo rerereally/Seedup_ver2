@@ -324,7 +324,7 @@ export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: 
 
 | 에이전트 | 담당 | 파일 |
 | :--- | :--- | :--- |
-| A1 정지훈 · Claude Code | 공유 타입(가장 먼저 단독 PR. **이 첫 PR만 장차희가 에이전트로 시작**하고, 리뷰 · 머지는 정지훈), 목표 모델(잠금 · 버전 · 연결 검사 · 기여도 순서), 환경 세팅 먼저(사람 할 일 추출), 훅 번들(세션 시작 · 압축 뒤 목표 재주입) | `lib/supervisor/types.ts`, `goal.ts`, `human-queue.ts`, `hook-bundle.ts`, `tests/supervisor-goal.test.ts` |
+| A1 정지훈 · Claude Code | 공유 타입(가장 먼저 단독 PR), 목표 모델(잠금 · 버전 · 연결 검사 · 기여도 순서), 환경 세팅 먼저(사람 할 일 추출), 훅 번들(세션 시작 · 압축 뒤 목표 재주입) | `lib/supervisor/types.ts`, `goal.ts`, `human-queue.ts`, `hook-bundle.ts`, `tests/supervisor-goal.test.ts` |
 | A2 정지훈 · Codex | MCP: `prd:<id>`, 서버 안내문에 진행 중 목표, `get_next_task` 목표 요약 · 기여도 순서, `resume_project`, `connect_repo`, `check_env`(키 이름만), 공유 메모리 도구(`record_decision`, `save_handoff`, `get_project_memory`), 목표 · 범위에 영향을 주는 결정이면 응답에 "사용자에게 물어라" 지시, `AGENTS.md`에 목표 · 성공 기준 · 하지 않는 것 · 최근 결정 | `lib/mcp/server.ts`, `endpoint.ts`, `apps.ts`, `lib/opportunities/spec.ts`(내보내기 부분), `tests/mcp-goal.test.ts` |
 | A3 정지훈 · Antigravity | 기준 측정: 지금 PRD들의 목표 · 성공 기준 채움 비율, 목표 도달률 측정 스크립트 골격, 발표 서사 갱신 | `scripts/eval-goal.ts`, `docs/scorecard.md`, `docs/pitch-script-2026-11-21.md` |
 | B1 · Claude Code | 저장: 프로젝트(트랙 · 저장소 · 엄격 모드 · 목표 버전), 목표 버전 기록, 목표 잠금 API, 공유 메모리(결정 · 인수인계 · 프로젝트 사실) | `supabase/migrations/<시각>_supervisor_projects.sql`(`supervisor_projects`, `project_goals`, `project_memory`), `lib/db/supervisor-projects.ts`, `lib/db/project-goals.ts`, `lib/db/project-memory.ts`, `app/api/projects/[key]/goal/route.ts`, `tests/project-goals.test.ts` |
@@ -463,4 +463,3 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 외부 평가 반영. 대상을 "AI 네이티브 1인 빌더"로 좁히고 GitHub 없는 "로컬 확인" 경로 추가. 범위를 핵심 고리(단계 1~2)와 보류로 다시 나눔(기존 단계 3과 일부 단계 1~2 항목을 보류로). 검증을 2단(로컬 즉시 + 서버 단순형)으로 바꾸고 tool calling 루프와 사용자 저장소 CI 안 판정을 뺌. 승인은 터미널 대화에서, 대시보드는 이력만. 이미 끝난 AG-2 · AG-3 · AG-6을 단계 1에서 뺌.
 - 2026-11-20: 10-1의 상태 숫자를 status.md로 넘김(중복 제거). 11절(D1 · D2)을 완료로 접음.
 - 2026-11-20: 역할 확정. 장차희 총괄 · 계획, 정지훈 기술 구현 · 머지(모든 칸의 기술 책임 · 리뷰 · 머지). 5절 B 칸에서 사람 이름을 빼고 역할 문단 추가.
-- 2026-11-20: 단계 1 A1의 첫 PR(`lib/supervisor/types.ts`)은 장차희가 에이전트로 시작하도록 바꿈. 나머지 A1(목표 모델 · 훅 번들)은 정지훈.

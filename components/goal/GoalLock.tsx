@@ -274,7 +274,7 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
                   {spec.features.length > 0 && (
                     <details open={spec.features.length <= 4} className="col-start-2 text-[13px] text-muted">
                       <summary className="cursor-pointer py-1">{t(`연결할 기능 ${featureIds.length}개 선택`, `${featureIds.length} linked features selected`)}</summary>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 pb-1" role="group" aria-label={t(`성공 기준 ${index + 1}에 연결할 기능`, `Features linked to criterion ${index + 1}`)}>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 pb-1" role="group" aria-label={t(`${row.id}에 연결할 기능`, `Features linked to ${row.id}`)}>
                         {spec.features.map((feature) => (
                           <label key={feature.id} className="flex cursor-pointer items-start gap-2 py-1 text-ink">
                             <input type="checkbox" checked={featureIds.includes(feature.id)} className="mt-0.5 h-4 w-4 shrink-0 accent-seed"

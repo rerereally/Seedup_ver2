@@ -2682,5 +2682,14 @@
         "error_message"
       ]
     ]
+  },
+  {
+    "file": "20261120180000_feature_commits_file_statuses.sql",
+    "columns": [
+      [
+        "feature_commits",
+        "file_statuses"
+      ]
+    ]
   }
 ]

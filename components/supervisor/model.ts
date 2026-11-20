@@ -37,8 +37,15 @@ export function driftForProject(rows: FeatureCommit[], spec: Spec | null, goal: 
   const grouped = new Map<string, DriftCommit & { at: string }>();
   for (const row of rows) {
     if (!row.feature_id && row.dismissed_at) continue;
-    const commit = grouped.get(row.sha) ?? { sha: row.sha, message: row.message, files: [], featureIds: [], at: row.created_at };
+    const commit = grouped.get(row.sha) ?? { sha: row.sha, message: row.message, files: [], featureIds: [], fileStatuses: {}, addedFiles: [], at: row.created_at };
     commit.files = [...new Set([...commit.files, ...row.files])];
+    if (row.file_statuses) {
+      commit.fileStatuses = { ...commit.fileStatuses, ...row.file_statuses };
+      commit.addedFiles = [...new Set([
+        ...(commit.addedFiles ?? []),
+        ...Object.entries(row.file_statuses).filter(([, status]) => status === 'added').map(([path]) => path),
+      ])];
+    }
     if (row.feature_id) commit.featureIds = [...new Set([...commit.featureIds, row.feature_id])];
     grouped.set(row.sha, commit);
   }

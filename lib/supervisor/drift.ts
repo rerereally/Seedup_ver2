@@ -1,19 +1,66 @@
 // Goal drift rules (docs/supervisor-plan.md 3-6): work no feature claims, new screens, routes or tables the spec does not
 // name, work on what the goal says not to do, and edits to files of features already done. Pure: callers pass the
 // commits (from link_commit or GitHub) and the spec; results go to MCP responses and the dashboard.
+import type { CommitFileStatus } from '../opportunities/feature-commits';
 import type { Spec } from '../opportunities/spec';
+import { parseDiff } from './diff-audit';
 import type { DriftFinding, ProjectGoal } from './types';
+
+export type { CommitFileStatus };
 
 export type DriftCommit = {
   sha: string;
   message: string;
   files: string[];
   featureIds: string[];
+  /** Optional per-file status recorded on link_commit (added files feed out_of_spec route/screen checks). */
+  fileStatuses?: Record<string, CommitFileStatus>;
   /** Files this commit created (a new page or route is checked against the spec). */
   addedFiles?: string[];
   /** Tables this commit's migrations create. */
   addedTables?: string[];
 };
+
+const MIGRATION_FILE = /(^|\/)migrations\/.+\.sql$/i;
+const CREATE_TABLE = /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?[a-z_][a-z0-9_$]*"?\.)?"?([a-z_][a-z0-9_$]*)"?/gi;
+
+/** Newly created file paths in a unified diff. */
+export function extractAddedFilesFromDiff(diff: string): string[] {
+  return [...new Set(parseDiff(diff).filter((file) => file.isNew).map((file) => file.path))];
+}
+
+/** Table names created in newly added SQL migration files within a unified diff. */
+export function extractAddedTablesFromDiff(diff: string): string[] {
+  const tables = new Set<string>();
+  for (const file of parseDiff(diff)) {
+    if (!file.isNew || !MIGRATION_FILE.test(file.path)) continue;
+    const sql = file.added
+      .map((line) => line.text.replace(/--.*$/, ''))
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    for (const match of sql.matchAll(CREATE_TABLE)) {
+      const table = match[1]?.toLowerCase();
+      if (table) tables.add(table);
+    }
+  }
+  return [...tables];
+}
+
+/** Builds a DriftCommit from a server-fetched unified diff for verify_feature drift checks. */
+export function driftCommitFromDiff(input: { sha: string; message?: string; featureIds: string[]; diff: string }): DriftCommit {
+  const parsed = parseDiff(input.diff);
+  const files = [...new Set(parsed.map((file) => file.path))];
+  const addedFiles = [...new Set(parsed.filter((file) => file.isNew).map((file) => file.path))];
+  const addedTables = extractAddedTablesFromDiff(input.diff);
+  return {
+    sha: input.sha,
+    message: input.message ?? '',
+    files,
+    featureIds: input.featureIds,
+    ...(addedFiles.length ? { addedFiles } : {}),
+    ...(addedTables.length ? { addedTables } : {}),
+  };
+}
 
 const STOP = new Set(['app', 'api', 'page', 'route', 'index', 'src', 'lib', 'components', 'the', 'and', 'for', 'with', 'add', 'fix', 'new', 'update', 'feat', 'chore', 'tsx', 'ts', '기능', '추가', '수정', '화면']);
 const words = (text: string) => text.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^\p{L}\p{N}]+/u)
@@ -61,7 +108,11 @@ export function findDrift(
       findings.push({ ...base, kind: 'unlinked_commit', files: commit.files, message: '어느 기능에도 연결되지 않은 커밋입니다. link_commit으로 기능을 적거나, 범위 밖 작업인지 사용자에게 확인하세요.' });
     }
 
-    const unknown = (commit.addedFiles ?? []).filter((path) => {
+    const addedFromStatuses = commit.fileStatuses
+      ? Object.entries(commit.fileStatuses).filter(([, status]) => status === 'added').map(([path]) => path)
+      : [];
+    const addedFiles = [...new Set([...(commit.addedFiles ?? []), ...addedFromStatuses])];
+    const unknown = addedFiles.filter((path) => {
       const segments = routeWords(path);
       return segments !== null && segments.length > 0 && !overlap(segments, vocab).length;
     });

@@ -67,11 +67,23 @@ test('drift has no records without both spec and commits, and dismissed unlinked
   assert.equal(driftForProject([commit({ feature_id: '', dismissed_at: '2026-11-20T11:00:00Z' })], spec, goal, progress), null);
 });
 
-test('drift groups multi-feature commit rows and finds non-goals and genuinely unlinked commits', () => {
+test('drift groups multi-feature commit rows, forwards file_statuses added routes, and stays compatible with legacy commits', () => {
   const linked = [commit({}), commit({ id: 'c2', feature_id: 'F-02' })];
   assert.deepEqual(driftForProject(linked, spec, goal, progress), []);
   const findings = driftForProject([commit({ feature_id: '', message: 'payment billing', files: ['billing.ts'] })], spec, goal, progress)!;
   assert.deepEqual(findings.map((row) => row.kind), ['unlinked_commit', 'non_goal']);
+  const outOfSpec = driftForProject([
+    commit({
+      id: 'c3',
+      sha: 'c'.repeat(40),
+      feature_id: 'F-01',
+      message: 'add invoices screen and api',
+      files: ['app/invoices/page.tsx', 'app/api/invoices/route.ts', 'app/ledger/page.tsx'],
+      file_statuses: { 'app/invoices/page.tsx': 'added', 'app/api/invoices/route.ts': 'added', 'app/ledger/page.tsx': 'modified' },
+    }),
+  ], spec, goal, progress)!;
+  assert.deepEqual(outOfSpec.map((row) => row.kind), ['out_of_spec']);
+  assert.deepEqual(outOfSpec[0].files, ['app/invoices/page.tsx', 'app/api/invoices/route.ts']);
 });
 
 test('touched_done uses files from before the commit and only a feature already complete at that time', () => {

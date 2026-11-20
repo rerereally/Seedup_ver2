@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { flagBuildProgressForCommit } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
-import { countUnlinkedCommits, summarizeFeatureCommits, touchedDoneFeatures, unlinkedFeatureCommits, writeFeatureCommit } from '../lib/opportunities/feature-commits';
+import { countUnlinkedCommits, readFeatureCommits, summarizeFeatureCommits, touchedDoneFeatures, unlinkedFeatureCommits, writeFeatureCommit } from '../lib/opportunities/feature-commits';
 
 const row = (n: number, feature_id: string, files: string[], dismissed_at: string | null = null) => ({
   id: String(n), sha: String(n), feature_id, message: '', files, created_at: String(n), dismissed_at,
@@ -80,4 +80,44 @@ test('commits without a feature are recorded with an empty id and retries ignore
     },
   } as unknown as SupabaseClient;
   await writeFeatureCommit(service, 'user', 'memory', { sha: 'abc1234', message: 'Maintenance', files: [], featureIds: [] });
+});
+
+test('writeFeatureCommit and readFeatureCommits persist and normalize per-file statuses', async () => {
+  let inserted: unknown = null;
+  const service = {
+    from: () => ({
+      upsert: async (rows: unknown) => {
+        inserted = rows;
+        return { error: null };
+      },
+    }),
+  } as unknown as SupabaseClient;
+  await writeFeatureCommit(service, 'user', 'memory', {
+    sha: 'def5678',
+    message: 'F-01 add page',
+    files: ['app/billing/page.tsx', 'lib/a.ts'],
+    featureIds: ['F-01'],
+    fileStatuses: { 'app/billing/page.tsx': 'added', 'lib/a.ts': 'modified' },
+  });
+  assert.deepEqual(inserted, [{
+    user_id: 'user',
+    slug: 'memory',
+    feature_id: 'F-01',
+    sha: 'def5678',
+    message: 'F-01 add page',
+    files: ['app/billing/page.tsx', 'lib/a.ts'],
+    file_statuses: { 'app/billing/page.tsx': 'added', 'lib/a.ts': 'modified' },
+  }]);
+
+  const client = createClient('https://example.test', 'test', {
+    global: {
+      fetch: async () => Response.json([
+        { id: '1', feature_id: 'F-01', sha: 'def5678', message: 'F-01 add page', files: ['app/billing/page.tsx'], file_statuses: { 'app/billing/page.tsx': 'added', bad: 'renamed' }, created_at: '2026-11-20T01:00:00Z', dismissed_at: null },
+        { id: '2', feature_id: 'F-01', sha: 'old1234', message: 'legacy', files: ['lib/a.ts'], created_at: '2026-11-19T01:00:00Z', dismissed_at: null },
+      ]),
+    },
+  });
+  const loaded = await readFeatureCommits(client, 'user', 'memory');
+  assert.deepEqual(loaded[0].file_statuses, { 'app/billing/page.tsx': 'added' });
+  assert.deepEqual(loaded[1].file_statuses, {});
 });

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ViewTransition, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowUp, GitBranch, Rocket, Wrench } from 'lucide-react';
+import { ArrowUp, FileText, GitBranch, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLang } from '@/components/LangProvider';
 import ModelPicker from '@/components/ModelPicker';
@@ -15,14 +15,14 @@ const MAX = 300;
 export type ComposerKind = 'prd' | 'validate' | 'repo';
 
 /** The heading, line and examples a start screen shows for each tool, so the page says what the switch picked. */
-export type ComposerIntro = Record<ComposerKind, { title: string; lead: string; examples?: Array<{ label: string; idea: string }>; after?: ReactNode }>;
+export type ComposerIntro = Record<ComposerKind, { lead: string; examples?: Array<{ label: string; idea: string }>; after?: ReactNode }>;
 
 // One entry, picked by what is being built (plan 2-1: the track comes first). Each opens the step that fits it and
 // all three end in the same goal lock → agent handoff. [kind, ko, en, icon]
 const KINDS: Array<[ComposerKind, string, string, LucideIcon]> = [
-  ['prd', '내가 쓸 도구', 'A tool for me', Wrench],
-  ['validate', '출시할 서비스', 'A product to launch', Rocket],
-  ['repo', '내 레포에 기능 추가', 'Add to my repo', GitBranch],
+  ['prd', '아이디어로 기획 시작', 'Plan an idea', FileText],
+  ['validate', '아이디어 검증', 'Validate an idea', Search],
+  ['repo', '기존 레포 분석', 'Analyze a repo', GitBranch],
 ];
 
 // A GitHub address typed into the idea box still means "start from my repo".
@@ -47,6 +47,7 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
   const repo = kind === 'repo';
   const limit = repo ? 80 : MAX;
   const copy = compact ? undefined : intro?.[kind];
+  const question = t('어디서 시작할까요?', 'Where would you like to start?');
   const examples = copy?.examples ?? baseExamples;
   const send = () => {
     const value = text.trim().slice(0, limit);
@@ -74,7 +75,7 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
     <div className="w-full">
       {copy && (
         <div className="mb-8 text-center">
-          <h1 id={headingId} className="t-section text-[clamp(30px,3.4vw,44px)]">{copy.title}</h1>
+          <h1 id={headingId} className="t-section text-[clamp(30px,3.4vw,44px)]">{question}</h1>
           {/* Two lines kept for every tool's line (three on phones), so switching never moves the box below. */}
           <p className="t-lead mx-auto mt-3 min-h-[3lh] max-w-[34em] sm:min-h-[2lh]">{copy.lead}</p>
         </div>
@@ -82,7 +83,7 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
       {!compact && (
         // What the box does. It sits above the box, so the box itself stays one field tall and reads as one field.
         <div className={`mb-3 flex ${center ? 'justify-center' : ''}`}>
-          <div role="radiogroup" aria-label={t('무엇을 만드나요?', 'What are you building?')} className="inline-flex rounded-lg bg-surface-mid p-1">
+          <div role="radiogroup" aria-label={question} className="inline-flex flex-wrap justify-center rounded-lg bg-surface-mid p-1">
             {KINDS.map(([key, ko, en, Icon]) => (
               <button key={key} type="button" role="radio" aria-checked={kind === key} onClick={() => { setKind(key); document.getElementById(id)?.focus(); }} className={`${mode} ${kind === key ? 'bg-white font-semibold text-ink shadow-sm' : 'text-tertiary hover:text-ink'}`}>
                 <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />

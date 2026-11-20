@@ -93,6 +93,13 @@ function testVerdict(checks: GitHubEvidence['checks']): CriterionVerdict['verdic
   return checks.length && checks.every((check) => check.conclusion === 'success') ? 'met' : 'unclear';
 }
 
+// CI that the checked commit itself rewrote cannot vouch for that commit (plan 3-4: agents can edit workflow files).
+// shortcut: only this SHA's diff is read, not earlier unverified commits; widen when verification compares against the last verified SHA.
+const CI_CONFIG = /^\.github\/(?:workflows|actions)\//;
+export function changedCiConfig(diff: string) {
+  return [...new Set([...diff.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)].flatMap((match) => [match[1], match[2]]).filter((path) => CI_CONFIG.test(path)))];
+}
+
 const TEST_FILE = /(?:^|\/)(?:tests?|__tests__)\/|\.(?:test|spec)\.[^/]+$/i;
 const TEST_SOURCE = /\.(?:[cm]?[jt]sx?|py|rb|go|rs|java|kt|cs|swift|php|sh|exs)$/i;
 
@@ -175,6 +182,7 @@ export async function startVerification(input: StartVerificationInput, dependenc
         if (denyUnavailable) throw new DataCollectionPolicyError();
         throw new Error('No valid model verdict');
       }
+      const ciConfig = changedCiConfig(evidence.diff);
       // A secret-containing quote cannot become a persisted verified citation after redaction.
       row.verdicts = verifyCitations(scrubValue(verdicts), evidence.files).map((verdict, index) => {
         const criterion = input.criteria[index];
@@ -186,7 +194,9 @@ export async function startVerification(input: StartVerificationInput, dependenc
         }
         if (isTest) {
           const ci = testVerdict(evidence.checks);
-          if (ci !== 'met') verdict = { ...verdict, verdict: ci, reason: `${verdict.reason}\nCI success를 확인하지 못했습니다.` };
+          // A failing check still counts against the commit; only a passing one is distrusted after a CI config change.
+          if (ci === 'not_met' || (!ciConfig.length && ci !== 'met')) verdict = { ...verdict, verdict: ci, reason: `${verdict.reason}\nCI success를 확인하지 못했습니다.` };
+          else if (ciConfig.length && verdict.verdict === 'met') verdict = { ...verdict, verdict: 'unclear', reason: `${verdict.reason}\n이 커밋이 CI 설정(${ciConfig.join(', ')})을 바꿔 CI 결과를 근거로 쓰지 않았습니다.` };
           if (verdict.verdict === 'met' && !tests.files.length) {
             verdict = { ...verdict, verdict: 'unclear', reason: `${verdict.reason}\n수락 기준을 확인한 테스트 파일 인용이 없습니다.` };
           }
@@ -199,6 +209,9 @@ export async function startVerification(input: StartVerificationInput, dependenc
           if (!item || typeof item !== 'object' || !('message' in item) || typeof item.message !== 'string' || !('files' in item) || !Array.isArray(item.files)) return [];
           return [{ kind: 'out_of_spec', sha: input.sha, featureIds: [input.featureId], files: item.files.filter((path): path is string => typeof path === 'string').slice(0, 40).map((path) => scrubSecrets(path.slice(0, 500)).scrubbed), message: scrubSecrets(item.message.slice(0, 2_000)).scrubbed }];
         });
+      }
+      if (ciConfig.length) {
+        row.drift.push({ kind: 'out_of_spec', sha: input.sha, featureIds: [input.featureId], files: ciConfig.slice(0, 40).map((path) => scrubSecrets(path.slice(0, 500)).scrubbed), message: '이 커밋이 CI 설정을 바꿨습니다. 테스트 기준은 CI 결과로 판정하지 않습니다.' });
       }
       row.status = row.verdicts.every((verdict) => verdict.verdict === 'met') ? 'passed' : 'failed';
       if (row.status === 'passed') row.token = (dependencies.sign ?? signVerificationToken)({ userId: input.userId, projectKey: input.projectKey, featureId: input.featureId, sha: input.sha });

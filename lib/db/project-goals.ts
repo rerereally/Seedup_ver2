@@ -2,8 +2,8 @@
 // (plan 3-1). The current goal is the highest version. Written only through lock_project_goal with the service key.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveProjectKey } from '@/lib/db/supervisor-projects';
-import type { ProjectGoal, ProjectKey, SuccessCriterion, Track } from '@/lib/db/supervisor-projects';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { ProjectGoal, ProjectKey, SuccessCriterion, Track } from '@/lib/supervisor/types';
 
 export type GoalInput = Pick<ProjectGoal, 'track' | 'statement' | 'criteria' | 'inScope' | 'outOfScope' | 'changeReason'>;
 

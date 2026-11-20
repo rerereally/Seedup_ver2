@@ -2,7 +2,7 @@
 // agent or person picks up again. The server is the source of truth; secrets are never stored, only env key names.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureSupervisorProject } from '@/lib/db/supervisor-projects';
-import type { Decision, Handoff, ProjectFact, ProjectKey } from '@/lib/db/supervisor-projects';
+import type { Decision, Handoff, ProjectFact, ProjectKey } from '@/lib/supervisor/types';
 
 export type MemoryEntry =
   | { kind: 'decision'; body: Omit<Decision, 'id' | 'projectKey' | 'at'> }

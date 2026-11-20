@@ -3,24 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById } from '@/lib/db/dossiers';
 import { getOpportunity } from '@/lib/opportunities/data';
-
-// shortcut: A1 types.ts 머지 후 import로 교체 (docs/supervisor-plan.md 4절을 글자 그대로 옮김)
-export type ProjectKey = string; // '<slug>' | `prd:${string}`
-export type Track = 'personal' | 'launch';
-
-export type SuccessCriterion = { id: string; text: string; measure: string; status: 'open' | 'partial' | 'met' };
-export type ProjectGoal = {
-  projectKey: ProjectKey; version: number; track: Track;
-  statement: string; criteria: SuccessCriterion[]; inScope: string[]; outOfScope: string[];
-  lockedAt: string; changeReason: string | null;
-};
-export type Decision = {
-  id: string; projectKey: ProjectKey; goalVersion: number; title: string; why: string; rejected: string[];
-  author: { kind: 'person' | 'agent'; name: string }; approved: boolean | null; featureIds: string[]; criterionIds: string[]; at: string;
-};
-export type Handoff = { projectKey: ProjectKey; agent: string; doing: string; next: string; cautions: string[]; unverifiedShas: string[]; at: string };
-export type ProjectFact = { projectKey: ProjectKey; kind: 'stack' | 'command' | 'env_name' | 'do_not_touch' | 'other'; text: string; author: string; at: string };
-export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: string | null; track: Track; strict: boolean; goalVersion: number | null };
+import type { ProjectKey, SupervisorProject, Track } from '@/lib/supervisor/types';
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
 const PRD_KEY = /^prd:([0-9a-f-]{36})$/i;

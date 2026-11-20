@@ -2,9 +2,9 @@ import type { BuildProgress, FeatureStatus } from '@/lib/opportunities/build-pro
 import type { FeatureCommit } from '@/lib/opportunities/feature-commits';
 import type { Spec } from '@/lib/opportunities/spec';
 import { findDrift, type DriftCommit } from '@/lib/supervisor/drift';
-import type { ProjectGoal } from '@/lib/supervisor/types';
+import type { ProjectGoal, VerificationLevel } from '@/lib/supervisor/types';
 
-export type FeatureSignal = { id: string; title: string; status: FeatureStatus; verification: 'self_reported' | 'local_checked'; note: string };
+export type FeatureSignal = { id: string; title: string; status: FeatureStatus; verification: VerificationLevel; note: string };
 
 export function decodeProjectKey(raw: string) {
   try { return decodeURIComponent(raw); } catch { return raw; }
@@ -15,9 +15,15 @@ export function featureSignals(spec: Spec | null, progress: BuildProgress): Feat
   for (const [id, row] of Object.entries(progress)) if (!titles.has(id)) titles.set(id, row.title);
   return [...titles].map(([id, title]) => {
     const row = progress[id];
-    // Current build_progress reads have no verification field. Never infer verification from done or a note.
-    const level = (row as (typeof row & { verification?: string }) | undefined)?.verification;
-    return { id, title, status: row?.status ?? 'todo', verification: level === 'local_checked' ? 'local_checked' : 'self_reported', note: row?.note ?? '' };
+    const level = row?.verificationLevel ?? (row as (typeof row & { verification?: string }) | undefined)?.verification;
+    // Never infer verification from done or a free-text note. Only an explicit supervisor_verified column on a done feature turns green.
+    const verification: VerificationLevel =
+      row?.status === 'done' && level === 'supervisor_verified'
+        ? 'supervisor_verified'
+        : level === 'local_checked'
+          ? 'local_checked'
+          : 'self_reported';
+    return { id, title, status: row?.status ?? 'todo', verification, note: row?.note ?? '' };
   });
 }
 

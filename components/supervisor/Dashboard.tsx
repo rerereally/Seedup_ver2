@@ -39,12 +39,18 @@ export default function Dashboard({ project, lang }: { project: SupervisorDetail
     <div className="grid min-w-0 items-start gap-7 xl:grid-cols-2">
       <section className="min-w-0" aria-labelledby="features-heading">
         <h2 id="features-heading" className="text-xl font-semibold text-ink">{t('기능 신호등', 'Feature signals')}</h2>
-        <p className="mt-2 text-[13px] text-muted">{t('⚪ 자가 보고 / 🔵 로컬 확인. 서버 검증은 아직 제공하지 않습니다.', '⚪ Self reported / 🔵 Locally checked. Server verification is not available yet.')}</p>
+        <p className="mt-2 text-[13px] text-muted">{t('🟢 감독관 검증 / 🔵 로컬 확인 / ⚪ 자가 보고', '🟢 Supervisor verified / 🔵 Local check / ⚪ Self-reported')}</p>
         {!project.specAvailable && <p className="mt-2 text-[13px] text-muted">{t('명세가 없어 진행 기록에 있는 기능만 표시합니다.', 'Without a spec, only features with progress records are shown.')}</p>}
         <ul className="mt-3 divide-y divide-outline-soft">{project.features.map((feature) => <li key={feature.id} className="py-4 text-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="font-mono text-muted">{feature.id}</span><span className="text-tertiary">{t(...STATUSES[feature.status])}</span></div>
           <h3 className="mt-1 font-semibold text-ink">{feature.title}</h3>
-          <p className="mt-2 text-muted">{feature.verification === 'local_checked' ? t('🔵 로컬 확인', '🔵 Locally checked') : t('⚪ 자가 보고', '⚪ Self reported')}</p>
+          <p className={`mt-2 ${feature.verification === 'supervisor_verified' ? 'font-medium text-seed' : 'text-muted'}`}>
+            {feature.verification === 'supervisor_verified'
+              ? t('🟢 감독관 검증', '🟢 Supervisor verified')
+              : feature.verification === 'local_checked'
+                ? t('🔵 로컬 확인', '🔵 Local check')
+                : t('⚪ 자가 보고', '⚪ Self-reported')}
+          </p>
           {feature.note && <p className="mt-2 whitespace-pre-wrap text-tertiary">{feature.note}</p>}
         </li>)}</ul>
         {!project.features.length && <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>}

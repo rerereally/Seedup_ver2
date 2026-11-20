@@ -19,7 +19,7 @@ import { scrubSecrets } from '@/lib/supervisor/diff-audit';
 import { findDrift } from '@/lib/supervisor/drift';
 import { featureContribution, goalSummary } from '@/lib/supervisor/goal';
 import { humanTasks } from '@/lib/supervisor/human-queue';
-import type { Decision, ProjectGoal, ProjectKey, SupervisorProject } from '@/lib/supervisor/types';
+import type { Decision, ProjectGoal, ProjectKey, SupervisorProject, VerificationLevel } from '@/lib/supervisor/types';
 import type { StartVerificationInput, VerificationCriterion } from '@/lib/verifier/run';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
@@ -77,7 +77,7 @@ export type McpDeps = {
   getVerification?: (id: string) => Promise<VerificationRecord | null>;
   matchesVerificationToken?: (token: string, projectKey: ProjectKey, featureId: string, sha: string) => boolean;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
-  setProgress: (slug: string, feature: { id: string; title: string }, status: AgentFeatureStatus, note: string) => Promise<boolean>;
+  setProgress: (slug: string, feature: { id: string; title: string; verificationLevel?: VerificationLevel }, status: AgentFeatureStatus, note: string, verificationLevel?: VerificationLevel) => Promise<boolean>;
   notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
   /** What this user kept on the site (repos, articles, papers, products), newest first. */
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
@@ -916,7 +916,8 @@ async function updateBuildStatus(name: string, args: Record<string, unknown>, op
       note = '[self_reported] ' + [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
     }
   }
-  const enteredBlocked = await deps.setProgress(project, feature, status, note);
+  const verificationLevel: VerificationLevel = completion?.level ?? 'self_reported';
+  const enteredBlocked = await deps.setProgress(project, { id: feature.id, title: feature.title, verificationLevel }, status, note, verificationLevel);
   if (status === 'blocked' && enteredBlocked) await deps.notifyBlocked(opportunity, feature).catch(() => undefined);
   const progress = await deps.progress(project);
   const done = spec.features.filter((row) => progress[row.id]?.status === 'done').length;

@@ -42,11 +42,18 @@ test('feature signals retain unstarted spec features and never promote done or f
   assert.deepEqual(featureSignals(null, {}), []);
 });
 
-test('only an explicit local_checked field gives the local badge; server levels still cannot turn green', () => {
-  for (const verification of ['local_checked', 'supervisor_verified', 'passed']) {
-    const rows = { 'F-01': { ...progress['F-01'], verification } };
-    assert.equal(featureSignals(null, rows)[0].verification, verification === 'local_checked' ? 'local_checked' : 'self_reported');
-  }
+test('verification_level maps supervisor_verified (done only), local_checked, and falls back to self_reported', () => {
+  const verifiedDone = { 'F-01': { ...progress['F-01'], status: 'done' as const, verificationLevel: 'supervisor_verified' as const } };
+  assert.equal(featureSignals(null, verifiedDone)[0].verification, 'supervisor_verified');
+
+  const verifiedRecheck = { 'F-01': { ...progress['F-01'], status: 'needs_recheck' as const, verificationLevel: 'supervisor_verified' as const } };
+  assert.equal(featureSignals(null, verifiedRecheck)[0].verification, 'self_reported');
+
+  const localChecked = { 'F-01': { ...progress['F-01'], verificationLevel: 'local_checked' as const } };
+  assert.equal(featureSignals(null, localChecked)[0].verification, 'local_checked');
+
+  const unknown = { 'F-01': { ...progress['F-01'], verification: 'passed' } };
+  assert.equal(featureSignals(null, unknown)[0].verification, 'self_reported');
 });
 
 test('last activity compares instants rather than string order and ignores invalid or absent dates', () => {
@@ -133,13 +140,27 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   assert.ok(list.some((row) => row.key === KEY && row.criteriaMet === 1));
 });
 
-test('dashboard renders the goal first, all criterion states, safe text, English copy and no green badge', () => {
+test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
     features: featureSignals(spec, progress), specAvailable: true, drift: [], decisions: [], files: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en' }));
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
-  for (const value of ['open', 'partial', 'met', 'Self reported', 'Goal version', 'Out of scope', 'Recent decisions']) assert.ok(html.includes(value));
-  assert.ok(!html.includes('🟢'));
+  for (const value of ['open', 'partial', 'met', 'Self-reported', 'Goal version', 'Out of scope', 'Recent decisions']) assert.ok(html.includes(value));
+  assert.ok(!html.includes('text-seed'));
+
+  const verifiedProgress: BuildProgress = {
+    'F-01': { ...progress['F-01'], status: 'done', verificationLevel: 'supervisor_verified' },
+    'F-02': { title: '합계', status: 'in_progress', note: '', verificationLevel: 'local_checked', updatedAt: '2026-11-20T10:00:00Z', doneAt: null },
+  };
+  const verifiedProject: SupervisorDetail = { ...project, features: featureSignals(spec, verifiedProgress) };
+  const koHtml = renderToStaticMarkup(createElement(Dashboard, { project: verifiedProject, lang: 'ko' }));
+  assert.ok(koHtml.includes('text-seed'));
+  assert.ok(koHtml.includes('🟢 감독관 검증'));
+  assert.ok(koHtml.includes('🔵 로컬 확인'));
+  const enHtml = renderToStaticMarkup(createElement(Dashboard, { project: verifiedProject, lang: 'en' }));
+  assert.ok(enHtml.includes('🟢 Supervisor verified'));
+  assert.ok(enHtml.includes('🔵 Local check'));
+
   const list = renderToStaticMarkup(createElement(ProjectList, { projects: [project], lang: 'en' }));
   assert.ok(list.includes('&lt;script&gt;'));
   assert.ok(!list.includes('<script>'));
@@ -152,7 +173,7 @@ test('empty dashboard shows missing records without claiming verification or inv
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
-  assert.ok(!html.includes('🟢'));
+  assert.ok(!html.includes('text-seed'));
 });
 
 test('the list shows supervisor projects only, not every saved PRD, and skips a project whose PRD is gone', async () => {

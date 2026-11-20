@@ -5,6 +5,8 @@ import { recommendToolkit, renderToolkit } from './toolkit';
 import type { Lang } from '../i18n';
 import { citedQuotes, prdSentenceParts } from './prd-markdown';
 import { normalizeDifferentiation, normalizeTechnicalDesign, renderTechnicalDesign } from './prd-design';
+import { groundRivalComparisons } from './prd-rivals';
+import { isCutOffEvidenceQuote } from './quote-completeness';
 import type { Differentiation, TechnicalDesign } from './prd-design';
 import { pushbackText, refersToClaim, type Pushback } from './pushback';
 import { isVerbatimQuote } from './rules';
@@ -70,7 +72,7 @@ export const PRD_SENTENCE_LABELS: Record<PrdSentenceKind, readonly [string, stri
  * priority: P0 the first version is useless without it, P1 it ships in the first version, P2 later.
  * acceptance: conditions a test can check. check: for a line no quote backs, how to find out if it is true.
  */
-export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; evidenceStrength?: EvidenceStrength; priority?: Priority; acceptance?: string[]; check?: string };
+export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; evidenceStrength?: EvidenceStrength; priority?: Priority; foundation?: boolean; acceptance?: string[]; check?: string };
 export type SpecFeature = { id: string; title: string; detail: string; requirementIds: string[]; slots: ReadinessSlots | null };
 export type SpecScreen = { id: string; name: string; does: string; featureIds: string[] };
 
@@ -162,7 +164,7 @@ export function withEvidenceStrength(spec: Spec, evidence: readonly Evidence[]):
 
 export function prdSentenceKinds(value: string, input: SpecInput) {
   return prdSentenceParts(value).map((text) => {
-    const testimony = citedQuotes(text).some((n) => Boolean(input.evidence[n - 1]));
+    const testimony = citedQuotes(text).some((n) => input.evidence[n - 1] && !isCutOffEvidenceQuote(input.evidence[n - 1].quote));
     const fact = (input.competitorNotes ?? []).some((note) => note.includes(':') && isVerbatimQuote(text, note));
     const kind: PrdSentenceKind = testimony ? 'testimony' : fact ? 'fact' : 'inference';
     return { kind, text };
@@ -174,7 +176,7 @@ export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 /** Where each brief goes. `prompt` is no repo file: it is pasted as the first message in Lovable, Bolt, v0 or Replit. */
 export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursor/rules/seedup.mdc', prompt: 'prompt.md' };
 
-type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; acceptance?: unknown; check?: unknown; slots?: unknown };
+type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; foundation?: unknown; acceptance?: unknown; check?: unknown; slots?: unknown };
 
 export type RawSpec = {
   summary?: unknown;
@@ -222,15 +224,15 @@ export function withP0(spec: Spec): Spec {
   return { ...spec, [group]: [{ ...spec[group][0], priority: 'P0' }, ...spec[group].slice(1)] };
 }
 
-export function readinessWithQuestions(slots: ReadinessSlots | null, lang: Lang = 'ko', generated?: ReadinessSlots | null): ReadinessSlots {
+export function readinessWithQuestions(slots: ReadinessSlots | null, lang: Lang = 'ko', generated?: ReadinessSlots | null, reason = ''): ReadinessSlots {
   const labels = slotLabels(lang);
   const result = emptySlots();
   for (const key of SLOT_KEYS) {
     const current = slots?.[key];
     const items = slotIsOpen(current) && generated?.[key]?.length ? generated[key] : current;
     result[key] = items?.length ? items : [lang === 'en'
-      ? `Open question: What should we specify for ${labels[key].toLowerCase()}?`
-      : `확인 필요: ${labels[key]} 항목에 어떤 조건을 정할까요?`];
+      ? `Open question: What should we specify for ${labels[key].toLowerCase()}?${reason ? ` ${reason}` : ''}`
+      : `확인 필요: ${labels[key]} 항목에 어떤 조건을 정할까요?${reason ? ` ${reason}` : ''}`];
   }
   return result;
 }
@@ -238,6 +240,17 @@ export function readinessWithQuestions(slots: ReadinessSlots | null, lang: Lang 
 export function p0FeatureIds(spec: Spec) {
   const p0 = new Set([...spec.requirements, ...spec.hypotheses].filter((row) => row.priority === 'P0').map((row) => row.id));
   return new Set(spec.features.filter((row) => row.requirementIds.some((rid) => p0.has(rid))).map((row) => row.id));
+}
+
+export function unservedFirstReleaseRequirements(spec: Spec) {
+  const served = new Set(spec.features.flatMap((feature) => feature.requirementIds));
+  return [...spec.requirements, ...spec.hypotheses].filter((row) => (row.priority === 'P0' || row.priority === 'P1') && !served.has(row.id));
+}
+
+function withRequirementQuestions(spec: Spec): Spec {
+  const prior = (spec.openQuestions ?? []).filter((line) => !/^(?:기능 연결 필요|Missing feature link): [RH]-\d+ /.test(line));
+  const missing = unservedFirstReleaseRequirements(spec).map((row) => `${spec.lang === 'en' ? 'Missing feature link' : '기능 연결 필요'}: ${row.id} (${row.priority}) ${row.title}`);
+  return prior.length || missing.length || spec.openQuestions ? { ...spec, openQuestions: [...prior, ...missing] } : spec;
 }
 
 export function withOpenScreenQuestions(spec: Spec): Spec {
@@ -257,21 +270,23 @@ export function withOpenScreenQuestions(spec: Spec): Spec {
  * direct competitor in the comparison.
  * Safe to run more than once. Older rows were written before these rules existed.
  */
-export function repairCachedSpec(input: Pick<SpecInput, 'competitors' | 'evidence'>, spec: Spec): Spec {
+export function repairCachedSpec(input: Pick<SpecInput, 'competitors' | 'competitorNotes' | 'evidence'>, spec: Spec): Spec {
   const ready = withEvidenceStrength(withPrdReadiness(spec), input.evidence ?? []);
-  return { ...ready, rivals: coverRivals(ready.rivals ?? [], input.competitors ?? [], ready.lang === 'en' ? 'en' : 'ko') };
+  return { ...ready, rivals: groundRivalComparisons(ready.rivals ?? [], { ...input, competitors: input.competitors ?? [] }, ready.lang) };
 }
 
 /** Older cached specs can be returned immediately while showing the same unresolved decisions as new specs. */
 export function withPrdReadiness(original: Spec): Spec {
   const spec = withP0(original);
   const p0 = p0FeatureIds(spec);
-  return withOpenScreenQuestions({
+  const p1 = new Set([...spec.requirements, ...spec.hypotheses].filter((row) => row.priority === 'P1').map((row) => row.id));
+  const deferred = spec.lang === 'en' ? 'Automatic completion was reserved for P0.' : '자동 보완은 P0에 우선 배정했습니다.';
+  return withRequirementQuestions(withOpenScreenQuestions({
     ...spec,
     features: spec.features.map((feature) => p0.has(feature.id)
       ? { ...feature, slots: readinessWithQuestions(feature.slots, spec.lang) }
-      : feature),
-  });
+      : feature.requirementIds.some((rid) => p1.has(rid)) ? { ...feature, slots: readinessWithQuestions(feature.slots, spec.lang, undefined, deferred) } : feature),
+  }));
 }
 
 /**
@@ -289,7 +304,8 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     'Ask the first users about their current situation and why this feature or audience belongs in the first release.',
   );
   const findings = new Set<Pushback>();
-  const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
+  const rawRequirements = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12);
+  const rows = rawRequirements.flatMap((row, index) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
     if (!title) return [];
@@ -299,13 +315,15 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     const flagged = pushback.filter((issue) => refersToClaim(issue.claim, `${title} ${detail}`));
     flagged.forEach((issue) => findings.add(issue));
     const check = text(record.check, 300) || (flagged.length ? checkClaim : '');
-    return [{ title, detail, evidence: flagged.length ? [] : numbers(record.evidence, evidenceCount), ...(priority ? { priority } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
+    const citations = flagged.length ? [] : numbers(record.evidence, evidenceCount).filter((n) => typeof evidence === 'number' || !isCutOffEvidenceQuote(evidence[n - 1].quote));
+    const foundation = record.foundation === true && !flagged.length && !citations.length;
+    return [{ index, title, detail, evidence: citations, ...(priority ? { priority } : {}), ...(foundation ? { foundation, priority: 'P0' as const } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
   });
   // Raw requirement position (1-based) -> kept requirement id, for features that cite requirements by number.
   const requirementId = new Map<number, string>();
   const requirements: SpecRequirement[] = [];
   const hypotheses: SpecRequirement[] = [];
-  rows.forEach((row, index) => {
+  rows.forEach(({ index, ...row }) => {
     if (row.evidence.length) {
       const kept = { id: id('R', requirements.length), ...row };
       requirements.push(kept);
@@ -314,7 +332,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
       const kept = { id: id('H', hypotheses.length), ...row, evidence: [] };
       hypotheses.push(kept);
       // From an idea, what the user asked for is a real (if unverified) requirement that features may serve.
-      if (options.idea) requirementId.set(index + 1, kept.id);
+      if (options.idea || row.foundation || row.priority === 'P0' || row.priority === 'P1') requirementId.set(index + 1, kept.id);
     }
   });
   for (const issue of pushback) {
@@ -335,7 +353,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
   (Array.isArray(raw.features) ? raw.features : []).slice(0, 10).forEach((row, index) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
-    const requirementIds = numbers(record.requirements, rows.length).flatMap((n) => requirementId.get(n) ?? []);
+    const requirementIds = numbers(record.requirements, rawRequirements.length).flatMap((n) => requirementId.get(n) ?? []);
     if (!title || !requirementIds.length) return;
     // Slots come back only from a saved PRD's markdown; a freshly written draft gets them in a later step.
     const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: normalizeSlots(record.slots) };
@@ -351,7 +369,9 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     if (name && featureIds.length) screens.push({ id: id('S', screens.length), name, does: text(record.does, 240), featureIds });
   });
 
-  const differentiation = normalizeDifferentiation(raw.differentiation, evidenceCount, options.competitorNotes);
+  const claim = normalizeDifferentiation(raw.differentiation, evidenceCount, options.competitorNotes);
+  const claimEvidence = claim?.evidence.filter((n) => typeof evidence === 'number' || !isCutOffEvidenceQuote(evidence[n - 1].quote));
+  const differentiation = claim && claimEvidence && (claimEvidence.length || claim.competitor) ? { ...claim, evidence: claimEvidence } : undefined;
   const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map([...featureId].map(([from, to]) => [String(from), to])));
   const reviewNotes = options.pushback ? pushback.map((issue) => pushbackText(issue, lang)) : stringList(raw.review_notes, 6, 650);
   const spec = withP0({
@@ -427,7 +447,8 @@ export function mermaidFlow(spec: Spec) {
 }
 
 function evidenceSection(evidence: Evidence[], lang: Lang = 'ko') {
-  return evidence.map((item, index) => {
+  return evidence.flatMap((item, index) => {
+    if (isCutOffEvidenceQuote(item.quote)) return [];
     const korean = item.quoteKo && lang === 'ko' ? `\n   - 번역: ${item.quoteKo}` : '';
     const source = item.url ? `[${lang === 'en' ? `${item.platform} source` : `${PLATFORM_LABELS[item.platform]} 원문`}](${item.url})` : lang === 'en' ? "the maker's own notes, not checked against a source" : '만드는 사람이 직접 들은 말, 원문 확인 안 됨';
     return `${index + 1}. [E-${index + 1}] "${item.quote}" (${source})${korean}`;
@@ -466,7 +487,9 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}${row.slots ? `\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}` : ''}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
-  const hypotheses = spec.hypotheses.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}\n\n${strength(row)}`).join('\n\n');
+  const hypothesis = (row: SpecRequirement) => `### ${row.id}. ${priority(row)}${row.foundation ? t('[기반 요구사항] [추정] ', '[Foundation] [Inference] ') : ''}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}\n\n${strength(row)}`;
+  const foundations = spec.hypotheses.filter((row) => row.foundation).map(hypothesis).join('\n\n');
+  const hypotheses = spec.hypotheses.filter((row) => !row.foundation).map(hypothesis).join('\n\n');
   const undefinedText = t('정의되지 않음', 'Not defined');
   return `# ${input.title} PRD
 ${spec.draft ? `\n> ${t('가설 초안: 원문이 기준(원문 3건, 플랫폼 2곳)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
@@ -480,7 +503,7 @@ ${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing to
 ${bullets(spec.targetUsers.map(citeTags), undefinedText)}
 ${spec.scenario ? `\n## ${t('사용 장면', 'Scenario')}\n${spec.scenario}\n` : ''}${spec.goals?.length ? `\n## ${t('목표', 'Goals')}\n${bullets(spec.goals, undefinedText)}\n` : ''}
 ${spec.reviewNotes?.length ? `## ${t('검토 의견', 'Review notes')}\n${bullets(spec.reviewNotes, '')}\n\n` : ''}
-## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
+${foundations ? `## ${t('기반 요구사항', 'Foundation requirements')}\n${foundations}\n\n` : ''}## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
 ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
 
 ## ${t('기능 명세 (R → F)', 'Features (R → F)')}

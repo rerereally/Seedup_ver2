@@ -165,7 +165,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
 
 test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
-    features: featureSignals(spec, progress), specAvailable: true, drift: [], decisions: [], files: [], verifications: [],
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, drift: [], decisions: [], files: [], verifications: [],
     handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en' }));
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
@@ -194,11 +194,19 @@ test('dashboard renders the goal first, all criterion states, safe text, English
 
 test('empty dashboard shows missing records without claiming verification or inventing a goal', () => {
   const project: SupervisorDetail = { key: KEY, title: 'empty', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: [], specAvailable: false, drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: [], specAvailable: false, lockSpec: null, drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
   assert.ok(!html.includes('text-seed'));
+});
+
+test('a PRD with no locked goal (one made over MCP) gets the lock form on its dashboard', () => {
+  const project: SupervisorDetail = { key: KEY, title: 'mcp prd', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+  const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
+  assert.ok(html.includes('목표 잠그기'));
+  assert.ok(!html.includes('기획 탭에서 목표를 잠가 주세요'));
 });
 
 test('the list shows supervisor projects only, not every saved PRD, and skips a project whose PRD is gone', async () => {

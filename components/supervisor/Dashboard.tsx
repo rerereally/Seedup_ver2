@@ -1,3 +1,4 @@
+import GoalLock from '@/components/goal/GoalLock';
 import { translator, type Lang } from '@/lib/i18n';
 import type { FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { SupervisorDetail } from './data';
@@ -35,7 +36,8 @@ export default function Dashboard({ project, lang }: { project: SupervisorDetail
         <h3 className="mt-4 font-semibold text-ink">{t('하지 않는 것', 'Out of scope')}</h3>
         {goal.outOfScope.length ? <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-tertiary">{goal.outOfScope.map((item, index) => <li key={index}>{item}</li>)}</ul>
           : <p className="mt-2 text-sm text-muted">{t('기록 없음', 'None recorded')}</p>}
-      </> : <p className="mt-4 text-sm text-muted">{t('아직 잠긴 목표가 없습니다. 기획 탭에서 목표를 잠가 주세요.', 'No locked goal yet. Lock a goal in the planning tab.')}</p>}
+      </> : project.lockSpec ? <div className="mt-4"><GoalLock spec={project.lockSpec} idea={project.title} projectKey={project.key} /></div>
+        : <p className="mt-4 text-sm text-muted">{t('아직 잠긴 목표가 없습니다. 기획 탭에서 목표를 잠가 주세요.', 'No locked goal yet. Lock a goal in the planning tab.')}</p>}
     </section>
     <div className="grid min-w-0 items-start gap-7 xl:grid-cols-2">
       <section className="min-w-0" aria-labelledby="features-heading">

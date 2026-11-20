@@ -14,7 +14,8 @@ const diff = (path: string, lines: string[], isNew = false) => [
 ].join('\n');
 
 const codes = (text: string) => auditDiff(text).findings.filter((row) => !row.allowed).map((row) => `${row.severity}:${row.code}`);
-// Built at run time so this file holds no secret-shaped literal of its own.
+// Built at run time so this file holds no secret-shaped literal or skipped-test call of its own.
+const skipCall = ['test', 'skip'].join('.');
 const fakeKey = ['sk', 'ant', 'api03', 'A'.repeat(40)].join('-');
 
 test('parses added lines with their new-file line numbers', () => {
@@ -25,7 +26,7 @@ test('parses added lines with their new-file line numbers', () => {
 test('blockers: a known secret shape, a NEXT_PUBLIC_ secret, a new skipped test, a not-implemented throw', () => {
   assert.deepEqual(codes(diff('lib/a.ts', [`const key = '${fakeKey}';`])), ['blocker:SEC_SECRET_LEAK']);
   assert.deepEqual(codes(diff('lib/a.ts', ['const url = process.env.NEXT_PUBLIC_SUPABASE_SECRET;'])), ['blocker:SEC_CLIENT_SECRET']);
-  assert.deepEqual(codes(diff('tests/a.test.ts', ["test.skip('flaky', () => {});"])), ['blocker:LIE_SKIPPED_TEST']);
+  assert.deepEqual(codes(diff('tests/a.test.ts', [`${skipCall}('flaky', () => {});`])), ['blocker:LIE_SKIPPED_TEST']);
   assert.deepEqual(codes(diff('lib/a.ts', ["  throw new Error('not implemented');"])), ['blocker:LIE_EMPTY_IMPL']);
   assert.equal(auditDiff(diff('lib/a.ts', [`const key = '${fakeKey}';`])).passed, false);
 });

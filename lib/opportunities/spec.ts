@@ -6,6 +6,8 @@ import type { Lang } from '../i18n';
 import { citedQuotes, prdSentenceParts } from './prd-markdown';
 import { normalizeDifferentiation, normalizeTechnicalDesign, renderTechnicalDesign } from './prd-design';
 import { groundRivalComparisons } from './prd-rivals';
+import { findingFromLine, findingLine, groundedFinding, isSlotFinding, normalizeFinding, normalizeModules, renderPrdModules, withoutPrdRefs } from './prd-modules';
+import type { PrdFinding, PrdModule } from './prd-modules';
 import { isCutOffEvidenceQuote } from './quote-completeness';
 import type { Differentiation, TechnicalDesign } from './prd-design';
 import { pushbackText, refersToClaim, type Pushback } from './pushback';
@@ -72,7 +74,7 @@ export const PRD_SENTENCE_LABELS: Record<PrdSentenceKind, readonly [string, stri
  * priority: P0 the first version is useless without it, P1 it ships in the first version, P2 later.
  * acceptance: conditions a test can check. check: for a line no quote backs, how to find out if it is true.
  */
-export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; evidenceStrength?: EvidenceStrength; priority?: Priority; foundation?: boolean; acceptance?: string[]; check?: string };
+export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; evidenceStrength?: EvidenceStrength; priority?: Priority; foundation?: boolean; acceptance?: string[]; check?: string; followup?: PrdFinding };
 export type SpecFeature = { id: string; title: string; detail: string; requirementIds: string[]; slots: ReadinessSlots | null };
 export type SpecScreen = { id: string; name: string; does: string; featureIds: string[] };
 
@@ -101,6 +103,7 @@ export type Spec = {
   rivals?: SpecRival[];
   differentiation?: Differentiation;
   technicalDesign?: TechnicalDesign;
+  modules?: PrdModule[];
   reviewNotes?: string[];
   /** Why this is worth building, in prose; [E1]-style tags cite the quotes. */
   background?: string;
@@ -176,7 +179,7 @@ export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 /** Where each brief goes. `prompt` is no repo file: it is pasted as the first message in Lovable, Bolt, v0 or Replit. */
 export const EXPORT_FILES: Record<ExportFormat, string> = { agents: 'AGENTS.md', claude: 'CLAUDE.md', cursor: '.cursor/rules/seedup.mdc', prompt: 'prompt.md' };
 
-type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; foundation?: unknown; acceptance?: unknown; check?: unknown; slots?: unknown };
+type RawRow = { title?: unknown; detail?: unknown; evidence?: unknown; requirements?: unknown; features?: unknown; name?: unknown; does?: unknown; priority?: unknown; foundation?: unknown; acceptance?: unknown; check?: unknown; slots?: unknown; followup?: unknown };
 
 export type RawSpec = {
   summary?: unknown;
@@ -191,6 +194,8 @@ export type RawSpec = {
   rivals?: unknown;
   differentiation?: unknown;
   technicalDesign?: unknown;
+  modules?: unknown;
+  lang?: Lang;
   review_notes?: unknown;
   background?: unknown;
   scenario?: unknown;
@@ -208,11 +213,22 @@ const id = (prefix: string, index: number) => `${prefix}-${String(index + 1).pad
 
 export const emptySlots = (): ReadinessSlots => ({ inputs: [], rules: [], errors: [], access: [], data: [], done: [] });
 
-export function normalizeSlots(raw: unknown): ReadinessSlots | null {
+export function normalizeSlots(raw: unknown, sources?: readonly Evidence[]): ReadinessSlots | null {
   if (!raw || typeof raw !== 'object') return null;
   const record = raw as Record<string, unknown>;
   const slots = emptySlots();
-  for (const key of SLOT_KEYS) slots[key] = stringList(record[key], 5, 240);
+  for (const key of SLOT_KEYS) {
+    slots[key] = stringList(record[key], 5, sources ? 450 : 240).flatMap((line) => {
+      if (!sources) return [line];
+      const finding = findingFromLine(line);
+      if (finding.evidence === undefined) {
+        const clean = withoutPrdRefs(line).slice(0, isSlotFinding(line) ? 265 : 240);
+        return clean ? [clean] : [];
+      }
+      const checked = groundedFinding(finding, sources);
+      return checked ? [findingLine(checked)] : [];
+    });
+  }
   return SLOT_KEYS.some((key) => slots[key].length) ? slots : null;
 }
 
@@ -294,10 +310,11 @@ export function withPrdReadiness(original: Spec): Spec {
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
  * so nothing in the spec floats free of the evidence chain. Indexes in the raw draft are 1-based.
  */
-export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean; competitorNotes?: readonly string[]; pushback?: readonly Pushback[]; lang?: Lang } = {}): Spec {
+export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean; competitorNotes?: readonly string[]; pushback?: readonly Pushback[]; lang?: Lang; keepFollowups?: boolean } = {}): Spec {
   const evidenceCount = typeof evidence === 'number' ? evidence : evidence.length;
+  const sources = typeof evidence === 'number' ? [] : evidence;
   const pushback = options.pushback ?? [];
-  const lang = options.lang ?? 'ko';
+  const lang = options.lang ?? raw.lang ?? 'ko';
   const t = translator(lang);
   const checkClaim = t(
     '첫 사용자에게 지금 겪는 상황과 이 기능이나 대상이 필요한 이유를 확인하세요.',
@@ -317,7 +334,8 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     const check = text(record.check, 300) || (flagged.length ? checkClaim : '');
     const citations = flagged.length ? [] : numbers(record.evidence, evidenceCount).filter((n) => typeof evidence === 'number' || !isCutOffEvidenceQuote(evidence[n - 1].quote));
     const foundation = record.foundation === true && !flagged.length && !citations.length;
-    return [{ index, title, detail, evidence: citations, ...(priority ? { priority } : {}), ...(foundation ? { foundation, priority: 'P0' as const } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
+    const followup = !citations.length && options.keepFollowups !== false ? normalizeFinding(record.followup, sources) : undefined;
+    return [{ index, title, detail, evidence: citations, ...(priority ? { priority } : {}), ...(foundation ? { foundation, priority: 'P0' as const } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}), ...(followup ? { followup } : {}) }];
   });
   // Raw requirement position (1-based) -> kept requirement id, for features that cite requirements by number.
   const requirementId = new Map<number, string>();
@@ -356,7 +374,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     const requirementIds = numbers(record.requirements, rawRequirements.length).flatMap((n) => requirementId.get(n) ?? []);
     if (!title || !requirementIds.length) return;
     // Slots come back only from a saved PRD's markdown; a freshly written draft gets them in a later step.
-    const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: normalizeSlots(record.slots) };
+    const kept = { id: id('F', features.length), title, detail: text(record.detail, 600), requirementIds, slots: normalizeSlots(record.slots, sources) };
     features.push(kept);
     featureId.set(index + 1, kept.id);
   });
@@ -373,6 +391,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
   const claimEvidence = claim?.evidence.filter((n) => typeof evidence === 'number' || !isCutOffEvidenceQuote(evidence[n - 1].quote));
   const differentiation = claim && claimEvidence && (claimEvidence.length || claim.competitor) ? { ...claim, evidence: claimEvidence } : undefined;
   const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map([...featureId].map(([from, to]) => [String(from), to])));
+  const modules = normalizeModules(raw.modules, sources, options.keepFollowups !== false);
   const reviewNotes = options.pushback ? pushback.map((issue) => pushbackText(issue, lang)) : stringList(raw.review_notes, 6, 650);
   const spec = withP0({
     summary: text(raw.summary),
@@ -387,6 +406,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     draft,
     ...(differentiation ? { differentiation } : {}),
     ...(technicalDesign ? { technicalDesign } : {}),
+    ...(modules ? { modules, lang } : {}),
     ...(reviewNotes.length ? { reviewNotes } : {}),
     ...(text(raw.background, 1500) ? { background: text(raw.background, 1500) } : {}),
     ...(text(raw.scenario, 1000) ? { scenario: text(raw.scenario, 1000) } : {}),
@@ -470,6 +490,7 @@ function slotLines(slots: ReadinessSlots, english = false, lang: Lang = 'ko') {
   return SLOT_KEYS.map((key) => {
     const label = english ? key : slotLabels(lang)[key];
     const values = slots[key];
+    if (values.some(isSlotFinding)) return values.map((line) => `  - ${label}: ${line}`).join('\n');
     return `  - ${label}: ${values.length ? values.join(' / ') : english ? '(open question)' : '(정해지지 않음, 먼저 물어볼 것)'}`;
   }).join('\n');
 }
@@ -487,7 +508,7 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}${row.slots ? `\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}` : ''}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
-  const hypothesis = (row: SpecRequirement) => `### ${row.id}. ${priority(row)}${row.foundation ? t('[기반 요구사항] [추정] ', '[Foundation] [Inference] ') : ''}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}\n\n${strength(row)}`;
+  const hypothesis = (row: SpecRequirement) => `### ${row.id}. ${priority(row)}${row.foundation ? t('[기반 요구사항] [추정] ', '[Foundation] [Inference] ') : ''}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}${row.followup ? `\n- ${row.followup.evidence ? t('조사 원문', 'Research quote') : t('기획자 답변', 'Planner answer')}: ${findingLine(row.followup)}` : ''}\n\n${strength(row)}`;
   const foundations = spec.hypotheses.filter((row) => row.foundation).map(hypothesis).join('\n\n');
   const hypotheses = spec.hypotheses.filter((row) => !row.foundation).map(hypothesis).join('\n\n');
   const undefinedText = t('정의되지 않음', 'Not defined');
@@ -510,7 +531,7 @@ ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', '
 ${features || t('요구사항을 충족하는 기능이 아직 없습니다.', 'No feature serves a requirement yet.')}
 
 ${spec.differentiation ? `## ${t('차별점', 'Differentiation')}\n${renderDifferentiation(spec.differentiation, lang)}\n\n` : ''}${spec.technicalDesign ? `## ${t('기술 설계', 'Technical design')}\n\n${renderTechnicalDesign(spec.technicalDesign, lang)}\n\n` : ''}
-${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('원문이 받쳐 주지 않는 요구사항입니다. 만들기 전에 확인 방법대로 확인하세요.', 'No quote backs these. Check them as described before building.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
+${renderPrdModules(spec, lang)}${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('원문이 받쳐 주지 않는 요구사항입니다. 만들기 전에 확인 방법대로 확인하세요.', 'No quote backs these. Check them as described before building.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
 ${bullets(spec.nonGoals, undefinedText)}
 
 ## ${t('위험 요소', 'Risks')}
@@ -553,6 +574,8 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
     return `- [ ] ${feature.id} ${feature.title}\n  - ${p0.has(feature.id) ? '(P0) ' : ''}${feature.detail}\n  - Serves: ${serves}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
+  const followups = spec.hypotheses.flatMap(({ id, title, followup }) => followup
+    ? [`- ${id} ${title} — ${followup.evidence ? 'Research quote' : 'Planner answer'}: ${findingLine(followup)}`] : []).join('\n');
   const flow = mermaidFlow(spec);
   const goal = format === 'agents' ? context?.goal : undefined;
   const recentDecisions = format === 'agents' ? context?.decisions : undefined;
@@ -569,7 +592,7 @@ ${sessionRule}
 - Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
 - If the user has enabled commit uploads for this project, call link_commit after each commit with the project key, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).${goal ? '\n- Ask the user in the terminal before changing the locked goal or scope. Record their answer with record_decision.' : ''}
 - Trace each feature to the requirements or hypotheses listed under Serves. Use the cited user evidence for requirements and ask before building unvalidated hypotheses.
-- When a readiness slot says "open question", ask instead of guessing.
+- When a readiness slot says "open question", ask instead of guessing.${spec.modules?.length ? '\n- Confirm open module items and module hypotheses with the user before implementing them.' : ''}
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.`;
   const brief = `${intro[format]}${version ? `\n\n${briefVersionInstructions(version)}\n` : ''}
 ${spec.draft ? '\n> HYPOTHESIS DRAFT: the evidence is below the qualification bar. Confirm with real users before building beyond a prototype.\n' : ''}
@@ -580,7 +603,7 @@ ${goal?.statement ?? spec.summary}
 ${input.problem}
 
 ${spec.differentiation ? `## Differentiation\n${renderDifferentiation(spec.differentiation, 'en')}\n\n` : ''}${spec.technicalDesign ? `## Technical design\n\n${renderTechnicalDesign(spec.technicalDesign, 'en')}\n\n` : ''}
-${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
+${renderPrdModules(spec, 'en')}${followups ? `## Follow-up on hypotheses\n${followups}\n\n` : ''}${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 
 ${spec.screens.length ? `## Screens, in order (a draft, confirm with users)\n${spec.screens.map((screen) => `${screen.id}. ${screen.name}${screen.does ? `: ${screen.does}` : ''} (${screen.featureIds.join(', ')})`).join('\n')}\n\n` : ''}${flow ? `## User flow\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}## Do not build
@@ -624,6 +647,7 @@ ${quotes || `- ${input.problem}`}
 Build only these features for the first version, one at a time, and show me each one before the next:
 ${features || '1. Confirm the problem with users before building.'}
 ${screens ? `\nScreens:\n${screens}\n` : ''}
+${spec.modules?.length ? `\n${renderPrdModules(spec, 'en').trimEnd()}\n` : ''}
 Do not build yet:
 ${bullets(spec.nonGoals, 'Anything not listed above.')}
 

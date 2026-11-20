@@ -1,5 +1,6 @@
 import { callJsonModel, prdFreeModels } from '../llm';
 import type { ModelUsage } from '../llm';
+import { normalizeTechnicalDesign } from './prd-design';
 import { OPEN_SLOT_MARKER } from './spec';
 import type { ReadinessSlots, Spec, SpecFeature, SpecInput, SpecRequirement } from './spec';
 
@@ -269,6 +270,7 @@ export function applyP0Audit(spec: Spec, verdicts: P0AuditVerdict[]): { spec: Sp
   }).map((screen, index) => ({ ...screen, id: formatId('S', index) }));
 
   const openQuestions = [...new Set([...(spec.openQuestions ?? []), ...addedQuestions])].slice(0, 8);
+  const technicalDesign = normalizeTechnicalDesign(spec.technicalDesign, oldToNewFeature);
 
   return {
     spec: {
@@ -277,6 +279,7 @@ export function applyP0Audit(spec: Spec, verdicts: P0AuditVerdict[]): { spec: Sp
       hypotheses: nextHypotheses,
       features: nextFeatures,
       screens: nextScreens,
+      ...(spec.technicalDesign ? { technicalDesign } : {}),
       ...(openQuestions.length ? { openQuestions } : {}),
     },
     changes,

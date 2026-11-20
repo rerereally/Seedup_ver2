@@ -4,6 +4,8 @@ import { translator } from '../i18n';
 import { recommendToolkit, renderToolkit } from './toolkit';
 import type { Lang } from '../i18n';
 import { citedQuotes, prdSentenceParts } from './prd-markdown';
+import { normalizeDifferentiation, normalizeTechnicalDesign, renderTechnicalDesign } from './prd-design';
+import type { Differentiation, TechnicalDesign } from './prd-design';
 import { isVerbatimQuote } from './rules';
 import { PLATFORM_LABELS } from './types';
 import type { Evidence } from './types';
@@ -94,6 +96,8 @@ export type Spec = {
   origin?: 'idea';
   /** Each listed competitor: what it misses for these users and how this product answers it. Names only from the input. */
   rivals?: SpecRival[];
+  differentiation?: Differentiation;
+  technicalDesign?: TechnicalDesign;
   /** Why this is worth building, in prose; [E1]-style tags cite the quotes. */
   background?: string;
   /** One concrete moment of a target user meeting the problem and the product. */
@@ -180,6 +184,8 @@ export type RawSpec = {
   metrics?: unknown;
   existing?: unknown;
   rivals?: unknown;
+  differentiation?: unknown;
+  technicalDesign?: unknown;
   background?: unknown;
   scenario?: unknown;
   goals?: unknown;
@@ -269,7 +275,7 @@ export function withPrdReadiness(original: Spec): Spec {
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
  * so nothing in the spec floats free of the evidence chain. Indexes in the raw draft are 1-based.
  */
-export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean } = {}): Spec {
+export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean; competitorNotes?: readonly string[] } = {}): Spec {
   const evidenceCount = typeof evidence === 'number' ? evidence : evidence.length;
   const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
     const record = (row ?? {}) as RawRow;
@@ -317,6 +323,8 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     if (name && featureIds.length) screens.push({ id: id('S', screens.length), name, does: text(record.does, 240), featureIds });
   });
 
+  const differentiation = normalizeDifferentiation(raw.differentiation, evidenceCount, options.competitorNotes);
+  const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map([...featureId].map(([from, to]) => [String(from), to])));
   const spec = withP0({
     summary: text(raw.summary),
     targetUsers: stringList(raw.target_users, 4),
@@ -328,6 +336,8 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     risks: stringList(raw.risks, 6),
     metrics: stringList(raw.metrics, 6),
     draft,
+    ...(differentiation ? { differentiation } : {}),
+    ...(technicalDesign ? { technicalDesign } : {}),
     ...(text(raw.background, 1500) ? { background: text(raw.background, 1500) } : {}),
     ...(text(raw.scenario, 1000) ? { scenario: text(raw.scenario, 1000) } : {}),
     ...(stringList(raw.goals, 5).length ? { goals: stringList(raw.goals, 5) } : {}),
@@ -399,6 +409,12 @@ const cite = (evidence: number[]) => evidence.map((n) => `E-${n}`).join(', ');
 const citeTags = (prose: string) => prose.replace(/\[(E\s*-?\s*\d+(?:\s*,\s*E?\s*-?\s*\d+)*)\]/gi, (_, group: string) => `[${[...group.matchAll(/\d+/g)].map((n) => `E-${n[0]}`).join(', ')}]`);
 const bullets = (items: string[], empty: string) => (items.length ? items.map((item) => `- ${item}`).join('\n') : `- ${empty}`);
 
+function renderDifferentiation(value: Differentiation, lang: Lang) {
+  const t = translator(lang);
+  const quotes = value.evidence.length ? ` [${cite(value.evidence)}]` : '';
+  return `${value.claim}${quotes}${value.competitor ? `\n\n- ${t('경쟁 도구 설명', 'Competitor listing')}: ${value.competitor.name} | ${value.competitor.quote}` : ''}`;
+}
+
 function slotLines(slots: ReadinessSlots, english = false, lang: Lang = 'ko') {
   return SLOT_KEYS.map((key) => {
     const label = english ? key : slotLabels(lang)[key];
@@ -439,6 +455,7 @@ ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', '
 ## ${t('기능 명세 (R → F)', 'Features (R → F)')}
 ${features || t('요구사항을 충족하는 기능이 아직 없습니다.', 'No feature serves a requirement yet.')}
 
+${spec.differentiation ? `## ${t('차별점', 'Differentiation')}\n${renderDifferentiation(spec.differentiation, lang)}\n\n` : ''}${spec.technicalDesign ? `## ${t('기술 설계', 'Technical design')}\n\n${renderTechnicalDesign(spec.technicalDesign, lang)}\n\n` : ''}
 ${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서 나온 것이 아니라 모델이 제안한 순서입니다. 첫 사용자와 확인한 뒤 고치세요.', 'A model-proposed order, not from the evidence. Confirm with first users.')}\n\n${screens}\n\n` : ''}${flow ? `## ${t('유저플로우', 'User flow')}\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}${hypotheses ? `## ${t('검증이 필요한 가설', 'Hypotheses to validate')}\n${t('원문이 받쳐 주지 않는 요구사항입니다. 만들기 전에 확인 방법대로 확인하세요.', 'No quote backs these. Check them as described before building.')}\n\n${hypotheses}\n\n` : ''}## ${t('하지 않을 것', 'Non-goals')}
 ${bullets(spec.nonGoals, undefinedText)}
 
@@ -480,6 +497,7 @@ ${spec.summary}
 ## Problem
 ${input.problem}
 
+${spec.differentiation ? `## Differentiation\n${renderDifferentiation(spec.differentiation, 'en')}\n\n` : ''}${spec.technicalDesign ? `## Technical design\n\n${renderTechnicalDesign(spec.technicalDesign, 'en')}\n\n` : ''}
 ${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.existing.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${opportunitySlug ? 'Features' : 'Build these features, in order'}
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 

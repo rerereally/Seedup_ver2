@@ -18,6 +18,7 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export', async 
   const prd = page.getByRole('region', { name: '생성된 PRD' });
   await expect(prd).toBeVisible({ timeout: 90_000 });
   await expect(prd.getByText('H-01').first()).toBeVisible();
+  await expect(prd.getByRole('heading', { name: '기술 설계' })).toBeVisible();
 
   await prd.getByText('에이전트로 보내기', { exact: true }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'AGENTS.md 받기' }).click()]);
@@ -25,4 +26,5 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export', async 
   const brief = readFileSync((await download.path())!, 'utf8');
   expect(brief).toMatch(/F-01/);
   expect(brief).toMatch(/슬랙/);
+  expect(brief).toMatch(/### Implementation order\n1\. .*\(F-01\)/);
 });

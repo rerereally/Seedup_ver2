@@ -118,6 +118,10 @@ test('applyP0Audit narrows partial P0s and demotes unsupported P0s to hypotheses
       { name: 'Converter', does: 'Converts schemas', features: [1] },
       { name: 'Billing', does: 'Shows invoices', features: [2] },
     ],
+    technicalDesign: { milestones: [
+      { title: 'Build core and billing', featureIds: [1, 2] },
+      { title: 'Validate invoices', featureIds: [2] },
+    ] },
     metrics: ['3개 제공사 테스트 통과'],
   }, 2);
 
@@ -152,6 +156,7 @@ test('applyP0Audit narrows partial P0s and demotes unsupported P0s to hypotheses
   assert.deepEqual(audited.features[0].requirementIds, ['R-01', 'R-02']);
   assert.equal(audited.screens.length, 1);
   assert.equal(audited.screens[0].name, 'Converter');
+  assert.deepEqual(audited.technicalDesign?.milestones, [{ title: 'Build core and billing', featureIds: ['F-01'] }]);
 });
 
 test('applyP0Audit keeps feature links to demoted hypotheses on idea PRDs', () => {

@@ -144,7 +144,6 @@ const memoryLine = { type: 'string', maxLength: 500 };
 const memoryLines = { type: 'array', maxItems: 10, items: memoryLine };
 const APPROVED = '대화에서 승인';
 const REJECTED = '대화에서 거절';
-const ASK_USER = `사용자에게 터미널에서 물어라. Ask the user before changing the goal or scope. Call record_decision again with approval "${APPROVED}" or "${REJECTED}" after the user answers.`;
 
 export const TOOLS = [
   {
@@ -1043,7 +1042,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     title, why, rejected, goalVersion: goal?.version ?? 0, author: { kind: 'agent', name: agent }, approved, featureIds, criterionIds,
   };
   const saved = await deps.addProjectMemory(key, { kind: 'decision', body });
-  const note = scopeChange && approved === null ? ASK_USER
+  const note = scopeChange && approved === null ? askScope(prdLanguage(), key, featureIds[0])
     : approval === APPROVED && scopeChange ? `${APPROVED}. Have the user lock the revised goal before implementing the change.`
     : approval ?? '';
   return text(`Recorded decision ${saved.id} for ${key}.${note ? `\n${note}` : ''}`);

@@ -56,7 +56,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps {
   const unexpected = async (): Promise<never> => { throw new Error('Unexpected dependency call'); };
   return {
     opportunities: unexpected, cachedSpec: unexpected, generate: unexpected, consume: unexpected, related: unexpected,
-    linkCommit: unexpected, flagRecheck: unexpected, unlinkedCommitCount: unexpected, verifyFeature: unexpected,
+    linkCommit: unexpected, flagRecheck: unexpected, unlinkedCommitCount: unexpected,
     setProgress: unexpected, notifyBlocked: unexpected, kept: unexpected, validate: unexpected, watch: unexpected,
     progress: async () => ({}), featureFiles: async () => ({}),
     myPrd: async (id) => id === OWN ? SAVED : null, myPrds: async () => [SAVED],
@@ -201,7 +201,7 @@ test('a scope decision requires asking the user and records the terminal approva
   } });
   const args = { project: PROJECT, title: 'Add paid plans now', why: 'Users asked for billing', agent: 'Codex', scope_change: false };
   const pending = await call('record_decision', args, d);
-  assert.match(pending.body, /사용자에게 터미널에서 물어라/);
+  assert.match(pending.body, /ASK USER \(in the terminal, before acting\):/);
   const approval = await call('record_decision', { ...args, approval: '대화에서 승인' }, d);
   assert.match(approval.body, /대화에서 승인/);
   assert.deepEqual(entries.map((entry) => entry.kind === 'decision' && [entry.body.approved, entry.body.goalVersion]), [[null, 2], [true, 2]]);

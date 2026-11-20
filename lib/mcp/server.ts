@@ -919,19 +919,19 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
           ? await fetchVerificationDiff(project.repo, sha, deps.fetchCommitDiff).catch(() => null)
           : null;
       const diffCommit = diff ? driftCommitFromDiff({ sha, featureIds: [feature.id], diff }) : null;
-      // Auto-link verified commits to the feature (idempotent upsert); link_commit remains available for unverified commits.
-      if (row.status !== 'error') {
+      const diffFiles = diffCommit ? diffCommit.files.filter(Boolean) : [];
+      // Auto-link verified commits only when changed files were resolved from the diff, so a transient diff fetch failure
+      // cannot poison feature_commits with an empty file list (writeFeatureCommit uses ignoreDuplicates).
+      if (row.status !== 'error' && diff && diffFiles.length > 0) {
         const fileStatuses: Record<string, CommitFileStatus> = {};
-        if (diff) {
-          for (const file of parseDiff(diff)) {
-            fileStatuses[file.path] = file.isNew ? 'added' : 'modified';
-          }
+        for (const file of parseDiff(diff)) {
+          if (file.path) fileStatuses[file.path] = file.isNew ? 'added' : 'modified';
         }
         const hasStatuses = Object.keys(fileStatuses).length > 0;
         await deps.linkCommit(key, {
           sha,
           message: `verify_feature ${feature.id}`,
-          files: diffCommit?.files ?? [],
+          files: diffFiles,
           featureIds: [feature.id],
           ...(hasStatuses ? { fileStatuses } : {}),
         }).catch(() => undefined);

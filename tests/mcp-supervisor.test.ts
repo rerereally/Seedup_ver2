@@ -252,9 +252,18 @@ test('writeBuildProgress and readBuildProgress persist verification_level and ba
 test('running verify_feature tells the agent to re-call verify_feature, auto-links commits, and drift warnings ask the user', async () => {
   let calls = 0;
   const linkedCommits: Parameters<McpDeps['linkCommit']>[] = [];
+  const sampleDiff = [
+    'diff --git a/src/notes.ts b/src/notes.ts',
+    '--- a/src/notes.ts',
+    '+++ b/src/notes.ts',
+    '@@ -1 +1,2 @@',
+    ' export const notes = [];',
+    '+export function saveNote(text: string) { return text; }',
+  ].join('\n');
   const { deps } = dependencies({
     cachedSpec: async () => ({ input, spec: { ...spec, lang: 'ko' } }),
     linkCommit: async (...args) => { linkedCommits.push(args); },
+    fetchCommitDiff: async () => sampleDiff,
     startVerification: async () => {
       calls++;
       return calls === 1 ? record : {
@@ -271,6 +280,8 @@ test('running verify_feature tells the agent to re-call verify_feature, auto-lin
   assert.equal(linkedCommits.length, 1);
   assert.deepEqual(linkedCommits[0][1].featureIds, ['F-01']);
   assert.equal(linkedCommits[0][1].sha, SHA);
+  assert.deepEqual(linkedCommits[0][1].files, ['src/notes.ts']);
+  assert.deepEqual(linkedCommits[0][1].fileStatuses, { 'src/notes.ts': 'modified' });
 
   // Re-calling verify_feature with the same feature and SHA reads the updated stored verification.
   const result = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
@@ -418,4 +429,60 @@ test('verify_feature extracts new migration CREATE TABLE names from the server d
   }).deps);
   assert.doesNotMatch(clean.body, /Scope warnings/);
   assert.match(clean.body, /\nNext: update_feature_status /);
+});
+
+test('verify_feature does not auto-link empty files when diff fetch fails so a retry with the same SHA records actual files', async () => {
+  const stored = new Map<string, { files: string[]; fileStatuses?: Record<string, string> }>();
+  let diffAttempt = 0;
+  const realDiff = [
+    'diff --git a/src/notes.ts b/src/notes.ts',
+    '--- a/src/notes.ts',
+    '+++ b/src/notes.ts',
+    '@@ -1 +1,2 @@',
+    ' export const notes = [];',
+    '+export function saveNote(text: string) { return text; }',
+    'diff --git a/src/save.ts b/src/save.ts',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/src/save.ts',
+    '@@ -0,0 +1 @@',
+    '+export const saved = true;',
+  ].join('\n');
+
+  const { deps } = dependencies({
+    startVerification: async () => ({ ...record, status: 'passed', token: proof, verdicts: [{ criterion: '1', verdict: 'met', reason: 'ok', citations: [] }] }),
+    // Simulate writeFeatureCommit's ignoreDuplicates behavior per (slug, sha, feature_id).
+    linkCommit: async (slug, link) => {
+      for (const featureId of link.featureIds.length ? link.featureIds : ['']) {
+        const compositeKey = `${slug}:${link.sha}:${featureId}`;
+        if (!stored.has(compositeKey)) {
+          stored.set(compositeKey, { files: link.files, fileStatuses: link.fileStatuses });
+        }
+      }
+    },
+    fetchCommitDiff: async () => {
+      diffAttempt++;
+      if (diffAttempt === 1) throw new Error('temporary GitHub failure');
+      if (diffAttempt === 2) return null;
+      return realDiff;
+    },
+  });
+
+  // First call: diff fetch throws -> must NOT record an empty files: [] row.
+  const first = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(first.isError, undefined);
+  assert.equal(stored.size, 0);
+
+  // Second call: diff fetch returns null -> still must NOT record an empty row.
+  const second = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(second.isError, undefined);
+  assert.equal(stored.size, 0);
+
+  // Third call with the same SHA: diff fetch succeeds -> records the actual changed files and statuses.
+  const third = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(third.isError, undefined);
+  assert.deepEqual(stored.get(`notes:${SHA}:F-01`), {
+    files: ['src/notes.ts', 'src/save.ts'],
+    fileStatuses: { 'src/notes.ts': 'modified', 'src/save.ts': 'added' },
+  });
 });

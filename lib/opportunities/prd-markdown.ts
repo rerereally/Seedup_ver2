@@ -14,8 +14,8 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['nonGoals', /하지\s*않을|범위\s*밖|non-?goals|out of scope/i],
   ['goals', /목표|goals?/i],
   ['users', /대상|사용자|target|users?/i],
+  ['hypotheses', /^(?:기반 요구사항|foundation requirements|검증이 필요한 가설|hypotheses to validate)$/i],
   ['requirements', /요구\s*사항|requirements?/i],
-  ['hypotheses', /^(?:검증이 필요한 가설|hypotheses to validate)$/i],
   ['review', /^(?:검토 의견|review notes)$/i],
   ['differentiation', /^(?:차별점|우리만 하는 한 가지|differentiation|one differentiator)$/i],
   ['rivals', /이미\s*있는\s*도구|경쟁|existing tools|competitors|rivals/i],
@@ -162,7 +162,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
 
   const requirementItems = [
     ...items(buckets.get('requirements') ?? [], REQUIREMENT_ITEM).map((item) => ({ ...item, kind: 'R' })),
-    ...items(buckets.get('hypotheses') ?? [], HYPOTHESIS_ITEM).map((item) => ({ ...item, kind: 'H' })),
+    ...items(buckets.get('hypotheses') ?? [], HYPOTHESIS_ITEM).sort((a, b) => a.number - b.number).map((item) => ({ ...item, kind: 'H' })),
   ];
   if (!requirementItems.length) return null;
   const position = new Map<string, number>();
@@ -181,9 +181,10 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
       else detail.push(plain);
     }
     const priority = /\bP([012])\b/i.exec(item.head)?.[1];
-    const title = stripMarks(stripCitations(item.head).replace(/\[?\s*\bP[012]\b\s*\]?/i, '')).replace(/^[\s.:-]+/, '');
+    const foundationMarker = /\[(?:FOUNDATION|기반 요구사항)\]/i;
+    const title = stripMarks(stripCitations(item.head).replace(/\[?\s*\bP[012]\b\s*\]?/i, '').replace(foundationMarker, '').replace(/\[(?:추정|Inference)\]/i, '')).replace(/^[\s.:-]+/, '');
     const evidence = item.kind === 'H' ? [] : [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' ')), ...evidenceLine])];
-    return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), acceptance, ...(check ? { check } : {}) };
+    return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), ...(foundationMarker.test(item.head) ? { foundation: true } : {}), acceptance, ...(check ? { check } : {}) };
   });
 
   const featurePositions = new Map<number, number>();

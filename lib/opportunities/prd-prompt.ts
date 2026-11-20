@@ -3,6 +3,7 @@
 // list of rules, so the example carries most of the weight: change it only with scripts/eval-prd.ts and judge-prd.ts.
 import type { Lang } from '../i18n';
 import { PLATFORM_LABELS } from './types';
+import { isCutOffEvidenceQuote } from './quote-completeness';
 import type { SpecInput } from './spec';
 
 /** Section headings, in order. The parser (prd-markdown.ts) reads these, in either language. */
@@ -140,9 +141,12 @@ ${beginner ? '3~5' : '4~7'}개. 요구사항마다 아래 모양으로 쓴다.
 (필요하면) 한두 문장 설명.
 - ${h.acceptance}: 1~3개. 주어진 입력에서 Y를 하면 Z가 보이거나 반환된다는 식으로 쓴다. 사용자의 마음이나 다음 행동 대신, 제품에서 확인 가능한 결과를 정한다.
 - ${h.check}: 원문 번호가 없는 요구사항에만 쓴다. 누구에게 무엇을 물어 맞는지 확인할지와 판단 기준.
+다른 기능의 전제인 최소 기본 동작은 원문이 없으면 제목에 [P0] [FOUNDATION]을 붙이고 원문 번호 없이 쓴다. 원문이 없다는 이유로 부가 기능보다 뒤로 미루지 말고, 기본 동작의 필요성이 추정이라는 점과 확인 방법을 적는다.
+입력에 제품 기능으로 요구되지 않은 AI 모델 호출, 계정, 서버 배포는 기본 동작으로 넣지 않는다. 에이전트가 사용할 산출물을 내보내는 기능과 제품 안에서 모델을 호출하는 기능을 구분한다.
 ## ${h.features}
 ${beginner ? '2~3' : '3~6'}개. 기능마다 아래 모양으로 쓴다.
 ### F번호. 기능 이름 (R번호, R번호)
+모든 P0·P1 요구사항과 원문 없는 P0·P1 항목을 각각 실제로 구현하는 기능에 연결한다. 관련 주제라는 이유로 연결하지 말고 기능이 해당 동작을 수행하는지 확인한다.
 무엇을 받아 무엇을 돌려주는지 한두 문장.
 ## 차별점
 우리만 하는 한 가지를 한 문장으로 쓴다. 이 차이를 뒷받침하는 원문은 문장 끝에 [E번호]로 붙인다. 경쟁 도구 설명에 근거를 두면 다음 줄에 "- 경쟁 도구 설명: 도구 이름 | 설명에서 그대로 복사한 문장"을 적는다. 둘 다 없으면 추측하지 말고 열린 질문에 남긴다.
@@ -194,7 +198,7 @@ export const prdSystemPrompt = (lang: Lang = 'ko', beginner = false) => (lang ==
 
 /** This PRD's data only. Every field is the server's own or clipped user input, wrapped so it reads as data. */
 export function prdUserPrompt(input: SpecInput, options: { idea?: boolean; lang?: Lang; stack?: readonly string[] } = {}) {
-  const quotes = input.evidence.map((item, index) => `E${index + 1} [${PLATFORM_LABELS[item.platform] ?? item.platform}] "${item.quote}"${item.quoteKo && options.lang !== 'en' ? `\n   (번역: ${item.quoteKo})` : ''}`).join('\n');
+  const quotes = input.evidence.flatMap((item, index) => isCutOffEvidenceQuote(item.quote) ? [] : [`E${index + 1} [${PLATFORM_LABELS[item.platform] ?? item.platform}] "${item.quote}"${item.quoteKo && options.lang !== 'en' ? `\n   (번역: ${item.quoteKo})` : ''}`]).join('\n');
   return `<아이디어>
 ${input.title}
 </아이디어>

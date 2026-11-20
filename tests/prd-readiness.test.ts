@@ -19,7 +19,7 @@ test('normalizeSpec promotes exactly one row without changing its evidence statu
   assert.deepEqual(explicit.requirements.map((row) => row.priority), [undefined, 'P0']);
 });
 
-test('only P0 features get slots, and failures become open questions without inventing a screen', async () => {
+test('P0 uses existing generation budget, P1 explains missing slots, and neither invents a screen', async () => {
   const spec = normalizeSpec(raw, 2);
   const calls: string[] = [];
   const result = await completePrd(input, spec, { deadline: Date.now() + 30_000 }, {
@@ -28,7 +28,7 @@ test('only P0 features get slots, and failures become open questions without inv
   });
   assert.deepEqual(calls, ['screens', 'Store']);
   assert.ok(SLOT_KEYS.every((key) => result.features[0].slots?.[key]?.[0].startsWith('확인 필요:')));
-  assert.equal(result.features[1].slots, null);
+  assert.ok(SLOT_KEYS.every((key) => result.features[1].slots?.[key]?.[0].includes('자동 보완은 P0에 우선 배정')));
   assert.deepEqual(result.screens, []);
   assert.equal(result.openQuestions?.length, 2);
   assert.deepEqual(withPrdReadiness(result), result);

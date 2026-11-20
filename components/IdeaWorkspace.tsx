@@ -560,12 +560,47 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
       {search.message && <p className={`mt-2 text-[13px] leading-5 ${search.state === 'error' ? 'text-red-700' : 'text-tertiary'}`} role="status">{search.message}</p>}
     </div>
   );
+  const ownNotes = (defaultOpen = false) => (
+    <details className="mt-5 border-t border-outline-soft pt-4" open={defaultOpen || own.length > 0}>
+      <summary className="cursor-pointer text-[14px] font-semibold text-ink">{t('내가 직접 들은 말 넣기', 'Add what you heard yourself')} <span className="font-normal text-muted">{t('인터뷰, 메모', 'interviews, notes')}{own.length ? ` · ${own.length}` : ''}</span></summary>
+      <p className="mt-1.5 text-[13px] leading-5 text-muted">{t('한 줄에 한 문장씩 넣으세요. 공개 글과 대조할 수 없어 "내 메모"로 표시되고, 근거 기준(원문 3건, 2곳)에는 들어가지 않습니다.', 'One sentence per line. They cannot be checked against a public post, so they show as your notes and do not count toward the evidence bar.')}</p>
+      {own.length > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {own.map((row) => (
+            <li key={row} className="flex items-start justify-between gap-2 rounded-xl border border-outline-soft bg-white px-3 py-2 text-[13.5px] leading-6">
+              <q className="min-w-0 text-ink">{row}</q>
+              <button type="button" onClick={() => setOwn(own.filter((item) => item !== row))} className="shrink-0 text-[12.5px] text-muted hover:text-ink" aria-label={t('이 메모 빼기', 'Remove this note')}>{t('빼기', 'Remove')}</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="mt-2" onSubmit={(event) => { event.preventDefault(); const lines = ownDraft.split('\n').map((line) => line.trim()).filter((line) => line.length >= 8); if (!lines.length) return; setOwn([...new Set([...own, ...lines])].slice(0, 10)); setOwnDraft(''); }}>
+        <label htmlFor="own-notes" className="sr-only">{t('직접 들은 말', 'What you heard')}</label>
+        <textarea id="own-notes" rows={3} value={ownDraft} maxLength={2000} onChange={(event) => setOwnDraft(event.target.value)} placeholder={t('예: 매주 월요일마다 깨진 빌드 원인을 찾느라 오전이 다 가요 (프론트엔드 개발자 인터뷰)', 'e.g. Every Monday my morning goes to finding why the build broke (frontend dev interview)')} className="block w-full rounded-lg border border-field bg-white px-3 py-2 text-[13.5px] leading-6" />
+        <button type="submit" className="btn-quiet mt-2 h-9 px-3 text-[13px]" disabled={ownDraft.trim().length < 8 || own.length >= 10}>{t('담기', 'Add')}</button>
+      </form>
+    </details>
+  );
   if (!matched.length && !live.length && !saved.length) {
     return (
       <div>
         <p className="text-[15px] font-semibold text-ink">{t('저장된 원문 중 맞는 것이 없습니다', 'No stored quote matches yet')}</p>
-        <p className="mt-1 text-[14px] leading-6 text-muted">{t('웹에서 찾아보거나, 답변만으로 만들 수 있습니다. 답변만으로 만들면 요구사항은 모두 가설로 표시됩니다.', 'Search the web, or make it from your answers alone; then every requirement is marked as a hypothesis.')}</p>
+        <div className="mt-3 rounded-xl border border-outline-soft bg-surface-low p-4 text-[13.5px] leading-6">
+          <p className="text-ink">{t('Seedup은 개발자 커뮤니티(GitHub, HN, Stack Overflow 등)의 글을 모읍니다. 이 아이디어의 사용자는 다른 곳에 있을 가능성이 큽니다.', 'Seedup collects posts from developer communities (GitHub, HN, Stack Overflow, etc.). Your target users are likely elsewhere.')}</p>
+          <p className="mt-1.5 text-muted">{t('이 상태로 만든 PRD는 모든 요구사항을 확인할 항목으로 남긴 "가설 초안"으로 만들어집니다.', 'A PRD made in this state becomes a "hypothesis draft" where every requirement is marked to be verified.')}</p>
+          <ul className="mt-3 space-y-1.5 text-[13px] text-tertiary">
+            <li>1. <a href="#own-notes" className="font-semibold text-seed underline-offset-4 hover:underline">{t('직접 들은 말 넣기', 'Add what you heard yourself')}</a> {t('(인터뷰·메모 입력 칸)', '(interview or note input below)')}</li>
+            <li>2. <Link href="/guide#extension" className="font-semibold text-seed underline-offset-4 hover:underline">{t('크롬 확장으로 원문 담기', 'Save quotes with the Chrome extension')}</Link></li>
+            <li className="flex flex-wrap items-center gap-2">
+              <span>3. {t('지켜보기 등록:', 'Watch this idea:')}</span>
+              {signedIn
+                ? <WatchIdeaButton idea={idea} className="btn-quiet h-8 px-2.5 text-[12.5px]" />
+                : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="font-semibold text-seed underline-offset-4 hover:underline">{t('로그인하고 지켜보기 등록', 'Sign in to watch this idea')}</Link>}
+            </li>
+          </ul>
+        </div>
         {web}
+        {ownNotes(true)}
       </div>
     );
   }
@@ -606,25 +641,7 @@ function EvidencePicker({ matched, live, saved, keptIds, toggle, keptCount, kept
         )}
       </div>
       {web}
-      <details className="mt-5 border-t border-outline-soft pt-4" open={own.length > 0}>
-        <summary className="cursor-pointer text-[14px] font-semibold text-ink">{t('내가 직접 들은 말 넣기', 'Add what you heard yourself')} <span className="font-normal text-muted">{t('인터뷰, 메모', 'interviews, notes')}{own.length ? ` · ${own.length}` : ''}</span></summary>
-        <p className="mt-1.5 text-[13px] leading-5 text-muted">{t('한 줄에 한 문장씩 넣으세요. 공개 글과 대조할 수 없어 "내 메모"로 표시되고, 근거 기준(원문 3건, 2곳)에는 들어가지 않습니다.', 'One sentence per line. They cannot be checked against a public post, so they show as your notes and do not count toward the evidence bar.')}</p>
-        {own.length > 0 && (
-          <ul className="mt-2 space-y-1.5">
-            {own.map((row) => (
-              <li key={row} className="flex items-start justify-between gap-2 rounded-xl border border-outline-soft bg-white px-3 py-2 text-[13.5px] leading-6">
-                <q className="min-w-0 text-ink">{row}</q>
-                <button type="button" onClick={() => setOwn(own.filter((item) => item !== row))} className="shrink-0 text-[12.5px] text-muted hover:text-ink" aria-label={t('이 메모 빼기', 'Remove this note')}>{t('빼기', 'Remove')}</button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form className="mt-2" onSubmit={(event) => { event.preventDefault(); const lines = ownDraft.split('\n').map((line) => line.trim()).filter((line) => line.length >= 8); if (!lines.length) return; setOwn([...new Set([...own, ...lines])].slice(0, 10)); setOwnDraft(''); }}>
-          <label htmlFor="own-notes" className="sr-only">{t('직접 들은 말', 'What you heard')}</label>
-          <textarea id="own-notes" rows={3} value={ownDraft} maxLength={2000} onChange={(event) => setOwnDraft(event.target.value)} placeholder={t('예: 매주 월요일마다 깨진 빌드 원인을 찾느라 오전이 다 가요 (프론트엔드 개발자 인터뷰)', 'e.g. Every Monday my morning goes to finding why the build broke (frontend dev interview)')} className="block w-full rounded-lg border border-field bg-white px-3 py-2 text-[13.5px] leading-6" />
-          <button type="submit" className="btn-quiet mt-2 h-9 px-3 text-[13px]" disabled={ownDraft.trim().length < 8 || own.length >= 10}>{t('담기', 'Add')}</button>
-        </form>
-      </details>
+      {ownNotes(false)}
       {signedIn && (
         <div className="mt-5 space-y-3 border-t border-outline-soft pt-4">
           {!passes && <p className="text-[13px] leading-5 text-muted">{t('근거가 아직 모자라면 지켜보세요. 매주 다시 찾아 새 원문과 경쟁 도구를 메일로 보냅니다.', 'Short on evidence? Watch it: Seedup searches again each week and mails new quotes and rival tools.')}</p>}

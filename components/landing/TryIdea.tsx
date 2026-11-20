@@ -87,7 +87,10 @@ export default function TryIdea({ pool, examples, head, note }: { pool: PoolItem
                 ))}
               </ol>
             ) : (
-              <p className="mt-3 text-[15px] leading-7 text-tertiary">{t('오늘 모아 둔 글에서는 아직 같은 불만을 찾지 못했습니다. PRD 만들기를 누르면 웹에서 원문을 더 찾아봅니다.', 'Nothing in today’s collected posts matches yet. Press Make the PRD and the workspace searches the web for more.')}</p>
+              <div className="mt-3 rounded-xl border border-outline-soft bg-surface-low p-4 text-[14px] leading-6 text-tertiary">
+                <p className="text-ink">{t('Seedup은 개발자 커뮤니티(GitHub, HN, Stack Overflow 등)의 글을 모읍니다. 이 아이디어의 사용자는 다른 곳에 있을 가능성이 큽니다.', 'Seedup collects posts from developer communities (GitHub, HN, Stack Overflow, etc.). Your target users are likely elsewhere.')}</p>
+                <p className="mt-1">{t('이 상태로 만든 PRD는 "가설 초안"이 됩니다. PRD 화면에서 직접 들은 말 넣기, 크롬 확장으로 원문 담기(', 'A PRD made in this state becomes a "hypothesis draft". In the PRD workspace you can add what you heard yourself, ')}<Link href="/guide#extension" className="font-semibold text-seed underline-offset-4 hover:underline">{t('확장 안내', 'save quotes with the Chrome extension')}</Link>{t('), 지켜보기 등록을 쓸 수 있습니다.', ', or watch this idea.')}</p>
+              </div>
             )}
             <div className="mt-4 flex items-center justify-between gap-3">
               <span className="text-[13px] text-muted">{t('질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료', 'Answer questions with no account; sign in for 10 free PRDs a day')}</span>

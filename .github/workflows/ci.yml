@@ -149,19 +149,34 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.ready.outputs.ready == 'true'
-      - uses: actions/setup-node@v4
+      # Deploys queue in the order their tests finish, so an older commit whose e2e ran longer could overwrite a newer
+      # one (2026-11-21: #210 replaced #211 on production). Only the commit main points at now may deploy; a newer run
+      # deploys its own commit.
+      - name: Deploy only the latest main
+        id: latest
         if: steps.ready.outputs.ready == 'true'
+        run: |
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          # An unreadable main (empty answer) deploys as before rather than silently skipping.
+          if [ -z "$latest" ] || [ "$latest" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipped: main is now at $latest, whose own run deploys it."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.latest.outputs.latest == 'true'
         with:
           node-version: 22
           cache: npm
       - name: Build and deploy
-        if: steps.ready.outputs.ready == 'true'
+        if: steps.latest.outputs.latest == 'true'
         run: |
           npm ci
           npx opennextjs-cloudflare build
           npx opennextjs-cloudflare deploy
       - name: Check the site answers
-        if: steps.ready.outputs.ready == 'true'
+        if: steps.latest.outputs.latest == 'true'
         run: |
           for attempt in 1 2 3 4 5; do
             status=$(curl --silent --output /dev/null --max-time 30 --write-out '%{http_code}' "$NEXT_PUBLIC_SITE_URL/opportunities" || echo 000)

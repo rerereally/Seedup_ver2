@@ -2276,9 +2276,6 @@
         "build_progress_events",
         "created_at"
       ]
-    ],
-    "functions": [
-      "write_build_progress"
     ]
   },
   {
@@ -2655,6 +2652,18 @@
         "verifications",
         "finished_at"
       ]
+    ]
+  },
+  {
+    "file": "20261120170000_build_progress_verification_level.sql",
+    "columns": [
+      [
+        "build_progress",
+        "verification_level"
+      ]
+    ],
+    "functions": [
+      "write_build_progress"
     ]
   }
 ]

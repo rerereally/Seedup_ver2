@@ -3,7 +3,10 @@ import test, { type TestContext } from 'node:test';
 import type { VerificationRecord, VerificationStore } from '../lib/db/verifications';
 import { handleMcpRequest } from '../lib/mcp/endpoint';
 import { handleRpc, type McpDeps } from '../lib/mcp/server';
-import type { BuildProgress } from '../lib/opportunities/build-progress';
+import { backfillVerificationLevel, readBuildProgress, writeBuildProgress, type BuildProgress } from '../lib/opportunities/build-progress';
+import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import type { Opportunity } from '../lib/opportunities/types';
 import type { ProjectGoal, SupervisorProject } from '../lib/supervisor/types';
@@ -54,8 +57,15 @@ function dependencies(over: Partial<McpDeps> = {}) {
       Boolean(readVerificationToken(token, { userId: USER, projectKey, featureId, sha }, SIGNING_KEY)),
     progress: async () => progress, linkCommit: async () => {}, featureFiles: async () => ({}),
     flagRecheck: async () => false, unlinkedCommitCount: async () => 0,
-    setProgress: async (_key, feature, status, note) => {
-      progress[feature.id] = { title: feature.title, status, note, updatedAt: AT, doneAt: status === 'done' ? AT : null };
+    setProgress: async (_key, feature, status, note, verificationLevel) => {
+      progress[feature.id] = {
+        title: feature.title,
+        status,
+        note,
+        verificationLevel: verificationLevel ?? feature.verificationLevel ?? 'self_reported',
+        updatedAt: AT,
+        doneAt: status === 'done' ? AT : null,
+      };
       return false;
     },
     notifyBlocked: unexpected, kept: unexpected, validate: unexpected, watch: unexpected,
@@ -179,6 +189,7 @@ test('done verifies the proof against the user, project, feature and SHA and app
   assert.match(done.body, /^F-01 Save notes \[done\] 🟢 supervisor verified\nGoal v1/);
   assert.match(done.body, /\nNext: get_next_task \{"project":"notes"\}$/);
   assert.equal(progress['F-01'].status, 'done');
+  assert.equal(progress['F-01'].verificationLevel, 'supervisor_verified');
   assert.match(progress['F-01'].note, /^\[supervisor_verified:abcd1234\]/);
   assert.doesNotMatch(progress['F-01'].note, /svt1\./);
 });
@@ -191,8 +202,50 @@ test('a non-strict project records unverified completion as self-reported and st
   }, deps);
   assert.equal(result.isError, undefined);
   assert.match(result.body, /^F-01 Save notes \[done\] ⚪ self-reported/);
+  assert.equal(progress['F-01'].verificationLevel, 'self_reported');
   assert.match(progress['F-01'].note, /^\[self_reported\]/);
   assert.doesNotMatch(progress['F-01'].note, /supervisor_verified|deadbeef/);
+});
+
+test('writeBuildProgress and readBuildProgress persist verification_level and backfill rule promotes only valid done tags', async () => {
+  const calls: Array<{ path: string; body: Record<string, unknown> | null }> = [];
+  const client = createClient('https://supabase.invalid', 'test-key', {
+    auth: { persistSession: false },
+    global: {
+      fetch: async (source, init) => {
+        const url = new URL(String(source));
+        const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+        calls.push({ path: url.pathname, body });
+        if (url.pathname.endsWith('/rpc/write_build_progress')) return Response.json(false);
+        return Response.json([
+          { feature_id: 'F-01', feature_title: 'Save notes', status: 'done', note: '[supervisor_verified:abcd1234]', verification_level: 'supervisor_verified', updated_at: AT, done_at: AT },
+          { feature_id: 'F-02', feature_title: 'Open notes', status: 'done', note: '[self_reported]', verification_level: 'self_reported', updated_at: AT, done_at: AT },
+        ]);
+      },
+    },
+  });
+
+  await writeBuildProgress(client, USER, PROJECT, { id: 'F-01', title: 'Save notes', verificationLevel: 'supervisor_verified' }, 'done', '[supervisor_verified:abcd1234]');
+  await writeBuildProgress(client, USER, PROJECT, { id: 'F-02', title: 'Open notes' }, 'done', '[self_reported]');
+  await writeBuildProgress(client, USER, PROJECT, { id: 'F-01', title: 'Save notes', verificationLevel: 'supervisor_verified' }, 'needs_recheck', 'recheck');
+
+  assert.equal(calls[0].body?.p_verification_level, 'supervisor_verified');
+  assert.equal(calls[1].body?.p_verification_level, 'self_reported');
+  assert.equal(calls[2].body?.p_verification_level, 'self_reported');
+
+  const loaded = await readBuildProgress(client, USER, PROJECT);
+  assert.equal(loaded['F-01'].verificationLevel, 'supervisor_verified');
+  assert.equal(loaded['F-02'].verificationLevel, 'self_reported');
+
+  assert.equal(backfillVerificationLevel('done', '[supervisor_verified:abcd1234] ok'), 'supervisor_verified');
+  assert.equal(backfillVerificationLevel('done', '[supervisor_verified]'), 'supervisor_verified');
+  assert.equal(backfillVerificationLevel('needs_recheck', '[supervisor_verified:abcd1234]'), 'self_reported');
+  assert.equal(backfillVerificationLevel('done', '[self_reported] checks 1/1'), 'self_reported');
+  assert.equal(backfillVerificationLevel('done', 'note mentioning [supervisor_verified:abcd1234] later'), 'self_reported');
+
+  const sql = readFileSync(resolve(process.cwd(), 'supabase/migrations/20261120170000_build_progress_verification_level.sql'), 'utf8');
+  assert.match(sql, /add column if not exists verification_level/i);
+  assert.match(sql, /update public\.build_progress\s+set verification_level = 'supervisor_verified'/i);
 });
 
 test('running results say exactly how to poll, and drift warnings ask the user before acting', async () => {

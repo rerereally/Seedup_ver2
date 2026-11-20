@@ -52,12 +52,12 @@ const toRow = (r: VerificationRecord): Row => ({
   github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null, retried: r.retried ?? false,
 });
 
-export type VerificationSummary = Pick<Row, 'id' | 'feature_id' | 'repo' | 'sha' | 'status' | 'verdicts' | 'checks' | 'model' | 'created_at' | 'duration_ms' | 'error_message'>;
+export type VerificationSummary = Pick<Row, 'id' | 'feature_id' | 'repo' | 'sha' | 'status' | 'verdicts' | 'checks' | 'model' | 'created_at' | 'duration_ms' | 'error_message' | 'drift'>;
 
 /** Dashboard reads use the signed-in client. Never select the verification credential for display. */
 export async function recentProjectVerifications(client: SupabaseClient, userId: string, projectKey: string): Promise<VerificationSummary[]> {
   const { data, error } = await client.from('verifications')
-    .select('id,feature_id,repo,sha,status,verdicts,checks,model,created_at,duration_ms,error_message')
+    .select('id,feature_id,repo,sha,status,verdicts,checks,model,created_at,duration_ms,error_message,drift')
     .eq('user_id', userId).eq('project_key', projectKey)
     .order('created_at', { ascending: false }).limit(10);
   if (error) throw error;

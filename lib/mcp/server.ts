@@ -133,6 +133,7 @@ const progressProperties = {
   note: { type: 'string', description: 'One line on what changed or what is blocking work' },
   sha: shaProperty,
   verification_token: { type: 'string', description: 'Server verification proof for this feature and SHA, from verify_feature' },
+  local_audit: { type: 'string', enum: ['passed'], description: 'For done without a verification token: "passed" only when the Seedup local check (.seedup pre-commit audit) passed with 0 blockers on this full SHA. Recorded as 🔵 local check.' },
   checks: {
     type: 'array',
     description: 'For self-reported done, one passing check with evidence per numbered criterion from get_next_task or resume_project.',
@@ -707,7 +708,8 @@ export function unmetCriteria(criteria: string[], raw: unknown) {
 export function doneSummary(spec: Spec, progress: BuildProgress) {
   const done = spec.features.filter((feature) => progress[feature.id]?.status === 'done');
   const verified = done.filter((feature) => progress[feature.id]?.verificationLevel === 'supervisor_verified').length;
-  return `${done.length}/${spec.features.length} done (🟢 ${verified} supervisor verified, ⚪ ${done.length - verified} self-reported)`;
+  const local = done.filter((feature) => progress[feature.id]?.verificationLevel === 'local_checked').length;
+  return `${done.length}/${spec.features.length} done (🟢 ${verified} supervisor verified, ${local ? `🔵 ${local} local check, ` : ''}⚪ ${done.length - verified - local} self-reported)`;
 }
 
 export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string, unlinkedCount?: number, tests: Record<string, string[]> = {}) {
@@ -715,7 +717,7 @@ export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: 
     const mark = progress[feature.id];
     const status = mark?.status ?? 'todo';
     const criteria = featureCriteria(spec, feature).map((line, index) => `    ${index + 1}. ${line}`).join('\n');
-    const level = status === 'done' ? (mark?.verificationLevel === 'supervisor_verified' ? ' 🟢' : ' ⚪') : '';
+    const level = status === 'done' ? (mark?.verificationLevel === 'supervisor_verified' ? ' 🟢' : mark?.verificationLevel === 'local_checked' ? ' 🔵' : ' ⚪') : '';
     return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}]${level} (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
   Done when:
@@ -1105,7 +1107,7 @@ async function updateBuildStatus(args: Record<string, unknown>, opportunity: Opp
   const feature = spec.features.find((row) => row.id === id);
   if (!feature) return projectReply('Unknown feature.', goal, '', checklist, true);
   let note = progressNote(typeof args.note === 'string' ? args.note.slice(0, 2000) : '');
-  let completion: { featureId: string; level: 'supervisor_verified' | 'self_reported' } | undefined;
+  let completion: { featureId: string; level: VerificationLevel } | undefined;
   if (status === 'done') {
     const sha = typeof args.sha === 'string' && FULL_SHA.test(args.sha) ? args.sha.toLowerCase() : undefined;
     const token = typeof args.verification_token === 'string' && args.verification_token.length <= 2000 ? args.verification_token : null;
@@ -1125,15 +1127,17 @@ async function updateBuildStatus(args: Record<string, unknown>, opportunity: Opp
         return projectReply(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.`, goal, missing, checklist, true);
       }
       const proof = passing.map((check) => `${check.criterion}: ${oneLine(progressNote(check.evidence), 160)}`).join('; ');
-      completion = { featureId: feature.id, level: 'self_reported' };
-      note = '[self_reported] ' + [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
+      // 🔵 is still the agent's word (the local hook runs on its machine), so it needs the same per-criterion checks plus the SHA it audited.
+      const local = args.local_audit === 'passed' && sha;
+      completion = { featureId: feature.id, level: local ? 'local_checked' : 'self_reported' };
+      note = (local ? `[local_checked:${sha}] ` : '[self_reported] ') + [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
     }
   }
   const verificationLevel: VerificationLevel = completion?.level ?? 'self_reported';
   const enteredBlocked = await deps.setProgress(project, { id: feature.id, title: feature.title, verificationLevel }, status, note, verificationLevel);
   if (status === 'blocked' && enteredBlocked) await deps.notifyBlocked(opportunity, feature).catch(() => undefined);
   const progress = await deps.progress(project);
-  const mark = completion?.level === 'supervisor_verified' ? ' 🟢 supervisor verified' : completion ? ' ⚪ self-reported' : '';
+  const mark = completion?.level === 'supervisor_verified' ? ' 🟢 supervisor verified' : completion?.level === 'local_checked' ? ' 🔵 local check' : completion ? ' ⚪ self-reported' : '';
   const title = oneLine(progressNote(feature.title));
   const body = [`${doneSummary(spec, progress)}.`, status === 'done' && `- [x] ${feature.id} ${title}`, oneLine(progressNote(note), 260)].filter(Boolean).join('\n');
   return {

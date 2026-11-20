@@ -2,7 +2,7 @@ import type { BuildProgress, FeatureStatus } from '@/lib/opportunities/build-pro
 import type { FeatureCommit } from '@/lib/opportunities/feature-commits';
 import type { Spec } from '@/lib/opportunities/spec';
 import { findDrift, type DriftCommit } from '@/lib/supervisor/drift';
-import type { ProjectGoal, VerificationLevel } from '@/lib/supervisor/types';
+import type { DriftFinding, ProjectGoal, VerificationLevel } from '@/lib/supervisor/types';
 
 export type FeatureSignal = { id: string; title: string; status: FeatureStatus; verification: VerificationLevel; note: string };
 
@@ -23,7 +23,46 @@ export function featureSignals(spec: Spec | null, progress: BuildProgress): Feat
         : level === 'local_checked'
           ? 'local_checked'
           : 'self_reported';
-    return { id, title, status: row?.status ?? 'todo', verification, note: row?.note ?? '' };
+    // The [supervisor_verified:<sha>] style tags are bookkeeping for the server, not text for people.
+    // The per-criterion proof list stays in the record; the dashboard shows only how many checks passed.
+    const note = (row?.note ?? '').replace(/\[(?:supervisor_verified|self_reported|local_checked)(?::[^\]\r\n]*)?\]/gi, '')
+      .replace(/(checks \d+\/\d+) \([\s\S]*$/, '$1').trim();
+    return { id, title, status: row?.status ?? 'todo', verification, note };
+  });
+}
+
+/**
+ * A success criterion follows the features linked to it: met once every linked feature is done with 🟢 supervisor
+ * verification, partial once any linked feature is done, otherwise as locked. Stored values are never lowered.
+ */
+export function criteriaWithProgress(goal: ProjectGoal | null, progress: BuildProgress): ProjectGoal | null {
+  if (!goal) return goal;
+  return {
+    ...goal,
+    criteria: goal.criteria.map((criterion) => {
+      const ids = criterion.featureIds ?? [];
+      if (criterion.status === 'met' || !ids.length) return criterion;
+      const done = ids.filter((id) => progress[id]?.status === 'done');
+      const verified = done.filter((id) => progress[id]?.verificationLevel === 'supervisor_verified');
+      const status = verified.length === ids.length ? 'met' : done.length ? 'partial' : criterion.status;
+      return status === criterion.status ? criterion : { ...criterion, status };
+    }),
+  };
+}
+
+/**
+ * Drift from recorded commits plus the scope warnings server verifications raised, one line per commit and kind
+ * (verifications come newest first, so a commit re-verified several times keeps its latest wording).
+ * null still means nothing has been recorded yet (no linked commits and no verification run).
+ */
+export function mergeDrift(commitDrift: DriftFinding[] | null, runs: Array<{ drift?: DriftFinding[] | null }> | null): DriftFinding[] | null {
+  if (commitDrift === null && !runs?.length) return null;
+  const seen = new Set<string>();
+  return [...(commitDrift ?? []), ...(runs ?? []).flatMap((run) => run.drift ?? [])].filter((finding) => {
+    const key = `${finding.sha}|${finding.kind}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 

@@ -191,9 +191,9 @@ function progressFixture(over: Partial<McpDeps> = {}) {
   const withSpec = deps({
     cachedSpec: async () => ({ input: {} as never, spec }),
     progress: async () => progress,
-    setProgress: async (_slug, feature, status, note) => {
+    setProgress: async (_slug, feature, status, note, verificationLevel) => {
       const previous = progress[feature.id];
-      progress[feature.id] = { title: feature.title, note, status, updatedAt: 'now', doneAt: status === 'done' ? 'now' : previous?.doneAt ?? null };
+      progress[feature.id] = { title: feature.title, note, status, updatedAt: 'now', doneAt: status === 'done' ? 'now' : previous?.doneAt ?? null, verificationLevel };
       return status === 'blocked' && previous?.status !== 'blocked';
     },
     ...over,
@@ -812,6 +812,23 @@ test('done counts keep supervisor-verified apart from self-reported features', a
     'F-02': { status: 'done', note: '', updatedAt: '2026-11-20T00:00:00Z', verificationLevel: 'self_reported' },
   } as unknown as BuildProgress;
   assert.equal(doneSummary(spec, progress), '2/3 done (🟢 1 supervisor verified, ⚪ 1 self-reported)');
+  progress['F-03'] = { status: 'done', note: '', updatedAt: '2026-11-20T00:00:00Z', verificationLevel: 'local_checked' } as never;
+  assert.equal(doneSummary(spec, progress), '3/3 done (🟢 1 supervisor verified, 🔵 1 local check, ⚪ 1 self-reported)');
+});
+
+test('update_feature_status records 🔵 only with checks, a full SHA and a passed local audit', async () => {
+  const { withSpec, progress } = progressFixture();
+  const sha = 'a'.repeat(40);
+  const checks = [{ criterion: 1, passed: true, evidence: 'notes.test.ts: save returns id, passed' }];
+  const noSha = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F1', status: 'done', local_audit: 'passed', checks }), withSpec, '') as { result: { content: Array<{ text: string }> } };
+  assert.match(noSha.result.content[0].text, /⚪ self-reported/);
+  assert.equal(progress['F-01'].verificationLevel, 'self_reported');
+  const noChecks = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F2', status: 'done', local_audit: 'passed', sha }), withSpec, '') as { result: { isError?: boolean } };
+  assert.equal(noChecks.result.isError, true);
+  const local = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F1', status: 'done', local_audit: 'passed', sha, checks }), withSpec, '') as { result: { content: Array<{ text: string }> } };
+  assert.match(local.result.content[0].text, /^F-01 Store notes \[done\] 🔵 local check/);
+  assert.equal(progress['F-01'].verificationLevel, 'local_checked');
+  assert.match(progress['F-01'].note, new RegExp(`^\\[local_checked:${sha}\\]`));
 });
 
 test('get_my_prd lists a validate_idea draft with the call that makes its PRD', async () => {

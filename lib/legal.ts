@@ -25,7 +25,7 @@ export const PRIVACY: Array<[string, string[]]> = [
     '- Cloudflare: 사이트 호스팅',
     '- Google: 로그인',
     '- Resend: 주간 메일, 매일 리서치 메일, 알림 메일 발송',
-    '- OpenRouter와 그 모델 제공사, LG AI연구원 EXAONE API: PRD, 질문, 요약을 만들 때 아이디어와 답, 메모, 원문을 보내며 기능 검증 시 전달한 diff는 판정에만 쓰고 저장하지 않습니다',
+    '- OpenRouter와 그 모델 제공사, LG AI연구원 EXAONE API: PRD, 질문, 요약을 만들 때 아이디어와 답, 메모, 원문을 보냅니다. 아이디어 · PRD는 무료 모델로 갈 수 있고 그 제공사가 입력을 기록 · 학습에 쓸 수 있습니다. 기능 검증 시 코드는 OpenRouter의 데이터 수집을 거부하는 유료 경로로만 보내고 판정에만 씁니다',
     '- Tavily, GitHub, Stack Exchange 등 공개 API: 원문과 경쟁 도구를 찾을 때 검색어를 보냅니다',
     '- 직접 넣은 디스코드·슬랙 웹훅: 알림 내용을 그 채널로 보냅니다',
   ]],

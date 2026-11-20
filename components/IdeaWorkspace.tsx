@@ -891,6 +891,7 @@ function IdeaStart({ onSubmit, en, problems }: { onSubmit: (text: string) => voi
         <h1 id="idea-start-heading" className="page-intro-title md:text-[38px]">{t('한 줄 아이디어면 PRD가 시작돼요', 'One line of an idea starts the PRD')}</h1>
         <p className="page-intro-description">{t('짧은 질문에 답하고 내 의견을 더하면, 실제 개발자 원문을 근거로 PRD·기능 명세·유저플로우·와이어프레임을 만듭니다.', 'Answer a few questions, add your own view, and get a PRD, feature spec, user flow and wireframes grounded in real developer quotes.')}</p>
         <div className="mt-5 w-full"><IdeaComposer onSubmit={onSubmit} autoFocus examples={EXAMPLES.map(([shortKo, shortEn, ko, enText]) => ({ label: en ? shortEn : shortKo, idea: en ? enText : ko }))} /></div>
+        <p className="mt-2 text-[13px] text-muted">{t('무료 모델 제공사가 입력을 기록 · 학습에 쓸 수 있습니다', 'Free model providers may record your input and use it for training.')} <Link href="/privacy" className="underline underline-offset-4">{t('처리방침', 'Privacy policy')}</Link></p>
       </section>
       {problems.length > 0 && (
         <section className="mt-10 pb-16" aria-labelledby="idea-start-problems">

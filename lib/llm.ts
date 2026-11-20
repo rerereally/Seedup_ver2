@@ -115,7 +115,7 @@ function extractJson(content: string) {
   return JSON.parse(text.slice(start, end + 1)) as unknown;
 }
 
-export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: number; timeoutMs?: number; title?: string; model?: string; models?: string[]; system?: string; deadline?: number; reasoning?: 'low' | 'medium' | 'high'; attempts?: number; onUsage?: (usage: ModelUsage) => void }): Promise<T | null> {
+export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: number; timeoutMs?: number; title?: string; model?: string; models?: string[]; system?: string; deadline?: number; reasoning?: 'low' | 'medium' | 'high'; attempts?: number; onUsage?: (usage: ModelUsage) => void; noDataCollection?: boolean }): Promise<T | null> {
   if (fixturesOn()) return fixtureJson(options?.title) as T | null;
   // A model chosen on the PRD menu goes first, with the free models behind it as fallbacks. The menu's admin policy is
   // what allows a paid model there, so free-only does not apply to it; every other caller (collection, ingest) has no
@@ -123,6 +123,8 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
   const models = options?.models?.length ? options.models : modelChain(options?.model);
 
   for (const model of models) {
+    // This opt-in path must stay on paid OpenRouter providers; EXAONE has no equivalent routing flag here.
+    if (options?.noDataCollection && (isFreeOpenRouterModel(model) || model === EXAONE_ID || model === 'openrouter/auto')) continue;
     const endpoint = endpointFor(model);
     if (!endpoint) continue;
     for (let attempt = 0; attempt < (options?.attempts ?? 2); attempt += 1) {
@@ -145,6 +147,7 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
             // Free reasoning models spend tokens before answering, so the limit must stay generous.
             max_tokens: tokenCap(model, options?.maxTokens ?? 6_000),
             ...endpoint.extra,
+            ...(options?.noDataCollection ? { provider: { data_collection: 'deny' } } : {}),
             ...(options?.reasoning && model !== EXAONE_ID ? { reasoning: { effort: options.reasoning } } : {}),
           }),
         });

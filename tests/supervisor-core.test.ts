@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import { auditDiff, parseDiff, scrubSecrets } from '../lib/supervisor/diff-audit';
-import { findDrift } from '../lib/supervisor/drift';
+import { driftCommitFromDiff, extractAddedFilesFromDiff, extractAddedTablesFromDiff, findDrift } from '../lib/supervisor/drift';
 import { readVerificationToken, signVerificationToken } from '../lib/supervisor/verify-token';
 
 const diff = (path: string, lines: string[], isNew = false) => [
@@ -86,4 +86,49 @@ test('drift: unlinked commit, route and table outside the spec, non-goal work, e
   assert.deepEqual(findings.map((row) => `${row.sha}:${row.kind}`), ['a1:unlinked_commit', 'b2:out_of_spec', 'c3:non_goal', 'd4:touched_done']);
   assert.deepEqual(findings[1].files, ['app/api/invoices/[id]/route.ts', 'table:invoices']);
   assert.deepEqual(findings[3].featureIds, ['F-02', 'F-01']);
+});
+
+test('drift extracts new migration tables and fileStatuses added routes while ignoring modified files and SQL comments', () => {
+  const spec = normalizeSpec({
+    summary: 'Rent reminders',
+    requirements: [{ title: 'Reminders before rent is due', evidence: [1] }],
+    features: [{ title: 'Reminder schedule', detail: 'Sends reminder emails', requirements: [1] }],
+    screens: [{ name: 'Settings', does: 'Pick reminder days', features: [1] }],
+  }, 1);
+  const rawDiff = [
+    diff('supabase/migrations/20261120190000_invoices.sql', [
+      '-- create table if not exists public.commented_out (id uuid);',
+      '/* create table public.block_commented (id uuid); */',
+      'create temp table scratch_rows (id int);',
+      'create table if not exists public.reminder_days (id uuid primary key);',
+      'CREATE TABLE IF NOT EXISTS "public"."invoices" (id uuid primary key);',
+    ], true),
+    diff('supabase/migrations/20261101000000_existing.sql', [
+      'create table public.edited_old_migration (id uuid);',
+    ], false),
+    diff('app/billing/page.tsx', ['export default function BillingPage() { return null; }'], true),
+    diff('app/api/invoices/route.ts', ['export async function GET() { return Response.json([]); }'], true),
+    diff('app/api/legacy/route.ts', ['export async function GET() { return Response.json([]); }'], false),
+  ].join('\n');
+
+  assert.deepEqual(extractAddedTablesFromDiff(rawDiff), ['reminder_days', 'invoices']);
+  assert.deepEqual(extractAddedFilesFromDiff(rawDiff), [
+    'supabase/migrations/20261120190000_invoices.sql',
+    'app/billing/page.tsx',
+    'app/api/invoices/route.ts',
+  ]);
+
+  const fromDiff = findDrift([driftCommitFromDiff({ sha: 'e5', featureIds: ['F-01'], diff: rawDiff })], spec, null);
+  assert.deepEqual(fromDiff.map((row) => row.kind), ['out_of_spec']);
+  assert.deepEqual(fromDiff[0].files, ['app/billing/page.tsx', 'app/api/invoices/route.ts', 'table:invoices']);
+
+  const fromStatuses = findDrift([{
+    sha: 'f6',
+    message: 'F-01 screen and route',
+    files: ['app/billing/page.tsx', 'app/api/legacy/route.ts'],
+    fileStatuses: { 'app/billing/page.tsx': 'added', 'app/api/legacy/route.ts': 'modified' },
+    featureIds: ['F-01'],
+  }], spec, null);
+  assert.deepEqual(fromStatuses.map((row) => row.kind), ['out_of_spec']);
+  assert.deepEqual(fromStatuses[0].files, ['app/billing/page.tsx']);
 });

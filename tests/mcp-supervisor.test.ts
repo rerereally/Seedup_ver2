@@ -309,3 +309,101 @@ test('the authenticated MCP route only polls verification for the caller and sel
   }
   assert.deepEqual(polls, ids);
 });
+
+test('link_commit accepts optional file statuses and flags out-of-spec added screens and API routes', async () => {
+  const recorded: Parameters<McpDeps['linkCommit']>[] = [];
+  const { deps } = dependencies({
+    linkCommit: async (...args) => { recorded.push(args); },
+  });
+
+  // 1. Per-file object entries with status: added triggers out_of_spec drift warning.
+  const added = await call('link_commit', {
+    sha: SHA,
+    message: 'Implements F-01',
+    files: [
+      { path: 'app/invoices/page.tsx', status: 'added' },
+      { path: 'app/api/invoices/route.ts', status: 'added' },
+      { path: 'app/api/legacy/route.ts', status: 'modified' },
+    ],
+  }, deps);
+  assert.equal(added.isError, undefined);
+  assert.match(added.body, /Drift warning: added files outside the spec \(app\/invoices\/page\.tsx, app\/api\/invoices\/route\.ts\)\./);
+  assert.match(added.body, /\nNext: record_decision /);
+  assert.deepEqual(recorded[0][1].files, ['app/invoices/page.tsx', 'app/api/invoices/route.ts', 'app/api/legacy/route.ts']);
+  assert.deepEqual(recorded[0][1].fileStatuses, {
+    'app/invoices/page.tsx': 'added',
+    'app/api/invoices/route.ts': 'added',
+    'app/api/legacy/route.ts': 'modified',
+  });
+
+  // 2. Separate file_statuses map alongside string files also works.
+  const withMap = await call('link_commit', {
+    sha: SHA,
+    message: 'Implements F-01',
+    files: ['app/billing/page.tsx'],
+    file_statuses: { 'app/billing/page.tsx': 'added' },
+  }, deps);
+  assert.equal(withMap.isError, undefined);
+  assert.match(withMap.body, /Drift warning: added files outside the spec \(app\/billing\/page\.tsx\)\./);
+
+  // 3. Legacy files array without statuses still works with no false out_of_spec warning.
+  const legacy = await call('link_commit', {
+    sha: SHA,
+    message: 'Implements F-01',
+    files: ['app/invoices/page.tsx'],
+  }, deps);
+  assert.equal(legacy.isError, undefined);
+  assert.doesNotMatch(legacy.body, /Drift warning/);
+  assert.equal('fileStatuses' in recorded[2][1], false);
+
+  // 4. Invalid file status is rejected.
+  const invalid = await call('link_commit', {
+    sha: SHA,
+    message: 'Implements F-01',
+    files: [{ path: 'app/invoices/page.tsx', status: 'renamed' }],
+  }, deps);
+  assert.equal(invalid.isError, true);
+});
+
+test('verify_feature extracts new migration CREATE TABLE names from the server diff and flags out-of-spec tables', async () => {
+  const migrationDiff = [
+    'diff --git a/supabase/migrations/20261120190000_invoices.sql b/supabase/migrations/20261120190000_invoices.sql',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/supabase/migrations/20261120190000_invoices.sql',
+    '@@ -0,0 +1,2 @@',
+    '+create table if not exists public.notes (id uuid primary key);',
+    '+create table if not exists public.invoices (id uuid primary key);',
+  ].join('\n');
+
+  const { deps } = dependencies({
+    startVerification: async () => ({ ...record, status: 'passed', token: proof, verdicts: [{ criterion: '1', verdict: 'met', reason: 'ok', citations: [] }] }),
+    fetchCommitDiff: async (repo, sha) => {
+      assert.equal(repo, 'owner/notes');
+      assert.equal(sha, SHA);
+      return migrationDiff;
+    },
+  });
+
+  const flagged = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(flagged.isError, undefined);
+  assert.match(flagged.body, /Scope warnings: 1 \(table:invoices\)\./);
+  assert.doesNotMatch(flagged.body, /table:notes/);
+  assert.match(flagged.body, /\nNext: record_decision /);
+
+  // Spec-covered migration table alone does not trigger a scope warning.
+  const cleanDiff = [
+    'diff --git a/supabase/migrations/20261120190000_notes.sql b/supabase/migrations/20261120190000_notes.sql',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/supabase/migrations/20261120190000_notes.sql',
+    '@@ -0,0 +1 @@',
+    '+create table if not exists public.notes (id uuid primary key);',
+  ].join('\n');
+  const clean = await call('verify_feature', { feature: 'F-01', sha: SHA }, dependencies({
+    startVerification: async () => ({ ...record, status: 'passed', token: proof, verdicts: [{ criterion: '1', verdict: 'met', reason: 'ok', citations: [] }] }),
+    fetchCommitDiff: async () => cleanDiff,
+  }).deps);
+  assert.doesNotMatch(clean.body, /Scope warnings/);
+  assert.match(clean.body, /\nNext: update_feature_status /);
+});

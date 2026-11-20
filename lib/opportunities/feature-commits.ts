@@ -1,16 +1,42 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BuildProgress } from './build-progress';
 
-export type FeatureCommit = { id: string; feature_id: string; sha: string; message: string; files: string[]; created_at: string; dismissed_at: string | null };
+export type CommitFileStatus = 'added' | 'modified' | 'deleted';
+export type FeatureCommit = {
+  id: string;
+  feature_id: string;
+  sha: string;
+  message: string;
+  files: string[];
+  file_statuses?: Record<string, CommitFileStatus> | null;
+  created_at: string;
+  dismissed_at: string | null;
+};
 export type FeatureCommitSummary = Record<string, { count: number; files: string[] }>;
+
+const FILE_STATUSES = new Set<CommitFileStatus>(['added', 'modified', 'deleted']);
+
+export function normalizeFileStatuses(raw: unknown): Record<string, CommitFileStatus> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const result: Record<string, CommitFileStatus> = {};
+  for (const [path, status] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof path === 'string' && path && typeof status === 'string' && FILE_STATUSES.has(status as CommitFileStatus)) {
+      result[path] = status as CommitFileStatus;
+    }
+  }
+  return result;
+}
 
 export async function writeFeatureCommit(
   service: SupabaseClient, userId: string, slug: string,
-  link: { sha: string; message: string; files: string[]; featureIds: string[] },
+  link: { sha: string; message: string; files: string[]; featureIds: string[]; fileStatuses?: Record<string, CommitFileStatus> },
 ) {
   const featureIds = link.featureIds.length ? link.featureIds : [''];
+  const fileStatuses = normalizeFileStatuses(link.fileStatuses);
+  const hasStatuses = Object.keys(fileStatuses).length > 0;
   const rows = featureIds.map((featureId) => ({
     user_id: userId, slug, feature_id: featureId, sha: link.sha, message: link.message, files: link.files,
+    ...(hasStatuses ? { file_statuses: fileStatuses } : {}),
   }));
   const { error } = await service.from('feature_commits').upsert(rows, {
     onConflict: 'user_id,slug,sha,feature_id', ignoreDuplicates: true,
@@ -22,14 +48,17 @@ export async function readFeatureCommits(client: SupabaseClient, userId: string,
   const rows: FeatureCommit[] = [];
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
-    const query = client.from('feature_commits').select('id,feature_id,sha,message,files,created_at,dismissed_at')
+    const query = client.from('feature_commits').select('id,feature_id,sha,message,files,file_statuses,created_at,dismissed_at')
       .eq('user_id', userId).eq('slug', slug);
     if (before) query.lt('created_at', before);
     const { data, error } = await query
       .order('created_at', { ascending: false }).order('id', { ascending: false })
       .range(offset, offset + pageSize - 1);
     if (error) throw new Error(`feature_commits read failed: ${error.message}`);
-    rows.push(...data);
+    rows.push(...data.map((row) => ({
+      ...row,
+      file_statuses: normalizeFileStatuses((row as { file_statuses?: unknown }).file_statuses),
+    })));
     if (data.length < pageSize) return rows;
   }
 }

@@ -5,7 +5,7 @@ import type { MemoryEntry, ProjectMemory } from '@/lib/db/project-memory';
 import type { VerificationRecord } from '@/lib/db/verifications';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
-import { touchedDoneFeatures } from '@/lib/opportunities/feature-commits';
+import { touchedDoneFeatures, type CommitFileStatus } from '@/lib/opportunities/feature-commits';
 import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
@@ -16,10 +16,11 @@ import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 import { isGitHubLogin } from '@/lib/seeds/github';
 import { scrubSecrets } from '@/lib/supervisor/diff-audit';
-import { findDrift } from '@/lib/supervisor/drift';
+import { driftCommitFromDiff, findDrift } from '@/lib/supervisor/drift';
 import { featureContribution, goalSummary } from '@/lib/supervisor/goal';
 import { humanTasks } from '@/lib/supervisor/human-queue';
-import type { Decision, ProjectGoal, ProjectKey, SupervisorProject, VerificationLevel } from '@/lib/supervisor/types';
+import type { Decision, DriftFinding, ProjectGoal, ProjectKey, SupervisorProject, VerificationLevel } from '@/lib/supervisor/types';
+import { validateGitHubCommit } from '@/lib/verifier/github';
 import type { StartVerificationInput, VerificationCriterion } from '@/lib/verifier/run';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
@@ -69,11 +70,12 @@ export type McpDeps = {
   release?: (feature: string) => Promise<void>;
   related: (idea: string) => Promise<Array<{ title: string; url: string | null; source: string; similarity: number }>>;
   progress: (slug: string) => Promise<BuildProgress>;
-  linkCommit(slug: string, link: { sha: string; message: string; files: string[]; featureIds: string[] }): Promise<void>;
+  linkCommit(slug: string, link: { sha: string; message: string; files: string[]; featureIds: string[]; fileStatuses?: Record<string, CommitFileStatus> }): Promise<void>;
   featureFiles(slug: string, beforeSha?: string): Promise<Record<string, string[]>>;
   flagRecheck(slug: string, featureId: string, sha: string, note: string): Promise<boolean>;
   unlinkedCommitCount(slug: string): Promise<number>;
   startVerification?: (input: Omit<StartVerificationInput, 'userId'>) => Promise<VerificationRecord>;
+  fetchCommitDiff?: (repo: string, sha: string) => Promise<string | null>;
   getVerification?: (id: string) => Promise<VerificationRecord | null>;
   matchesVerificationToken?: (token: string, projectKey: ProjectKey, featureId: string, sha: string) => boolean;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
@@ -201,11 +203,32 @@ export const TOOLS = [
   },
   {
     name: 'link_commit',
-    description: 'Record a commit and its changed file paths for a PRD. Use only when the user has enabled commit uploads for this project. Features default to the F-n ids in the commit message.',
+    description: 'Record a commit and its changed file paths (with optional added, modified, or deleted status) for a PRD. Use only when the user has enabled commit uploads for this project. Features default to the F-n ids in the commit message.',
     inputSchema: projectSchema({
       sha: { type: 'string', pattern: '^[a-fA-F0-9]{7,40}$' },
       message: { type: 'string', maxLength: 500 },
-      files: { type: 'array', maxItems: 200, items: { type: 'string', maxLength: 300, description: 'Repository-relative path' } },
+      files: {
+        type: 'array',
+        maxItems: 200,
+        items: {
+          oneOf: [
+            { type: 'string', maxLength: 300, description: 'Repository-relative path' },
+            {
+              type: 'object',
+              properties: {
+                path: { type: 'string', maxLength: 300, description: 'Repository-relative path' },
+                status: { type: 'string', enum: ['added', 'modified', 'deleted'] },
+              },
+              required: ['path', 'status'],
+            },
+          ],
+        },
+      },
+      file_statuses: {
+        type: 'object',
+        additionalProperties: { type: 'string', enum: ['added', 'modified', 'deleted'] },
+        description: 'Optional map of repository-relative file path to status (added | modified | deleted)',
+      },
       features: { type: 'array', items: { type: 'string' }, description: 'Override feature ids from the commit message' },
     }, ['sha', 'message', 'files']),
     annotations: STATE_WRITE,
@@ -789,6 +812,77 @@ const SUPERVISOR_TOOLS = new Set(['resume_project', 'connect_repo', 'check_env',
 const verifyNext = (project: ProjectKey, feature: string, sha: string | undefined) =>
   toolCall('verify_feature', { project, feature, sha: sha ?? '<full GitHub SHA>' });
 
+const COMMIT_FILE_STATUSES = new Set<CommitFileStatus>(['added', 'modified', 'deleted']);
+const MAX_DRIFT_DIFF = 2_000_000;
+
+function parseCommitFiles(
+  rawFiles: unknown,
+  rawStatuses: unknown,
+): { files: string[]; fileStatuses: Record<string, CommitFileStatus> } | null {
+  if (!Array.isArray(rawFiles) || rawFiles.length > 200) return null;
+  const files: string[] = [];
+  const fileStatuses: Record<string, CommitFileStatus> = {};
+  for (const entry of rawFiles) {
+    if (isRepoPath(entry)) {
+      files.push(entry);
+    } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const record = entry as Record<string, unknown>;
+      if (!isRepoPath(record.path)) return null;
+      if (typeof record.status !== 'string' || !COMMIT_FILE_STATUSES.has(record.status as CommitFileStatus)) return null;
+      files.push(record.path);
+      fileStatuses[record.path] = record.status as CommitFileStatus;
+    } else {
+      return null;
+    }
+  }
+  if (rawStatuses !== undefined) {
+    if (!rawStatuses || typeof rawStatuses !== 'object' || Array.isArray(rawStatuses)) return null;
+    const entries = Object.entries(rawStatuses as Record<string, unknown>);
+    if (entries.length > 200) return null;
+    for (const [path, status] of entries) {
+      if (!isRepoPath(path) || typeof status !== 'string' || !COMMIT_FILE_STATUSES.has(status as CommitFileStatus)) return null;
+      fileStatuses[path] = status as CommitFileStatus;
+      if (!files.includes(path)) files.push(path);
+    }
+    if (files.length > 200) return null;
+  }
+  return { files, fileStatuses };
+}
+
+async function fetchVerificationDiff(repo: string, sha: string, override?: McpDeps['fetchCommitDiff']): Promise<string | null> {
+  if (override) return override(repo, sha);
+  const token = process.env.GITHUB_TOKEN?.trim();
+  if (!token) return null;
+  validateGitHubCommit(repo, sha);
+  const response = await fetch(`https://api.github.com/repos/${repo}/commits/${sha.toLowerCase()}`, {
+    headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github.diff', 'X-GitHub-Api-Version': '2022-11-28' },
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (Number(response.headers.get('content-length')) > MAX_DRIFT_DIFF) {
+    await response.body?.cancel();
+    return null;
+  }
+  const diff = await response.text();
+  return Buffer.byteLength(diff) <= MAX_DRIFT_DIFF ? diff : null;
+}
+
+function mergeDriftFindings(existing: DriftFinding[], incoming: DriftFinding[]): DriftFinding[] {
+  if (!incoming.length) return existing;
+  const seen = new Set(existing.map((item) => `${item.kind}:${[...item.files].sort().join(',')}`));
+  const added = incoming.filter((item) => {
+    const key = `${item.kind}:${[...item.files].sort().join(',')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return added.length ? [...existing, ...added] : existing;
+}
+
 function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | undefined, lang?: Spec['lang']): ToolResult {
   const project = row.projectKey;
   const pending = row.status === 'queued' || row.status === 'running';
@@ -802,6 +896,7 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
   const blockers = row.findings.filter((finding) => finding.severity === 'blocker').map((finding) => finding.code);
   const warnings = row.findings.length - blockers.length;
   const scopeWarning = row.drift.length > 0;
+  const driftItems = [...new Set(row.drift.flatMap((finding) => finding.files))].slice(0, 6);
   const groupedVerdicts = (['met', 'not_met', 'unclear'] as const).flatMap((verdict) => {
     const ids = verdicts.filter((item) => item.verdict === verdict).map((item) => item.criterion);
     return ids.length ? [`${verdict.replace('_', ' ')}: ${ids.join(', ')}`] : [];
@@ -812,7 +907,7 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
     blockers.length && `Blockers: ${blockers.length} (${[...new Set(blockers)].slice(0, 5).join(', ')}).`,
     warnings > 0 && `Static warnings: ${warnings}.`,
     row.unseen.length > 0 && `Files the verifier could not read: ${row.unseen.length}.`,
-    scopeWarning && `Scope warnings: ${row.drift.length}. Review the changes with the user.\n${askScope(lang, project, row.featureId)}`,
+    scopeWarning && `Scope warnings: ${row.drift.length}${driftItems.length ? ` (${driftItems.join(', ')})` : ''}. Review the changes with the user.\n${askScope(lang, project, row.featureId)}`,
     scopeWarning && proof && `Verification proof for after the scope review: ${proof}`,
     row.status === 'error' && 'The verification did not complete. Check the connected repository, GitHub access and the verification quota.',
   ].filter(Boolean).join('\n');
@@ -855,7 +950,18 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
         ...(goal ? { outOfScope: goal.outOfScope } : {}),
         ...(developmentModel ? { developmentModel } : {}),
       });
-      return verificationResult(row, goal, prdLanguage(spec));
+      const attachedDiff = (row as VerificationRecord & { diff?: unknown }).diff;
+      const diff = typeof attachedDiff === 'string'
+        ? attachedDiff
+        : row.status !== 'error'
+          ? await fetchVerificationDiff(project.repo, sha, deps.fetchCommitDiff).catch(() => null)
+          : null;
+      const diffDrift = diff
+        ? findDrift([driftCommitFromDiff({ sha, featureIds: [feature.id], diff })], spec, goal ?? null)
+            .filter((finding) => finding.kind === 'out_of_spec')
+        : [];
+      const mergedRow = diffDrift.length ? { ...row, drift: mergeDriftFindings(row.drift, diffDrift) } : row;
+      return verificationResult(mergedRow, goal, prdLanguage(spec));
     }
   } catch {
     // Provider and database errors can include source or credentials.
@@ -1166,10 +1272,12 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     return { ...text(body), structuredContent: prdCard(opportunity, result.spec, siteUrl) };
   }
   if (name === 'link_commit') {
-    const { sha, message, files, features } = args;
+    const { sha, message, files: rawFiles, file_statuses: rawFileStatuses, features } = args;
     if (typeof sha !== 'string' || !/^[a-f0-9]{7,40}$/i.test(sha)) return text('SHA must be 7–40 hexadecimal characters.', true);
     if (typeof message !== 'string' || message.length > 500 || message.includes('\0')) return text('Message must be a string of at most 500 characters without null bytes.', true);
-    if (!Array.isArray(files) || files.length > 200 || !files.every(isRepoPath)) return text('Provide up to 200 repository-relative file paths, each 1–300 characters and without ".." path segments.', true);
+    const parsedFiles = parseCommitFiles(rawFiles, rawFileStatuses);
+    if (!parsedFiles) return text('Provide up to 200 repository-relative file paths (or { path, status } with added | modified | deleted), each 1–300 characters and without ".." path segments.', true);
+    const { files, fileStatuses } = parsedFiles;
     if (features !== undefined && (!Array.isArray(features) || !features.every((id) => typeof id === 'string'))) return text('Features must be an array of feature ids.', true);
     const rawIds: string[] = features ?? message.match(/\bf-?\d+\b/gi) ?? [];
     const featureIds = new Set<string>();
@@ -1186,15 +1294,18 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       if (unknown.size) return unknownFeatures([...unknown], cached.spec);
     }
     const commitSha = sha.toLowerCase();
-    const commit = { sha: commitSha, message, files, featureIds: [...featureIds] };
+    const hasStatuses = Object.keys(fileStatuses).length > 0;
+    const commit = { sha: commitSha, message, files, featureIds: [...featureIds], ...(hasStatuses ? { fileStatuses } : {}) };
     await deps.linkCommit(slug, commit);
     const outcome = featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.';
     const goal = await deps.projectGoal?.(slug).catch(() => null);
     const drift = cached ? findDrift([commit], cached.spec, goal ?? null) : [];
-    const outsideScope = drift.some((finding) => finding.kind === 'non_goal');
+    const outsideScope = drift.some((finding) => finding.kind === 'non_goal' || finding.kind === 'out_of_spec');
     const lines: string[] = drift.map((finding) => finding.kind === 'non_goal'
       ? 'Scope warning: the commit may touch a locked exclusion.'
-      : 'Drift warning: no feature claims this commit.');
+      : finding.kind === 'out_of_spec'
+        ? `Drift warning: added files outside the spec (${finding.files.join(', ')}).`
+        : 'Drift warning: no feature claims this commit.');
     if (outsideScope) lines.push(askScope(prdLanguage(cached?.spec), slug, commit.featureIds[0]));
     const next = outsideScope ? scopeDecision(slug, commit.featureIds[0])
       : toolCall('get_build_checklist', { project: slug });

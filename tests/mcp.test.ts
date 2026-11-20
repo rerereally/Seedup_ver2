@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleRpc, MCP_MAX_BATCH_SIZE, pickNextTask, searchOpportunities } from '../lib/mcp/server';
+import { handleRpc, MCP_MAX_BATCH_SIZE, pickNextTask, searchOpportunities, DRAFT_PRD_NO_ANSWER } from '../lib/mcp/server';
 import type { McpDeps } from '../lib/mcp/server';
 import { normalizeFeatureId } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
@@ -503,10 +503,17 @@ test('validate_idea hands back the saved draft key, and generate_verified_prd ma
   const releases: string[] = [];
   const missing = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => null, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { isError?: boolean } };
   assert.equal(missing.result.isError, true);
-  const failed = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('model'); }, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  const failed = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => { throw new Error(DRAFT_PRD_NO_ANSWER); }, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
   assert.equal(failed.result.isError, true);
   assert.match(failed.result.content[0].text, /did not answer/);
-  assert.deepEqual(releases, ['mcp_prd', 'mcp_prd']);
+  // A read that fails before the model (database or network down) is not blamed on the model.
+  const original = console.error;
+  console.error = () => {};
+  const unread = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => { throw new TypeError('fetch failed'); }, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  console.error = original;
+  assert.equal(unread.result.isError, true);
+  assert.match(unread.result.content[0].text, /could not read this project's data/);
+  assert.deepEqual(releases, ['mcp_prd', 'mcp_prd', 'mcp_prd']);
 
   // Only generate_verified_prd makes a draft's PRD; other tools on a draft key do not spend the PRD limit.
   const other = deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('must not run'); } });

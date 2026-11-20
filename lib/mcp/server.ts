@@ -858,6 +858,9 @@ async function explainFileResult(opportunity: Opportunity, cached: { input: Spec
   return text(`Reverse trace for "${normalized}" in ${opportunity.name} (${opportunity.slug}):\n\n${sections.join('\n\n')}`);
 }
 
+/** The error draftPrd throws when the PRD model gave nothing, as opposed to a failed read before it. */
+export const DRAFT_PRD_NO_ANSWER = 'PRD model gave no answer';
+
 const OPPORTUNITY_TOOLS = new Set([
   'get_opportunity',
   'generate_verified_prd',
@@ -1412,9 +1415,12 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     if (!(await deps.consume('mcp_prd', MCP_DAILY_PRD_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_PRD_LIMIT} PRDs). Try again tomorrow.`, true);
     try {
       saved = await deps.draftPrd(slug.slice(4), prdOptions(args));
-    } catch {
+    } catch (error) {
       await deps.release?.('mcp_prd').catch(() => undefined);
-      return text('The model did not answer. Try again in a minute.', true);
+      // Only a model with no answer is the model's fault; a failed read before it (database, network) says so instead.
+      const modelSilent = error instanceof Error && error.message === DRAFT_PRD_NO_ANSWER;
+      if (!modelSilent) console.error('MCP draft PRD failed before the model', error);
+      return text(modelSilent ? 'The model did not answer. Try again in a minute.' : 'Seedup could not read this project\'s data (database or network). Try again in a minute.', true);
     }
     if (!saved) await deps.release?.('mcp_prd').catch(() => undefined);
   }

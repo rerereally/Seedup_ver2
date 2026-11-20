@@ -7,6 +7,7 @@ import Dashboard, { pickTab } from '@/components/supervisor/Dashboard';
 import SpecFlow from '@/components/supervisor/SpecFlow';
 import { supervisorDetail } from '@/components/supervisor/data';
 import { decodeProjectKey } from '@/components/supervisor/model';
+import Usage from './Usage';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
@@ -24,6 +25,7 @@ export default async function SupervisorProjectPage({ params, searchParams }: { 
     <Link href="/supervisor" className="link-seed inline-flex min-h-11 items-center self-start text-sm">{t('프로젝트 목록', 'Projects')}</Link>
     <PageIntro title={project.title} meta={<span className="break-all font-mono">{project.key}</span>} />
     <Dashboard project={project} lang={lang} tab={tab}
+      usage={tab === 'usage' ? <Usage client={client} userId={user.id} project={project} lang={lang} /> : undefined}
       flow={tab === 'flow' && project.spec ? <SpecFlow spec={project.spec} quotes={project.specQuotes} progress={project.progress} lang={lang} /> : undefined} />
   </WorkShell></>;
 }

@@ -2783,5 +2783,68 @@
         "validation_report"
       ]
     ]
+  },
+  {
+    "file": "20261121080000_agent_usage.sql",
+    "tables": [
+      "agent_usage"
+    ],
+    "columns": [
+      [
+        "agent_usage",
+        "user_id"
+      ],
+      [
+        "agent_usage",
+        "project_key"
+      ],
+      [
+        "agent_usage",
+        "source"
+      ],
+      [
+        "agent_usage",
+        "session_id"
+      ],
+      [
+        "agent_usage",
+        "ts"
+      ],
+      [
+        "agent_usage",
+        "model"
+      ],
+      [
+        "agent_usage",
+        "input_tokens"
+      ],
+      [
+        "agent_usage",
+        "output_tokens"
+      ],
+      [
+        "agent_usage",
+        "cache_read_tokens"
+      ],
+      [
+        "agent_usage",
+        "cache_write_tokens"
+      ],
+      [
+        "prd_runs",
+        "run_key"
+      ],
+      [
+        "prd_runs",
+        "project_key"
+      ],
+      [
+        "prd_runs",
+        "cost_complete"
+      ]
+    ],
+    "functions": [
+      "save_dossier_with_usage"
+    ]
   }
 ]

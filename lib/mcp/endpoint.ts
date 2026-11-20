@@ -10,7 +10,8 @@ import { readLatestPrdCacheForTitle, readPrdCache, writePrdCache } from '@/lib/o
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { normalizeSpec, renderSpecMarkdown, type SpecInput } from '@/lib/opportunities/spec';
 import { prdRunLog } from '@/lib/opportunities/prd-runs';
-import type { PaidPrdOptions } from '@/lib/opportunities/models';
+import { saveDossierUsage } from '@/lib/db/agent-usage';
+import { HAIKU_MODEL, type PaidPrdOptions } from '@/lib/opportunities/models';
 import { ideaSpecInput } from '@/lib/opportunities/idea';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { publicEvidence, type Evidence } from '@/lib/opportunities/types';
@@ -18,7 +19,7 @@ import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
-import { draftReport, saveDossier, saveDraftReport, savedPrdCompetitorNotes, saveIdeaDraft, setIdeaDraftPrd, updateSavedPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds, validationCompetitorNotes } from '@/lib/db/dossiers';
+import { draftReport, saveDraftReport, savedPrdCompetitorNotes, saveIdeaDraft, setIdeaDraftPrd, updateSavedPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds, validationCompetitorNotes } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
 import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
@@ -83,10 +84,13 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       competitorNotes: await savedPrdCompetitorNotes(service, userId, row),
     };
   };
+  // The MCP tool passes the same input object to pin even when readiness creates a new spec.
+  const runByInput = new WeakMap<SpecInput, string>();
   const generateLoggedPrd = async (input: SpecInput, paid: PaidPrdOptions, options: Pick<PrdOptions, 'draft' | 'lang' | 'idea'>) => {
     const run = prdRunLog(service, { id: userId }, 'prd', paid.model);
     const result = await generatePrd(input, { ...options, paid, onUsage: run.onUsage, deadline: requestStarted + DRAFT_PRD_BUDGET_MS }).catch(() => null);
-    await run.finish(Boolean(result), input.title, result?.model).catch((error) => console.error('MCP PRD run not logged:', error));
+    const runKey = await run.finish(Boolean(result), input.title, result?.model);
+    if (result && runKey) runByInput.set(input, runKey);
     return result;
   };
   const deps: McpDeps = {
@@ -123,25 +127,27 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     pin: async (slug, result, replace) => {
       if (!replace && await userPinnedDossierForSlug(service, userId, slug)) return;
       const ids = result.input.evidence.map((item) => item.id);
-      await saveDossier(service, {
-        user_id: userId,
+      const saved = await saveDossierUsage(service, userId, {
         dossier_key: createHash('sha256').update([...ids].sort().join(',')).digest('hex').slice(0, 32),
         title: result.input.title,
         opportunity_slug: slug,
         evidence_ids: ids,
         evidence: result.input.evidence,
         prd_markdown: renderSpecMarkdown(result.input, result.spec),
-      });
+      }, [runByInput.get(result.input)], slug, null, service);
+      if (saved.error) throw new Error(saved.error.message);
     },
     fillSlots: async (cached, featureId, key) => {
       const feature = cached.spec.features.find((row) => row.id === featureId);
       if (!feature) return null;
       const rows = [...cached.spec.requirements, ...cached.spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
       // A free model can take a minute; the agent gets the task with open questions rather than waiting longer.
+      const run = prdRunLog(service, { id: userId }, 'slots', HAIKU_MODEL);
       const slots = await Promise.race([
-        generateSlots(cached.input, feature, rows, cached.spec.lang ?? 'ko').catch(() => null),
+        generateSlots(cached.input, feature, rows, cached.spec.lang ?? 'ko', undefined, run.onUsage).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), SLOT_FILL_MS)),
       ]);
+      await run.finish(Boolean(slots), `${cached.input.title} · ${feature.title}`, undefined, key);
       if (!slots) return null;
       const spec = { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots } : row)) };
       if (key.startsWith('prd:')) {
@@ -190,7 +196,13 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       const result = await generateLoggedPrd(input, paid, { draft, lang, idea: true });
       if (!result) throw new Error(DRAFT_PRD_NO_ANSWER);
       // Kept out of the shared PRD cache: an idea PRD is the user's own, as on the web.
-      await setIdeaDraftPrd(service, userId, id, result.markdown);
+      const runKey = runByInput.get(input);
+      if (runKey) {
+        const saved = await saveDossierUsage(service, userId, { prd_markdown: result.markdown }, [runKey], null, row.id, service);
+        if (saved.error) throw new Error(saved.error.message);
+      } else {
+        await setIdeaDraftPrd(service, userId, row.id, result.markdown);
+      }
       return readMyPrd(id);
     },
     projectGoal: (key) => currentProjectGoal(service, userId, key),
@@ -250,13 +262,16 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       // its cost is logged like the web report's.
       const run = model ? prdRunLog(service, { id: userId }, 'report', model) : null;
       const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true, evidenceBudgetMs: MCP_EVIDENCE_BUDGET_MS, model, onUsage: run?.onUsage }).catch(() => null);
-      await run?.finish(Boolean(report), idea).catch((error) => console.error('MCP report run not logged:', error));
-      if (!report) return null;
+      if (!report) {
+        await run?.finish(false, idea);
+        return null;
+      }
       // The report's quotes become the user's PRD draft, so the agent goes on to a PRD without opening the site.
       const projectKey = await saveIdeaDraft(service, userId, idea, report.quotes).then((id) => `prd:${id}`).catch((error) => {
         console.error('MCP idea draft save failed', error);
         return null;
       });
+      await run?.finish(true, idea, undefined, projectKey);
       const competitors = report.rivals.filter((row) => row.relation === 'direct').slice(0, 8)
         .map(({ name, description }) => ({ name, description }));
       if (projectKey && competitors.length) {

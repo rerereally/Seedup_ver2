@@ -195,7 +195,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   assert.equal(result.verifications?.[0].feature_id, 'F-01');
   const html = allTabs(result, 'en');
   for (const value of ['Did not pass', 'Criterion', 'Unclear', 'Expected source was missing.', 'tests/read.py', 'assert active', 'Unverified']) assert.ok(html.includes(value));
-  assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json']);
+  assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json', '.seedup/usage.mjs']);
   assert.ok(result.files[0].content.includes(goal.statement));
   // The context preview shows the same text the hook and MCP hand the agent.
   assert.equal(result.context.sessionStart, result.files[0].content);

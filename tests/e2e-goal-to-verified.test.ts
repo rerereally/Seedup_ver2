@@ -424,9 +424,10 @@ test('full E2E loop: three entries → goal lock → agent start prompt → MCP 
     const setup = await callMcp('setup_project', { project: PROJECT_KEY });
     assert.equal(setup.isError, undefined);
     const setupFiles = (setup.structuredContent?.files ?? []) as Array<{ path: string; content: string }>;
-    assert.equal(setupFiles.length, 8);
+    assert.equal(setupFiles.length, 9);
+    assert.ok(setupFiles.some((file) => file.path === '.seedup/usage.mjs'));
     for (const file of setupFiles) {
-      assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|svt1\./i);
+      assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s+sdp_|\/api\/mcp\/|svt1\./i);
     }
     assert.match(setup.body, /\nNext: connect_repo \{"project":"prd:11111111-2222-3333-4444-555555555555","repo":"<owner\/repo>"\}$/);
 

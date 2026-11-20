@@ -136,7 +136,7 @@ test('hook bundle: goal file, Node runner, Claude and Codex configs with full ma
   const files = hookBundle(goal.projectKey, goal, humanTasks(spec));
   assert.deepEqual(
     files.map((file) => file.path),
-    ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json'],
+    ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json', '.seedup/usage.mjs'],
   );
   assert.match(files[0].content, /get_next_task/);
   assert.match(files[0].content, /SUPABASE_SECRET_KEY/);

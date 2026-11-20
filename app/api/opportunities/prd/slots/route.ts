@@ -1,4 +1,5 @@
 import { prdPolicy, prdRun } from '@/lib/db/server';
+import { resolveProjectKey } from '@/lib/db/supervisor-projects';
 import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
@@ -42,10 +43,11 @@ export async function POST(request: Request) {
     console.error('Readiness slots failed', error);
     return null;
   });
-  await run.finish(Boolean(slots), `${input.title} · ${feature.title}`);
+  const usageProject = typeof body?.usageProject === 'string' ? await resolveProjectKey(supabase, data.user.id, body.usageProject).catch(() => null) : null;
+  const runKey = await run.finish(Boolean(slots), `${input.title} · ${feature.title}`, undefined, usageProject);
   if (!slots) {
     await releaseDailyUsage(supabase, 'prd_slots');
     return NextResponse.json({ error: '슬롯을 채우지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
-  return NextResponse.json({ ok: true, slots });
+  return NextResponse.json({ ok: true, runKey, slots });
 }

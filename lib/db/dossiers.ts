@@ -6,6 +6,28 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Evidence } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+/**
+ * The key a saved item is stored under. It used to be the quotes alone, so two different ideas that kept the same quotes
+ * landed on one row: the second overwrote the first's PRD and took over its project key and locked goal. A row saved
+ * under the old key with the same title keeps it (its project key must not change); everything else gets a key that
+ * includes the title.
+ */
+export function dossierKeyFor(evidenceIds: string[], title: string, legacyTitle: string | null) {
+  const hash = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 32);
+  const name = title.trim().toLowerCase();
+  if (!evidenceIds.length) return hash(`idea:${name}`);
+  const quotes = [...evidenceIds].sort().join(',');
+  return legacyTitle !== null && legacyTitle.trim().toLowerCase() === name ? hash(quotes) : hash(`${quotes}\ntitle:${name}`);
+}
+
+/** The title of the row saved under the old quotes-only key, or null when there is none. */
+export async function legacyDossierTitle(supabase: SupabaseClient, userId: string, evidenceIds: string[]) {
+  if (!evidenceIds.length) return null;
+  const key = createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 32);
+  const { data } = await supabase.from('evidence_dossiers').select('title').eq('user_id', userId).eq('dossier_key', key).maybeSingle();
+  return typeof data?.title === 'string' ? data.title : null;
+}
+
 export function saveDossier(supabase: SupabaseClient, row: Record<string, unknown>) {
   return supabase.from('evidence_dossiers').upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'user_id,dossier_key' }).select('id').single();
 }

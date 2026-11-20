@@ -30,3 +30,18 @@ test('loads the public maker counts for all visible opportunities in one request
   assert.equal((await builtExampleCounts([])).size, 0);
   assert.equal(fetch.mock.callCount(), 1);
 });
+
+test('two ideas that kept the same quotes get their own saved row, while an old row keeps its key', async () => {
+  const { dossierKeyFor } = await import('../lib/db/dossiers');
+  const quotes = ['e2', 'e1'];
+  const first = dossierKeyFor(quotes, '온콜 인수인계 봇', null);
+  const second = dossierKeyFor(quotes, 'GIF 검색 대안', null);
+  assert.notEqual(first, second);
+  assert.equal(dossierKeyFor(['e1', 'e2'], ' 온콜 인수인계 봇 ', null), first);
+  // A row saved before titles were in the key keeps that key when the same title saves again.
+  const legacy = dossierKeyFor(quotes, 'GIF 검색 대안', 'gif 검색 대안');
+  assert.notEqual(legacy, second);
+  assert.equal(dossierKeyFor(quotes, '다른 아이디어', 'GIF 검색 대안'), dossierKeyFor(quotes, '다른 아이디어', null));
+  // Without quotes the key is the idea itself, as before.
+  assert.equal(dossierKeyFor([], 'Idea', null), dossierKeyFor([], 'idea', 'ignored'));
+});

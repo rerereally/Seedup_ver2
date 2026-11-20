@@ -8,7 +8,7 @@ import { scrubSecrets } from '@/lib/supervisor/diff-audit';
 
 export const APP_URI = 'ui://seedup/card';
 export const APP_MIME = 'text/html;profile=mcp-app';
-const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'get_build_checklist', 'get_next_task', 'mark_feature_done', 'update_feature_status', 'verify_feature', 'get_verification']);
+const APP_TOOLS = new Set(['search_opportunities', 'generate_verified_prd', 'resume_project', 'get_next_task', 'update_feature_status', 'verify_feature']);
 
 /** The tool list with the card linked to the tools that have one. */
 export function withAppMeta<T extends { name: string }>(tools: readonly T[]) {
@@ -67,7 +67,7 @@ export function prdCard(opportunity: Opportunity, spec: Spec, siteUrl: string) {
   };
 }
 
-/** What the card draws for get_build_checklist and mark_feature_done. */
+/** What the card draws for resume_project and update_feature_status. */
 export function checklistCard(
   opportunity: Opportunity, spec: Spec, progress: BuildProgress, criteria: (feature: Spec['features'][number]) => string[],
   siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'self_reported' }, goal?: string,
@@ -92,7 +92,7 @@ export function verificationCard(
   blockers: number, warnings: number,
 ) {
   return {
-    kind: 'verification', project: row.projectKey, id: row.id, feature: row.featureId, sha: row.sha.slice(0, 8),
+    kind: 'verification', project: row.projectKey, id: row.id, feature: row.featureId, sha: row.sha.slice(0, 8), fullSha: row.sha,
     status: row.status, verified: row.status === 'passed' && Boolean(row.token), goal, verdicts, blockers, warnings, drift: row.drift.length,
   };
 }
@@ -168,7 +168,7 @@ button:disabled{opacity:.5;cursor:default}
         return h('div', { class: 'row' }, h('span', null, h('span', { class: 'id', text: f.id }), f.title), h('span', { class: f.hypothesis ? 'tag warn' : 'tag', text: f.hypothesis ? T('가설', 'Hypothesis') : T('원문 ', '') + f.quotes + T('개', ' quotes') }));
       })),
       h('div', { class: 'actions' },
-        h('button', { class: 'primary', text: T('구현 체크리스트', 'Build checklist'), on: function(){ call('get_build_checklist', { slug: data.slug }, T('체크리스트를 불러오는 중입니다.', 'Loading the checklist.')); } }),
+        h('button', { class: 'primary', text: T('구현 체크리스트', 'Build checklist'), on: function(){ call('resume_project', { project: data.slug }, T('체크리스트를 불러오는 중입니다.', 'Loading the checklist.')); } }),
         h('button', { text: T('웹에서 전체 보기', 'Open on the web'), on: function(){ open(data.url); } })),
       h('p', { id: 'status', class: 'status', role: 'status' })];
   }
@@ -219,7 +219,7 @@ button:disabled{opacity:.5;cursor:default}
       data.warnings ? h('p', { class: 'tag warn', text: T('정적 검사 경고 ', 'Static warnings: ') + data.warnings }) : null,
       data.drift ? h('p', { class: 'tag warn', text: T('범위 경고 ', 'Scope warnings: ') + data.drift }) : null,
       pending ? h('div', { class: 'actions' }, h('button', { class: 'primary', text: T('검증 결과 확인', 'Check verification'),
-        on: function(){ call('get_verification', { project: data.project, id: data.id }, T('검증 결과를 불러오는 중입니다.', 'Loading the verification.')); } })) : null,
+        on: function(){ call('verify_feature', { project: data.project, feature: data.feature, sha: data.fullSha || data.sha }, T('검증 결과를 불러오는 중입니다.', 'Loading the verification.')); } })) : null,
       h('p', { id: 'status', class: 'status', role: 'status' })];
   }
   function render(data){

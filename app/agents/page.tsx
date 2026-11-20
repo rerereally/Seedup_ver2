@@ -15,19 +15,27 @@ export const metadata: Metadata = {
   title: 'MCP 연동',
 };
 
-// Mirrors the tools registered in lib/mcp/server.ts.
+// Mirrors the 19 tools registered in lib/mcp/server.ts.
 const TOOLS = [
-  ['search_opportunities', '만들고 싶은 것으로 검증된 기회 찾기'],
-  ['get_opportunity', '원문과 이미 있는 도구까지 한 번에'],
-  ['generate_verified_prd', '원문이 붙은 PRD 만들기 (AGENTS.md, CLAUDE.md, Cursor 규칙, 빌더 프롬프트)'],
-  ['get_build_checklist', 'PRD 기능별 구현 체크리스트'],
-  ['get_next_task', '다음 기능과 완료 기준, 원문, 관련 파일 보기'],
-  ['update_feature_status', '기능 상태와 이력 기록. 완료는 수락 기준별 확인 결과 필요'],
-  ['mark_feature_done', '기존 호환용. 기능을 완료 또는 대기로 표시'],
-  ['get_kept_items', '킵한 저장소, 글, 논문 가져오기'],
-  ['find_related_content', '관련 글과 오픈소스 찾기'],
-  ['watch_idea', '아이디어 지켜보기(매주 새 원문과 경쟁 도구를 메일로)'],
-  ['validate_idea', '아이디어 하나로 만들 가치 검증 리포트(원문, 경쟁 도구, 규모, 첫 사용자)'],
+  ['resume_project', '[개발] 잠긴 목표, 저장소, 전체 기능 체크리스트, 최근 결정과 마지막 인수인계'],
+  ['get_next_task', '[개발] 다음 기능과 완료 기준, 원문, 관련 파일 보기'],
+  ['update_feature_status', '[개발] 기능 상태와 이력 기록. 완료는 검증 토큰 또는 기준별 확인 결과 필요'],
+  ['verify_feature', '[개발] 공개 GitHub 커밋 SHA·CI 서버 검증 및 커밋 자동 연결(재호출로 결과 조회)'],
+  ['link_commit', '[개발] 커밋 SHA·파일 경로·상태를 기능에 연결하고 완료 기능 재확인 표시'],
+  ['explain_file', '[개발] 파일 경로가 어떤 기능·요구사항·원문에 연결됐는지 역추적'],
+  ['connect_repo', '[개발] 공개 GitHub 저장소(owner/repo)를 프로젝트에 연결'],
+  ['check_env', '[개발] 로컬 환경 키 이름을 프로젝트에 필요한 키 이름과 비교'],
+  ['record_decision', '[개발] 결정·이유와 터미널 승인 결과를 프로젝트 기억에 기록'],
+  ['save_handoff', '[개발] 하던 일, 다음 할 일, 주의 사항과 미검증 커밋 인수인계 저장'],
+  ['get_project_memory', '[개발] 프로젝트의 결정·인수인계·사실 전체 조회'],
+  ['search_opportunities', '[기획] 만들고 싶은 것으로 검증된 기회 찾기'],
+  ['get_opportunity', '[기획] 원문과 이미 있는 도구까지 한 번에'],
+  ['generate_verified_prd', '[기획] 원문이 붙은 PRD 만들기 (AGENTS.md, CLAUDE.md, Cursor 규칙, 빌더 프롬프트)'],
+  ['get_my_prd', '[기획] 저장한 PRD 목록(id 생략) 또는 특정 PRD를 마크다운·에이전트 형식으로 조회'],
+  ['validate_idea', '[기획] 아이디어 하나로 만들 가치 검증 리포트(원문, 경쟁 도구, 규모, 첫 사용자)'],
+  ['watch_idea', '[기획] 아이디어 지켜보기(매주 새 원문과 경쟁 도구를 메일로)'],
+  ['get_kept_items', '[기획] 킵한 저장소, 글, 논문 가져오기'],
+  ['find_related_content', '[기획] 관련 글과 오픈소스 찾기'],
 ];
 
 /** "3분 전" style, computed on the server so the label does not change between server and browser render. */

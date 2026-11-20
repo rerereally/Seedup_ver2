@@ -14,7 +14,7 @@
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
-| DB 마이그레이션 | 31개. 운영 적용 확인 필요: `20261120130000_section_views.sql`(이전 기록상 미적용), `20261120150000_supervisor_projects.sql`(#131에서 추가) | `ls supabase/migrations`, `check-schema` |
+| DB 마이그레이션 | 31개(main 기준). 운영에 `section_views` · `supervisor_projects` 적용됨(정지훈, `check-schema` 확인). B1 PR #151의 `20261120160000_verifications.sql`은 머지 때 적용 필요 | `ls supabase/migrations`, `check-schema` |
 | 단위 테스트 | 349개(53개 파일). #140에서 8개, #142에서 7개 추가. 최신 `main` 전체 실행 결과는 CI에서 확인 | `npm test` |
 | MCP | 도구 22개, 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
 
@@ -45,7 +45,7 @@
 | 2 2단 검증 · 이탈 검사 | A1 정적 검사 · 검증 토큰 · 이탈 규칙 | 정지훈 · Claude Code | PR #140 머지(일부) | 계획 순서와 달리 단계 1 A2(#142)보다 앞서 머지. 로컬 훅 1단 검사는 남음 |
 | 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 전 | |
 | 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 전 | |
-| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | 0-4 A안 반영(유료 · 데이터 수집 거부 경로, 처리방침 문구). [프롬프트](prompts/codex-s2-b1.md). 마이그레이션 포함 |
+| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 열림(계획 칸 확인 완료) | 머지 때: 운영 마이그레이션, `VERIFIER_MODELS`=GPT 6.2 Sol · Haiku 5.5, OpenRouter data_collection deny 지원 확인, 처리방침에 검증 모델 이름 반영(아래 후속), costUsd는 아직 0 |
 | 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-s2-b2.md). 서버 검증 전이라 ⚪ · 🔵만 표시 |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
 | 2 | 9절 확인 조사 | Codex(장차희 지시) | B2 뒤 시작 | 코드 변경 없음 |
@@ -59,6 +59,12 @@
 | 머지 위임(PR #135) | 모든 단계 | #135로 규약 반영됨. 장차희의 확인과 `decisions.md` 기록은 결정 대기 |
 | 3-4 메뉴 정리 · 범위 동결 | 단계 0 | 출시 때 앞에 둘 메뉴와 숨기거나 베타로 표시할 화면 |
 | 로그인 없이 PRD 만들기 | 단계 0 | 허용 여부와 한도 |
+
+## 3-1. 후속으로 정해진 일
+
+- 처리방침(`lib/legal.ts`)에 "어느 입력이 어느 모델로 가는지"를 모델 이름까지 적기: 아이디어 · PRD는 무료 모델, 검증 코드는 GPT 6.2 Sol 또는 Haiku 5.5(개발 계열과 다른 쪽). B1 PR #151 머지 뒤 작은 PR로(정지훈).
+- 교차 계열 판정: A2가 `startVerification`에 `developmentModel`(MCP 클라이언트 정보에서)을 넘겨야 함. 단계 2 A2 칸에서.
+- 실제 프로젝트로 핵심 고리 검증: 단계 2 완료 뒤 시작(보류 기능을 꺼내는 조건과 같음).
 
 ## 4. 사람 일 (계속 진행)
 

@@ -25,7 +25,7 @@ const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', mat
 
 const GROUPS: Array<{ name: string; en: string; items: NavItem[] }> = [
   { name: '리서치', en: 'Research', items: [SIGNALS, READS, EXPLORE] },
-  { name: '기획', en: 'Plan', items: [PRD] },
+  { name: '기획', en: 'Plan', items: [PRD, { name: '감독관', en: 'Supervisor', href: '/supervisor', match: ['/supervisor'], icon: Plug }] },
 ];
 // The reader's own things sit behind their name at the bottom of the sidebar, not in the main menu.
 const PERSONAL: NavItem[] = [SCRAP, AGENT, { name: '프로필', en: 'Profile', href: '/profile', match: ['/profile'], icon: UserRound }];

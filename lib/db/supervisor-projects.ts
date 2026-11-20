@@ -34,6 +34,14 @@ export async function supervisorProject(service: SupabaseClient, userId: string,
   return data ? toProject(data as ProjectRow) : null;
 }
 
+/** The user's supervisor projects, most recently updated first (the dashboard list). */
+export async function userSupervisorProjects(client: SupabaseClient, userId: string, limit = 50): Promise<Array<SupervisorProject & { updatedAt: string }>> {
+  const { data, error } = await client.from('supervisor_projects').select('user_id,project_key,repo,track,strict,goal_version,updated_at')
+    .eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data as Array<ProjectRow & { updated_at: string }>).map((row) => ({ ...toProject(row), updatedAt: row.updated_at }));
+}
+
 /** Creates the project row if missing (personal track, no goal yet); memory rows need it to exist. */
 export async function ensureSupervisorProject(service: SupabaseClient, userId: string, key: ProjectKey) {
   const { error } = await service.from('supervisor_projects')

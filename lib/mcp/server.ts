@@ -913,7 +913,8 @@ async function fetchVerificationDiff(repo: string, sha: string, override?: McpDe
   validateGitHubCommit(repo, sha);
   const response = await fetch(`https://api.github.com/repos/${repo}/commits/${sha.toLowerCase()}`, {
     headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github.diff', 'X-GitHub-Api-Version': '2022-11-28' },
-    redirect: 'error',
+    // Workers reject 'error' outright; 'manual' leaves a 3xx unfollowed and the ok check below refuses it.
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) {

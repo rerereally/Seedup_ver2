@@ -196,7 +196,8 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       const response = await fetch(`https://api.github.com/repos/${repo}`, {
         headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'user-agent': 'seedup' },
         cache: 'no-store',
-        redirect: 'error',
+        // Workers reject 'error' outright; 'manual' leaves a 3xx unfollowed and the ok check below refuses it.
+        redirect: 'manual',
         signal: AbortSignal.timeout(8_000),
       }).catch(() => null);
       if (!response?.ok) return null;

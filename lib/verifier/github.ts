@@ -56,7 +56,8 @@ export async function collectGitHubEvidence(
     requestCount++;
     const response = await request(`${base}${path}`, {
       headers: { authorization: `Bearer ${token}`, accept, 'X-GitHub-Api-Version': '2022-11-28' },
-      redirect: 'error', signal: AbortSignal.timeout(15_000),
+      // Workers reject 'error' outright; 'manual' leaves a 3xx unfollowed and the ok check below refuses it.
+      redirect: 'manual', signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) { await response.body?.cancel(); throw new Error(`GitHub HTTP ${response.status}`); }
     return boundedText(response, max);

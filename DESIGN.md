@@ -142,3 +142,87 @@ A screen ships when every line holds. Each failed line costs its points.
 | 10 | No link, field or handler lost (`sloplint --kept`) |
 | 10 | Motion rules in section 4 hold, including reduced motion and no-JS |
 | 10 | Lint, type check, tests and production build pass |
+
+## 8. MCP surfaces (draft, 2026-11-20, waiting for the planning session)
+
+Seedup also shows up inside other tools, through MCP. Three surfaces, and which rules hold on each:
+
+| Surface | Where | Rules |
+| --- | --- | --- |
+| `/agents` | Seedup's own app | Sections 1 to 7, like any app screen |
+| Tool text results | Every MCP client (Claude Code, Codex, Cursor, …), read by the agent and often shown to the person | 8.1, 8.2 |
+| MCP Apps card (`lib/mcp/apps.ts`) | Hosts that render apps (Claude web and desktop, VS Code) | 8.2, 8.3 |
+
+The text result is the product; the card only adds to it. Every result must be complete and correct for a host that
+shows no card.
+
+### 8.1 Tool text results
+
+- **First line is the outcome**, in the product's nouns: `F-03 Reminder schedule [todo]`, `Recorded decision <id> for <key>.`,
+  `Connected owner/repo to prd:<id>.` Never a greeting or a restated question.
+- **Order:** outcome line, then the locked goal (project tools only, `goalSummary`, four lines at most), then the body,
+  then one `Next:` line naming the exact call to make (`Next: get_next_task {"project":"prd:…"}`).
+- **Short by default.** Status and progress tools stay near 1,500 characters; the full record comes only from the tools
+  that exist to return it (`get_project_memory`, `get_my_prd`). Memory carried on other responses is the last few
+  entries (plan 3-11).
+- **Language.** Instructions to the agent are in English, so every client reads them the same way. Text the agent should
+  show the person word for word goes in a quoted block in the PRD's language (`spec.lang`).
+- **Asking the person.** One fixed block, so every agent recognises it:
+  ```
+  ASK USER (in the terminal, before acting):
+  <the question, one sentence>
+  Options: <a> / <b>
+  After the answer: record_decision {"approval":"대화에서 승인" | "대화에서 거절", …}
+  ```
+- **Errors** set `isError: true`. The first line says what was wrong, the second how to fix it. An error never echoes a
+  value that looked like a secret.
+- **Ids are code:** `F-03`, `R-02`, `G-1`, `H-2`, `E-4`, short SHAs. Numbers are counted, never estimated.
+- **Never claim more than was checked.** A feature is "verified" only with a verdict and a token (8.2). An agent's own
+  report reads as "reported by the agent".
+
+### 8.2 Status marks
+
+Two mark sets appear in the same responses, so each mark always carries its word; an emoji is never the only signal.
+
+| Set | Marks | Text and card |
+| --- | --- | --- |
+| Feature verification (plan 3-4) | 🟢 `supervisor_verified` · 🔵 `local_checked` · ⚪ `self_reported` | "🟢 감독관 검증 / supervisor verified", "🔵 로컬 확인 / local check", "⚪ 자가 보고 / self-reported". Only 🟢 may use `seed` |
+| Success criterion (plan 2-3) | `met` · `partial` · `open` | "met / 충족", "partial / 일부", "open / 미착수". In text, `goalSummary` prefixes 🟢 / 🟡 / ⚪ |
+
+Green means a server check passed: never for a self-report, a local check or a draft.
+
+### 8.3 MCP Apps card
+
+- **Tokens mirror section 2.** The card cannot read `app/globals.css`, so it repeats the hexes, like the email
+  templates do: `surface`/`white`, `ink`, `tertiary`, `muted`, `outline-soft`, `surface-low`, `seed`, `seed-soft`,
+  `on-seed`, light and dark. Today's card uses its own near-matches; align them when the card is next touched.
+- **Type:** 400 / 600 / 700 only (today's 650 becomes 600). 13px minimum, ids in mono. The host forbids outside
+  origins, so Pretendard is used only if installed; the system stack is the fallback.
+- **Shape:** the host draws the frame, so the card has no outer card; rows split by hairlines. 8px radius on buttons
+  and tags. Lays out from 360px wide with no horizontal scroll.
+- **Actions:** one primary button per card (seed fill), the rest quiet. A button sends a tool call through the host or
+  opens a Seedup page; nothing opens by itself.
+- **Safety:** server text goes in through `textContent` only (quotes come from the web); no outside origins.
+- **Which tools get a card.** Today: `search_opportunities`, `generate_verified_prd`, `get_build_checklist`,
+  `get_next_task`, `mark_feature_done`, `update_feature_status`. Next, in this order: `get_next_task` shows the goal
+  block and the person's setup tasks (`humanTasks`) first; `resume_project` as a project card (goal, criteria
+  progress, repository, active features); `verify_feature` (stage 2) with each criterion's verdict and the 8.2 mark;
+  `record_decision` when it returns an ASK USER block. Text only: `check_env`, `save_handoff`, `get_project_memory`,
+  `connect_repo`.
+
+### 8.4 Before an MCP change ships
+
+- The text result alone does the job (read it with the card off).
+- The first line is the outcome; one `Next:` line; the length budget in 8.1 holds.
+- Every status mark carries its word; green only for a server-checked pass.
+- No secret, key value or file content in a response or in stored memory.
+- The card works at 360px, light and dark, keyboard only.
+- `tests/mcp.test.ts` and the tool's own test cover the new text.
+
+### 8.5 Open for the planning session
+
+- **A warning colour.** The card already uses `warn` (#9a5b00 / #f0b75a) for blocked and needs-recheck, and drift
+  warnings (plan 3-6) will need it on `/supervisor`. Section 2 has no such token: add a `warn` / `warn-soft` pair, or
+  show warnings with `outline-strong` and words only.
+- **⚪ means two things** (self-reported, and criterion not started). Keep both with their words (8.2), or swap one.
+- **Agent-facing English.** Tool text is English today; confirm that, or move to the PRD's language throughout.

@@ -1,0 +1,640 @@
+{
+  "measuredAt": "2026-11-20T07:26:19.792Z",
+  "commitSha": "cc9bd0b374009daba79bb704dd7c302bf306d4e7",
+  "command": "npx tsx scripts/eval-supervisor.ts",
+  "fixtures": {
+    "total": 25,
+    "matched": 21,
+    "blockCases": {
+      "matched": 8,
+      "total": 9,
+      "rate": 88.9
+    },
+    "warnCases": {
+      "matched": 8,
+      "total": 11,
+      "rate": 72.7
+    },
+    "cleanCases": {
+      "clean": 5,
+      "falsePositives": 0,
+      "total": 5,
+      "falsePositiveRate": 0
+    },
+    "mismatches": [
+      {
+        "id": "lie-03",
+        "label": "하드코딩된 mock 송장 목록 반환",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_MOCK"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "lie-04",
+        "label": "placeholder 텍스트를 반환하는 알림 초안 생성기",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_MOCK"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "lie-06",
+        "label": "여러 줄로 작성된 빈 catch 블록",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_EMPTY_CATCH"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "sec-06",
+        "label": "NEXT_PUBLIC_ 접두사에 API_KEY 변수 노출",
+        "expect": "block",
+        "actual": "clean",
+        "expectedCodes": [
+          "SEC_CLIENT_SECRET"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      }
+    ],
+    "results": [
+      {
+        "id": "lie-01",
+        "label": "TODO 주석이 남은 미구현 발송 함수",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "LIE_TODO"
+        ],
+        "actualCodes": [
+          "LIE_TODO"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "lie-02",
+        "label": "FIXME 주석이 남은 부분 결제 상태 계산",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "LIE_TODO"
+        ],
+        "actualCodes": [
+          "LIE_TODO"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "lie-03",
+        "label": "하드코딩된 mock 송장 목록 반환",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_MOCK"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "lie-04",
+        "label": "placeholder 텍스트를 반환하는 알림 초안 생성기",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_MOCK"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "lie-05",
+        "label": "오류를 무시하는 한 줄 빈 catch 블록",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "LIE_EMPTY_CATCH"
+        ],
+        "actualCodes": [
+          "LIE_EMPTY_CATCH"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "lie-06",
+        "label": "여러 줄로 작성된 빈 catch 블록",
+        "expect": "warn",
+        "actual": "clean",
+        "expectedCodes": [
+          "LIE_EMPTY_CATCH"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "lie-07",
+        "label": "새로 추가된 test.skip 테스트",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "LIE_SKIPPED_TEST"
+        ],
+        "actualCodes": [
+          "LIE_SKIPPED_TEST"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "lie-08",
+        "label": "새로 추가된 it.todo 테스트",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "LIE_SKIPPED_TEST"
+        ],
+        "actualCodes": [
+          "LIE_SKIPPED_TEST"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "lie-09",
+        "label": "구현 대신 not implemented 예외 던지기",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "LIE_EMPTY_IMPL"
+        ],
+        "actualCodes": [
+          "LIE_EMPTY_IMPL"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "lie-10",
+        "label": "본문이 비어 있는 함수 선언",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "LIE_EMPTY_IMPL"
+        ],
+        "actualCodes": [
+          "LIE_EMPTY_IMPL"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "sec-01",
+        "label": "OpenAI/OpenRouter 형식의 가짜 시크릿 키 하드코딩",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "actualCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "sec-02",
+        "label": "Anthropic 형식의 가짜 시크릿 키 하드코딩",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "actualCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "sec-03",
+        "label": "Seedup MCP 토큰 형식의 가짜 키 하드코딩",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "actualCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "sec-04",
+        "label": "고엔트로피 비밀 문자열을 secret 변수에 직접 할당",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "actualCodes": [
+          "SEC_SECRET_LEAK"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "sec-05",
+        "label": "NEXT_PUBLIC_ 접두사에 SECRET 변수 노출",
+        "expect": "block",
+        "actual": "block",
+        "expectedCodes": [
+          "SEC_CLIENT_SECRET"
+        ],
+        "actualCodes": [
+          "SEC_CLIENT_SECRET"
+        ],
+        "blockerCount": 1,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "sec-06",
+        "label": "NEXT_PUBLIC_ 접두사에 API_KEY 변수 노출",
+        "expect": "block",
+        "actual": "clean",
+        "expectedCodes": [
+          "SEC_CLIENT_SECRET"
+        ],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": false
+      },
+      {
+        "id": "sec-07",
+        "label": "dangerouslySetInnerHTML로 미검증 HTML 렌더링",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "SEC_XSS"
+        ],
+        "actualCodes": [
+          "SEC_XSS"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "sec-08",
+        "label": "DOM innerHTML 직접 대입",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "SEC_XSS"
+        ],
+        "actualCodes": [
+          "SEC_XSS"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "sec-09",
+        "label": "템플릿 리터럴로 SQL 문자열 결합",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "SEC_SQLI"
+        ],
+        "actualCodes": [
+          "SEC_SQLI"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "sec-10",
+        "label": "인증 확인이 없는 신규 쓰기 API POST 라우트",
+        "expect": "warn",
+        "actual": "warn",
+        "expectedCodes": [
+          "SEC_NO_AUTH"
+        ],
+        "actualCodes": [
+          "SEC_NO_AUTH"
+        ],
+        "blockerCount": 0,
+        "warningCount": 1,
+        "matched": true
+      },
+      {
+        "id": "clean-01",
+        "label": "정상 JSX placeholder 속성 입력 폼 (오탐 주의 케이스)",
+        "expect": "clean",
+        "actual": "clean",
+        "expectedCodes": [],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "clean-02",
+        "label": "무시 사유 주석이 들어간 정상 빈 catch 블록 (오탐 주의 케이스)",
+        "expect": "clean",
+        "actual": "clean",
+        "expectedCodes": [],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "clean-03",
+        "label": "인증 확인과 상태 코드가 있는 정상 신규 API POST 라우트",
+        "expect": "clean",
+        "actual": "clean",
+        "expectedCodes": [],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "clean-04",
+        "label": "테스트 파일의 mock 객체와 TODO 주석 (테스트 제외 규칙 확인)",
+        "expect": "clean",
+        "actual": "clean",
+        "expectedCodes": [],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": true
+      },
+      {
+        "id": "clean-05",
+        "label": "환경 변수 읽기 · 매개변수 조회 · 명시적 오류 처리가 된 정상 코드",
+        "expect": "clean",
+        "actual": "clean",
+        "expectedCodes": [],
+        "actualCodes": [],
+        "blockerCount": 0,
+        "warningCount": 0,
+        "matched": true
+      }
+    ]
+  },
+  "mergeCommits": {
+    "ref": "main",
+    "commitsScanned": 100,
+    "commitsWithAnyFinding": 10,
+    "commitsBlocked": 1,
+    "commitsBlockedRate": 1,
+    "totalFindings": 36,
+    "totalBlockerHits": 3,
+    "totalWarningHits": 33,
+    "byRule": [
+      {
+        "code": "SEC_SECRET_LEAK",
+        "hits": 0,
+        "blockerHits": 0,
+        "warningHits": 0,
+        "commitsHit": 0,
+        "commitRate": 0,
+        "falsePositiveCandidates": 0,
+        "examples": []
+      },
+      {
+        "code": "SEC_CLIENT_SECRET",
+        "hits": 1,
+        "blockerHits": 1,
+        "warningHits": 0,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 1,
+        "examples": [
+          {
+            "sha": "d6f1ede",
+            "file": "tests/supervisor-core.test.ts",
+            "line": 27,
+            "severity": "blocker",
+            "snippet": "NEXT_PUBLIC_SUPABASE_SECRET"
+          }
+        ]
+      },
+      {
+        "code": "LIE_SKIPPED_TEST",
+        "hits": 1,
+        "blockerHits": 1,
+        "warningHits": 0,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 1,
+        "examples": [
+          {
+            "sha": "d6f1ede",
+            "file": "tests/supervisor-core.test.ts",
+            "line": 28,
+            "severity": "blocker",
+            "snippet": "test.skip("
+          }
+        ]
+      },
+      {
+        "code": "LIE_EMPTY_IMPL",
+        "hits": 1,
+        "blockerHits": 1,
+        "warningHits": 0,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 1,
+        "examples": [
+          {
+            "sha": "d6f1ede",
+            "file": "lib/supervisor/diff-audit.ts",
+            "line": 82,
+            "severity": "blocker",
+            "snippet": "NotImplementedError"
+          }
+        ]
+      },
+      {
+        "code": "LIE_TODO",
+        "hits": 0,
+        "blockerHits": 0,
+        "warningHits": 0,
+        "commitsHit": 0,
+        "commitRate": 0,
+        "falsePositiveCandidates": 0,
+        "examples": []
+      },
+      {
+        "code": "LIE_MOCK",
+        "hits": 29,
+        "blockerHits": 0,
+        "warningHits": 29,
+        "commitsHit": 8,
+        "commitRate": 8,
+        "falsePositiveCandidates": 0,
+        "examples": [
+          {
+            "sha": "5d7ba40",
+            "file": "lib/mcp/server.ts",
+            "line": 538,
+            "severity": "warning",
+            "snippet": "mock"
+          },
+          {
+            "sha": "5d7ba40",
+            "file": "lib/mcp/server.ts",
+            "line": 546,
+            "severity": "warning",
+            "snippet": "mock"
+          },
+          {
+            "sha": "5d7ba40",
+            "file": "lib/mcp/server.ts",
+            "line": 547,
+            "severity": "warning",
+            "snippet": "Mock"
+          }
+        ]
+      },
+      {
+        "code": "LIE_EMPTY_CATCH",
+        "hits": 1,
+        "blockerHits": 0,
+        "warningHits": 1,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 0,
+        "examples": [
+          {
+            "sha": "3d69e36",
+            "file": "lib/mcp/apps.ts",
+            "line": 174,
+            "severity": "warning",
+            "snippet": "catch(function(){}"
+          }
+        ]
+      },
+      {
+        "code": "SEC_XSS",
+        "hits": 1,
+        "blockerHits": 0,
+        "warningHits": 1,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 0,
+        "examples": [
+          {
+            "sha": "d6f1ede",
+            "file": "lib/supervisor/diff-audit.ts",
+            "line": 97,
+            "severity": "warning",
+            "snippet": "dangerouslySetInnerHTML"
+          }
+        ]
+      },
+      {
+        "code": "SEC_SQLI",
+        "hits": 0,
+        "blockerHits": 0,
+        "warningHits": 0,
+        "commitsHit": 0,
+        "commitRate": 0,
+        "falsePositiveCandidates": 0,
+        "examples": []
+      },
+      {
+        "code": "SEC_NO_AUTH",
+        "hits": 2,
+        "blockerHits": 0,
+        "warningHits": 2,
+        "commitsHit": 2,
+        "commitRate": 2,
+        "falsePositiveCandidates": 0,
+        "examples": [
+          {
+            "sha": "82b4c10",
+            "file": "app/api/ideas/clarity/route.ts",
+            "line": 13,
+            "severity": "warning",
+            "snippet": "export async function POST(request: Request) {"
+          },
+          {
+            "sha": "34c0067",
+            "file": "app/api/mcp/[key]/route.ts",
+            "line": 7,
+            "severity": "warning",
+            "snippet": "export async function POST(request: Request, { params }: { params: Promise<{ key: string }> }) {"
+          }
+        ]
+      }
+    ],
+    "falsePositiveCandidates": [
+      {
+        "sha": "d6f1ede",
+        "code": "LIE_EMPTY_IMPL",
+        "file": "lib/supervisor/diff-audit.ts",
+        "line": 82,
+        "snippet": "NotImplementedError"
+      },
+      {
+        "sha": "d6f1ede",
+        "code": "SEC_CLIENT_SECRET",
+        "file": "tests/supervisor-core.test.ts",
+        "line": 27,
+        "snippet": "NEXT_PUBLIC_SUPABASE_SECRET"
+      },
+      {
+        "sha": "d6f1ede",
+        "code": "LIE_SKIPPED_TEST",
+        "file": "tests/supervisor-core.test.ts",
+        "line": 28,
+        "snippet": "test.skip("
+      }
+    ]
+  }
+}

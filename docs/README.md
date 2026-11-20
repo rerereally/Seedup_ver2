@@ -22,5 +22,7 @@
 | [hosting.md](hosting.md) | 호스팅 위치 비교 자료 | 결정 대기 (비용이 드는 결정이라 사용자가 정함) |
 | [prd-builder-split.md](prd-builder-split.md) | PRD 화면(`PrdBuilder`) 나누기 리팩터링 계획 | 현행 (시작 전) |
 | [trend-and-recommendation-review.md](trend-and-recommendation-review.md) | 트렌드 수집과 추천 알고리즘 평가 | 현행 |
+| [prompts/codex-s1-a2.md](prompts/codex-s1-a2.md) | Codex 시작 프롬프트: 단계 1 A2 (MCP 목표 연결 · 공유 메모리 도구) | 현행 (A1 · B1 머지 뒤 사용) |
+| [prompts/antigravity-s1-a3.md](prompts/antigravity-s1-a3.md) | Antigravity 시작 프롬프트: 단계 1 A3 (기준 측정 · 발표 서사) | 현행 (지금 사용 가능) |
 | `hackathon-judging-2026-11-19.md` | 해커톤 모의 심사와 발표안 | 현행, 해커톤이 끝나면 보관. 아직 저장소에 커밋되지 않음(메인 체크아웃에만 있음) |
 | [archive/](archive/README.md) | 대체되거나 최상위 계획으로 흡수된 문서 17개, 문서마다 옮긴 이유 | 보관 |

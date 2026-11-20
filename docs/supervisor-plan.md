@@ -333,6 +333,18 @@ export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: 
 
 머지 순서: A1 타입 → B1 → A1 나머지 · B2 · A3 → A2 → 운영 마이그레이션 적용 후 배포.
 
+### 단계 1 보완: 칸 사이에 남은 연결 작업
+
+단계 1의 칸들이 각자 끝난 뒤 서로 잇지 못한 곳입니다. 칸 하나로 묶습니다. 담당 정지훈 · Claude Code. 2번은 B2 파일이지만 B2 세션이 끝나 같이 맡습니다.
+
+| 작업 | 내용 | 파일 |
+| :--- | :--- | :--- |
+| ① 목표 재잠금 → 기능 다시 확인 | 3-1대로 목표가 새 버전으로 잠기면 영향받는 기능을 `needs_recheck`로. 잠금 API가 A1의 `goalChange`를 부르게 함 | `app/api/projects/[key]/goal/route.ts`, `lib/db/project-goals.ts`, `tests/project-goals.test.ts` |
+| ② 목표 카드를 A1 판정으로, 성공 기준 id 버그 | `components/goal/draft.ts`의 `unlinkedItems`를 `lib/supervisor/goal.ts`의 것으로 교체. `GoalLock.tsx`가 잠글 때마다 `G-1`부터 다시 매기는 버그 수정(기존 id 유지, 새 기준만 다음 번호) | `components/goal/*`, `tests/goal-draft.test.ts` |
+| ③ "환경 세팅 먼저" 보여 주기 | A1 `humanTasks`를 `get_next_task` 응답 맨 앞과 목표 카드 아래에 "사람이 먼저 할 일"로 | `lib/mcp/server.ts`, `components/goal/GoalLock.tsx` |
+
+머지 순서: 단계 1 보완 → 단계 2 A2(`lib/mcp/server.ts`가 겹치므로 보완을 먼저). 단계 2 B2(`/supervisor`, `/agents`)와는 파일이 겹치지 않습니다.
+
 ### 단계 2. 핵심 고리 ②: 2단 검증과 이탈 검사
 
 | 에이전트 | 담당 | 파일 |
@@ -344,6 +356,15 @@ export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: 
 | B2 | 최소 `/supervisor` 대시보드(목표 카드, 성공 기준별 진행, 기능 신호등, 이탈 경고, 결정 이력), `/agents` 스타터 팩(MCP 설정 · 훅 · `pre-commit`) | `app/api/supervisor/[key]/route.ts`, `app/supervisor/*`, `components/supervisor/*`, `app/agents/page.tsx`, `components/AgentPackDownload.tsx` |
 
 머지 순서: A1 → B1 → A2 → B2 + `Header.tsx` 메뉴 → A3 실측 반영.
+
+**단계 2에 함께 하는 것 (코드 칸 밖)**
+
+| 작업 | 담당 | 내용 | 시점 |
+| :--- | :--- | :--- | :--- |
+| MCP 화면 · 응답 기준 | 초안 정지훈, 반영 계획 세션(`DESIGN.md`에 "MCP" 절) | MCP Apps 카드 토큰을 DESIGN.md v2에 맞추기, 도구 응답 글 형식(첫 줄 결론 → 목표 요약 → 다음 행동), 🟢 · 🔵 · ⚪ 검증 표시 규칙, "사용자에게 물어라" 안내 형식, 카드를 붙일 도구 목록 | 단계 2 A2가 검증 결과를 보여 주기 전 |
+| 9절 "확인이 필요한 것" 조사 | Codex(장차희가 지시, 낮은 추론). 코드는 고치지 않음 | 훅 입력 형식(Claude Code · Codex), GitHub API 한도, Workers 시간 제한과 Browser Rendering 가격, GitHub 트렌드 · AI 제품 테이블의 라이선스 · 패키지 이름 필드. 결과는 9절 갱신 제안으로 | 단계 2 B2 뒤, 보류 기능 크기를 정하기 전 |
+
+단계 2 A2는 "단계 1 보완"이 머지된 뒤 시작합니다(`lib/mcp/server.ts` 겹침). 보류 기능은 보류 절의 조건이 될 때까지 시작하지 않습니다.
 
 ### 보류 (핵심 고리가 실제 프로젝트에서 끝까지 돈 뒤 하나씩 꺼냄)
 
@@ -465,3 +486,5 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 10-1의 상태 숫자를 status.md로 넘김(중복 제거). 11절(D1 · D2)을 완료로 접음.
 - 2026-11-20: 역할 확정. 장차희 총괄 · 계획, 정지훈 기술 구현 · 머지(모든 칸의 기술 책임 · 리뷰 · 머지). 5절 B 칸에서 사람 이름을 빼고 역할 문단 추가.
 - 2026-11-20: 3-3에 공개 slug 키는 실제 기회인지 확인한다는 규칙 추가(PR #131 검토 중 결정).
+- 2026-11-20: 단계 1 보완 칸 추가(정지훈 제안: 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시). 담당 정지훈 · Claude Code.
+- 2026-11-20: 단계 2에 코드 칸 밖 작업 2개 추가(MCP 화면 · 응답 기준, 9절 조사). 정지훈 제안 반영.

@@ -2,7 +2,7 @@ import { translator, type Lang } from '../i18n';
 import { searchDemand, searchSupply } from './actors';
 import { estimateBuild } from './build';
 import { searchIdeaEvidenceWithRetry } from './idea-evidence';
-import { callJsonModel } from '../llm';
+import { callJsonModel, type ModelUsage } from '../llm';
 import { matchOpportunities } from './match';
 import { discoveryReply } from './outreach';
 import { CROWDED_AT, compareRivalListings, counterQuotesFrom, listingLimitation, validationChecks } from './report-checks';
@@ -51,25 +51,28 @@ export function firstUsersFrom(quotes: Evidence[], limit = 10) {
 }
 
 /** evidenceBudgetMs: time for the quote search; one search takes about 45 s on free models, a retry needs about 90 s. */
-type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean; evidenceBudgetMs?: number };
+type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean; evidenceBudgetMs?: number; model?: string; onUsage?: (usage: ModelUsage) => void };
+type ModelChoice = { model?: string; onUsage?: (usage: ModelUsage) => void };
 
 // By default the evidence search gets a minute, leaving the rival search time inside the web route's 120 s; callers
 // with more time (MCP, 160 s) pass a longer budget so the retry with other words can run.
 const EVIDENCE_BUDGET_MS = 60_000;
 
 const reportSources = {
-  readEvidence: (idea: string, budgetMs = EVIDENCE_BUDGET_MS): Promise<{ phrases: string[]; quotes: Evidence[] }> => searchIdeaEvidenceWithRetry(idea, { deadline: Date.now() + budgetMs }),
+  readEvidence: (idea: string, budgetMs = EVIDENCE_BUDGET_MS, choice: ModelChoice = {}): Promise<{ phrases: string[]; quotes: Evidence[] }> => searchIdeaEvidenceWithRetry(idea, { deadline: Date.now() + budgetMs, ...choice }),
   estimate: estimateBuild,
   supply: searchSupply,
   demand: searchDemand,
   webSupply: (query: string) => webSearchEnabled() ? searchWebSupply(query) : Promise.resolve([]),
   rivalAgent: rivalAgentEnabled,
-  askRivalQueries: (prompt: string) => callJsonModel<{ queries?: unknown }>(prompt, { maxTokens: 300, timeoutMs: 20_000, title: 'Seedup rival research' }),
+  askRivalQueries: (prompt: string, choice: ModelChoice = {}) => callJsonModel<{ queries?: unknown }>(prompt, { maxTokens: 300, timeoutMs: 20_000, title: 'Seedup rival research', ...choice }),
 };
 
 export async function buildValidationReport(idea: string, opportunities: Opportunity[], options: ReportOptions = {}, sources = reportSources): Promise<ValidationReport> {
-  const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }).catch(() => null);
-  const live = await sources.readEvidence(idea, options.evidenceBudgetMs).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
+  // The model the person picked (allowed by the admin policy) goes first in every call; free models stay behind it.
+  const choice: ModelChoice = { model: options.model, onUsage: options.onUsage };
+  const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }, choice).catch(() => null);
+  const live = await sources.readEvidence(idea, options.evidenceBudgetMs, choice).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
   const queries = [idea, ...live.phrases].slice(0, 2);
   const phrases = live.phrases.length ? live.phrases : [idea];
   const [counterPhrase] = phrases;
@@ -83,7 +86,7 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   const lists = await Promise.all(queries.map(search));
   for (const item of lists.flat()) if (item.name && item.url && !found.has(item.url)) found.set(item.url, item);
   const agent = options.rivalAgent ?? sources.rivalAgent();
-  const researchQueries = agent ? await researchRivals(idea, found, { ask: sources.askRivalQueries, search }) : [];
+  const researchQueries = agent ? await researchRivals(idea, found, { ask: (prompt) => sources.askRivalQueries(prompt, choice), search }) : [];
   const candidates = [...found.values()].slice(0, agent ? MAX_RESEARCHED : 16);
   const matchedRivals = compareRivalListings(phrases, candidates);
   const rivals = matchedRivals.slice(0, MAX_RIVALS);

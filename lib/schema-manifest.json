@@ -2435,5 +2435,33 @@
       "submit_prd_report",
       "moderated_listed_prds"
     ]
+  },
+  {
+    "file": "20261120130000_section_views.sql",
+    "tables": [
+      "section_views"
+    ],
+    "columns": [
+      [
+        "section_views",
+        "id"
+      ],
+      [
+        "section_views",
+        "section"
+      ],
+      [
+        "section_views",
+        "signed_in"
+      ],
+      [
+        "section_views",
+        "user_id"
+      ],
+      [
+        "section_views",
+        "created_at"
+      ]
+    ]
   }
 ]

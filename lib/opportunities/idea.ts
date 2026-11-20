@@ -2,6 +2,7 @@ import { specInputFor } from './context';
 import { findEvidence } from './data';
 import { readLiveEvidence } from './live-evidence';
 import { assessPushback } from './pushback';
+import { MAX_TOTAL_QUESTIONS } from './questions';
 import type { SpecInput } from './spec';
 import type { Evidence, Opportunity } from './types';
 
@@ -9,7 +10,7 @@ import type { Evidence, Opportunity } from './types';
 export type IdeaBrief = { idea: string; answers: Array<{ key?: string; question: string; answer: string }> };
 
 const MAX_IDEA = 300;
-const MAX_ANSWERS = 8;
+const MAX_ANSWERS = MAX_TOTAL_QUESTIONS + 1; // The workspace can also send the competitors from validation.
 const MAX_ANSWER = 400;
 const MAX_EVIDENCE = 12;
 

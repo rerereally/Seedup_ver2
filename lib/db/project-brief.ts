@@ -3,13 +3,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById } from '@/lib/db/dossiers';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
+import { MAX_TOTAL_QUESTIONS } from '@/lib/opportunities/questions';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence } from '@/lib/opportunities/types';
 import { scrubSecrets } from '@/lib/supervisor/diff-audit';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const MAX_ANSWERS = 8;
 const clip = (value: unknown, max: number) => typeof value === 'string'
   ? scrubSecrets(value.replaceAll('\0', '').replace(/\s+/g, ' ').trim()
     .replace(/\b([A-Z][A-Z0-9_]*\s*=)\s*(?:"[^"]*"|'[^']*'|\S+)/g, '$1[REDACTED secret]')).scrubbed.slice(0, max)
@@ -19,7 +19,7 @@ const clip = (value: unknown, max: number) => typeof value === 'string'
 export function briefFacts(body: unknown, evidence: Evidence[]) {
   const input = (body ?? {}) as { competitors?: unknown; answers?: unknown };
   const competitors = (Array.isArray(input.competitors) ? input.competitors : []).map((name) => clip(name, 80)).filter(Boolean).slice(0, 8);
-  const answers = (Array.isArray(input.answers) ? input.answers : []).slice(0, MAX_ANSWERS)
+  const answers = (Array.isArray(input.answers) ? input.answers : []).slice(0, MAX_TOTAL_QUESTIONS)
     .map((row) => ({ question: clip((row as { question?: unknown })?.question, 160), answer: clip((row as { answer?: unknown })?.answer, 400) }))
     .filter((row) => row.question && row.answer);
   // The verdict comes from the quotes saved with the PRD, not from the browser.

@@ -33,7 +33,6 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     featureFiles: async () => ({}),
     flagRecheck: async () => false,
     unlinkedCommitCount: async () => 0,
-    verifyFeature: async () => null,
     setProgress: async () => false,
     notifyBlocked: async () => {},
     kept: async () => [],
@@ -50,7 +49,7 @@ test('initialize answers with a supported protocol version and tool capability',
   assert.equal(answer.result.protocolVersion, '2025-03-26');
   assert.ok('tools' in answer.result.capabilities);
   assert.match(answer.result.instructions, /start of each build session, call get_next_task/);
-  assert.match(answer.result.instructions, /update_feature_status.*in_progress.*done with checks or blocked/);
+  assert.match(answer.result.instructions, /update_feature_status to report in_progress.*done with checks or blocked.*verify_feature with the pushed GitHub SHA/);
 });
 
 test('notifications get no answer, unknown methods get -32601, garbage gets a parse error', async () => {
@@ -73,6 +72,7 @@ test('tools/list exposes every tool with MCP annotations', async () => {
     'mark_feature_done',
     'link_commit',
     'verify_feature',
+    'get_verification',
     'get_kept_items',
     'find_related_content',
     'validate_idea',
@@ -228,7 +228,7 @@ test('the checklist lists current status and done criteria, and the legacy alias
 
   const marked = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', done: true, note: 'tests pass', checks: [{ criterion: 1, passed: true, evidence: 'notes.test.ts: save returns id, passed' }] }), withSpec, '') as { result: { content: Array<{ text: string }> } };
   assert.match(marked.result.content[0].text, /1\/2 done/);
-  assert.match(marked.result.content[0].text, /- \[x\] F-01/);
+  assert.match(marked.result.content[0].text, /^F-01 Store notes \[done\] ⚪ self-reported/);
   assert.match(progress['F-01'].note, /checks 1\/1 \(1: notes\.test\.ts: save returns id, passed\)/);
 
   const wrong = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F9' }), withSpec, '') as { result: { isError?: boolean } };
@@ -288,7 +288,7 @@ test('link_commit records first, then flags the touched done feature and tells t
   assert.equal(progress['F-01'].status, 'done');
 
   const retry = await toolResult('link_commit', commitArgs, withSpec);
-  assert.equal(retry.text, 'Recorded commit for F-01.');
+  assert.equal(retry.text, 'Recorded commit for F-01.\nNext: get_build_checklist {"project":"memory"}');
 });
 
 test('get_build_checklist includes the count of unlinked commits for its opportunity', async () => {
@@ -322,50 +322,14 @@ test('link_commit rejects invalid input and lists valid features for unknown ids
   assert.equal(writes, 0);
 });
 
-test('verify_feature compares a bounded diff to the checklist and never changes progress', async () => {
-  const calls: Array<[string, number]> = [];
-  const { withSpec, progress, spec } = progressFixture({
-    consume: async (feature, limit) => { calls.push([feature, limit]); return true; },
-    verifyFeature: async (prompt) => {
-      assert.deepEqual(JSON.parse(prompt), {
-        criteria: [
-          { number: 1, criterion: 'saving a note returns its id' },
-          { number: 2, criterion: 'empty notes are rejected' },
-          { number: 3, criterion: 'saved notes can be read' },
-        ],
-        diff: '+'.repeat(20_000), truncated: true,
-      });
-      return { checks: [
-        { number: 2, status: 'met', reason: 'Empty notes throw an error.' },
-        { number: 1, status: 'not met', reason: 'The return\nvalue is missing.' },
-      ] };
-    },
-  });
-  spec.features[0].slots!.done.push('empty notes are rejected', 'saved notes can be read');
-  const result = await toolResult('verify_feature', { slug: 'memory', feature: 'f1', diff: '+'.repeat(20_000) + 'tail' }, withSpec);
-  assert.equal(result.isError, undefined, result.text);
-  assert.match(result.text, /Model opinion for F-01.*status is unchanged/);
-  assert.match(result.text, /1\. saving a note returns its id — not met\. The return value is missing\./);
-  assert.match(result.text, /2\. empty notes are rejected — met\. Empty notes throw an error\./);
-  assert.match(result.text, /3\. saved notes can be read — unclear\./);
-  assert.deepEqual(calls, [['mcp_verify', 10]]);
+test('verify_feature no longer takes an agent diff: without the server verifier it refuses and never changes progress', async () => {
+  // Plan 1절 "완료 판정": the agent's diff is not trusted; SHA-based verification is covered in tests/mcp-supervisor.test.ts.
+  const { withSpec, progress } = progressFixture({});
+  const result = await toolResult('verify_feature', { slug: 'memory', feature: 'F-01', diff: '+code' }, withSpec);
+  assert.equal(result.isError, true);
+  assert.match(result.text, /^A public GitHub repository is required for server verification\./);
+  assert.match(result.text, /\nNext: connect_repo /);
   assert.deepEqual(progress, {});
-});
-
-test('verify_feature checks the feature and the daily limit before invoking the model', async () => {
-  let modelCalls = 0;
-  const { withSpec } = progressFixture({
-    consume: async () => false,
-    verifyFeature: async () => { modelCalls += 1; return null; },
-  });
-  const args = { slug: 'memory', feature: 'F-01', diff: '+code' };
-  const unknown = await toolResult('verify_feature', { ...args, feature: 'F-99' }, withSpec);
-  assert.match(unknown.text, /Unknown feature ids: F-99\. Valid features: F-01, F-02/);
-  assert.equal(unknown.isError, true);
-  const limited = await toolResult('verify_feature', args, withSpec);
-  assert.match(limited.text, /Daily limit reached/);
-  assert.equal(limited.isError, true);
-  assert.equal(modelCalls, 0);
 });
 
 test('update_feature_status only accepts agent statuses and requires passing checks for done', async () => {
@@ -670,12 +634,6 @@ test('metered MCP tools refund daily quota when the model fails or throws', asyn
   const failedPrd = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), deps({ generate: async () => null, release }), '') as { result: { isError?: boolean } };
   assert.equal(failedPrd.result.isError, true);
 
-  const failedVerify = await handleRpc(
-    call('verify_feature', { slug: 'memory', feature: 'F-01', diff: '+const x = 1;' }),
-    deps({ cachedSpec: async () => ({ input: {} as never, spec }), verifyFeature: async () => null, release }),
-    '',
-  ) as { result: { isError?: boolean } };
-  assert.equal(failedVerify.result.isError, true);
 
   const failedReport = await handleRpc(call('validate_idea', { idea: 'automated changelog' }), deps({ validate: async () => null, release }), '') as { result: { isError?: boolean } };
   assert.equal(failedReport.result.isError, true);
@@ -693,7 +651,8 @@ test('metered MCP tools refund daily quota when the model fails or throws', asyn
     console.error = originalError;
   }
 
-  assert.deepEqual(refunded, ['mcp_prd', 'mcp_verify', 'mcp_report', 'mcp_prd']);
+  // Verification usage is charged and refunded once, by B1 (lib/verifier/run.ts), not here.
+  assert.deepEqual(refunded, ['mcp_prd', 'mcp_report', 'mcp_prd']);
 });
 
 test('get_kept_items empty github hint points to /github-trends instead of removed /news?tab=github', async () => {

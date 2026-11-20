@@ -92,7 +92,7 @@ export function goalChange(spec: Spec, previous: Pick<ProjectGoal, 'criteria'>, 
   return { added, changed, removed, recheckFeatureIds };
 }
 
-const STATUS = { open: '⚪', partial: '🟡', met: '🟢' } as const;
+const STATUS = { open: '⬜', partial: '🟡', met: '🟢' } as const;
 
 /**
  * The locked goal in a few lines for MCP responses, AGENTS.md and the session-start hook. Kept short on purpose: it rides

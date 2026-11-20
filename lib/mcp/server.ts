@@ -1,7 +1,8 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
-import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, projectPage, readAppResource, withAppMeta } from '@/lib/mcp/apps';
+import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, progressNote, projectPage, readAppResource, verificationCard, withAppMeta } from '@/lib/mcp/apps';
 import type { MemoryEntry, ProjectMemory } from '@/lib/db/project-memory';
+import type { VerificationRecord } from '@/lib/db/verifications';
 import { AGENT_FEATURE_STATUSES, normalizeFeatureId } from '@/lib/opportunities/build-progress';
 import type { AgentFeatureStatus, BuildProgress } from '@/lib/opportunities/build-progress';
 import { touchedDoneFeatures } from '@/lib/opportunities/feature-commits';
@@ -14,9 +15,12 @@ import type { ExportFormat, Spec, SpecInput, SpecRival } from '@/lib/opportuniti
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 import { isGitHubLogin } from '@/lib/seeds/github';
+import { scrubSecrets } from '@/lib/supervisor/diff-audit';
+import { findDrift } from '@/lib/supervisor/drift';
 import { featureContribution, goalSummary } from '@/lib/supervisor/goal';
 import { humanTasks } from '@/lib/supervisor/human-queue';
 import type { Decision, ProjectGoal, ProjectKey, SupervisorProject } from '@/lib/supervisor/types';
+import type { StartVerificationInput, VerificationCriterion } from '@/lib/verifier/run';
 
 export const MCP_DAILY_PRD_LIMIT = 10;
 export const MCP_DAILY_REPORT_LIMIT = 3;
@@ -69,7 +73,9 @@ export type McpDeps = {
   featureFiles(slug: string, beforeSha?: string): Promise<Record<string, string[]>>;
   flagRecheck(slug: string, featureId: string, sha: string, note: string): Promise<boolean>;
   unlinkedCommitCount(slug: string): Promise<number>;
-  verifyFeature: (prompt: string) => Promise<unknown>;
+  startVerification?: (input: Omit<StartVerificationInput, 'userId'>) => Promise<VerificationRecord>;
+  getVerification?: (id: string) => Promise<VerificationRecord | null>;
+  matchesVerificationToken?: (token: string, projectKey: ProjectKey, featureId: string, sha: string) => boolean;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
   setProgress: (slug: string, feature: { id: string; title: string }, status: AgentFeatureStatus, note: string) => Promise<boolean>;
   notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
@@ -106,11 +112,18 @@ function projectSchema(properties = {}, required: string[] = []) {
   };
 }
 
+const FULL_SHA = /^[a-fA-F0-9]{40}$/;
+const VERIFICATION_ID = /^[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$/;
+const developmentModels = { codex: 'openai/gpt', 'claude-code': 'anthropic/claude' } as const;
+const shaProperty = { type: 'string', pattern: FULL_SHA.source, description: 'Full 40-character GitHub commit SHA' };
+
 const progressProperties = {
   note: { type: 'string', description: 'One line on what changed or what is blocking work' },
+  sha: shaProperty,
+  verification_token: { type: 'string', description: 'Server verification proof for this feature and SHA, from verify_feature or get_verification' },
   checks: {
     type: 'array',
-    description: 'Required for done. One passing check with evidence per numbered criterion from get_next_task or get_build_checklist.',
+    description: 'For self-reported done, one passing check with evidence per numbered criterion from get_next_task or get_build_checklist.',
     items: {
       type: 'object',
       properties: {
@@ -131,7 +144,6 @@ const memoryLine = { type: 'string', maxLength: 500 };
 const memoryLines = { type: 'array', maxItems: 10, items: memoryLine };
 const APPROVED = '대화에서 승인';
 const REJECTED = '대화에서 거절';
-const ASK_USER = `사용자에게 터미널에서 물어라. Ask the user before changing the goal or scope. Call record_decision again with approval "${APPROVED}" or "${REJECTED}" after the user answers.`;
 
 export const TOOLS = [
   {
@@ -169,7 +181,7 @@ export const TOOLS = [
   },
   {
     name: 'update_feature_status',
-    description: 'Report the current status of a PRD feature. Use in_progress when starting, and done with checks or blocked when ending.',
+    description: 'Report a feature status. For done, use the SHA and verification token from server verification. A non-strict project also accepts self-reported passing checks.',
     inputSchema: projectSchema({
       ...progressProperties,
       feature_id: { type: 'string', description: 'Feature id, e.g. F-01' },
@@ -179,7 +191,7 @@ export const TOOLS = [
   },
   {
     name: 'mark_feature_done',
-    description: 'Compatibility alias for reporting done with checks or returning a feature to todo.',
+    description: 'Compatibility alias for update_feature_status done or todo. The same completion gate applies.',
     inputSchema: projectSchema({
       ...progressProperties,
       feature: { type: 'string', description: 'Feature id, e.g. F-01' },
@@ -200,9 +212,19 @@ export const TOOLS = [
   },
   {
     name: 'verify_feature',
-    description: 'Get a model opinion on whether a diff meets each PRD done criterion. Uses the first 20,000 characters of the diff. Feature status stays unchanged. Up to 10 calls a day.',
-    inputSchema: projectSchema({ feature: { type: 'string' }, diff: { type: 'string' } }, ['feature', 'diff']),
+    description: 'Verify a feature against its stored PRD criteria using the connected public GitHub repository, the full commit SHA, and CI. When running, use get_verification to read the result.',
+    inputSchema: projectSchema({
+      feature: { type: 'string' },
+      sha: shaProperty,
+      developed_with: { type: 'string', enum: Object.keys(developmentModels), description: 'Development tool, if known, so the verifier uses a different model family' },
+    }, ['feature', 'sha']),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  {
+    name: 'get_verification',
+    description: 'Read the status and result of one server verification in this project using the id from verify_feature.',
+    inputSchema: projectSchema({ id: { type: 'string', pattern: VERIFICATION_ID.source } }, ['id']),
+    annotations: READ_ONLY,
   },
   {
     name: 'get_kept_items',
@@ -442,6 +464,39 @@ export function pickNextTask(spec: Spec, progress: BuildProgress, goal?: Project
 }
 
 const oneLine = (value: string, max = 160) => value.replace(/\s+/g, ' ').trim().slice(0, max);
+const toolCall = (name: string, args: Record<string, unknown>) => `${name} ${JSON.stringify(args)}`;
+
+function shortGoal(goal: ProjectGoal | null | undefined) {
+  if (!goal) return '';
+  const lines = goalSummary({
+    ...goal,
+    statement: oneLine(scrubSecrets(goal.statement).scrubbed, 180),
+    criteria: goal.criteria.map((row) => ({
+      ...row, text: oneLine(scrubSecrets(row.text).scrubbed, 70), measure: oneLine(scrubSecrets(row.measure).scrubbed, 60),
+    })),
+    outOfScope: goal.outOfScope.map((item) => oneLine(scrubSecrets(item).scrubbed, 80)),
+  }, 'en').split('\n');
+  return [...lines.slice(0, 3), oneLine(lines.slice(3).join(' · '), 280)].filter(Boolean).join('\n');
+}
+
+function projectReply(outcome: string, goal: ProjectGoal | null | undefined, body: string, next: string, isError = false) {
+  return text([outcome, shortGoal(goal), body, `Next: ${next}`].filter(Boolean).join('\n'), isError);
+}
+
+function scopeDecision(project: ProjectKey, feature?: string) {
+  return toolCall('record_decision', {
+    project, title: '<decision>', why: '<user’s reason>', agent: '<your name>', scope_change: true,
+    ...(feature ? { feature_ids: [feature] } : {}), approval: '<대화에서 승인 | 대화에서 거절>',
+  });
+}
+
+const prdLanguage = (spec?: Spec) => spec?.lang ?? (/[가-힣]/.test(spec?.summary ?? '') ? 'ko' : 'en');
+
+function askScope(lang: Spec['lang'], project: ProjectKey, feature?: string) {
+  const question = lang === 'ko' ? '잠긴 목표나 범위를 조정할까요?' : 'Should we change the locked goal or scope?';
+  const options = lang === 'ko' ? '변경 승인 / 기존 범위 유지' : 'Approve the change / Keep the current scope';
+  return `ASK USER (in the terminal, before acting):\n> ${question}\nOptions: ${options}\nAfter the answer: ${scopeDecision(project, feature)}`;
+}
 
 function recentDecisions(memory: ProjectMemory | undefined) {
   return (memory?.decisions ?? []).slice(0, 3).map((decision) =>
@@ -463,22 +518,22 @@ function contextText(goal: ProjectGoal | null | undefined, memory: ProjectMemory
   return [
     goal && goalSummary(goal, 'en'),
     decisions.length && `Recent decisions\n${decisions.map((decision) => `- ${decision}`).join('\n')}`,
-    handoff && `Last handoff (${oneLine(handoff.agent, 80)})\nCurrent: ${oneLine(handoff.doing)}\nNext: ${oneLine(handoff.next)}${handoff.cautions.length ? `\nCautions: ${oneLine(handoff.cautions.join('; '))}` : ''}${handoff.unverifiedShas.length ? `\nUnverified commits: ${oneLine(handoff.unverifiedShas.join(', '))}` : ''}`,
+    handoff && `Last handoff (${oneLine(handoff.agent, 80)})\nCurrent: ${oneLine(handoff.doing)}\nNext task: ${oneLine(handoff.next)}${handoff.cautions.length ? `\nCautions: ${oneLine(handoff.cautions.join('; '))}` : ''}${handoff.unverifiedShas.length ? `\nUnverified commits: ${oneLine(handoff.unverifiedShas.join(', '))}` : ''}`,
   ].filter(Boolean).join('\n\n');
 }
 
 async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInput; spec: Spec } | null, deps: McpDeps): Promise<ToolResult> {
   const { slug } = opportunity;
   const [{ goal, memory }, savedProgress] = await Promise.all([projectContext(deps, slug), found ? deps.progress(slug) : undefined]);
-  const context = contextText(goal, memory);
-  const intro = context ? `Project: ${slug}\n\n${context}\n\n` : '';
-  if (!found) return text(intro + (slug.startsWith('prd:')
+  const context = contextText(null, memory);
+  const checklist = toolCall('get_build_checklist', { project: slug });
+  if (!found) return projectReply(slug.startsWith('prd:')
     ? 'This saved PRD has no readable feature spec. Update it in Seedup.'
-    : `No PRD for "${slug}" yet. Call generate_verified_prd first.`), true);
+    : `No PRD for "${slug}" yet. Call generate_verified_prd first.`, goal, context, toolCall('generate_verified_prd', { project: slug }), true);
   const progress: BuildProgress = savedProgress ?? {};
   let cached = found;
   const task = pickNextTask(cached.spec, progress, goal);
-  if (!task.feature) return text(`${intro}No next task for "${slug}". ${task.why}`);
+  if (!task.feature) return projectReply(`No next task for "${slug}". ${task.why}`, goal, context, checklist);
 
   const { status, evidence, why } = task;
   let feature = task.feature;
@@ -503,12 +558,12 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
   const slots = SLOT_KEYS.map((key) => `- ${SLOT_LABELS_EN[key]}: ${feature.slots?.[key]?.join(' / ') || '(open question)'}`);
   const args = { slug, feature_id: feature.id };
   const checks = criteria.map((_, index) => ({ criterion: index + 1, passed: true, evidence: '' }));
-  const note = progress[feature.id]?.note;
+  const note = progressNote(progress[feature.id]?.note ?? '');
   const setup = peopleFirst(cached.spec, feature.id);
+  const outcome = `${feature.id} ${oneLine(progressNote(feature.title))} [${status}]`;
   return {
-    ...text(`${intro}${setup}${feature.id} ${feature.title} [${status}]
-${feature.detail}
-${why}${task.scopeCheck ? `\n${ASK_USER}` : ''}${note ? `\nPrevious status note: ${note}` : ''}
+    ...projectReply(outcome, goal, `${setup}${context ? `${context}\n\n` : ''}${feature.detail}
+${why}${task.scopeCheck ? `\n${askScope(prdLanguage(cached.spec), slug, feature.id)}` : ''}${note ? `\nPrevious status note: ${note}` : ''}
 
 Done when
 ${criteria.map((line, index) => `${index + 1}. ${line}`).join('\n')}
@@ -525,12 +580,16 @@ ${files.join('\n') || '관련 파일 정보 없음'}
 ${task.scopeCheck ? 'After the user confirms the scope' : 'Start now'}
 update_feature_status ${JSON.stringify({ ...args, status: 'in_progress' })}
 
-After all criteria pass, fill each evidence field with the passing test or command and its result
+After pushing the commit, verify the feature with its full GitHub SHA and use the returned proof to report done.
+${verifyNext(slug, feature.id, undefined)}
+
+For self-reporting in a non-strict project, provide one passing check per criterion
 update_feature_status ${JSON.stringify({ ...args, status: 'done', checks })}
 
 If blocked, describe what is blocking work
-update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<what is blocking work>' })}`),
-    structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files, goal ? goalSummary(goal, 'en') : undefined),
+update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<what is blocking work>' })}`,
+    task.scopeCheck ? scopeDecision(slug, feature.id) : toolCall('update_feature_status', { ...args, status: 'in_progress' })),
+    structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files, shortGoal(goal) || undefined),
   };
 }
 
@@ -575,10 +634,10 @@ export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: 
     return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}] (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
   Done when:
-${criteria}${mark?.note ? `\n  Note: ${mark.note}` : ''}`;
+${criteria}${mark?.note ? `\n  Note: ${progressNote(mark.note)}` : ''}`;
   });
   return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}${unlinkedCount === undefined ? '' : `\nUnlinked commits: ${unlinkedCount}.`}
-Work on one feature at a time. Call update_feature_status with in_progress when starting and done or blocked when ending. For done, include one passing check with evidence per numbered criterion.
+Work on one feature at a time. Call update_feature_status when starting and ending. For verified completion, use the full SHA and token from verify_feature. In a non-strict project, one passing check per criterion is accepted as a self-report.
 PRD page: ${projectPage(siteUrl, opportunity.slug)}
 
 ${lines.join('\n\n') || 'This PRD has no features.'}`;
@@ -721,10 +780,154 @@ const OPPORTUNITY_TOOLS = new Set([
   'mark_feature_done',
   'link_commit',
   'verify_feature',
+  'get_verification',
   'explain_file',
 ]);
 
 const SUPERVISOR_TOOLS = new Set(['resume_project', 'connect_repo', 'check_env', 'record_decision', 'save_handoff', 'get_project_memory']);
+
+const verifyNext = (project: ProjectKey, feature: string, sha: string | undefined) =>
+  toolCall('verify_feature', { project, feature, sha: sha ?? '<full GitHub SHA>' });
+
+function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | undefined, lang?: Spec['lang']): ToolResult {
+  const project = row.projectKey;
+  const pending = row.status === 'queued' || row.status === 'running';
+  const proof = row.status === 'passed' ? row.token : null;
+  const outcome = `${row.featureId} @ ${row.sha.slice(0, 8)}: ${proof ? '🟢 supervisor verified' : `Verification ${row.status}`}.`;
+  const verdicts = row.verdicts.map((item) => ({
+    criterion: item.criterion,
+    verdict: item.verdict,
+    citations: item.citations.filter((citation) => citation.verified).length,
+  }));
+  const blockers = row.findings.filter((finding) => finding.severity === 'blocker').map((finding) => finding.code);
+  const warnings = row.findings.length - blockers.length;
+  const scopeWarning = row.drift.length > 0;
+  const groupedVerdicts = (['met', 'not_met', 'unclear'] as const).flatMap((verdict) => {
+    const ids = verdicts.filter((item) => item.verdict === verdict).map((item) => item.criterion);
+    return ids.length ? [`${verdict.replace('_', ' ')}: ${ids.join(', ')}`] : [];
+  });
+  const body = [
+    pending && `Verification ID: ${row.id}`,
+    groupedVerdicts.length && `Criterion verdicts — ${groupedVerdicts.join(' · ')}.`,
+    blockers.length && `Blockers: ${blockers.length} (${[...new Set(blockers)].slice(0, 5).join(', ')}).`,
+    warnings > 0 && `Static warnings: ${warnings}.`,
+    row.unseen.length > 0 && `Files the verifier could not read: ${row.unseen.length}.`,
+    scopeWarning && `Scope warnings: ${row.drift.length}. Review the changes with the user.\n${askScope(lang, project, row.featureId)}`,
+    scopeWarning && proof && `Verification proof for after the scope review: ${proof}`,
+    row.status === 'error' && 'The verification did not complete. Check the connected repository, GitHub access and the verification quota.',
+  ].filter(Boolean).join('\n');
+  const next = pending ? toolCall('get_verification', { project, id: row.id })
+    : scopeWarning ? scopeDecision(project, row.featureId)
+    : proof ? toolCall('update_feature_status', { project, feature_id: row.featureId, status: 'done', sha: row.sha, verification_token: proof })
+    : toolCall('get_build_checklist', { project });
+  return {
+    ...projectReply(outcome, goal, body, next, row.status === 'error'),
+    structuredContent: verificationCard(row, shortGoal(goal), verdicts, blockers.length, warnings),
+  };
+}
+
+async function startFeatureVerification(args: Record<string, unknown>, key: ProjectKey, spec: Spec, deps: McpDeps) {
+  const [project, goal] = await Promise.all([deps.supervisorProject?.(key), deps.projectGoal?.(key)]);
+  const id = typeof args.feature === 'string' ? normalizeFeatureId(args.feature) : null;
+  const feature = spec.features.find((row) => row.id === id);
+  if (!feature) return projectReply('Unknown feature.', goal, '', toolCall('get_build_checklist', { project: key }), true);
+  const sha = typeof args.sha === 'string' && FULL_SHA.test(args.sha) ? args.sha.toLowerCase() : undefined;
+  const retry = verifyNext(key, feature.id, sha);
+  if (!project?.repo) return projectReply('A public GitHub repository is required for server verification.', goal, '', toolCall('connect_repo', { project: key, repo: '<owner/repo>' }), true);
+  if (!sha || Object.hasOwn(args, 'diff')) {
+    return projectReply('Verification requires a full 40-character GitHub SHA without a diff argument.', goal, '', retry, true);
+  }
+  const tool = args.developed_with;
+  const developmentModel = tool === 'codex' || tool === 'claude-code' ? developmentModels[tool] : undefined;
+  if (tool !== undefined && !developmentModel) {
+    return projectReply('Unknown development tool. Use codex or claude-code when known.', goal, '', retry, true);
+  }
+  const criteria: VerificationCriterion[] = featureCriteria(spec, feature).map((criterion, index) => ({
+    id: String(index + 1),
+    text: criterion,
+    kind: /테스트|\b(?:tests?|CI|jest|vitest|pytest|playwright)\b/i.test(criterion) ? 'test' : 'code',
+  }));
+  if (criteria.length > 40) return projectReply('A verification can check at most 40 criteria per feature.', goal, 'Split this feature in the PRD before verifying it.', toolCall('get_build_checklist', { project: key }), true);
+  try {
+    if (deps.startVerification) {
+      const row = await deps.startVerification({
+        projectKey: key, featureId: feature.id, repo: project.repo, sha, criteria,
+        ...(goal ? { outOfScope: goal.outOfScope } : {}),
+        ...(developmentModel ? { developmentModel } : {}),
+      });
+      return verificationResult(row, goal, prdLanguage(spec));
+    }
+  } catch {
+    // Provider and database errors can include source or credentials.
+  }
+  return projectReply('Server verification is unavailable.', goal, 'Retry when the service is available.', retry, true);
+}
+
+async function readFeatureVerification(args: Record<string, unknown>, project: ProjectKey, deps: McpDeps, loadSpec: () => Promise<{ spec: Spec } | null>) {
+  const id = typeof args.id === 'string' && VERIFICATION_ID.test(args.id) ? args.id.toLowerCase() : null;
+  const next = toolCall('get_build_checklist', { project });
+  if (!id) return projectReply('A valid verification ID is required.', null, '', next, true);
+  try {
+    const row = await deps.getVerification?.(id);
+    if (!row || row.projectKey !== project) return projectReply('Verification not found for this project.', null, '', next, true);
+    const goal = await deps.projectGoal?.(project).catch(() => null);
+    const spec = row.drift.length ? await loadSpec().catch(() => null) : null;
+    return verificationResult(row, goal, prdLanguage(spec?.spec));
+  } catch {
+    return projectReply('Could not read the verification.', null, '', toolCall('get_verification', { project, id }), true);
+  }
+}
+
+async function updateBuildStatus(name: string, args: Record<string, unknown>, opportunity: Opportunity, spec: Spec, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
+  const project = opportunity.slug;
+  const checklist = toolCall('get_build_checklist', { project });
+  const goal = await deps.projectGoal?.(project).catch(() => null);
+  const alias = name === 'mark_feature_done';
+  const rawStatus = alias ? (args.done === false ? 'todo' : 'done') : args.status;
+  if (rawStatus === 'needs_recheck') return projectReply('Status "needs_recheck" is server-only.', goal, '', checklist, true);
+  const status = AGENT_FEATURE_STATUSES.find((value) => value === rawStatus);
+  if (!status) return projectReply(`Invalid status. Use one of: ${AGENT_FEATURE_STATUSES.join(', ')}.`, goal, '', checklist, true);
+  const rawFeature = alias ? args.feature : args.feature_id;
+  const id = typeof rawFeature === 'string' ? normalizeFeatureId(rawFeature) : null;
+  const feature = spec.features.find((row) => row.id === id);
+  if (!feature) return projectReply('Unknown feature.', goal, '', checklist, true);
+  let note = progressNote(typeof args.note === 'string' ? args.note.slice(0, 2000) : '');
+  let completion: { featureId: string; level: 'supervisor_verified' | 'self_reported' } | undefined;
+  if (status === 'done') {
+    const sha = typeof args.sha === 'string' && FULL_SHA.test(args.sha) ? args.sha.toLowerCase() : undefined;
+    const token = typeof args.verification_token === 'string' && args.verification_token.length <= 2000 ? args.verification_token : null;
+    const settings = await deps.supervisorProject?.(project);
+    const verified = sha && token && deps.matchesVerificationToken?.(token, project, feature.id, sha);
+    if (verified) {
+      completion = { featureId: feature.id, level: 'supervisor_verified' };
+      note = [`[supervisor_verified:${sha.slice(0, 8)}]`, note].filter(Boolean).join(' ');
+    } else {
+      if (settings?.strict) {
+        return projectReply(`${feature.id} is not marked done. Strict mode requires a valid verification token for this feature and SHA.`, goal, '', verifyNext(project, feature.id, sha), true);
+      }
+      const criteria = featureCriteria(spec, feature);
+      const { unmet, passing } = unmetCriteria(criteria, args.checks);
+      if (unmet.length) {
+        const missing = unmet.slice(0, 5).map(({ n, line }) => `  ${n}. ${oneLine(progressNote(line), 160)}`).join('\n');
+        return projectReply(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.`, goal, missing, checklist, true);
+      }
+      const proof = passing.map((check) => `${check.criterion}: ${oneLine(progressNote(check.evidence), 160)}`).join('; ');
+      completion = { featureId: feature.id, level: 'self_reported' };
+      note = '[self_reported] ' + [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
+    }
+  }
+  const enteredBlocked = await deps.setProgress(project, feature, status, note);
+  if (status === 'blocked' && enteredBlocked) await deps.notifyBlocked(opportunity, feature).catch(() => undefined);
+  const progress = await deps.progress(project);
+  const done = spec.features.filter((row) => progress[row.id]?.status === 'done').length;
+  const mark = completion?.level === 'supervisor_verified' ? ' 🟢 supervisor verified' : completion ? ' ⚪ self-reported' : '';
+  const title = oneLine(progressNote(feature.title));
+  const body = [`${done}/${spec.features.length} done.`, status === 'done' && `- [x] ${feature.id} ${title}`, oneLine(progressNote(note), 260)].filter(Boolean).join('\n');
+  return {
+    ...projectReply(`${feature.id} ${title} [${status}]${mark}`, goal, body, toolCall('get_next_task', { project })),
+    structuredContent: checklistCard(opportunity, spec, progress, (item) => featureCriteria(spec, item), siteUrl, completion, shortGoal(goal)),
+  };
+}
 
 function projectKey(args: Record<string, unknown>): ProjectKey | null {
   const keys = [args.project, args.slug].filter((key) => key !== undefined).map((key) => {
@@ -839,7 +1042,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     title, why, rejected, goalVersion: goal?.version ?? 0, author: { kind: 'agent', name: agent }, approved, featureIds, criterionIds,
   };
   const saved = await deps.addProjectMemory(key, { kind: 'decision', body });
-  const note = scopeChange && approved === null ? ASK_USER
+  const note = scopeChange && approved === null ? askScope(prdLanguage(), key, featureIds[0])
     : approval === APPROVED && scopeChange ? `${APPROVED}. Have the user lock the revised goal before implementing the change.`
     : approval ?? '';
   return text(`Recorded decision ${saved.id} for ${key}.${note ? `\n${note}` : ''}`);
@@ -908,15 +1111,17 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   if (!OPPORTUNITY_TOOLS.has(name) && !SUPERVISOR_TOOLS.has(name)) return text(`Unknown tool "${name}".`, true);
   const slug = projectKey(args);
-  if (!slug) return text('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', true);
+  if (!slug) return projectReply('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', null, '', toolCall('list_my_prds', {}), true);
   const personal = slug.startsWith('prd:');
   const saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
   const savedBuild = saved ? savedProject(saved, slug) : null;
   const opportunities = personal ? [] : await deps.opportunities();
   const opportunity = personal ? savedBuild?.opportunity : opportunities.find((item) => item.slug === slug);
-  if (!opportunity) return text(`Project "${slug}" not found. Call search_opportunities or list_my_prds first.`, true);
+  if (!opportunity) return projectReply('Project not found. Call search_opportunities or list_my_prds first.', null, '',
+    personal ? toolCall('list_my_prds', {}) : toolCall('search_opportunities', { query: '<topic>' }), true);
   const loadSpec = () => personal ? Promise.resolve(savedBuild?.result ?? null) : resolveSpecForSlug(opportunity, deps);
   if (SUPERVISOR_TOOLS.has(name)) return callSupervisorTool(name, args, opportunity, deps, loadSpec);
+  if (name === 'get_verification') return readFeatureVerification(args, slug, deps, loadSpec);
   const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
   const needsPrd = ['get_build_checklist', 'get_next_task', 'verify_feature', 'explain_file'].includes(name) || updatesProgress;
   if (name === 'get_opportunity') {
@@ -967,8 +1172,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     if (features !== undefined && (!Array.isArray(features) || !features.every((id) => typeof id === 'string'))) return text('Features must be an array of feature ids.', true);
     const rawIds: string[] = features ?? message.match(/\bf-?\d+\b/gi) ?? [];
     const featureIds = new Set<string>();
+    const cached = rawIds.length ? await loadSpec() : await loadSpec().catch(() => null);
     if (rawIds.length) {
-      const cached = await loadSpec();
       if (!cached) return text(`No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
       const validIds = new Set(cached.spec.features.map((row) => row.id));
       const unknown = new Set<string>();
@@ -980,9 +1185,19 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       if (unknown.size) return unknownFeatures([...unknown], cached.spec);
     }
     const commitSha = sha.toLowerCase();
-    await deps.linkCommit(slug, { sha: commitSha, message, files, featureIds: [...featureIds] });
-    const lines = [featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.'];
-    if (!files.length) return text(lines[0]);
+    const commit = { sha: commitSha, message, files, featureIds: [...featureIds] };
+    await deps.linkCommit(slug, commit);
+    const outcome = featureIds.size ? 'Recorded commit for ' + [...featureIds].join(', ') + '.' : 'Recorded commit without a feature link.';
+    const goal = await deps.projectGoal?.(slug).catch(() => null);
+    const drift = cached ? findDrift([commit], cached.spec, goal ?? null) : [];
+    const outsideScope = drift.some((finding) => finding.kind === 'non_goal');
+    const lines: string[] = drift.map((finding) => finding.kind === 'non_goal'
+      ? 'Scope warning: the commit may touch a locked exclusion.'
+      : 'Drift warning: no feature claims this commit.');
+    if (outsideScope) lines.push(askScope(prdLanguage(cached?.spec), slug, commit.featureIds[0]));
+    const next = outsideScope ? scopeDecision(slug, commit.featureIds[0])
+      : toolCall('get_build_checklist', { project: slug });
+    if (!files.length) return projectReply(outcome, goal, lines.join('\n'), next);
 
     try {
       const [progress, linkedFiles] = await Promise.all([deps.progress(slug), deps.featureFiles(slug, commitSha)]);
@@ -999,81 +1214,28 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       console.error('MCP feature recheck lookup failed', error);
       lines.push('Could not check for affected features. Retry link_commit.');
     }
-    return text(lines.join('\n'));
+    return projectReply(outcome, goal, lines.join('\n'), next);
   }
   if (needsPrd) {
     const cached = await loadSpec();
     if (name === 'get_next_task') return nextTaskResult(opportunity, cached, deps);
-    if (!cached) return text(personal ? 'This saved PRD has no readable feature spec. Update it in Seedup.' : `No PRD for "${slug}" yet. Call generate_verified_prd first.`, true);
+    if (!cached) return projectReply(personal ? 'This saved PRD has no readable feature spec. Update it in Seedup.' : `No PRD for "${slug}" yet. Call generate_verified_prd first.`,
+      await deps.projectGoal?.(slug).catch(() => null), '', toolCall('generate_verified_prd', { project: slug }), true);
     if (name === 'explain_file') {
       return explainFileResult(opportunity, cached, args.path, deps);
     }
-    if (name === 'verify_feature') {
-      const { diff } = args;
-      if (typeof diff !== 'string' || !diff.trim()) return text('Provide a non-empty diff.', true);
-      const rawId = typeof args.feature === 'string' ? args.feature : '';
-      const id = normalizeFeatureId(rawId);
-      const feature = cached.spec.features.find((row) => row.id === id);
-      if (!feature) return unknownFeatures([rawId || '(missing)'], cached.spec);
-      if (!(await deps.consume('mcp_verify', 10))) return text('Daily limit reached (10 feature reviews). Try again tomorrow.', true);
-
-      const criteria = featureCriteria(cached.spec, feature).map((criterion, index) => ({ number: index + 1, criterion }));
-      let review: { checks?: Array<{ number: number; status: string; reason: string } | null> } | null = null;
-      try {
-        review = await deps.verifyFeature(JSON.stringify({
-          criteria, diff: diff.slice(0, 20_000), truncated: diff.length > 20_000,
-        })) as { checks?: Array<{ number: number; status: string; reason: string } | null> } | null;
-      } catch (error) {
-        await deps.release?.('mcp_verify').catch(() => undefined);
-        throw error;
-      }
-      if (!Array.isArray(review?.checks) || !review.checks.length) {
-        await deps.release?.('mcp_verify').catch(() => undefined);
-        return text('The model did not return a review. Try again in a minute.', true);
-      }
-      const checks = new Map(review.checks.map((row) => [row?.number, row]));
-      const lines = criteria.map(({ number, criterion }) => {
-        const check = checks.get(number);
-        const reason = typeof check?.reason === 'string' ? check.reason.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-        if (check && reason && ['met', 'not met', 'unclear'].includes(check.status)) return number + '. ' + criterion + ' — ' + check.status + '. ' + reason;
-        return number + '. ' + criterion + ' — unclear. No usable assessment for this criterion.';
-      });
-      return text('Model opinion for ' + feature.id + '. Feature status is unchanged.'
-        + (diff.length > 20_000 ? ' Reviewed the first 20,000 characters of the diff.' : '') + '\n\n' + lines.join('\n'));
-    }
-    if (updatesProgress) {
-      const alias = name === 'mark_feature_done';
-      const rawStatus = alias ? (args.done === false ? 'todo' : 'done') : args.status;
-      if (rawStatus === 'needs_recheck') return text('Status "needs_recheck" is server-only.', true);
-      const status = AGENT_FEATURE_STATUSES.find((value) => value === rawStatus);
-      if (!status) return text(`Invalid status. Use one of: ${AGENT_FEATURE_STATUSES.join(', ')}.`, true);
-
-      const rawId = String((alias ? args.feature : args.feature_id) ?? '');
-      const id = normalizeFeatureId(rawId);
-      const feature = id ? cached.spec.features.find((row) => row.id === id) : undefined;
-      if (!feature) return text(`Unknown feature "${rawId}". Features: ${cached.spec.features.map((row) => row.id).join(', ') || 'none'}.`, true);
-      let note = String(args.note ?? '').trim();
-      if (status === 'done') {
-        const criteria = featureCriteria(cached.spec, feature);
-        const { unmet, passing } = unmetCriteria(criteria, args.checks);
-        if (unmet.length) return text(`${feature.id} is not marked done: ${unmet.length} of ${criteria.length} criteria have no passing check.\n${unmet.map(({ n, line }) => `  ${n}. ${line}`).join('\n')}\nCheck each one (a test or a command), then call ${name} again with checks: [{ criterion, passed: true, evidence }].`, true);
-        const proof = passing.map((check) => `${check.criterion}: ${check.evidence}`).join('; ');
-        note = [note, `checks ${passing.length}/${criteria.length} (${proof})`].filter(Boolean).join(' · ');
-      }
-      const enteredBlocked = await deps.setProgress(slug, feature, status, note);
-      if (status === 'blocked' && enteredBlocked) {
-        try {
-          await deps.notifyBlocked(opportunity, feature);
-        } catch {
-          // The progress update has already been saved.
-        }
-      }
-    }
+    if (name === 'verify_feature') return startFeatureVerification(args, slug, cached.spec, deps);
+    if (updatesProgress) return updateBuildStatus(name, args, opportunity, cached.spec, deps, siteUrl);
     const [progress, unlinkedCount] = await Promise.all([
       deps.progress(slug),
       name === 'get_build_checklist' ? deps.unlinkedCommitCount(slug) : undefined,
     ]);
-    return { ...text(renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount)), structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl) };
+    const goal = await deps.projectGoal?.(slug).catch(() => null);
+    const [outcome, ...body] = renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount).split('\n');
+    return {
+      ...projectReply(outcome, goal, body.join('\n'), toolCall('get_next_task', { project: slug })),
+      structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal)),
+    };
   }
   return text(`Unknown tool "${name}".`, true);
 }
@@ -1121,7 +1283,7 @@ function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
           role: 'user',
           content: {
             type: 'text',
-            text: `Run a focused Seedup build loop for "${slug}":\n1. Call get_next_task {"slug":${JSON.stringify(slug)}}.\n2. Call update_feature_status with status "in_progress" for the returned feature_id.\n3. Implement the feature following its readiness slots and verified quotes.\n4. Run tests/commands verifying every numbered done criterion (and optionally call verify_feature with git diff).\n5. Call link_commit if commit linking is enabled, then update_feature_status with status "done" and passing checks for every criterion.`,
+            text: `Run a focused Seedup build loop for "${slug}":\n1. Call get_next_task {"slug":${JSON.stringify(slug)}}.\n2. Call update_feature_status with status "in_progress" for the returned feature_id.\n3. Implement the feature following its readiness slots and verified quotes.\n4. Run local checks and push the commit. Call link_commit if enabled for this project.\n5. Call verify_feature with the feature and full GitHub SHA, then use its token and the same SHA in update_feature_status done. In non-strict mode you can also report one passing check per criterion.`,
           },
         }],
       },
@@ -1137,7 +1299,7 @@ function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
           role: 'user',
           content: {
             type: 'text',
-            text: `Audit ship readiness for "${slug}":\n1. Call get_build_checklist {"slug":${JSON.stringify(slug)}} and check for any features in needs_recheck, blocked, or todo.\n2. For any needs_recheck or recently changed feature, collect its git diff and call verify_feature against its done criteria.\n3. Report which features are verified ready, which criteria failed or remain unclear, and whether any unlinked commits need review.`,
+            text: `Audit ship readiness for "${slug}":\n1. Call get_build_checklist {"slug":${JSON.stringify(slug)}} and check for any features in needs_recheck, blocked, or todo.\n2. For any needs_recheck or recently changed feature, call verify_feature with its full pushed GitHub SHA. Poll get_verification if the result is running.\n3. Report which features are verified ready, which criteria failed or remain unclear, and whether any unlinked commits need review.`,
           },
         }],
       },
@@ -1191,7 +1353,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {}, resources: {}, prompts: {} },
         serverInfo: { name: 'seedup', version: '1.1.0' },
-        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo (or call list_my_prds / get_my_prd for saved personal PRDs). At the start of each build session, call get_next_task with project (a public slug or prd:<id>) and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending, and explain_file before editing files linked to done features. Ask the user in the terminal about goal or scope changes and use record_decision to record the answer.'
+        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo (or call list_my_prds / get_my_prd for saved personal PRDs). At the start of each build session, call get_next_task with project (a public slug or prd:<id>) and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending, and explain_file before editing files linked to done features. For server-verified completion, call verify_feature with the pushed GitHub SHA and report done using its token and SHA. Ask the user in the terminal about goal or scope changes and use record_decision to record the answer.'
           + await activeGoalInstructions(deps),
       });
     }

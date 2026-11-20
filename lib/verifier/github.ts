@@ -55,7 +55,8 @@ export async function collectGitHubEvidence(
   async function get(path: string, max = 8_000_000, accept = 'application/vnd.github+json') {
     requestCount++;
     const response = await request(`${base}${path}`, {
-      headers: { authorization: `Bearer ${token}`, accept, 'X-GitHub-Api-Version': '2022-11-28' },
+      // GitHub answers 403 to a request without a User-Agent; Node adds one by itself, Workers do not.
+      headers: { authorization: `Bearer ${token}`, accept, 'X-GitHub-Api-Version': '2022-11-28', 'user-agent': 'seedup' },
       // Workers reject 'error' outright; 'manual' leaves a 3xx unfollowed and the ok check below refuses it.
       redirect: 'manual', signal: AbortSignal.timeout(15_000),
     });

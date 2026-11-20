@@ -134,19 +134,19 @@ MCP는 에이전트가 부를 때만 응답하므로, MCP만으로는 목표가 
 - 지금: 1층의 서버 안내문은 고정 문장으로 있음(`lib/mcp/server.ts:910`). 2층은 `get_next_task` 규칙만 있음. 3·4층은 없음.
 - 원칙: 에이전트가 협조하면 정확도가 오르고, 협조하지 않아도 감독은 계속됩니다.
 
-**클라이언트별 지원 수준** (2026-11-20 기준, 근거는 [research/2026-11-20-section9.md](research/2026-11-20-section9.md). Antigravity는 확인 조사 중)
+**클라이언트별 지원 수준** (2026-11-20 기준, 근거는 [research/2026-11-20-section9.md](research/2026-11-20-section9.md), Antigravity는 [research/2026-11-20-antigravity.md](research/2026-11-20-antigravity.md). 모두 문서 확인이며 실제 연결 확인 전)
 
 "작동"은 아래 다섯 가지를 실제 클라이언트에서 확인한 상태입니다: ① MCP 연결과 도구 호출 ② 세션 시작 때 잠긴 목표가 에이전트에 들어감(훅 또는 규칙 파일) ③ 종료 때 미검증 변경 인계 ④ 커밋 전 검사 ⑤ 개발과 다른 계열 모델이 판정.
 
 | 기준 | Claude Code | Codex | Antigravity |
 | :--- | :--- | :--- | :--- |
-| ① MCP 연결 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음(`~/.gemini/config/mcp_config.json`), 실제 연결 기록 없음 |
-| 규칙 파일 | `CLAUDE.md`를 기본으로 읽음 → `AGENTS.md`를 가리키는 `CLAUDE.md` 필요 | `AGENTS.md` | 확인 필요 |
-| 서버 안내문 | 4,096자까지 | 앞 512자가 중요 | 확인 필요 |
-| ② 시작 때 목표 | SessionStart 훅(묶음 있음, `clear` · `fork` 빠짐) | 훅 지원, `/hooks` 신뢰 필요, 묶음 없음 | 확인 필요 |
-| ③ 종료 인계 | Stop 훅(묶음 있음) | Stop 훅 지원, 묶음 없음 | 확인 필요 |
+| ① MCP 연결 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음, 실제 연결 기록 없음 | 설치 안내 있음(`serverUrl` + Bearer 헤더, 공식 형식과 일치), 실제 연결 기록 없음 |
+| 규칙 파일 | `CLAUDE.md`를 기본으로 읽음 → `AGENTS.md`를 가리키는 `CLAUDE.md` 필요 | `AGENTS.md` | `AGENTS.md` · `GEMINI.md` · `.agents/rules/*.md` 자동, 누적. 파일당 24,000바이트 |
+| 서버 안내문 | 4,096자까지 | 앞 512자가 중요 | `instructions.md`로 저장 · 안내, 전문 주입은 확인 못 함 → 규칙 파일에도 목표를 넣어야 함 |
+| ② 시작 때 목표 | SessionStart 훅(묶음 있음, `clear` · `fork` 빠짐) | 훅 지원, `/hooks` 신뢰 필요, 묶음 없음 | 규칙 자동 주입 + SessionStart `injectSteps`(Claude와 형식 다름), 묶음 없음 |
+| ③ 종료 인계 | Stop 훅(묶음 있음) | Stop 훅 지원, 묶음 없음 | Stop `decision: "continue"`(Claude와 형식 다름), 묶음 없음 |
 | ④ 커밋 전 검사 | git `pre-commit`(설치는 사용자가 복사) | 같음 | 같음 |
-| ⑤ 교차 판정 | `developed_with: claude-code` → GPT | `developed_with: codex` → Haiku | 받는 값 없음 → `VERIFIER_MODELS` 순서대로 |
+| ⑤ 교차 판정 | `developed_with: claude-code` → GPT | `developed_with: codex` → Haiku | Gemini · Claude를 골라 쓰므로 클라이언트 이름만으로 계열을 알 수 없음 → 개발 모델 계열 입력 필요 |
 | 공통 제약 | 훅 스크립트에 `sh` 필요(Windows) | 같음 | 같음 |
 
 - 클라이언트의 고급 기능(서버가 사용자에게 직접 묻기 등)은 있으면 쓰는 보너스로만.
@@ -386,6 +386,7 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 
 | ⑤ 훅 묶음 형식 보완(9절 조사) | SessionStart matcher에 `clear` · `fork` 추가, Stop 입력 JSON을 문자열 대신 구조로 읽기, 프로젝트 루트 기준 경로, upstream 없는 브랜치도 "push 안 됨"으로, 압축 직전(PreCompact) 인계, Codex용 `.codex/hooks.json`(사용자가 `/hooks`에서 신뢰해야 실행), Windows의 `sh` 없음 대응 | `lib/supervisor/hook-bundle.ts`, 관련 테스트 |
 | ⑥ 검증 운영 보완(9절 조사) | 실패한 파일 요청에도 상한(지금은 성공 80개만 셈), 요청 수 · 걸린 시간(p50/p95)을 기록, 데이터 수집 필터에 맞는 제공사가 없을 때 명확한 오류와 사용량 환불. 응답 뒤 30초를 넘는 처리는 Workers `waitUntil`로 버틸 수 없으므로, 실측 뒤 필요하면 Workflows 또는 Queues를 계획 세션이 고름 | `lib/verifier/*`, `lib/db/verifications.ts` |
+| ⑦ 정적 검사 오탐(성적표 재측정) | `SEC_SECRET_LEAK`가 `supabase/config.toml`의 `env(…)` 환경변수 참조를 시크릿으로 잡음(최근 100커밋 오탐 후보 2건). 참조 형식은 제외하고 fixture에 정상 사례 추가 | `lib/supervisor/diff-audit.ts`, `lib/supervisor/local-audit.ts`, `tests/fixtures/bad-diffs.json` |
 
 순서: ①(독립) → A2 → ② · ④ → ③ · ⑤ · ⑥(언제든). ②는 마이그레이션이 있어 정지훈이 머지하며 운영 DB에 적용합니다.
 
@@ -425,9 +426,9 @@ Claude Code · Codex · Antigravity에서 위 "작동" 다섯 가지가 빠짐�
 
 | 작업 | 담당 | 내용 |
 | :--- | :--- | :--- |
-| ① Antigravity 확인 조사 | Codex(장차희 지시, 웹 검색, 코드 변경 없음) | 9절 조사와 같은 형식으로 Antigravity의 규칙 파일 위치(`AGENTS.md` · `GEMINI.md` 등), 훅 지원, 서버 안내문 반영, 카드 표시, 원격 MCP(`serverUrl`) 인증 방식. [프롬프트](prompts/codex-antigravity-research.md) |
+| ① Antigravity 확인 조사 | Codex(장차희 지시, 웹 검색, 코드 변경 없음) — **완료**([보고서](research/2026-11-20-antigravity.md)) | 9절 조사와 같은 형식으로 Antigravity의 규칙 파일 위치(`AGENTS.md` · `GEMINI.md` 등), 훅 지원, 서버 안내문 반영, 카드 표시, 원격 MCP(`serverUrl`) 인증 방식. [프롬프트](prompts/codex-antigravity-research.md) |
 | ② 클라이언트별 실제 연결 확인 | 사람: 장차희(Claude Code, Codex), 정지훈(Antigravity, 운영 준비 직후) | 공개 테스트 저장소 하나로 연결 → `resume_project` → `connect_repo` → `get_next_task` → `update_feature_status`(in_progress) → 작은 커밋 push → `verify_feature` → `update_feature_status`(done, 토큰) → `/supervisor` 확인. 결과는 클라이언트별 다섯 기준 표로 `docs/research/<날짜>-client-check.md`. [확인 순서](prompts/client-check.md) |
-| ③ 호환 보완 코드 | 정지훈(단계 2 보완 ⑤를 넓힘) | Claude Code용 `CLAUDE.md`(`AGENTS.md`를 가리키는 한 줄) 제공(에이전트 단계 화면 · `setup_project`), 서버 안내문 앞 512자에 감독 핵심(프로젝트 키 → `resume_project` → `get_next_task`, 목표 · 범위 변경 전 확인)을 먼저 두고 리서치 설명은 뒤로, `developed_with`에 `antigravity` 추가와 개발 모델 계열을 직접 받는 입력(결정 대기), `.codex/hooks.json`, Windows `sh` 대응 |
+| ③ 호환 보완 코드 | 정지훈(단계 2 보완 ⑤를 넓힘) | Claude Code용 `CLAUDE.md`(`AGENTS.md`를 가리키는 한 줄) 제공(에이전트 단계 화면 · `setup_project`), 서버 안내문 앞 512자에 감독 핵심(프로젝트 키 → `resume_project` → `get_next_task`, 목표 · 범위 변경 전 확인)을 먼저 두고 리서치 설명은 뒤로, `developed_with`에 `antigravity` 추가와 개발 모델 계열을 직접 받는 입력(결정 대기, Antigravity는 Gemini · Claude를 골라 써서 계열 입력이 필요하다는 조사 근거), `.codex/hooks.json`, **Antigravity용 훅 어댑터**(SessionStart `injectSteps`, Stop `decision: "continue"`), Windows `sh` 대응 |
 | ④ 스타터 팩 문구 버그 | 세 입구 ③에 포함(같은 파일, T6) | `AgentPackDownload`의 "현재 번들에는 pre-commit 검사가 없습니다"는 #157 뒤로 틀림. 실제 묶음 내용대로 고침 |
 
 ### MCP 도구 정리 (결정 대기, 정지훈)
@@ -453,6 +454,45 @@ PR: 연결 2(`setup_project`) **앞**에 별도 PR(이름 정리와 새 도구�
 | 9절 "확인이 필요한 것" 조사 | Codex(장차희가 지시, 낮은 추론). 코드는 고치지 않음 | 훅 입력 형식(Claude Code · Codex), GitHub API 한도, Workers 시간 제한과 Browser Rendering 가격, GitHub 트렌드 · AI 제품 테이블의 라이선스 · 패키지 이름 필드. 결과는 9절 갱신 제안으로 | 단계 2 B2 뒤, 보류 기능 크기를 정하기 전 |
 
 단계 2 A2는 "단계 1 보완"이 머지된 뒤 시작합니다(`lib/mcp/server.ts` 겹침). 보류 기능은 보류 절의 조건이 될 때까지 시작하지 않습니다.
+
+### 실제 프로젝트 검증 (보류 기능을 꺼내는 게이트)
+
+핵심 고리가 실제 프로젝트에서 "목표 잠금 → 에이전트 → 개발 → 🟢"까지 가는지 확인하고, 북극성(목표 도달률)을 처음으로 잽니다. 보류 기능의 조건("실제 프로젝트 3개 이상이 🟢까지")이 이것입니다. 진행표는 계획 세션이 관리합니다.
+
+**시작 조건("단계 2 완료"의 최소 기준)**
+
+- 운영 준비(status.md 2-1) 완료: 운영 DB `verifications`, `VERIFIER_MODELS`, OpenRouter 설정
+- 단계 2 보완 ②(대시보드 🟢 표시) 머지
+- 클라이언트 호환 ② 실제 연결 확인에서 **최소 한 클라이언트**가 "작동" 다섯 기준 통과
+- 나머지(보완 ④ · ⑤ · ⑥, 연결 2, 세 입구, E2E)는 시작 조건이 아님. 첫 프로젝트가 곧 사람이 하는 E2E
+
+**프로젝트 3개 (서로 다르게)**
+
+| # | 성격 | 입구 | 개발 도구(교차 판정 확인) | 담당 |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | 트랙 A 개인용 작은 도구(1~2일) | PRD 만들기 | Codex → Haiku 판정 | 장차희 |
+| 2 | 트랙 B 출시용(근거 있는 기회 slug, 2~3일) | PRD 만들기(공개 기회) | Claude Code → GPT 판정 | 정지훈 |
+| 3 | 기존 저장소에 기능 추가 | 레포 분석(세 입구 ① 뒤, 그 전이면 PRD 만들기) | Antigravity(판정 모델은 `VERIFIER_MODELS` 순서) | 함께 또는 외부 사용자 1명 |
+
+- 저장소는 공개 GitHub(비공개는 GitHub App 결정 뒤). 비밀값 없이.
+- 성공 기준 2~4개, 기능 3~6개 정도로 작게.
+
+**재는 것**
+
+| 지표 | 정의 |
+| :--- | :--- |
+| 목표 도달률 | 끝났을 때 충족(met)된 성공 기준 수 / 전체 |
+| 🟢 비율 | 완료된 기능 중 감독관 검증(🟢)으로 끝난 비율 |
+| 검증 정확도 | 사람이 보기에 틀린 판정 수(통과시켰어야 / 막았어야) |
+| 이탈 | 이탈 경고 수, 그중 실제로 범위 밖이던 수 |
+| 사람 개입 | 확인 요청(ASK USER) 수, 막힘(blocked) 수, 사람이 직접 고친 횟수 |
+| 이어짐 | 세션 재시작 · 압축 · 에이전트 교체 뒤 목표 · 다음 작업이 이어졌는지 |
+| 비용 · 시간 | 검증 1회 걸린 시간 · GitHub 요청 수, 프로젝트 전체 걸린 시간 |
+
+**기록과 판단**
+
+- 프로젝트마다 [양식](research/project-check-template.md)대로 `docs/research/<날짜>-project-<번호>.md`. 막힌 곳은 고치지 말고 기록.
+- 세 개가 끝나면 계획 세션이 결과를 묶어 (1) 보류 기능 중 무엇을 먼저 꺼낼지, (2) 입구 통합 · 심층 감독 · GitHub App 결정을 다시 봅니다.
 
 ### 보류 (핵심 고리가 실제 프로젝트에서 끝까지 돈 뒤 하나씩 꺼냄)
 
@@ -598,3 +638,6 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 시작 문장에 저장소 연결(`connect_repo`) 추가, 연결 2단계에 목표 변경 안내 추가, "세 입구, 한 출구"와 흐름 전체 E2E 칸 추가.
 - 2026-11-20: 정지훈 요청 반영. 3-2에 클라이언트별 지원 수준 표와 "작동" 기준, "클라이언트 호환과 실제 연결 확인" 칸, "MCP 도구 정리"(추천안, 결정 대기) 칸, 보류에 심층 감독 추가 · GitHub App 결정 대기 표시.
 - 2026-11-20: 단계 2 보완 ② · ④ · ⑤ · ⑥, 연결 2, 세 입구 한 출구, 흐름 E2E를 정지훈 · Antigravity가 진행(프롬프트 `prompts/antigravity-remaining.md` T1~T7). 세 입구 한 출구 담당을 장차희 Codex에서 정지훈 Antigravity로 옮김.
+- 2026-11-20: 처리방침 문구(출시 전 준비)와 성적표 숫자 갱신을 장차희 Codex로 옮김(정지훈 T1~T7과 파일이 겹치지 않음).
+- 2026-11-20: "실제 프로젝트 검증" 칸 추가(시작 조건, 프로젝트 3개, 지표, 기록 양식).
+- 2026-11-20: Antigravity 조사 반영(3-2 표 Antigravity 열, 호환 ③에 Antigravity 훅 어댑터), 성적표 재측정에서 나온 오탐을 단계 2 보완 ⑦로 추가.

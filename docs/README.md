@@ -23,6 +23,8 @@
 | [prd-builder-split.md](prd-builder-split.md) | PRD 화면(`PrdBuilder`) 나누기 리팩터링 계획 | 현행 (시작 전) |
 | [trend-and-recommendation-review.md](trend-and-recommendation-review.md) | 트렌드 수집과 추천 알고리즘 평가 | 현행 |
 | [prompts/astra-planning.md](prompts/astra-planning.md) | Astra 시작 프롬프트: 계획 세션 이어받기(총괄 · 계획 보조) | 현행 |
+| [prompts/codex-scorecard-refresh.md](prompts/codex-scorecard-refresh.md) | Codex 프롬프트: 성적표 감독관 정적 검사 숫자 갱신 | 현행 |
+| [prompts/codex-privacy-wording.md](prompts/codex-privacy-wording.md) | Codex 프롬프트: 처리방침에 입력별 모델 · 보관 범위 | 현행 |
 | [prompts/antigravity-remaining.md](prompts/antigravity-remaining.md) | Antigravity 시작 프롬프트: 단계 2 보완 ② · ④ · ⑤ · ⑥, 연결 2, 세 입구, 흐름 E2E(T1~T7) | 현행 |
 | [prompts/codex-antigravity-research.md](prompts/codex-antigravity-research.md) | Codex 조사 프롬프트: Antigravity 확인(클라이언트 호환 ①) | 현행 |
 | [prompts/client-check.md](prompts/client-check.md) | 사람용 확인 순서: 클라이언트별 실제 연결(클라이언트 호환 ②) | 현행 |
@@ -35,5 +37,7 @@
 | [prompts/codex-s1-a2.md](prompts/codex-s1-a2.md) | Codex 시작 프롬프트: 단계 1 A2 (MCP 목표 연결 · 공유 메모리 도구) | 현행 (A1 · B1 머지 뒤 사용) |
 | [prompts/antigravity-s1-a3.md](prompts/antigravity-s1-a3.md) | Antigravity 시작 프롬프트: 단계 1 A3 (기준 측정 · 발표 서사) | 현행 (지금 사용 가능) |
 | `hackathon-judging-2026-11-19.md` | 해커톤 모의 심사와 발표안 | 현행, 해커톤이 끝나면 보관. 아직 저장소에 커밋되지 않음(메인 체크아웃에만 있음) |
+| [research/project-check-template.md](research/project-check-template.md) | 실제 프로젝트 검증 기록 양식 | 현행 |
+| [research/2026-11-20-antigravity.md](research/2026-11-20-antigravity.md) | Antigravity 확인 조사(규칙 파일 · 원격 MCP · 훅 · 개발 모델) | 참고 |
 | [research/2026-11-20-section9.md](research/2026-11-20-section9.md) | 계획 9절 확인 조사 보고서(훅 · MCP 클라이언트 · GitHub · Workers · 외부 출처 · OpenRouter · DB) | 참고 |
 | [archive/](archive/README.md) | 대체되거나 최상위 계획으로 흡수된 문서 17개, 문서마다 옮긴 이유 | 보관 |

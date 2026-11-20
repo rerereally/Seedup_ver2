@@ -74,9 +74,15 @@ test('a prd: key resolves only when the saved PRD belongs to the signed-in user'
   assert.equal(await resolveProjectKey(service, USER, `prd:${DOSSIER.toUpperCase()}`), `prd:${DOSSIER}`);
   assert.equal(await resolveProjectKey(service, USER, 'prd:99999999-2222-3333-4444-555555555555'), null);
   assert.equal(fetch.mock.callCount(), 2);
-  assert.equal(await resolveProjectKey(service, USER, 'ai-coding-context'), 'ai-coding-context');
-  for (const bad of ['', 'prd:not-a-uuid', 'Upper', '../etc', 'a'.repeat(121)]) assert.equal(await resolveProjectKey(service, USER, bad), null);
-  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test('a public slug resolves only when it names a real opportunity', async () => {
+  const asked: string[] = [];
+  const exists = async (slug: string) => { asked.push(slug); return slug === 'ai-coding-context'; };
+  assert.equal(await resolveProjectKey(service, USER, 'ai-coding-context', exists), 'ai-coding-context');
+  assert.equal(await resolveProjectKey(service, USER, 'no-such-problem', exists), null);
+  for (const bad of ['', 'prd:not-a-uuid', 'Upper', '../etc', 'a'.repeat(121)]) assert.equal(await resolveProjectKey(service, USER, bad, exists), null);
+  assert.deepEqual(asked, ['ai-coding-context', 'no-such-problem']);
 });
 
 test('locking calls lock_project_goal once and reports a missing change reason', async (t) => {

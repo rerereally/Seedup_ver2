@@ -2,6 +2,7 @@
 // repository, strict mode and the current goal version. Written only with the service key; callers pass the user id.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById } from '@/lib/db/dossiers';
+import { getOpportunity } from '@/lib/opportunities/data';
 
 // shortcut: A1 types.ts 머지 후 import로 교체 (docs/supervisor-plan.md 4절을 글자 그대로 옮김)
 export type ProjectKey = string; // '<slug>' | `prd:${string}`
@@ -25,13 +26,16 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
 const PRD_KEY = /^prd:([0-9a-f-]{36})$/i;
 
 /**
- * The key if this user may use it, else null. `prd:<id>` must be a saved PRD the user owns (plan 3-3); a public
- * opportunity slug only has to be well formed, since every row under it is the user's own.
+ * The key if this user may use it, else null (plan 3-3). `prd:<id>` must be a saved PRD the user owns; a public slug
+ * must name a real opportunity. `exists` is swapped only in tests.
  */
-export async function resolveProjectKey(service: SupabaseClient, userId: string, key: string): Promise<ProjectKey | null> {
+export async function resolveProjectKey(
+  service: SupabaseClient, userId: string, key: string,
+  exists = async (slug: string) => Boolean(await getOpportunity(slug)),
+): Promise<ProjectKey | null> {
   const id = key.match(PRD_KEY)?.[1].toLowerCase();
   if (id) return (await userPrdById(service, userId, id)) ? `prd:${id}` : null;
-  return SLUG.test(key) ? key : null;
+  return SLUG.test(key) && await exists(key) ? key : null;
 }
 
 type ProjectRow = { user_id: string; project_key: string; repo: string | null; track: Track; strict: boolean; goal_version: number | null };

@@ -35,6 +35,8 @@ export type SavedPrdSummary = {
   opportunitySlug: string | null;
   evidenceCount: number;
   updatedAt: string;
+  /** False for a draft validate_idea saved: quotes only, no PRD yet. */
+  hasPrd?: boolean;
 };
 
 export type SavedPrdDetail = SavedPrdSummary & {
@@ -53,7 +55,8 @@ export type McpDeps = {
    * Fills the six readiness slots of one feature that has none and returns the updated PRD, or null when it could
    * not in time. The result is cached for later calls.
    */
-  fillSlots?: (cached: { input: SpecInput; spec: Spec }, featureId: string) => Promise<{ input: SpecInput; spec: Spec } | null>;
+  /** Fills one feature's readiness slots and keeps them: in the shared cache, or in the saved PRD for a prd:<id> key. */
+  fillSlots?: (cached: { input: SpecInput; spec: Spec }, featureId: string, key: ProjectKey) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /** Saves this PRD as the user's pinned one for the slug; keeps an existing pin unless `replace`. */
   pin?: (slug: string, result: { input: SpecInput; spec: Spec }, replace: boolean) => Promise<void>;
   /** Saved personal and problem PRDs owned by this user. */
@@ -541,8 +544,8 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
   const { status, evidence, why } = task;
   let feature = task.feature;
   // The feature about to be built gets its readiness slots now if the PRD never had them, once; the PRD keeps them.
-  if (!feature.slots && deps.fillSlots && !slug.startsWith('prd:')) {
-    const filled = await deps.fillSlots(cached, feature.id).catch(() => null);
+  if (!feature.slots && deps.fillSlots) {
+    const filled = await deps.fillSlots(cached, feature.id, slug).catch(() => null);
     const updated = filled?.spec.features.find((row) => row.id === feature.id);
     if (filled && updated?.slots) {
       cached = filled;
@@ -658,18 +661,28 @@ export function unmetCriteria(criteria: string[], raw: unknown) {
   return { unmet: criteria.map((line, index) => ({ n: index + 1, line })).filter(({ n }) => !passing.has(n)), passing: [...passing.values()] };
 }
 
+/**
+ * Done features split by who confirmed them: 🟢 the supervisor checked the commit, ⚪ the agent's own report. A goal
+ * count or benchmark that reads this must not treat ⚪ as checked.
+ */
+export function doneSummary(spec: Spec, progress: BuildProgress) {
+  const done = spec.features.filter((feature) => progress[feature.id]?.status === 'done');
+  const verified = done.filter((feature) => progress[feature.id]?.verificationLevel === 'supervisor_verified').length;
+  return `${done.length}/${spec.features.length} done (🟢 ${verified} supervisor verified, ⚪ ${done.length - verified} self-reported)`;
+}
+
 export function renderChecklist(opportunity: Opportunity, spec: Spec, progress: BuildProgress, siteUrl: string, unlinkedCount?: number) {
-  const done = spec.features.filter((feature) => progress[feature.id]?.status === 'done').length;
   const lines = spec.features.map((feature) => {
     const mark = progress[feature.id];
     const status = mark?.status ?? 'todo';
     const criteria = featureCriteria(spec, feature).map((line, index) => `    ${index + 1}. ${line}`).join('\n');
-    return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}] (serves ${feature.requirementIds.join(', ') || '-'})
+    const level = status === 'done' ? (mark?.verificationLevel === 'supervisor_verified' ? ' 🟢' : ' ⚪') : '';
+    return `- [${status === 'done' ? 'x' : ' '}] ${feature.id} ${feature.title} [${status}]${level} (serves ${feature.requirementIds.join(', ') || '-'})
     ${feature.detail}
   Done when:
 ${criteria}${mark?.note ? `\n  Note: ${progressNote(mark.note)}` : ''}`;
   });
-  return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${done}/${spec.features.length} done${spec.draft ? ', hypothesis draft' : ''}${unlinkedCount === undefined ? '' : `\nUnlinked commits: ${unlinkedCount}.`}
+  return `Build checklist for ${opportunity.name} (${opportunity.slug}): ${doneSummary(spec, progress)}${spec.draft ? ', hypothesis draft' : ''}${unlinkedCount === undefined ? '' : `\nUnlinked commits: ${unlinkedCount}.`}
 Work on one feature at a time. Call update_feature_status when starting and ending. For verified completion, use the full SHA and token from verify_feature. In a non-strict project, one passing check per criterion is accepted as a self-report.
 PRD page: ${projectPage(siteUrl, opportunity.slug)}
 
@@ -716,7 +729,9 @@ function renderSavedPrdList(items: SavedPrdSummary[], siteUrl: string) {
     item.opportunitySlug ? `  Opportunity slug: ${item.opportunitySlug}` : '  Personal idea PRD (no opportunity slug)',
     `  Project key: prd:${item.id}`,
     `  Evidence: ${item.evidenceCount} quote${item.evidenceCount === 1 ? '' : 's'} · Updated ${item.updatedAt.slice(0, 10)}`,
-    `  Use: get_my_prd {"id":"${item.id}","format":"agents"}`,
+    item.hasPrd === false
+      ? `  Draft from validate_idea, no PRD yet. Make it: generate_verified_prd {"project":"prd:${item.id}"}`
+      : `  Use: get_my_prd {"id":"${item.id}","format":"agents"}`,
   ].join('\n')).join('\n\n')}`;
 }
 
@@ -1034,10 +1049,9 @@ async function updateBuildStatus(args: Record<string, unknown>, opportunity: Opp
   const enteredBlocked = await deps.setProgress(project, { id: feature.id, title: feature.title, verificationLevel }, status, note, verificationLevel);
   if (status === 'blocked' && enteredBlocked) await deps.notifyBlocked(opportunity, feature).catch(() => undefined);
   const progress = await deps.progress(project);
-  const done = spec.features.filter((row) => progress[row.id]?.status === 'done').length;
   const mark = completion?.level === 'supervisor_verified' ? ' 🟢 supervisor verified' : completion ? ' ⚪ self-reported' : '';
   const title = oneLine(progressNote(feature.title));
-  const body = [`${done}/${spec.features.length} done.`, status === 'done' && `- [x] ${feature.id} ${title}`, oneLine(progressNote(note), 260)].filter(Boolean).join('\n');
+  const body = [`${doneSummary(spec, progress)}.`, status === 'done' && `- [x] ${feature.id} ${title}`, oneLine(progressNote(note), 260)].filter(Boolean).join('\n');
   return {
     ...projectReply(`${feature.id} ${title} [${status}]${mark}`, goal, body, toolCall('get_next_task', { project })),
     structuredContent: checklistCard(opportunity, spec, progress, (item) => featureCriteria(spec, item), siteUrl, completion, shortGoal(goal)),
@@ -1521,7 +1535,7 @@ function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
 async function activeGoalInstructions(deps: McpDeps) {
   if (!deps.myPrds || !deps.projectGoal) return '';
   // shortcut: use recent saved PRDs to discover keys; switch to a user-wide goal query when the DB layer provides one.
-  const saved = await deps.myPrds(5).catch(() => []);
+  const saved = (await deps.myPrds(5).catch(() => [])).filter((prd) => prd.hasPrd !== false);
   const keys = [...new Set(saved.flatMap((prd) => [`prd:${prd.id}`, ...(prd.opportunitySlug ? [prd.opportunitySlug] : [])]))];
   const fetchGoal = deps.projectGoal;
   const goals = (await Promise.all(keys.map((key) => fetchGoal(key).catch(() => null))))

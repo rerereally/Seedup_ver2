@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
 import { readLiveEvidence, safeSourceUrl } from '@/lib/opportunities/live-evidence';
-import { deleteDossier, hasSharedDossier, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
+import { deleteDossier, dossierKeyFor, hasSharedDossier, legacyDossierTitle, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -40,9 +39,7 @@ export async function POST(request: Request) {
   const matchedSlug = rawSlug && opportunities.some((item) => item.slug === rawSlug) ? rawSlug : null;
   const title = (typeof body?.title === 'string' ? body.title.trim().slice(0, MAX_TITLE_LENGTH) : '') || lead?.name || '담은 근거';
   const evidenceIds = combinedEvidence.map((item) => item.id);
-  const dossierKey = evidenceIds.length
-    ? createHash('sha256').update([...evidenceIds].sort().join(',')).digest('hex').slice(0, 32)
-    : createHash('sha256').update(`idea:${title.toLowerCase()}`).digest('hex').slice(0, 32);
+  const dossierKey = dossierKeyFor(evidenceIds, title, await legacyDossierTitle(supabase, data.user.id, evidenceIds));
 
   const { data: saved, error } = await saveDossier(supabase, {
     user_id: data.user.id,

@@ -57,7 +57,8 @@ export async function supervisorList(client: SupabaseClient, userId: string): Pr
   const candidates = projects.flatMap((row) => {
     const key = row.projectKey;
     if (key.startsWith('prd:')) {
-      const dossier = dossiers.find((item) => `prd:${item.id}` === key);
+      // A validate_idea draft has no PRD yet, so it has nothing to supervise until generate_verified_prd makes one.
+      const dossier = dossiers.find((item) => `prd:${item.id}` === key && item.prd_markdown);
       return dossier ? [{ key, title: dossier.title || key, updatedAt: row.updatedAt }] : [];
     }
     const published = source?.opportunities.find((item) => item.slug === key);

@@ -14,7 +14,7 @@
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
-| DB 마이그레이션 | 35개(main `f462db9` 기준). 운영 `check-schema` 통과. `verifications`, `build_progress.verification_level`, `feature_commits.file_statuses` 직접 조회 확인(2026-11-20) | `ls supabase/migrations`, `check-schema` |
+| DB 마이그레이션 | 36개(main `ff0c290` 기준). #180의 `20261120190000_found_evidence.sql` 포함, 운영 `check-schema` 통과(2026-11-20) | `ls supabase/migrations`, `check-schema` |
 | 단위 테스트 | 349개(53개 파일). #140에서 8개, #142에서 7개 추가. 최신 `main` 전체 실행 결과는 CI에서 확인 | `npm test` |
 | MCP | 도구 20개(#176, 운영 조회 확인). 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
 
@@ -55,6 +55,7 @@
 | 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md). 시작 문장에 저장소 연결(`connect_repo`) 포함 |
 | 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | PR #176 머지 | setup_project 및 웹 목표 재잠금 링크 추가. 운영 MCP 도구 목록에서 setup_project 확인 |
 | 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
+| 3-10 일부 | 아이디어 근거 검색 · MCP 개인 PRD 연결 | 정지훈 | PR #180 머지 | 공용 원문 재사용·재검색·비로그인 검색·생활 분야 Q&A, P0 열린 질문 먼저. 계획상 보류 구간 일부가 앞당겨졌으며 수집 동결 파일은 변경 없음. App Store 리뷰는 권리 확인 대기. 운영 MCP 초안 → PRD 직접 확인 필요 |
 | E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | PR #178 머지 | 세 입구 → 목표 잠금 → 에이전트 안내 브라우저 테스트와 테스트용 GitHub·모델을 사용한 MCP → 🟢 통합 테스트 추가. 실제 운영 프로젝트 완주는 별도 |
 | 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-antigravity.md). `AGENTS.md` 지원, 훅은 형식이 달라 어댑터 필요, 개발 모델 계열 입력 필요 |
 | 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex 시도 → 샌드박스 실패, 계획 세션이 측정 | PR #168 열림 | 불량 diff 25/25, 새 오탐 후보(`env(…)`) → 보완 ⑦ |

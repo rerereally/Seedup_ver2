@@ -20,10 +20,12 @@ import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
 import { citedQuotes } from '@/lib/opportunities/prd-markdown';
 import { technicalSections } from '@/lib/opportunities/prd-design';
+import { findingLine, MODULE_HEADING } from '@/lib/opportunities/prd-modules';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
 import PrdSend, { NotionImportHint } from './PrdSend';
 import { GraphEdges, LivePrd, Wireframes, liveStepsAfter, type LivePhase, type LiveStep } from './PrdParts';
+import { PrdEnrichment, PrdModuleSection, type PrdGapAnswer, type PrdResearchRound } from './PrdEnrichment';
 import styles from './stage.module.css';
 
 type Version = { spec: Spec; label: string; at: string };
@@ -125,6 +127,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const ids = pickedIds ?? evidenceIds;
   const customSource = Boolean(requestBody);
   const [spec, setSpec] = useState<Spec | null>(initial?.spec ?? null);
+  const [researchEvidence, setResearchEvidence] = useState<unknown>(null);
+  const [dossierId, setDossierId] = useState<string | null>(null);
+  const [researchRound, setResearchRound] = useState<(PrdResearchRound & { at: number }) | null>(null);
   // Every version of this PRD in this visit, oldest first; the last one is what is on screen.
   const [versions, setVersions] = useState<Version[]>(initial?.spec ? [{ spec: initial.spec, label: t('불러온 PRD', 'Loaded PRD'), at: initial.createdAt }] : []);
   const [compare, setCompare] = useState<number | null>(null);
@@ -201,7 +206,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   useEffect(() => {
     if (restoredKey.current === storageKey) return;
     restoredKey.current = storageKey;
-    let stored: { input: SpecInput; versions: Version[] } | null = null;
+    let stored: { input: SpecInput; versions: Version[]; researchEvidence?: unknown; dossierId?: string; pickedIds?: string[] } | null = null;
     try {
       stored = JSON.parse(window.localStorage.getItem(storageKey) ?? 'null');
     } catch {
@@ -212,6 +217,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from browser storage, which only exists after mount */
     setInput(stored.input);
     setSpec(latest.spec);
+    setPickedIds(stored.pickedIds ?? null);
+    setResearchEvidence(stored.researchEvidence ?? null);
+    setDossierId(stored.dossierId ?? null);
     setVersions(stored.versions);
     setMessage(t(`이 브라우저에 남아 있던 PRD와 버전 기록 ${stored.versions.length}개를 불러왔습니다.`, `Loaded the PRD and ${stored.versions.length} versions left in this browser.`));
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -222,11 +230,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   useEffect(() => {
     if (!input || !versions.length) return;
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify({ input, versions: versions.slice(-STORED_VERSIONS) }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ input, versions: versions.slice(-STORED_VERSIONS), researchEvidence, dossierId, pickedIds }));
     } catch {
       // Full or blocked storage: the versions still last for this visit.
     }
-  }, [storageKey, input, versions]);
+  }, [storageKey, input, versions, researchEvidence, dossierId, pickedIds]);
 
   const markdown = useMemo(() => (input && spec ? renderSpecMarkdown(input, spec) : ''), [input, spec]);
   const p0Features = useMemo(() => {
@@ -258,6 +266,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     const nextIds = Array.isArray(json.evidenceIds) ? (json.evidenceIds as string[]) : null;
     setInput(nextInput);
     setPickedIds(nextIds);
+    setResearchEvidence(null);
+    setResearchRound(null);
+    setDossierId(null);
     if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(String(json.cachedAt)).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(String(json.cachedAt)).toLocaleString('en-US')}.`));
     setSpec(nextSpec);
     onSpec?.(nextSpec);
@@ -397,17 +408,55 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setMessage('');
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction: text, model, ...ideaBrief });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, instruction: text, model, researchEvidence, ...ideaBrief });
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
         addVersion(next, label);
         setSpec(next);
+        setResearchRound(null);
         onSpec?.(next);
         setFocus(null);
         setInstruction('');
         setSaveState('idle');
         setMessage(t(`"${label}" 반영: 항목 ${changedCount(spec, next)}곳이 바뀌었습니다. 원문 목록은 그대로입니다.`, `Applied "${label}": ${changedCount(spec, next)} items changed. The quotes stay the same.`));
+      }
+    } catch {
+      setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const enrich = async (answers?: PrdGapAnswer[]) => {
+    if (!spec || !input || status !== 'idle' || slotPending.length) return;
+    setStatus('revising');
+    setError('');
+    setMessage('');
+    try {
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', {
+        title, evidenceIds: ids, spec, lang, researchEvidence, ...ideaBrief, mode: answers ? 'answers' : 'research', answers,
+      });
+      if (!ok) {
+        fail(code, json, t('PRD를 보강하지 못했습니다.', 'Could not fill the PRD gaps.'));
+        return;
+      }
+      const next = json.spec as Spec;
+      if (!answers) {
+        if (json.researchEvidence) {
+          setInput({ ...input, evidence: json.evidence });
+          setResearchEvidence(json.researchEvidence);
+        }
+        setResearchRound({ questions: json.questions, filled: json.filled, remaining: json.remaining, at: Date.now() });
+      } else {
+        setResearchRound(null);
+        setMessage(t(`답변 ${json.filled}개를 반영했습니다. 확인할 항목이 ${json.remaining}개 남았습니다.`, `Applied ${json.filled} answers. ${json.remaining} items still need review.`));
+      }
+      if (json.filled > 0) {
+        addVersion(next, answers ? t('기획자 답변', 'Planner answers') : t('원문으로 보강', 'Filled from source quotes'));
+        setSpec(next);
+        onSpec?.(next);
+        setSaveState('idle');
       }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -423,7 +472,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setError('');
     setMessage('');
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, mode: 'screens', model, ...ideaBrief });
+      const { status: code, ok, json } = await postJson('/api/opportunities/prd/revise', { title, evidenceIds: ids, spec, mode: 'screens', model, researchEvidence, ...ideaBrief });
       if (!ok) fail(code, json, t('화면을 설계하지 못했습니다.', 'Could not design the screens.'));
       else {
         const next = json.spec as Spec;
@@ -454,6 +503,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     const target = versions[index];
     if (!target) return;
     setSpec(target.spec);
+    setResearchRound(null);
     onSpec?.(target.spec);
     addVersion(target.spec, t(`버전 ${index + 1}로 되돌림`, `Back to version ${index + 1}`));
     setCompare(null);
@@ -466,12 +516,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     return changedLines(renderSpecMarkdown(input, versions[compare - 1].spec), renderSpecMarkdown(input, versions[compare].spec));
   }, [compare, input, versions]);
 
-  const save = async (document: string, quoteIds: string[]) => {
+  const save = async (document: string, quoteIds: string[], options: { spec?: Spec; runKeys?: string[] } = {}) => {
     setSaveState('saving');
     setError('');
     setNeedsLogin(false);
     try {
-      const { status: code, ok, json } = await postJson('/api/opportunities/dossiers', {
+      const { status: code, ok, json } = options.spec && researchEvidence ? await postJson('/api/opportunities/prd/revise', {
+        mode: 'save-research', dossierId: dossierId ?? personalKey?.slice(4), title, evidenceIds: ids, spec: options.spec, lang, researchEvidence, ...ideaBrief,
+      }) : await postJson('/api/opportunities/dossiers', {
         title,
         evidenceIds: quoteIds,
         ...(Array.isArray(requestBody?.liveEvidence) ? { liveEvidence: requestBody.liveEvidence.filter((row) => quoteIds.includes(row.id)) } : {}),
@@ -484,6 +536,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         setSaveState('idle');
         return;
       }
+      if (typeof json.id === 'string') setDossierId(json.id);
       setSavedShare(typeof json.sharePath === 'string' ? { markdown: document, path: json.sharePath } : null);
       if (onSaved && document && typeof json.id === 'string' && !(await onSaved(json.id))) {
         setError(t('PRD는 저장했습니다. 기획 답변을 저장하려면 다시 눌러 주세요.', 'PRD saved. Click Save again to save the planning answers.'));
@@ -561,7 +614,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     {row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}
     {acceptanceLines(row.acceptance)}
     {row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}
-  </>);
+  </>, false, row.followup && (
+    <p className="ml-12 mt-1 break-words text-sm text-muted">
+      <b>{row.followup.evidence ? t('조사 원문', 'Research quote') : t('기획자 답변', 'Planner answer')}</b> {prose(findingLine(row.followup))}
+    </p>
+  ));
 
   const busy = status !== 'idle';
   const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
@@ -648,7 +705,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                       <dt>{slotLabels(lang)[key]}</dt>
                       <dd className={slotIsOpen(feature.slots![key]) ? 'text-muted' : 'font-medium text-seed'}>{slotIsOpen(feature.slots![key]) ? t('확인 필요', 'Needs review') : t('채움', 'Filled')}</dd>
                     </div>
-                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join('; ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
+                    <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? prose(feature.slots![key].join('; ')) : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
                   </div>
                 ))}
               </dl>
@@ -672,6 +729,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     ['requirements', t('요구사항', 'Requirements'), true],
     ['features', t('기능', 'Features'), spec.features.length > 0],
     ['technical-design', t('기술 설계', 'Technical design'), Boolean(spec.technicalDesign)],
+    ['modules', t(...MODULE_HEADING), Boolean(spec.modules?.length)],
     ['screens', t('화면', 'Screens'), spec.screens.length > 0],
     ['non-goals', t('범위 밖', 'Out of scope'), true],
     ['risks', t('위험 요소', 'Risks'), spec.risks.length > 0],
@@ -805,7 +863,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   </div>
                 </details>
               )}
-              <button type="button" className="btn-quiet h-11" disabled={(!ids.length && !markdown) || saveState === 'saving'} onClick={() => void save(markdown, onSaved && input ? input.evidence.map((row) => row.id) : ids)}>
+              <button type="button" className="btn-quiet h-11" disabled={(!ids.length && !markdown) || saveState === 'saving' || busy} onClick={() => void save(markdown, onSaved && input ? input.evidence.map((row) => row.id) : ids, { spec: spec ?? undefined })}>
                 {saveState === 'saved' ? t('북마크에 저장됨', 'Saved') : saveState === 'saving' ? t('저장 중', 'Saving') : t('북마크에 저장', 'Save')}
               </button>
               <details className="relative">
@@ -913,6 +971,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     </ul>
                   </nav>
                   <article className="min-w-0 space-y-12">
+                    {signedIn !== false && endpoint === '/api/opportunities/prd' && (
+                      <PrdEnrichment key={researchRound?.at ?? 0} lang={lang} busy={busy || slotPending.length > 0 || saveState === 'saving'} round={researchRound}
+                        start={() => enrich()} apply={enrich} />
+                    )}
                     <section>
                       <h4 id="prd-overview" className={h2}>{t('개요', 'Overview')}</h4>
                       <p className="label mt-4">{t('한 줄 정의', 'One line')}</p>
@@ -1026,6 +1088,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         ))}
                       </section>
                     )}
+                    {spec.modules?.length ? <PrdModuleSection spec={spec} lang={lang} pick={pick} /> : null}
                     {spec.screens.length > 0 && (
                       <section>
                         <h4 id="prd-screens" className={h2}>{t('화면', 'Screens')}</h4>

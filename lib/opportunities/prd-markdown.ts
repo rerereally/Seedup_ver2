@@ -2,6 +2,8 @@
 // Models drift from the format in small ways (bold item ids, bullets instead of ###, citations in the body), so each
 // part has a tolerant reading; anything that cannot be read is left out rather than guessed.
 import type { RawSpec } from './spec';
+import { findingFromLine, isSlotFinding, MODULE_HEADING, parsePrdModules, type PrdFinding } from './prd-modules';
+import type { Lang } from '../i18n';
 
 type DesignSection = 'architecture' | 'dataModel' | 'interfaces' | 'stack' | 'milestones';
 type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'screens' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | 'review' | DesignSection;
@@ -39,6 +41,7 @@ const COMPETITOR_BASIS = /^(?:경쟁 도구 설명|competitor listing)\s*[:：]\
 const ACCEPTANCE = /^(?:\[[ xX]\]\s+)?(?:수락\s*기준|완료\s*기준|acceptance(?:\s*criteria)?)\s*[:：]\s*/i;
 const CHECK = /^(?:확인\s*방법|검증\s*방법|how to (?:check|verify|validate))\s*[:：]\s*/i;
 const EVIDENCE_LINE = /^(?:근거|evidence)\s*[:：]\s*/i;
+const FOLLOWUP = /^(?:조사 원문|research quote|기획자 답변|planner answer)\s*[:：]\s*/i;
 const SENTENCE_LABEL = /^\[(?:증언|사실|추정|testimony|fact|inference)\]\s*/i;
 const LEADING_CITATIONS = /^(?:\[\s*E\s*-?\s*\d+(?:\s*[,，/]\s*E?\s*-?\s*\d+)*\s*\]\s*)+/i;
 const ITEM = (letter: 'R' | 'H' | 'F') => new RegExp(`^(?:#{2,5}\\s*|[-*+]\\s+|\\d+\\.\\s+)?\\**\\s*${letter}\\s*-?\\s*0*(\\d+)\\s*[.:)\\]]?\\**\\s*(.*)$`, 'i');
@@ -65,7 +68,8 @@ function featureSlots(body: string[]) {
     const key = colon > 0 ? SLOT_WORDS.find(([, pattern]) => pattern.test(item.slice(0, colon).trim()))?.[0] : undefined;
     if (!key) continue;
     const value = item.slice(colon + 1).trim();
-    slots[key] = OPEN_SLOT_VALUE.test(value) ? [] : value.split(' / ').map((part) => part.trim()).filter(Boolean);
+    const values = OPEN_SLOT_VALUE.test(value) ? [] : isSlotFinding(value) ? [value] : value.split(' / ').map((part) => part.trim()).filter(Boolean);
+    slots[key] = [...(slots[key] ?? []), ...values];
   }
   return { text: body.slice(0, start), slots };
 }
@@ -131,10 +135,28 @@ const prose = (lines: string[]) => lines.map((line) => stripMarks(line.replace(/
 export function parsePrdMarkdown(markdown: string): RawSpec | null {
   const text = markdown.replace(/^```(?:markdown|md)?\s*$/gim, '');
   const buckets = new Map<Section, string[]>();
+  const moduleLines: string[] = [];
   let current: Section | null = null;
   let inDesign = false;
+  let inModules = false;
+  let moduleLanguage: Lang | undefined;
   for (const raw of text.split('\n')) {
     const line = raw.replace(/\s+$/, '');
+    if (/^#{1,2}\s/.test(line)) {
+      const heading = headingLabel(line).toLowerCase();
+      const moduleHeading = MODULE_HEADING.findIndex((title) => title.toLowerCase() === heading);
+      inModules = moduleHeading >= 0;
+      if (inModules) {
+        moduleLanguage = moduleHeading === 1 ? 'en' : 'ko';
+        current = null;
+        inDesign = false;
+        continue;
+      }
+    }
+    if (inModules) {
+      moduleLines.push(line);
+      continue;
+    }
     // R1/F1 lines are items even when written as headings ("### R1. 사용자는 ..." would otherwise read as the users
     // section), so they are ruled out first. An inline "# 한 줄 요약: ..." keeps its text.
     const item = REQUIREMENT_ITEM.test(line.trim()) || HYPOTHESIS_ITEM.test(line.trim()) || FEATURE_ITEM.test(line.trim());
@@ -173,10 +195,16 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     const detail: string[] = [];
     const evidenceLine: number[] = [];
     let check = '';
+    let followup: PrdFinding | undefined;
     for (const line of item.body) {
-      const plain = stripMarks(bulletText(line));
+      const bullet = bulletText(line);
+      const plain = stripMarks(bullet);
       if (ACCEPTANCE.test(plain)) acceptance.push(stripCitations(plain.replace(ACCEPTANCE, '')));
       else if (CHECK.test(plain)) check = plain.replace(CHECK, '');
+      else if (item.kind === 'H' && FOLLOWUP.test(bullet)) {
+        followup = findingFromLine(bullet.replace(FOLLOWUP, ''));
+        if (followup.evidence === undefined) followup.answered = true;
+      }
       else if (EVIDENCE_LINE.test(plain)) evidenceLine.push(...[...plain.matchAll(/\bE-?(\d+)/gi)].map((match) => Number(match[1])));
       else detail.push(plain);
     }
@@ -184,7 +212,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     const foundationMarker = /\[(?:FOUNDATION|기반 요구사항)\]/i;
     const title = stripMarks(stripCitations(item.head).replace(/\[?\s*\bP[012]\b\s*\]?/i, '').replace(foundationMarker, '').replace(/\[(?:추정|Inference)\]/i, '')).replace(/^[\s.:-]+/, '');
     const evidence = item.kind === 'H' ? [] : [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' ')), ...evidenceLine])];
-    return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), ...(foundationMarker.test(item.head) ? { foundation: true } : {}), acceptance, ...(check ? { check } : {}) };
+    return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), ...(foundationMarker.test(item.head) ? { foundation: true } : {}), acceptance, ...(check ? { check } : {}), ...(followup ? { followup } : {}) };
   });
 
   const featurePositions = new Map<number, number>();
@@ -229,6 +257,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
   });
 
   const summaryLines = (buckets.get('summary') ?? []).map((line) => line.trim()).filter(Boolean);
+  const modules = parsePrdModules(moduleLines);
   return {
     summary: stripMarks(stripCitations(summaryLines.map(bulletText).join(' '))),
     background: prdSentenceParts(prose(buckets.get('background') ?? [])).join(' '),
@@ -242,6 +271,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     rivals,
     ...(claim ? { differentiation: { claim: stripCitations(claim), evidence: citedQuotes(claim), competitor: { name: stripMarks(name).replace(COMPETITOR_BASIS, ''), quote: excerpt.join('|').trim() } } } : {}),
     ...(Object.values(technicalDesign).some((part) => part.length) ? { technicalDesign } : {}),
+    ...(modules ? { modules, lang: moduleLanguage } : {}),
     risks: list(buckets.get('risks') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     assumptions: list(buckets.get('assumptions') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     metrics: list(buckets.get('metrics') ?? []),

@@ -4,6 +4,7 @@
 import type { Lang } from '../i18n';
 import { PLATFORM_LABELS } from './types';
 import { isCutOffEvidenceQuote } from './quote-completeness';
+import { MODULE_WRITING_FORMAT } from './prd-modules';
 import type { SpecInput } from './spec';
 
 /** Section headings, in order. The parser (prd-markdown.ts) reads these, in either language. */
@@ -194,7 +195,11 @@ function systemEn(beginner: boolean) {
 Write the whole PRD in English. Use these English headings instead of the Korean ones, in the same order: ${Object.values(h).slice(0, 13).map((title) => `"${title}"`).join(', ')}. Inside requirements use "- ${h.acceptance}:" and "- ${h.check}:". Requirement titles read "Users can ...". Immediately after Features include "## Differentiation" with "Competitor listing: name | exact excerpt" when relevant, and "## Technical design" with the subheadings "Architecture", "Data model", "Interfaces", "Stack and rationale", and "Implementation order". Every milestone ends with existing F IDs in parentheses. For each acceptance criterion, give a starting input or action and the observable result returned or displayed by the product. For each success metric, include the target and a "Measure: ..." clause describing the test or data to use.`;
 }
 
-export const prdSystemPrompt = (lang: Lang = 'ko', beginner = false) => (lang === 'en' ? systemEn(beginner) : systemKo(beginner));
+export const prdSystemPrompt = (lang: Lang = 'ko', beginner = false) => `${lang === 'en' ? systemEn(beginner) : systemKo(beginner)}
+
+After the technical design, add a "## ${lang === 'en' ? 'PRD modules' : '추가 모듈'}" section only if one or two of the following modules specifically apply. Use the keys as written:
+${MODULE_WRITING_FORMAT}
+For each selected module, use "### module_key", "- reason: one line explaining the choice", and "- field_key: text" for its fields. Write explanations and uncited fields in the PRD's language. To cite a source, copy the entire numbered public quote in its original language as the field text and add [E-number]. For an unverified proposal omit the citation. Leave unknown fields blank. Do not invent platform policy, pricing, licensing, or terms.`;
 
 /** This PRD's data only. Every field is the server's own or clipped user input, wrapped so it reads as data. */
 export function prdUserPrompt(input: SpecInput, options: { idea?: boolean; lang?: Lang; stack?: readonly string[] } = {}) {

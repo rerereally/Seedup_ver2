@@ -5,7 +5,7 @@ import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import type { Spec } from '@/lib/opportunities/spec';
 import { MAX_CRITERIA, MIN_CRITERIA, criterion, goalDraft, unlinkedItems, type GoalDraft } from './draft';
-import type { ProjectGoal, SuccessCriterion, Track } from './types';
+import type { ProjectGoal, SuccessCriterion, Track } from '@/lib/supervisor/types';
 
 type Save = 'idle' | 'saving' | 'saved' | 'unsaved' | 'login';
 type Form = { statement: string; criteria: SuccessCriterion[]; inScope: string; outOfScope: string; track: Track | null; reason: string };

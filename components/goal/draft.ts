@@ -1,6 +1,6 @@
 // The goal's first draft from a PRD, and which requirements and features no success criterion covers. Pure, so tests run it.
 import type { Spec } from '@/lib/opportunities/spec';
-import type { SuccessCriterion } from './types';
+import type { SuccessCriterion } from '@/lib/supervisor/types';
 
 export type GoalDraft = { statement: string; criteria: SuccessCriterion[]; inScope: string[]; outOfScope: string[] };
 

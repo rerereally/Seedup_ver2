@@ -197,6 +197,11 @@ test('the generated SessionStart script asks the agent to resume the project aft
   const missing = 'Seedup 목표 파일(.seedup/goal.md)이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.\n';
   assert.equal(run(payload('startup')), missing);
   assert.equal(run(payload('compact')), missing + '대화가 압축되었습니다. ' + instruction);
+  const brief = `<!-- Seedup brief: project=${goal.projectKey} goal=2 prd=0123456789abcdef -->`;
+  writeFileSync(join(dir, 'AGENTS.md'), `# Project rules\r\n${brief}\r\n`);
+  assert.equal(run(payload('startup')), missing);
+  assert.ok(run(payload('compact')).endsWith(`resume_project ${JSON.stringify({ project: goal.projectKey, brief })}\n`));
+  assert.ok(run(payload('resume')).endsWith(`resume_project ${JSON.stringify({ project: goal.projectKey, brief })}\n`));
 });
 
 test('SessionStart and PreCompact resolve the project root from a subdirectory or stdin cwd without sh', () => {

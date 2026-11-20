@@ -114,9 +114,10 @@ test('another user or missing PRD key stops before reading its goals, memory or 
   const queried: string[] = [];
   const client = database((url) => { queried.push(url.pathname); return []; });
   assert.equal(await supervisorDetail(client, USER, KEY), null);
-  assert.deepEqual(queried, ['/rest/v1/evidence_dossiers']);
+  // Looked up as a saved PRD, then as a draft; both reads are bound to the user, and nothing else is read.
+  assert.deepEqual(queried, ['/rest/v1/evidence_dossiers', '/rest/v1/evidence_dossiers']);
   assert.equal(await supervisorDetail(client, USER, '../secrets'), null);
-  assert.equal(queried.length, 1);
+  assert.equal(queried.length, 2);
 });
 
 test('a real public opportunity is still unavailable when the user has no project or saved PRD', async () => {
@@ -146,6 +147,23 @@ test('a personal PRD with zero quotes has a lockable goal and features from its 
   assert.deepEqual(project.features.map((row) => row.id), ['F-01']);
   assert.deepEqual(project.specQuotes, []);
   assert.match(allTabs(project, 'ko'), /목표 잠그기/);
+});
+
+test('a validate_idea draft (no PRD yet) opens with its quotes instead of a 404', async () => {
+  const client = database((url) => {
+    if (url.pathname.endsWith('evidence_dossiers')) {
+      // userPrdById asks for a PRD (prd_markdown not null); userIdeaDraft asks for a draft (is null).
+      return url.searchParams.get('prd_markdown') === 'is.null'
+        ? [{ id: PRD, title: '[로컬테스트] 슬랙 요약', evidence: [{ quote: 'I lose track of issues every morning.', url: 'https://news.ycombinator.com/item?id=9', platform: 'hn' }] }]
+        : [];
+    }
+    return [];
+  });
+  const result = await supervisorDetail(client, USER, KEY);
+  assert.ok(result, 'the draft page opens');
+  assert.equal(result.title, '[로컬테스트] 슬랙 요약');
+  assert.equal(result.prd.markdown, null);
+  assert.deepEqual(result.prd.quotes.map((row) => row.quote), ['I lose track of issues every morning.']);
 });
 
 test('owned personal PRD loads scoped data, exact bundle contents, criterion count and latest memory activity', async () => {

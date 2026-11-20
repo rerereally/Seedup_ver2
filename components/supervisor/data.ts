@@ -1,6 +1,6 @@
 // Server callers pass the signed-in client. All database access stays in existing data-layer functions and RLS.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { draftReport, savedPrdCompetitorNotes, userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
+import { draftReport, savedPrdCompetitorNotes, userIdeaDraft, userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { recentProjectVerifications } from '@/lib/db/verifications';
 import { projectMemory } from '@/lib/db/project-memory';
@@ -16,7 +16,11 @@ import { humanTasks } from '@/lib/supervisor/human-queue';
 import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
 
 export async function supervisorDetail(client: SupabaseClient, userId: string, rawKey: string) {
-  const key = await resolveProjectKey(client, userId, decodeProjectKey(rawKey));
+  const decoded = decodeProjectKey(rawKey);
+  // resolveProjectKey only knows saved PRDs (the goal API relies on that); a draft key is resolved here for viewing.
+  const draftId = decoded.match(/^prd:([0-9a-f-]{36})$/i)?.[1].toLowerCase();
+  const key = await resolveProjectKey(client, userId, decoded)
+    ?? (draftId && await userIdeaDraft(client, userId, draftId) ? `prd:${draftId}` as const : null);
   if (!key) return null;
   const personal = key.startsWith('prd:');
   const [project, dossier, opportunity] = await Promise.all([
@@ -24,8 +28,10 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     personal ? userPrdById(client, userId, key.slice(4)) : userPinnedDossierForSlug(client, userId, key),
     personal ? null : getOpportunity(key),
   ]);
+  // A validate_idea draft has quotes but no PRD yet; the PRD list links it, so it opens with its quotes and report.
+  const draft = personal && !dossier ? await userIdeaDraft(client, userId, key.slice(4)) : null;
   // A public opportunity existing does not make it this user's supervisor project.
-  if (!project && !dossier) return null;
+  if (!project && !dossier && !draft) return null;
   const evidenceIds = dossier?.evidence_ids ?? opportunity?.evidence.slice(0, 12).map((row) => row.id) ?? [];
   const reportPromise = personal ? draftReport(client, userId, key.slice(4)).catch(() => null) : Promise.resolve(null);
   const personalSpec = async () => {
@@ -49,7 +55,7 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     verifications?.[0]?.created_at,
   ]);
   return {
-    key, title: dossier?.title || opportunity?.name || key, goal, verifications, handoffs: memory.handoffs,
+    key, title: dossier?.title || draft?.title || opportunity?.name || key, goal, verifications, handoffs: memory.handoffs,
     criteriaMet: goal?.criteria.filter((row) => row.status === 'met').length ?? 0,
     criteriaTotal: goal?.criteria.length ?? 0, lastActivityAt,
     features: featureSignals(spec, progress), specAvailable: Boolean(spec),
@@ -57,7 +63,7 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     lockSpec: goal ? null : spec,
     drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
     // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
-    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence), report },
+    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence ?? draft?.evidence), report },
     repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
     commits: [...commits].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 30).map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
     facts: memory.facts,

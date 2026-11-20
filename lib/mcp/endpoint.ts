@@ -1,6 +1,6 @@
 import { consumeUsageFor, releaseUsageFor, userForToken } from '@/lib/mcp/auth';
 import { projectPage } from '@/lib/mcp/apps';
-import { handleRpc } from '@/lib/mcp/server';
+import { handleRpc, DRAFT_PRD_NO_ANSWER } from '@/lib/mcp/server';
 import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { flagBuildProgressForCommit, readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
@@ -188,7 +188,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       const draft = !meetsEvidenceBar(checked.length, new Set(checked.map((item) => item.platform)).size);
       // Ends inside the MCP route's 160 s even after the reads above; generatePrd trims its own steps to fit.
       const result = await generateLoggedPrd(input, paid, { draft, lang, idea: true });
-      if (!result) throw new Error('PRD model gave no answer');
+      if (!result) throw new Error(DRAFT_PRD_NO_ANSWER);
       // Kept out of the shared PRD cache: an idea PRD is the user's own, as on the web.
       await setIdeaDraftPrd(service, userId, id, result.markdown);
       return readMyPrd(id);

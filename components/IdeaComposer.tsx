@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ViewTransition, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowUp, FileText, GitBranch, Lightbulb } from 'lucide-react';
+import { ArrowUp, GitBranch, Rocket, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLang } from '@/components/LangProvider';
 import ModelPicker from '@/components/ModelPicker';
@@ -17,12 +17,16 @@ export type ComposerKind = 'prd' | 'validate' | 'repo';
 /** The heading, line and examples a start screen shows for each tool, so the page says what the switch picked. */
 export type ComposerIntro = Record<ComposerKind, { title: string; lead: string; examples?: Array<{ label: string; idea: string }>; after?: ReactNode }>;
 
-// What the box does, picked like a model: each opens its own work screen under /prd. [kind, ko, en, icon]
+// One entry, picked by what is being built (plan 2-1: the track comes first). Each opens the step that fits it and
+// all three end in the same goal lock → agent handoff. [kind, ko, en, icon]
 const KINDS: Array<[ComposerKind, string, string, LucideIcon]> = [
-  ['prd', 'PRD 만들기', 'Make a PRD', FileText],
-  ['validate', '아이디어 검증', 'Validate an idea', Lightbulb],
-  ['repo', '레포 분석', 'Analyze a repo', GitBranch],
+  ['prd', '내가 쓸 도구', 'A tool for me', Wrench],
+  ['validate', '출시할 서비스', 'A product to launch', Rocket],
+  ['repo', '내 레포에 기능 추가', 'Add to my repo', GitBranch],
 ];
+
+// A GitHub address typed into the idea box still means "start from my repo".
+const GITHUB_URL = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})(?:\/|$)/i;
 
 /** The work screen for what was typed. */
 export function composerHref(kind: ComposerKind, text: string) {
@@ -50,15 +54,20 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
       document.getElementById(id)?.focus();
       return;
     }
+    const github = !repo ? GITHUB_URL.exec(value) : null;
+    if (github) {
+      router.push(composerHref('repo', github[1]));
+      return;
+    }
     // A caller's own handler is for the PRD only; the other tools always open their screen.
     if (onSubmit && kind === 'prd') onSubmit(value);
     else router.push(composerHref(kind, value));
   };
-  const action = kind === 'validate' ? t('검증하기', 'Validate') : repo ? t('분석하기', 'Analyze') : t('PRD 만들기', 'Make the PRD');
+  const action = kind === 'validate' ? t('시장부터 확인하기', 'Check the market first') : repo ? t('레포 읽기', 'Read my repos') : t('PRD 만들기', 'Make the PRD');
   const hint = kind === 'validate'
     ? t('예: 데이터베이스마다 다른 CLI 명령을 하나로 묶는 도구', 'e.g. One CLI for every database')
     : repo ? t('GitHub 아이디나 주소. 예: torvalds', 'A GitHub login or URL, e.g. torvalds')
-      : t('예: 서비스 종료된 Tenor 대신 앱에 넣을 GIF 검색 API', 'e.g. A GIF search API to replace the shut-down Tenor');
+      : t('예: 매주 쓰는 정산 엑셀을 자동으로 정리하는 스크립트', 'e.g. A script that tidies my weekly expense sheet');
 
   const mode = 'inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-sm transition-colors sm:px-3';
   return (
@@ -73,7 +82,7 @@ export default function IdeaComposer({ onSubmit, autoFocus = false, compact = fa
       {!compact && (
         // What the box does. It sits above the box, so the box itself stays one field tall and reads as one field.
         <div className={`mb-3 flex ${center ? 'justify-center' : ''}`}>
-          <div role="radiogroup" aria-label={t('할 일', 'What to do')} className="inline-flex rounded-lg bg-surface-mid p-1">
+          <div role="radiogroup" aria-label={t('무엇을 만드나요?', 'What are you building?')} className="inline-flex rounded-lg bg-surface-mid p-1">
             {KINDS.map(([key, ko, en, Icon]) => (
               <button key={key} type="button" role="radio" aria-checked={kind === key} onClick={() => { setKind(key); document.getElementById(id)?.focus(); }} className={`${mode} ${kind === key ? 'bg-white font-semibold text-ink shadow-sm' : 'text-tertiary hover:text-ink'}`}>
                 <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />

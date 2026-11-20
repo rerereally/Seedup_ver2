@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bookmark, ChevronsUpDown, Compass, FileText, House, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, UserRound, X } from 'lucide-react';
+import { Bookmark, ChevronsUpDown, Compass, FileText, House, List, LogOut, Mail, Menu, PanelLeftClose, PanelLeftOpen, Plug, Search, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
 import { signOut } from '@/app/actions/profile';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 
-type NavItem = { name: string; en: string; href: string; match: string[]; icon: LucideIcon };
+type NavItem = { name: string; en: string; href: string; match: string[]; icon: LucideIcon; beta?: true };
 
 // `match` lists every route that keeps the item lit, since several items span more than one page.
 const HOME: NavItem = { name: '홈', en: 'Home', href: '/', match: [], icon: House };
@@ -21,16 +21,18 @@ const READS: NavItem = { name: '아티클', en: 'Articles', href: '/news', match
 const EXPLORE: NavItem = { name: '트렌드', en: 'Trends', href: '/trends', match: ['/trends', '/github-trends', '/ai-products', '/projects'], icon: Compass };
 const PRD: NavItem = { name: 'PRD', en: 'PRD', href: '/prd', match: ['/prd', '/spec', '/ideas', '/seeds'], icon: FileText };
 const AGENT: NavItem = { name: 'MCP 연동', en: 'MCP', href: '/agents', match: ['/agents'], icon: Plug };
+const SUPERVISOR: NavItem = { name: '감독관', en: 'Supervisor', href: '/supervisor', match: ['/supervisor'], icon: ShieldCheck, beta: true };
 const SCRAP: NavItem = { name: '북마크', en: 'Bookmarks', href: '/scrap', match: ['/scrap'], icon: Bookmark };
 
+// The product's path comes first: plan → connect an agent → watch it. Reading is the entry, so it follows.
 const GROUPS: Array<{ name: string; en: string; items: NavItem[] }> = [
-  { name: '리서치', en: 'Research', items: [SIGNALS, READS, EXPLORE] },
-  { name: '기획', en: 'Plan', items: [PRD, { name: '감독관', en: 'Supervisor', href: '/supervisor', match: ['/supervisor'], icon: Plug }] },
+  { name: '기획', en: 'Plan', items: [PRD, AGENT, SUPERVISOR] },
+  { name: '읽을거리', en: 'Reading', items: [SIGNALS, READS, EXPLORE] },
 ];
 // The reader's own things sit behind their name at the bottom of the sidebar, not in the main menu.
-const PERSONAL: NavItem[] = [SCRAP, AGENT, { name: '프로필', en: 'Profile', href: '/profile', match: ['/profile'], icon: UserRound }];
+const PERSONAL: NavItem[] = [SCRAP, { name: '프로필', en: 'Profile', href: '/profile', match: ['/profile'], icon: UserRound }];
 // Phones: the four places used most, the rest is in the drawer.
-const TABS = [HOME, SIGNALS, READS, PRD];
+const TABS = [HOME, PRD, SUPERVISOR, SIGNALS];
 
 // The desk is the signed-in front page; it lights only on exactly "/".
 const isOn = (pathname: string | null, item: NavItem) =>
@@ -184,6 +186,7 @@ function AppShell() {
     <Link key={entry.href} href={entry.href} aria-current={isOn(pathname, entry) ? 'page' : undefined}>
       <entry.icon aria-hidden="true" />
       {t(entry.name, entry.en)}
+      {entry.beta && <span className="ml-auto rounded px-1.5 py-0.5 text-[11px] font-semibold text-muted ring-1 ring-outline-soft">{t('베타', 'Beta')}</span>}
     </Link>
   );
 

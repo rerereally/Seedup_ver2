@@ -17,6 +17,8 @@ const ALLOW = re(A.allow);
 const AUTH = re(A.auth.call, 'i');
 const WRITE = re(A.auth.write);
 const ROUTE = re(A.auth.route);
+const OPEN_CATCH = re(A.catchSplit.open);
+const CLOSE_ONLY = re(A.catchSplit.close);
 
 function parse(diff) {
   const files = [];
@@ -72,6 +74,12 @@ function audit(diff) {
         if (rule.regex.exec(rule.stripRegex ? line.text.replace(rule.stripRegex, '') : line.text)) add(file, index, rule.code, rule.severity, rule.message);
       }
     });
+    if (isCode(file.path)) {
+      file.added.forEach((line, index) => {
+        const next = file.added[index + 1];
+        if (OPEN_CATCH.test(line.text) && next && next.line === line.line + 1 && CLOSE_ONLY.test(next.text)) add(file, index, 'LIE_EMPTY_CATCH', 'warning', '오류를 삼키는 빈 catch가 있습니다.');
+      });
+    }
     if (file.isNew && ROUTE.test(file.path)) {
       const handler = file.added.findIndex((line) => WRITE.test(line.text));
       if (handler >= 0 && !AUTH.test(file.added.map((line) => line.text).join('\n'))) add(file, handler, 'SEC_NO_AUTH', 'warning', '쓰기 API에 인증 확인이 보이지 않습니다.');

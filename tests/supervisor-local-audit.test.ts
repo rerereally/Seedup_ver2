@@ -17,16 +17,18 @@ const diff = (path: string, lines: string[], isNew = false) => [
   `@@ -0,0 +1,${lines.length} @@`,
   ...lines.map((line) => `+${line}`),
 ].join('\n');
-// Built at run time so this file holds no secret-shaped literal of its own.
+// Built at run time so this file holds no secret-shaped literal or skipped-test call of its own.
+const skipCall = ['test', 'skip'].join('.');
 const fakeKey = ['sk', 'ant', 'api03', 'B'.repeat(40)].join('-');
 
 const cases = [
   diff('lib/a.ts', [`const key = '${fakeKey}';`, "const apiToken = 'q8Zr2LmX9vB4nT7kW1pY6sJ3';", 'const url = process.env.NEXT_PUBLIC_SUPABASE_SECRET;']),
-  diff('tests/a.test.ts', ["test.skip('flaky', () => {});", '// TODO later']),
+  diff('tests/a.test.ts', [`${skipCall}('flaky', () => {});`, '// TODO later']),
   diff('lib/b.ts', ["  throw new Error('not implemented');", '// TODO wire', 'try { run(); } catch {}', 'el.innerHTML = html;', 'const sql = `select * from t where id = ${id}`;', 'function noop() {}', 'const mock = 1;']),
   diff('components/A.tsx', ['<input placeholder="이메일" />', '// seedup-allow: LIE_TODO tracked in F-03', '// TODO wire this up']),
   diff('app/api/items/route.ts', ['export async function POST(request: Request) {', '  return Response.json({});', '}'], true),
   diff('docs/a.md', ['TODO: write', `key ${fakeKey}`]),
+  diff('lib/c.ts', ['try {', '  run();', '} catch (error) {', '}', 'const mockRows = [];', 'const providerKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;']),
 ];
 
 const runScript = (dir: string, input: string, mode?: string) =>

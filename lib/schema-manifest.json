@@ -2665,5 +2665,22 @@
     "functions": [
       "write_build_progress"
     ]
+  },
+  {
+    "file": "20261120171000_verification_ops_metrics.sql",
+    "columns": [
+      [
+        "verifications",
+        "github_requests"
+      ],
+      [
+        "verifications",
+        "duration_ms"
+      ],
+      [
+        "verifications",
+        "error_message"
+      ]
+    ]
   }
 ]

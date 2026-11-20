@@ -15,7 +15,7 @@ import type { ExportFormat, Spec, SpecInput, SpecRival } from '@/lib/opportuniti
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 import { isGitHubLogin } from '@/lib/seeds/github';
-import { scrubSecrets } from '@/lib/supervisor/diff-audit';
+import { parseDiff, scrubSecrets } from '@/lib/supervisor/diff-audit';
 import { driftCommitFromDiff, findDrift } from '@/lib/supervisor/drift';
 import { featureContribution, goalSummary } from '@/lib/supervisor/goal';
 import { humanTasks } from '@/lib/supervisor/human-queue';
@@ -76,7 +76,6 @@ export type McpDeps = {
   unlinkedCommitCount(slug: string): Promise<number>;
   startVerification?: (input: Omit<StartVerificationInput, 'userId'>) => Promise<VerificationRecord>;
   fetchCommitDiff?: (repo: string, sha: string) => Promise<string | null>;
-  getVerification?: (id: string) => Promise<VerificationRecord | null>;
   matchesVerificationToken?: (token: string, projectKey: ProjectKey, featureId: string, sha: string) => boolean;
   /** Returns true when the feature enters blocked, so retries of the same status do not notify again. */
   setProgress: (slug: string, feature: { id: string; title: string; verificationLevel?: VerificationLevel }, status: AgentFeatureStatus, note: string, verificationLevel?: VerificationLevel) => Promise<boolean>;
@@ -98,7 +97,7 @@ type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: bo
 
 const text = (value: string, isError = false): ToolResult => ({ content: [{ type: 'text', text: value }], ...(isError ? { isError } : {}) });
 
-const keyDescription = 'Public opportunity slug or prd:<id> from list_my_prds';
+const keyDescription = 'Public opportunity slug or prd:<id> from get_my_prd';
 const projectProperties = {
   project: { type: 'string', description: keyDescription },
   slug: { type: 'string', description: 'Alias for project' },
@@ -115,21 +114,20 @@ function projectSchema(properties = {}, required: string[] = []) {
 }
 
 const FULL_SHA = /^[a-fA-F0-9]{40}$/;
-const VERIFICATION_ID = /^[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$/;
 const developmentModels = { codex: 'openai/gpt', 'claude-code': 'anthropic/claude' } as const;
 const shaProperty = { type: 'string', pattern: FULL_SHA.source, description: 'Full 40-character GitHub commit SHA' };
 
 const progressProperties = {
   note: { type: 'string', description: 'One line on what changed or what is blocking work' },
   sha: shaProperty,
-  verification_token: { type: 'string', description: 'Server verification proof for this feature and SHA, from verify_feature or get_verification' },
+  verification_token: { type: 'string', description: 'Server verification proof for this feature and SHA, from verify_feature' },
   checks: {
     type: 'array',
-    description: 'For self-reported done, one passing check with evidence per numbered criterion from get_next_task or get_build_checklist.',
+    description: 'For self-reported done, one passing check with evidence per numbered criterion from get_next_task or resume_project.',
     items: {
       type: 'object',
       properties: {
-        criterion: { type: 'number', description: 'The criterion number from get_next_task or get_build_checklist' },
+        criterion: { type: 'number', description: 'The criterion number from get_next_task or resume_project' },
         passed: { type: 'boolean' },
         evidence: { type: 'string', description: 'How it was checked: the test name and its result, or the command and its output, in one line' },
       },
@@ -149,41 +147,20 @@ const REJECTED = '대화에서 거절';
 
 export const TOOLS = [
   {
-    name: 'search_opportunities',
-    description: 'Search Seedup build opportunities: developer pains with verified quotes from GitHub, Hacker News and Stack Overflow, and how crowded the market is.',
-    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Keywords, e.g. "agent memory" or "schema"' }, limit: { type: 'number', minimum: 1, maximum: 10 } }, required: ['query'] },
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'get_opportunity',
-    description: 'Full detail of one opportunity: the problem, the gap, every verified quote with its source link, and direct competitors.',
-    inputSchema: projectSchema(),
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'generate_verified_prd',
-    description: 'An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
-    inputSchema: projectSchema({
-      format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
-      fresh: { type: 'boolean', description: 'Generate again for a public opportunity' },
-    }),
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  },
-  {
-    name: 'get_build_checklist',
-    description: 'The build checklist of the PRD made by generate_verified_prd: every feature (F-01, F-02, ...) with its current status and done criteria.',
+    name: 'resume_project',
+    description: '[개발] Resume a project with its locked goal, connected repository, full build checklist (F-n status, done criteria, unlinked commits), recent decisions, and last handoff.',
     inputSchema: projectSchema(),
     annotations: READ_ONLY,
   },
   {
     name: 'get_next_task',
-    description: 'Call at the start of a session. Returns the locked goal, recent memory, and one ready feature ranked by contribution to the goal, with done criteria and evidence.',
+    description: '[개발] Call at the start of a session. Returns the locked goal, recent memory, and one ready feature ranked by contribution to the goal, with done criteria and evidence.',
     inputSchema: projectSchema(),
     annotations: READ_ONLY,
   },
   {
     name: 'update_feature_status',
-    description: 'Report a feature status. For done, use the SHA and verification token from server verification. A non-strict project also accepts self-reported passing checks.',
+    description: '[개발] Report a feature status. For done, use the SHA and verification token from verify_feature. A non-strict project also accepts self-reported passing checks.',
     inputSchema: projectSchema({
       ...progressProperties,
       feature_id: { type: 'string', description: 'Feature id, e.g. F-01' },
@@ -192,18 +169,18 @@ export const TOOLS = [
     annotations: STATE_WRITE,
   },
   {
-    name: 'mark_feature_done',
-    description: 'Compatibility alias for update_feature_status done or todo. The same completion gate applies.',
+    name: 'verify_feature',
+    description: '[개발] Verify a feature against its stored PRD criteria using the connected public GitHub repository, the full commit SHA, and CI, and auto-link the commit. Re-call with the same feature and SHA to read an existing or running result.',
     inputSchema: projectSchema({
-      ...progressProperties,
-      feature: { type: 'string', description: 'Feature id, e.g. F-01' },
-      done: { type: 'boolean', description: 'Default true; false sets todo' },
-    }, ['feature']),
-    annotations: STATE_WRITE,
+      feature: { type: 'string' },
+      sha: shaProperty,
+      developed_with: { type: 'string', enum: Object.keys(developmentModels), description: 'Development tool, if known, so the verifier uses a different model family' },
+    }, ['feature', 'sha']),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   {
     name: 'link_commit',
-    description: 'Record a commit and its changed file paths (with optional added, modified, or deleted status) for a PRD. Use only when the user has enabled commit uploads for this project. Features default to the F-n ids in the commit message.',
+    description: '[개발] Record a commit and its changed file paths (with optional added, modified, or deleted status) for a PRD. Use only when the user has enabled commit uploads for this project. Features default to the F-n ids in the commit message.',
     inputSchema: projectSchema({
       sha: { type: 'string', pattern: '^[a-fA-F0-9]{7,40}$' },
       message: { type: 'string', maxLength: 500 },
@@ -234,102 +211,26 @@ export const TOOLS = [
     annotations: STATE_WRITE,
   },
   {
-    name: 'verify_feature',
-    description: 'Verify a feature against its stored PRD criteria using the connected public GitHub repository, the full commit SHA, and CI. When running, use get_verification to read the result.',
-    inputSchema: projectSchema({
-      feature: { type: 'string' },
-      sha: shaProperty,
-      developed_with: { type: 'string', enum: Object.keys(developmentModels), description: 'Development tool, if known, so the verifier uses a different model family' },
-    }, ['feature', 'sha']),
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-  },
-  {
-    name: 'get_verification',
-    description: 'Read the status and result of one server verification in this project using the id from verify_feature.',
-    inputSchema: projectSchema({ id: { type: 'string', pattern: VERIFICATION_ID.source } }, ['id']),
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'get_kept_items',
-    description: 'What the user kept on Seedup to use later: GitHub repositories, articles, papers and products, with their links, newest first. Read them as references before planning or building, e.g. a repo to reuse or an article the user wants applied.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', enum: ['all', ...KEPT_TYPES], description: 'Default all; github returns only kept repositories' },
-        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
-      },
-    },
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'find_related_content',
-    description: 'News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
-    inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'validate_idea',
-    description: 'Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
-    inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-  },
-  {
-    name: 'watch_idea',
-    description: 'Watch one idea: once a week Seedup searches again and mails the user any new quotes or new rival tools for it. Up to 10 ideas.',
-    inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
-    annotations: STATE_WRITE,
-  },
-  {
-    name: 'list_my_prds',
-    description: 'List PRDs the user saved on Seedup (including personal idea PRDs and saved opportunity PRDs), newest first.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
-      },
-    },
-    annotations: READ_ONLY,
-  },
-  {
-    name: 'get_my_prd',
-    description: 'Read one saved PRD owned by this user (by id from list_my_prds) as PRD markdown or an agent brief (AGENTS.md, CLAUDE.md, Cursor rule, or app-builder prompt).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Saved PRD id (UUID from list_my_prds)' },
-        format: { type: 'string', enum: ['prd', 'agents', 'claude', 'cursor', 'prompt'], description: 'Default prd' },
-      },
-      required: ['id'],
-    },
-    annotations: READ_ONLY,
-  },
-  {
     name: 'explain_file',
-    description: 'Reverse-trace a repository file path back to the PRD features (F-n), requirements (R-n/H-n), verified user quotes (E-n), and done criteria that depend on it.',
+    description: '[개발] Reverse-trace a repository file path back to the PRD features (F-n), requirements (R-n/H-n), verified user quotes (E-n), and done criteria that depend on it.',
     inputSchema: projectSchema({ path: { type: 'string', description: 'Repository-relative file path, e.g. src/notes.ts' } }, ['path']),
     annotations: READ_ONLY,
   },
   {
-    name: 'resume_project',
-    description: 'Resume a project with its locked goal, connected repository, build status, recent decisions and last handoff.',
-    inputSchema: projectSchema(),
-    annotations: READ_ONLY,
-  },
-  {
     name: 'connect_repo',
-    description: 'Connect a public GitHub repository (owner/repo) to the project using Seedup’s server credentials.',
+    description: '[개발] Connect a public GitHub repository (owner/repo) to the project using Seedup’s server credentials.',
     inputSchema: projectSchema({ repo: { type: 'string', description: 'Public GitHub owner/repo' } }, ['repo']),
     annotations: { ...STATE_WRITE, openWorldHint: true },
   },
   {
     name: 'check_env',
-    description: 'Compare key names found by the agent in the local environment with the project’s expected names. Send names only, never values or file contents.',
+    description: '[개발] Compare key names found by the agent in the local environment with the project’s expected names. Send names only, never values or file contents.',
     inputSchema: projectSchema({ names: { type: 'array', maxItems: 100, items: { type: 'string', pattern: ENV_NAME.source } } }, ['names']),
     annotations: READ_ONLY,
   },
   {
     name: 'record_decision',
-    description: 'Record a decision and why. Set scope_change=true for changes to the goal, success criteria or scope. Ask the user in the terminal before acting, then record their answer. Never include secrets.',
+    description: '[개발] Record a decision and why. Set scope_change=true for changes to the goal, success criteria or scope. Ask the user in the terminal before acting, then record their answer. Never include secrets.',
     inputSchema: projectSchema({
       title: { ...memoryLine, maxLength: 200 },
       why: memoryLine,
@@ -344,7 +245,7 @@ export const TOOLS = [
   },
   {
     name: 'save_handoff',
-    description: 'Save a short handoff with the current and next task, cautions and unverified commit SHAs. Never include secrets.',
+    description: '[개발] Save a short handoff with the current and next task, cautions and unverified commit SHAs. Never include secrets.',
     inputSchema: projectSchema({
       agent: { ...memoryLine, maxLength: 80 },
       doing: memoryLine,
@@ -356,8 +257,72 @@ export const TOOLS = [
   },
   {
     name: 'get_project_memory',
-    description: 'Read the full entries for project decisions, handoffs and facts, newest first (limit per kind).',
+    description: '[개발] Read the full entries for project decisions, handoffs and facts, newest first (limit per kind).',
     inputSchema: projectSchema({ limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Default 50 per kind' } }),
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'search_opportunities',
+    description: '[기획] Search Seedup build opportunities: developer pains with verified quotes from GitHub, Hacker News and Stack Overflow, and how crowded the market is.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Keywords, e.g. "agent memory" or "schema"' }, limit: { type: 'number', minimum: 1, maximum: 10 } }, required: ['query'] },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'get_opportunity',
+    description: '[기획] Full detail of one opportunity: the problem, the gap, every verified quote with its source link, and direct competitors.',
+    inputSchema: projectSchema(),
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'generate_verified_prd',
+    description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
+    inputSchema: projectSchema({
+      format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
+      fresh: { type: 'boolean', description: 'Generate again for a public opportunity' },
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: 'get_my_prd',
+    description: '[기획] List PRDs saved by this user (when id is omitted) or read one saved PRD by id as PRD markdown or an agent brief (AGENTS.md, CLAUDE.md, Cursor rule, or app-builder prompt).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Optional saved PRD id (UUID); omit to list all saved PRDs' },
+        format: { type: 'string', enum: ['prd', 'agents', 'claude', 'cursor', 'prompt'], description: 'Used when id is given. Default prd' },
+        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Used when listing without id. Default 20' },
+      },
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'validate_idea',
+    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  {
+    name: 'watch_idea',
+    description: '[기획] Watch one idea: once a week Seedup searches again and mails the user any new quotes or new rival tools for it. Up to 10 ideas.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
+    annotations: STATE_WRITE,
+  },
+  {
+    name: 'get_kept_items',
+    description: '[기획] What the user kept on Seedup to use later: GitHub repositories, articles, papers and products, with their links, newest first. Read them as references before planning or building, e.g. a repo to reuse or an article the user wants applied.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['all', ...KEPT_TYPES], description: 'Default all; github returns only kept repositories' },
+        limit: { type: 'number', minimum: 1, maximum: 50, description: 'Default 20' },
+      },
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: 'find_related_content',
+    description: '[기획] News, papers, repos and products Seedup collected that are semantically close to an idea, for grounding an evaluation.',
+    inputSchema: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] },
     annotations: READ_ONLY,
   },
 ] as const;
@@ -549,7 +514,7 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
   const { slug } = opportunity;
   const [{ goal, memory }, savedProgress] = await Promise.all([projectContext(deps, slug), found ? deps.progress(slug) : undefined]);
   const context = contextText(null, memory);
-  const checklist = toolCall('get_build_checklist', { project: slug });
+  const checklist = toolCall('resume_project', { project: slug });
   if (!found) return projectReply(slug.startsWith('prd:')
     ? 'This saved PRD has no readable feature spec. Update it in Seedup.'
     : `No PRD for "${slug}" yet. Call generate_verified_prd first.`, goal, context, toolCall('generate_verified_prd', { project: slug }), true);
@@ -797,13 +762,10 @@ async function explainFileResult(opportunity: Opportunity, cached: { input: Spec
 const OPPORTUNITY_TOOLS = new Set([
   'get_opportunity',
   'generate_verified_prd',
-  'get_build_checklist',
   'get_next_task',
   'update_feature_status',
-  'mark_feature_done',
   'link_commit',
   'verify_feature',
-  'get_verification',
   'explain_file',
 ]);
 
@@ -911,10 +873,10 @@ function verificationResult(row: VerificationRecord, goal: ProjectGoal | null | 
     scopeWarning && proof && `Verification proof for after the scope review: ${proof}`,
     row.status === 'error' && 'The verification did not complete. Check the connected repository, GitHub access and the verification quota.',
   ].filter(Boolean).join('\n');
-  const next = pending ? toolCall('get_verification', { project, id: row.id })
+  const next = pending ? toolCall('verify_feature', { project, feature: row.featureId, sha: row.sha })
     : scopeWarning ? scopeDecision(project, row.featureId)
     : proof ? toolCall('update_feature_status', { project, feature_id: row.featureId, status: 'done', sha: row.sha, verification_token: proof })
-    : toolCall('get_build_checklist', { project });
+    : toolCall('resume_project', { project });
   return {
     ...projectReply(outcome, goal, body, next, row.status === 'error'),
     structuredContent: verificationCard(row, shortGoal(goal), verdicts, blockers.length, warnings),
@@ -925,7 +887,7 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
   const [project, goal] = await Promise.all([deps.supervisorProject?.(key), deps.projectGoal?.(key)]);
   const id = typeof args.feature === 'string' ? normalizeFeatureId(args.feature) : null;
   const feature = spec.features.find((row) => row.id === id);
-  if (!feature) return projectReply('Unknown feature.', goal, '', toolCall('get_build_checklist', { project: key }), true);
+  if (!feature) return projectReply('Unknown feature.', goal, '', toolCall('resume_project', { project: key }), true);
   const sha = typeof args.sha === 'string' && FULL_SHA.test(args.sha) ? args.sha.toLowerCase() : undefined;
   const retry = verifyNext(key, feature.id, sha);
   if (!project?.repo) return projectReply('A public GitHub repository is required for server verification.', goal, '', toolCall('connect_repo', { project: key, repo: '<owner/repo>' }), true);
@@ -942,7 +904,7 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
     text: criterion,
     kind: /테스트|\b(?:tests?|CI|jest|vitest|pytest|playwright)\b/i.test(criterion) ? 'test' : 'code',
   }));
-  if (criteria.length > 40) return projectReply('A verification can check at most 40 criteria per feature.', goal, 'Split this feature in the PRD before verifying it.', toolCall('get_build_checklist', { project: key }), true);
+  if (criteria.length > 40) return projectReply('A verification can check at most 40 criteria per feature.', goal, 'Split this feature in the PRD before verifying it.', toolCall('resume_project', { project: key }), true);
   try {
     if (deps.startVerification) {
       const row = await deps.startVerification({
@@ -956,8 +918,26 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
         : row.status !== 'error'
           ? await fetchVerificationDiff(project.repo, sha, deps.fetchCommitDiff).catch(() => null)
           : null;
-      const diffDrift = diff
-        ? findDrift([driftCommitFromDiff({ sha, featureIds: [feature.id], diff })], spec, goal ?? null)
+      const diffCommit = diff ? driftCommitFromDiff({ sha, featureIds: [feature.id], diff }) : null;
+      const diffFiles = diffCommit ? diffCommit.files.filter(Boolean) : [];
+      // Auto-link verified commits only when changed files were resolved from the diff, so a transient diff fetch failure
+      // cannot poison feature_commits with an empty file list (writeFeatureCommit uses ignoreDuplicates).
+      if (row.status !== 'error' && diff && diffFiles.length > 0) {
+        const fileStatuses: Record<string, CommitFileStatus> = {};
+        for (const file of parseDiff(diff)) {
+          if (file.path) fileStatuses[file.path] = file.isNew ? 'added' : 'modified';
+        }
+        const hasStatuses = Object.keys(fileStatuses).length > 0;
+        await deps.linkCommit(key, {
+          sha,
+          message: `verify_feature ${feature.id}`,
+          files: diffFiles,
+          featureIds: [feature.id],
+          ...(hasStatuses ? { fileStatuses } : {}),
+        }).catch(() => undefined);
+      }
+      const diffDrift = diffCommit
+        ? findDrift([diffCommit], spec, goal ?? null)
             .filter((finding) => finding.kind === 'out_of_spec')
         : [];
       const mergedRow = diffDrift.length ? { ...row, drift: mergeDriftFindings(row.drift, diffDrift) } : row;
@@ -969,32 +949,15 @@ async function startFeatureVerification(args: Record<string, unknown>, key: Proj
   return projectReply('Server verification is unavailable.', goal, 'Retry when the service is available.', retry, true);
 }
 
-async function readFeatureVerification(args: Record<string, unknown>, project: ProjectKey, deps: McpDeps, loadSpec: () => Promise<{ spec: Spec } | null>) {
-  const id = typeof args.id === 'string' && VERIFICATION_ID.test(args.id) ? args.id.toLowerCase() : null;
-  const next = toolCall('get_build_checklist', { project });
-  if (!id) return projectReply('A valid verification ID is required.', null, '', next, true);
-  try {
-    const row = await deps.getVerification?.(id);
-    if (!row || row.projectKey !== project) return projectReply('Verification not found for this project.', null, '', next, true);
-    const goal = await deps.projectGoal?.(project).catch(() => null);
-    const spec = row.drift.length ? await loadSpec().catch(() => null) : null;
-    return verificationResult(row, goal, prdLanguage(spec?.spec));
-  } catch {
-    return projectReply('Could not read the verification.', null, '', toolCall('get_verification', { project, id }), true);
-  }
-}
-
-async function updateBuildStatus(name: string, args: Record<string, unknown>, opportunity: Opportunity, spec: Spec, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
+async function updateBuildStatus(args: Record<string, unknown>, opportunity: Opportunity, spec: Spec, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
   const project = opportunity.slug;
-  const checklist = toolCall('get_build_checklist', { project });
+  const checklist = toolCall('resume_project', { project });
   const goal = await deps.projectGoal?.(project).catch(() => null);
-  const alias = name === 'mark_feature_done';
-  const rawStatus = alias ? (args.done === false ? 'todo' : 'done') : args.status;
+  const rawStatus = args.status;
   if (rawStatus === 'needs_recheck') return projectReply('Status "needs_recheck" is server-only.', goal, '', checklist, true);
   const status = AGENT_FEATURE_STATUSES.find((value) => value === rawStatus);
   if (!status) return projectReply(`Invalid status. Use one of: ${AGENT_FEATURE_STATUSES.join(', ')}.`, goal, '', checklist, true);
-  const rawFeature = alias ? args.feature : args.feature_id;
-  const id = typeof rawFeature === 'string' ? normalizeFeatureId(rawFeature) : null;
+  const id = typeof args.feature_id === 'string' ? normalizeFeatureId(args.feature_id) : null;
   const feature = spec.features.find((row) => row.id === id);
   if (!feature) return projectReply('Unknown feature.', goal, '', checklist, true);
   let note = progressNote(typeof args.note === 'string' ? args.note.slice(0, 2000) : '');
@@ -1069,21 +1032,29 @@ function memoryList(value: unknown, pattern?: RegExp): string[] | null {
   return lines.every((line): line is string => line !== null && (!pattern || pattern.test(line))) ? lines : null;
 }
 
-async function callSupervisorTool(name: string, args: Record<string, unknown>, opportunity: Opportunity, deps: McpDeps, loadSpec: () => Promise<{ input: SpecInput; spec: Spec } | null>) {
+async function callSupervisorTool(name: string, args: Record<string, unknown>, opportunity: Opportunity, deps: McpDeps, loadSpec: () => Promise<{ input: SpecInput; spec: Spec } | null>, siteUrl: string) {
   const key = opportunity.slug;
   if (name === 'resume_project') {
-    const [project, goal, memory, progress] = await Promise.all([
-      deps.supervisorProject?.(key), deps.projectGoal?.(key), deps.projectMemory?.(key, 3), deps.progress(key),
+    const [project, goal, memory, progress, cached] = await Promise.all([
+      deps.supervisorProject?.(key), deps.projectGoal?.(key), deps.projectMemory?.(key, 3), deps.progress(key), loadSpec().catch(() => null),
     ]);
+    const unlinkedCount = cached ? await deps.unlinkedCommitCount(key).catch(() => undefined) : undefined;
     const working = Object.entries(progress).filter(([, row]) => ['in_progress', 'improving', 'blocked', 'needs_recheck'].includes(row.status));
-    return text([
-      `${opportunity.name} (project: ${key})`,
+    const checklistText = cached ? renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount) : '';
+    const body = [
       project?.repo ? `Repository: ${project.repo}` : 'Repository: not connected',
       !goal && 'No locked goal yet.',
-      contextText(goal, memory),
+      contextText(null, memory),
       working.length && `Active features: ${working.slice(0, 5).map(([id, row]) => `${id} [${row.status}]`).join(', ')}`,
-      `Continue with get_next_task ${JSON.stringify({ project: key })}.`,
-    ].filter(Boolean).join('\n\n'));
+      checklistText,
+    ].filter(Boolean).join('\n\n');
+    const next = !cached && !key.startsWith('prd:')
+      ? toolCall('generate_verified_prd', { project: key })
+      : toolCall('get_next_task', { project: key });
+    return {
+      ...projectReply(`${opportunity.name} (project: ${key})`, goal, body, next),
+      ...(cached ? { structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal)) } : {}),
+    };
   }
   if (name === 'connect_repo') {
     const repo = typeof args.repo === 'string' ? args.repo.trim() : '';
@@ -1157,16 +1128,16 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
 
 async function callTool(name: string, args: Record<string, unknown>, deps: McpDeps, siteUrl: string): Promise<ToolResult> {
   // Handle user-scoped tools first without loading the full opportunity catalog.
-  if (name === 'list_my_prds') {
-    const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
-    const items = deps.myPrds ? await deps.myPrds(limit) : [];
-    return text(renderSavedPrdList(items, siteUrl));
-  }
   if (name === 'get_my_prd') {
-    const id = String(args.id ?? '').trim();
-    if (!id) return text('Provide the saved PRD id (from list_my_prds).', true);
+    const rawId = String(args.id ?? '').trim();
+    if (!rawId) {
+      const limit = Math.max(1, Math.min(50, Number(args.limit ?? 20) || 20));
+      const items = deps.myPrds ? await deps.myPrds(limit) : [];
+      return text(renderSavedPrdList(items, siteUrl));
+    }
+    const id = rawId.replace(/^prd:/i, '');
     const saved = deps.myPrd ? await deps.myPrd(id) : null;
-    if (!saved) return text(`Saved PRD "${id}" not found. Call list_my_prds first.`, true);
+    if (!saved) return text(`Saved PRD "${id}" not found. Call get_my_prd without id first.`, true);
     const format = (['prd', 'agents', 'claude', 'cursor', 'prompt'].includes(String(args.format)) ? String(args.format) : 'prd') as ExportFormat | 'prd';
     if (format === 'prd') return text(saved.prdMarkdown);
     const key = saved.opportunitySlug ?? `prd:${saved.id}`;
@@ -1218,19 +1189,18 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   if (!OPPORTUNITY_TOOLS.has(name) && !SUPERVISOR_TOOLS.has(name)) return text(`Unknown tool "${name}".`, true);
   const slug = projectKey(args);
-  if (!slug) return projectReply('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', null, '', toolCall('list_my_prds', {}), true);
+  if (!slug) return projectReply('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', null, '', toolCall('get_my_prd', {}), true);
   const personal = slug.startsWith('prd:');
   const saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
   const savedBuild = saved ? savedProject(saved, slug) : null;
   const opportunities = personal ? [] : await deps.opportunities();
   const opportunity = personal ? savedBuild?.opportunity : opportunities.find((item) => item.slug === slug);
-  if (!opportunity) return projectReply('Project not found. Call search_opportunities or list_my_prds first.', null, '',
-    personal ? toolCall('list_my_prds', {}) : toolCall('search_opportunities', { query: '<topic>' }), true);
+  if (!opportunity) return projectReply('Project not found. Call search_opportunities or get_my_prd first.', null, '',
+    personal ? toolCall('get_my_prd', {}) : toolCall('search_opportunities', { query: '<topic>' }), true);
   const loadSpec = () => personal ? Promise.resolve(savedBuild?.result ?? null) : resolveSpecForSlug(opportunity, deps);
-  if (SUPERVISOR_TOOLS.has(name)) return callSupervisorTool(name, args, opportunity, deps, loadSpec);
-  if (name === 'get_verification') return readFeatureVerification(args, slug, deps, loadSpec);
-  const updatesProgress = name === 'update_feature_status' || name === 'mark_feature_done';
-  const needsPrd = ['get_build_checklist', 'get_next_task', 'verify_feature', 'explain_file'].includes(name) || updatesProgress;
+  if (SUPERVISOR_TOOLS.has(name)) return callSupervisorTool(name, args, opportunity, deps, loadSpec, siteUrl);
+  const updatesProgress = name === 'update_feature_status';
+  const needsPrd = ['get_next_task', 'verify_feature', 'explain_file'].includes(name) || updatesProgress;
   if (name === 'get_opportunity') {
     const quotes = opportunity.evidence.map((item, index) => describeQuote(item, index + 1)).join('\n');
     const rivals = opportunity.supply.filter((item) => item.relation === 'direct').map((item) => `- ${item.name}${item.url ? ` ${item.url}` : ''}`).join('\n');
@@ -1308,7 +1278,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
         : 'Drift warning: no feature claims this commit.');
     if (outsideScope) lines.push(askScope(prdLanguage(cached?.spec), slug, commit.featureIds[0]));
     const next = outsideScope ? scopeDecision(slug, commit.featureIds[0])
-      : toolCall('get_build_checklist', { project: slug });
+      : toolCall('resume_project', { project: slug });
     if (!files.length) return projectReply(outcome, goal, lines.join('\n'), next);
 
     try {
@@ -1316,7 +1286,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       for (const feature of touchedDoneFeatures(progress, linkedFiles, files, featureIds)) {
         try {
           const flagged = await deps.flagRecheck(slug, feature.id, commitSha, `Commit ${commitSha} touched ${feature.files.join(', ')}.`);
-          if (flagged) lines.push(`${feature.id} is now needs_recheck: re-run its done criteria (get_build_checklist), then update_feature_status done with checks.`);
+          if (flagged) lines.push(`${feature.id} is now needs_recheck: re-run its done criteria (resume_project), then update_feature_status done with checks.`);
         } catch (error) {
           console.error('MCP feature recheck write failed', error);
           lines.push(`Could not flag ${feature.id} for recheck. Retry link_commit.`);
@@ -1337,17 +1307,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       return explainFileResult(opportunity, cached, args.path, deps);
     }
     if (name === 'verify_feature') return startFeatureVerification(args, slug, cached.spec, deps);
-    if (updatesProgress) return updateBuildStatus(name, args, opportunity, cached.spec, deps, siteUrl);
-    const [progress, unlinkedCount] = await Promise.all([
-      deps.progress(slug),
-      name === 'get_build_checklist' ? deps.unlinkedCommitCount(slug) : undefined,
-    ]);
-    const goal = await deps.projectGoal?.(slug).catch(() => null);
-    const [outcome, ...body] = renderChecklist(opportunity, cached.spec, progress, siteUrl, unlinkedCount).split('\n');
-    return {
-      ...projectReply(outcome, goal, body.join('\n'), toolCall('get_next_task', { project: slug })),
-      structuredContent: checklistCard(opportunity, cached.spec, progress, (feature) => featureCriteria(cached.spec, feature), siteUrl, undefined, shortGoal(goal)),
-    };
+    if (updatesProgress) return updateBuildStatus(args, opportunity, cached.spec, deps, siteUrl);
   }
   return text(`Unknown tool "${name}".`, true);
 }
@@ -1411,7 +1371,7 @@ function getPromptResult(name: string, rawArgs: Record<string, unknown>) {
           role: 'user',
           content: {
             type: 'text',
-            text: `Audit ship readiness for "${slug}":\n1. Call get_build_checklist {"slug":${JSON.stringify(slug)}} and check for any features in needs_recheck, blocked, or todo.\n2. For any needs_recheck or recently changed feature, call verify_feature with its full pushed GitHub SHA. Poll get_verification if the result is running.\n3. Report which features are verified ready, which criteria failed or remain unclear, and whether any unlinked commits need review.`,
+            text: `Audit ship readiness for "${slug}":\n1. Call resume_project {"project":${JSON.stringify(slug)}} and check the build checklist for any features in needs_recheck, blocked, or todo.\n2. For any needs_recheck or recently changed feature, call verify_feature with its full pushed GitHub SHA (re-call with the same feature and SHA if running).\n3. Report which features are verified ready, which criteria failed or remain unclear, and whether any unlinked commits need review.`,
           },
         }],
       },
@@ -1465,7 +1425,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
         capabilities: { tools: {}, resources: {}, prompts: {} },
         serverInfo: { name: 'seedup', version: '1.1.0' },
-        instructions: 'Seedup finds build opportunities from verified quotes and turns them into evidence-traced PRDs. Search first, then generate_verified_prd and save the result in the repo (or call list_my_prds / get_my_prd for saved personal PRDs). At the start of each build session, call get_next_task with project (a public slug or prd:<id>) and build one feature at a time. Use update_feature_status to report in_progress when starting and done with checks or blocked when ending, and explain_file before editing files linked to done features. For server-verified completion, call verify_feature with the pushed GitHub SHA and report done using its token and SHA. Ask the user in the terminal about goal or scope changes and use record_decision to record the answer.'
+        instructions: 'Development ([개발]): Start each build session with resume_project or get_next_task using project (slug or prd:<id>) and build one feature at a time. Ask the user in the terminal before any goal or scope change and log it with record_decision. Report in_progress, blocked, or done with update_feature_status; verify pushed commits via verify_feature (re-call with the same feature and SHA while running; auto-links commits). Use link_commit for unverified commits and explain_file before editing done files. Planning ([기획]): Search with search_opportunities, inspect with get_opportunity, validate with validate_idea, draft PRDs with generate_verified_prd, or list/read saved PRDs with get_my_prd.'
           + await activeGoalInstructions(deps),
       });
     }

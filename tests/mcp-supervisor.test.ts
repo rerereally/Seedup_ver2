@@ -52,7 +52,7 @@ function dependencies(over: Partial<McpDeps> = {}) {
     opportunities: async () => [opportunity], cachedSpec: async () => ({ input, spec }),
     generate: unexpected, consume: unexpected, release: unexpected, related: unexpected,
     supervisorProject: async () => project, projectGoal: async () => goal,
-    startVerification: unexpected, getVerification: unexpected,
+    startVerification: unexpected,
     matchesVerificationToken: (token, projectKey, featureId, sha) =>
       Boolean(readVerificationToken(token, { userId: USER, projectKey, featureId, sha }, SIGNING_KEY)),
     progress: async () => progress, linkCommit: async () => {}, featureFiles: async () => ({}),
@@ -185,6 +185,7 @@ test('done verifies the proof against the user, project, feature and SHA and app
     assert.deepEqual(progress, {});
   }
   assert.equal((await call('mark_feature_done', { feature: 'F-01', done: true }, deps)).isError, true);
+  assert.match((await call('mark_feature_done', { feature: 'F-01', done: true }, deps)).body, /Unknown tool/);
   const done = await call('update_feature_status', { ...base, verification_token: proof, note: `saved; ${proof}` }, deps);
   assert.match(done.body, /^F-01 Save notes \[done\] 🟢 supervisor verified\nGoal v1/);
   assert.match(done.body, /\nNext: get_next_task \{"project":"notes"\}$/);
@@ -248,66 +249,88 @@ test('writeBuildProgress and readBuildProgress persist verification_level and ba
   assert.match(sql, /update public\.build_progress\s+set verification_level = 'supervisor_verified'/i);
 });
 
-test('running results say exactly how to poll, and drift warnings ask the user before acting', async () => {
+test('running verify_feature tells the agent to re-call verify_feature, auto-links commits, and drift warnings ask the user', async () => {
+  let calls = 0;
+  const linkedCommits: Parameters<McpDeps['linkCommit']>[] = [];
+  const sampleDiff = [
+    'diff --git a/src/notes.ts b/src/notes.ts',
+    '--- a/src/notes.ts',
+    '+++ b/src/notes.ts',
+    '@@ -1 +1,2 @@',
+    ' export const notes = [];',
+    '+export function saveNote(text: string) { return text; }',
+  ].join('\n');
   const { deps } = dependencies({
     cachedSpec: async () => ({ input, spec: { ...spec, lang: 'ko' } }),
-    startVerification: async () => record,
-    getVerification: async (id) => id === VERIFICATION ? { ...record, status: 'failed', drift: [
-      { kind: 'out_of_spec', sha: SHA, files: ['src/notes.ts'], featureIds: ['F-01'], message: 'unsafe payload omitted' },
-    ] } : null,
+    linkCommit: async (...args) => { linkedCommits.push(args); },
+    fetchCommitDiff: async () => sampleDiff,
+    startVerification: async () => {
+      calls++;
+      return calls === 1 ? record : {
+        ...record,
+        status: 'failed',
+        drift: [{ kind: 'out_of_spec', sha: SHA, files: ['src/notes.ts'], featureIds: ['F-01'], message: 'unsafe payload omitted' }],
+      };
+    },
   });
   const waiting = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
   assert.equal(waiting.structuredContent?.id, VERIFICATION);
   assert.match(waiting.body, /^F-01 @ abcd1234: Verification running/);
-  assert.deepEqual(waiting.body.match(/^Next: .*$/gm), [`Next: get_verification {"project":"notes","id":"${VERIFICATION}"}`]);
-  const result = await call('get_verification', { id: VERIFICATION }, deps);
+  assert.deepEqual(waiting.body.match(/^Next: .*$/gm), [`Next: verify_feature {"project":"notes","feature":"F-01","sha":"${SHA}"}`]);
+  assert.equal(linkedCommits.length, 1);
+  assert.deepEqual(linkedCommits[0][1].featureIds, ['F-01']);
+  assert.equal(linkedCommits[0][1].sha, SHA);
+  assert.deepEqual(linkedCommits[0][1].files, ['src/notes.ts']);
+  assert.deepEqual(linkedCommits[0][1].fileStatuses, { 'src/notes.ts': 'modified' });
+
+  // Re-calling verify_feature with the same feature and SHA reads the updated stored verification.
+  const result = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
   assert.match(result.body, /ASK USER \(in the terminal, before acting\):\n> 잠긴 목표나 범위를 조정할까요\?/);
   assert.match(result.body, /\nNext: record_decision /);
+
+  // Removed get_verification returns Unknown tool.
+  const removed = await call('get_verification', { id: VERIFICATION }, deps);
+  assert.equal(removed.isError, true);
+  assert.match(removed.body, /Unknown tool/);
+
   const linked = await call('link_commit', { sha: SHA, message: 'Implements F-01 paid plans', files: ['src/notes.ts'] }, deps);
   assert.match(linked.body, /^Recorded commit for F-01\./);
   assert.match(linked.body, /Scope warning: the commit may touch a locked exclusion/);
 });
 
-test('the authenticated MCP route only polls verification for the caller and selected project', async (t) => {
+test('the authenticated MCP route scopes resume_project and saved PRDs strictly to the caller', async (t) => {
   setEnv(t, 'NEXT_PUBLIC_SUPABASE_URL', 'https://supabase.invalid');
   setEnv(t, 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'fixture-publishable');
   setEnv(t, 'SUPABASE_SECRET_KEY', 'fixture-service');
   const dossier = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+  const otherDossier = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   const key = `prd:${dossier}`;
-  const ids = [VERIFICATION, '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333'];
-  const polls: string[] = [];
   t.mock.method(globalThis, 'fetch', async (source: string, init?: RequestInit) => {
     const url = new URL(source);
     assert.equal(url.hostname, 'supabase.invalid');
     if (url.pathname === '/rest/v1/mcp_tokens') return init?.method === 'PATCH' ? new Response(null, { status: 204 }) : Response.json([{ user_id: USER }]);
     assert.equal(url.searchParams.get('user_id'), `eq.${USER}`);
-    if (url.pathname === '/rest/v1/evidence_dossiers') return Response.json([{ id: dossier, title: 'Notes', prd_markdown: 'Saved PRD', evidence_ids: [], evidence: [], updated_at: AT }]);
-    if (url.pathname === '/rest/v1/project_goals') return Response.json([]);
-    assert.equal(url.pathname, '/rest/v1/verifications');
-    const id = url.searchParams.get('id')!.slice(3);
-    polls.push(id);
-    if (id === ids[1]) return Response.json([]);
-    return Response.json([{
-      id, user_id: USER, project_key: id === ids[2] ? 'another-project' : key, feature_id: 'F-01', repo: 'owner/notes',
-      sha: SHA, status: 'running', token: null, verdicts: [], findings: [], drift: [], checks: [], unseen: [],
-    }]);
+    if (url.pathname === '/rest/v1/evidence_dossiers') {
+      return url.searchParams.get('id') === `eq.${dossier}`
+        ? Response.json([{ id: dossier, title: 'Notes', prd_markdown: '# 한 줄 요약\nNotes\n\n## 기능\n### F1. Save notes\nSave', evidence_ids: [], evidence: [], updated_at: AT }])
+        : Response.json([]);
+    }
+    return Response.json([]);
   });
-  const read = async (id: string) => {
+  const invoke = async (name: string, args: Record<string, unknown>) => {
     const response = await handleMcpRequest(new Request(`${SITE}/api/mcp`, {
       method: 'POST', headers: { authorization: `Bearer sdp_${'a'.repeat(48)}` },
-      body: JSON.stringify(rpc('get_verification', { project: key, id })),
+      body: JSON.stringify(rpc(name, args)),
     }));
     assert.equal(response.status, 200);
     return (await response.json() as Reply).result;
   };
-  assert.equal((await read(ids[0])).structuredContent?.id, ids[0]);
-  for (const id of ids.slice(1)) {
-    const missing = await read(id);
-    assert.equal(missing.isError, true);
-    assert.match(missing.content[0].text, /^Verification not found for this project/);
-    assert.ok(!missing.content[0].text.includes(id));
-  }
-  assert.deepEqual(polls, ids);
+  const own = await invoke('resume_project', { project: key });
+  assert.equal(own.isError, undefined);
+  assert.match(own.content[0].text, /Notes \(project: prd:dddddddd/);
+  const other = await invoke('resume_project', { project: `prd:${otherDossier}` });
+  assert.equal(other.isError, true);
+  assert.match(other.content[0].text, /Project not found/);
 });
 
 test('link_commit accepts optional file statuses and flags out-of-spec added screens and API routes', async () => {
@@ -406,4 +429,60 @@ test('verify_feature extracts new migration CREATE TABLE names from the server d
   }).deps);
   assert.doesNotMatch(clean.body, /Scope warnings/);
   assert.match(clean.body, /\nNext: update_feature_status /);
+});
+
+test('verify_feature does not auto-link empty files when diff fetch fails so a retry with the same SHA records actual files', async () => {
+  const stored = new Map<string, { files: string[]; fileStatuses?: Record<string, string> }>();
+  let diffAttempt = 0;
+  const realDiff = [
+    'diff --git a/src/notes.ts b/src/notes.ts',
+    '--- a/src/notes.ts',
+    '+++ b/src/notes.ts',
+    '@@ -1 +1,2 @@',
+    ' export const notes = [];',
+    '+export function saveNote(text: string) { return text; }',
+    'diff --git a/src/save.ts b/src/save.ts',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/src/save.ts',
+    '@@ -0,0 +1 @@',
+    '+export const saved = true;',
+  ].join('\n');
+
+  const { deps } = dependencies({
+    startVerification: async () => ({ ...record, status: 'passed', token: proof, verdicts: [{ criterion: '1', verdict: 'met', reason: 'ok', citations: [] }] }),
+    // Simulate writeFeatureCommit's ignoreDuplicates behavior per (slug, sha, feature_id).
+    linkCommit: async (slug, link) => {
+      for (const featureId of link.featureIds.length ? link.featureIds : ['']) {
+        const compositeKey = `${slug}:${link.sha}:${featureId}`;
+        if (!stored.has(compositeKey)) {
+          stored.set(compositeKey, { files: link.files, fileStatuses: link.fileStatuses });
+        }
+      }
+    },
+    fetchCommitDiff: async () => {
+      diffAttempt++;
+      if (diffAttempt === 1) throw new Error('temporary GitHub failure');
+      if (diffAttempt === 2) return null;
+      return realDiff;
+    },
+  });
+
+  // First call: diff fetch throws -> must NOT record an empty files: [] row.
+  const first = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(first.isError, undefined);
+  assert.equal(stored.size, 0);
+
+  // Second call: diff fetch returns null -> still must NOT record an empty row.
+  const second = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(second.isError, undefined);
+  assert.equal(stored.size, 0);
+
+  // Third call with the same SHA: diff fetch succeeds -> records the actual changed files and statuses.
+  const third = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
+  assert.equal(third.isError, undefined);
+  assert.deepEqual(stored.get(`notes:${SHA}:F-01`), {
+    files: ['src/notes.ts', 'src/save.ts'],
+    fileStatuses: { 'src/notes.ts': 'modified', 'src/save.ts': 'added' },
+  });
 });

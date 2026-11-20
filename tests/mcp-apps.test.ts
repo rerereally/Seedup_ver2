@@ -35,7 +35,7 @@ const call = (name: string, args: Record<string, unknown>, over: Partial<McpDeps
 test('the card tools link the card resource, the others do not', async () => {
   const tools = (await rpc('tools/list')).result.tools as Array<{ name: string; _meta?: { ui?: { resourceUri: string } } }>;
   const linked = tools.filter((tool) => tool._meta?.ui?.resourceUri === APP_URI).map((tool) => tool.name);
-  assert.deepEqual(linked.sort(), ['generate_verified_prd', 'get_build_checklist', 'get_next_task', 'get_verification', 'mark_feature_done', 'search_opportunities', 'update_feature_status', 'verify_feature']);
+  assert.deepEqual(linked.sort(), ['generate_verified_prd', 'get_next_task', 'resume_project', 'search_opportunities', 'update_feature_status', 'verify_feature']);
 });
 
 test('the card is served as an MCP App resource and unknown resources are errors', async () => {
@@ -57,7 +57,7 @@ test('card data rides next to the full text result', async () => {
   assert.equal(prd.structuredContent.kind, 'prd');
   assert.deepEqual(prd.structuredContent.features.map((f: { id: string; quotes: number }) => [f.id, f.quotes]), [['F-01', 2]]);
 
-  const checklist = (await call('get_build_checklist', { slug: 'memory' })).result;
+  const checklist = (await call('resume_project', { slug: 'memory' })).result;
   assert.equal(checklist.structuredContent.kind, 'checklist');
   assert.equal(checklist.structuredContent.features[0].done, false);
 });

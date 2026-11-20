@@ -20,7 +20,7 @@ import { currentProjectGoal } from '@/lib/db/project-goals';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
 import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
 import { readVerificationToken } from '@/lib/supervisor/verify-token';
-import { getVerification, startVerification } from '@/lib/verifier/run';
+import { startVerification } from '@/lib/verifier/run';
 import { createHash } from 'node:crypto';
 import { addWatch } from '@/lib/db/watches';
 import { onboardingAnswers, onboardingRow } from '@/lib/db/onboarding';
@@ -184,7 +184,6 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     flagRecheck: (slug, id, sha, note) => flagBuildProgressForCommit(service, userId, slug, id, sha, note),
     unlinkedCommitCount: (slug) => countUnlinkedCommits(service, userId, slug),
     startVerification: (input) => startVerification({ ...input, userId }),
-    getVerification: (id) => getVerification(userId, id),
     matchesVerificationToken: (token, projectKey, featureId, sha) =>
       Boolean(readVerificationToken(token, { userId, projectKey, featureId, sha })),
     setProgress: (slug, feature, status, note) => writeBuildProgress(service, userId, slug, feature, status, note),

@@ -48,8 +48,9 @@ test('initialize answers with a supported protocol version and tool capability',
   const answer = await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26' } }, deps(), 'https://x.test') as { result: { protocolVersion: string; capabilities: object; instructions: string } };
   assert.equal(answer.result.protocolVersion, '2025-03-26');
   assert.ok('tools' in answer.result.capabilities);
-  assert.match(answer.result.instructions, /start of each build session, call get_next_task/);
-  assert.match(answer.result.instructions, /update_feature_status to report in_progress.*done with checks or blocked.*verify_feature with the pushed GitHub SHA/);
+  assert.match(answer.result.instructions, /^Development \(\[개발\]\):.*resume_project or get_next_task/);
+  assert.match(answer.result.instructions.slice(0, 512), /goal or scope change.*record_decision/);
+  assert.match(answer.result.instructions, /update_feature_status.*verify_feature.*link_commit.*Planning \(\[기획\]\)/);
 });
 
 test('notifications get no answer, unknown methods get -32601, garbage gets a parse error', async () => {
@@ -60,34 +61,32 @@ test('notifications get no answer, unknown methods get -32601, garbage gets a pa
   assert.equal(garbage.error.code, -32700);
 });
 
-test('tools/list exposes every tool with MCP annotations', async () => {
-  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
+test('tools/list exposes all 19 cleaned tools with [개발]/[기획] prefixes and MCP annotations', async () => {
+  const answer = await handleRpc({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, deps(), '') as { result: { tools: Array<{ name: string; description: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> } };
   assert.deepEqual(answer.result.tools.map((tool) => tool.name), [
-    'search_opportunities',
-    'get_opportunity',
-    'generate_verified_prd',
-    'get_build_checklist',
+    'resume_project',
     'get_next_task',
     'update_feature_status',
-    'mark_feature_done',
-    'link_commit',
     'verify_feature',
-    'get_verification',
-    'get_kept_items',
-    'find_related_content',
-    'validate_idea',
-    'watch_idea',
-    'list_my_prds',
-    'get_my_prd',
+    'link_commit',
     'explain_file',
-    'resume_project',
     'connect_repo',
     'check_env',
     'record_decision',
     'save_handoff',
     'get_project_memory',
+    'search_opportunities',
+    'get_opportunity',
+    'generate_verified_prd',
+    'get_my_prd',
+    'validate_idea',
+    'watch_idea',
+    'get_kept_items',
+    'find_related_content',
   ]);
+  assert.equal(answer.result.tools.length, 19);
   for (const tool of answer.result.tools) {
+    assert.match(tool.description, /^\[(개발|기획)\] /, `${tool.name} missing [개발]/[기획] prefix`);
     assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `${tool.name} missing readOnlyHint`);
     assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} destructiveHint should be false`);
   }
@@ -95,6 +94,12 @@ test('tools/list exposes every tool with MCP annotations', async () => {
   assert.equal(byName.get('search_opportunities')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('explain_file')?.annotations?.readOnlyHint, true);
   assert.equal(byName.get('update_feature_status')?.annotations?.readOnlyHint, false);
+
+  for (const removed of ['mark_feature_done', 'get_build_checklist', 'get_verification', 'list_my_prds']) {
+    const res = await handleRpc(call(removed, { slug: 'memory' }), deps(), '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+    assert.equal(res.result.isError, true, `${removed} should be removed`);
+    assert.match(res.result.content[0].text, /Unknown tool/);
+  }
 });
 
 test('search ranks keyword hits first', () => {
@@ -209,32 +214,33 @@ test('next task reports when every feature is done or blocked', () => {
   assert.deepEqual(pickNextTask(spec, progress), { feature: null, why: 'The remaining features are blocked.' });
 });
 
-test('the checklist lists current status and done criteria, and the legacy alias still works', async () => {
+test('resume_project returns the build checklist with status and criteria, and update_feature_status enforces checks', async () => {
   const { withSpec, progress } = progressFixture();
-  const missing = await handleRpc(call('get_build_checklist', { slug: 'memory' }), deps(), '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
-  assert.equal(missing.result.isError, true);
+  const withoutPrd = await handleRpc(call('resume_project', { slug: 'memory' }), deps(), '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+  assert.equal(withoutPrd.result.isError, undefined);
+  assert.match(withoutPrd.result.content[0].text, /Next: generate_verified_prd/);
 
-  const before = await handleRpc(call('get_build_checklist', { slug: 'memory' }), withSpec, 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  const before = await handleRpc(call('resume_project', { slug: 'memory' }), withSpec, 'https://x.test') as { result: { content: Array<{ text: string }> } };
   assert.match(before.result.content[0].text, /0\/2 done/);
   assert.match(before.result.content[0].text, /- \[ \] F-01 Store notes \[todo\][\s\S]*saving a note returns its id/);
 
   // Saying it works is not enough: every numbered criterion needs a passing check with evidence.
-  const unproven = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', note: 'tests pass' }), withSpec, '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
+  const unproven = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F1', status: 'done', note: 'tests pass' }), withSpec, '') as { result: { isError?: boolean; content: Array<{ text: string }> } };
   assert.equal(unproven.result.isError, true);
   assert.match(unproven.result.content[0].text, /1\. saving a note returns its id/);
   assert.ok(!('F-01' in progress));
-  const failing = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', checks: [{ criterion: 1, passed: false, evidence: 'notes.test.ts: 1 failing' }] }), withSpec, '') as { result: { isError?: boolean } };
+  const failing = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F1', status: 'done', checks: [{ criterion: 1, passed: false, evidence: 'notes.test.ts: 1 failing' }] }), withSpec, '') as { result: { isError?: boolean } };
   assert.equal(failing.result.isError, true);
 
-  const marked = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F1', done: true, note: 'tests pass', checks: [{ criterion: 1, passed: true, evidence: 'notes.test.ts: save returns id, passed' }] }), withSpec, '') as { result: { content: Array<{ text: string }> } };
+  const marked = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F1', status: 'done', note: 'tests pass', checks: [{ criterion: 1, passed: true, evidence: 'notes.test.ts: save returns id, passed' }] }), withSpec, '') as { result: { content: Array<{ text: string }> } };
   assert.match(marked.result.content[0].text, /1\/2 done/);
   assert.match(marked.result.content[0].text, /^F-01 Store notes \[done\] ⚪ self-reported/);
   assert.match(progress['F-01'].note, /checks 1\/1 \(1: notes\.test\.ts: save returns id, passed\)/);
 
-  const wrong = await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F9' }), withSpec, '') as { result: { isError?: boolean } };
+  const wrong = await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F9', status: 'done' }), withSpec, '') as { result: { isError?: boolean } };
   assert.equal(wrong.result.isError, true);
 
-  await handleRpc(call('mark_feature_done', { slug: 'memory', feature: 'F-01', done: false }), withSpec, '');
+  await handleRpc(call('update_feature_status', { slug: 'memory', feature_id: 'F-01', status: 'todo' }), withSpec, '');
   assert.equal(progress['F-01'].status, 'todo');
 });
 
@@ -283,20 +289,20 @@ test('link_commit records first, then flags the touched done feature and tells t
 
   const result = await toolResult('link_commit', commitArgs, withSpec);
   assert.equal(result.isError, undefined);
-  assert.match(result.text, /F-02 is now needs_recheck: re-run its done criteria \(get_build_checklist\), then update_feature_status done with checks\./);
+  assert.match(result.text, /F-02 is now needs_recheck: re-run its done criteria \(resume_project\), then update_feature_status done with checks\./);
   assert.equal(progress['F-02'].status, 'needs_recheck');
   assert.equal(progress['F-01'].status, 'done');
 
   const retry = await toolResult('link_commit', commitArgs, withSpec);
-  assert.equal(retry.text, 'Recorded commit for F-01.\nNext: get_build_checklist {"project":"memory"}');
+  assert.equal(retry.text, 'Recorded commit for F-01.\nNext: resume_project {"project":"memory"}');
 });
 
-test('get_build_checklist includes the count of unlinked commits for its opportunity', async () => {
+test('resume_project includes the count of unlinked commits for its opportunity', async () => {
   const { withSpec } = progressFixture({ unlinkedCommitCount: async (slug) => {
     assert.equal(slug, 'memory');
     return 2;
   } });
-  const result = await toolResult('get_build_checklist', { slug: 'memory' }, withSpec);
+  const result = await toolResult('resume_project', { slug: 'memory' }, withSpec);
   assert.match(result.text, /Unlinked commits: 2\./);
 });
 
@@ -509,7 +515,7 @@ test('pinnedSpec keeps active builds working when daily quotes change cachedSpec
     } : null,
   });
 
-  const checklist = await toolResult('get_build_checklist', { slug: 'memory' }, pinnedDeps);
+  const checklist = await toolResult('resume_project', { slug: 'memory' }, pinnedDeps);
   assert.equal(checklist.isError, undefined);
   assert.match(checklist.text, /F-01 Store notes/);
 
@@ -518,7 +524,7 @@ test('pinnedSpec keeps active builds working when daily quotes change cachedSpec
   assert.match(task.text, /I lose agent context every morning/);
 });
 
-test('list_my_prds and get_my_prd expose personal saved PRDs in markdown and agent brief formats', async () => {
+test('get_my_prd lists personal saved PRDs without id and reads one PRD with id in markdown or agent brief formats', async () => {
   const sampleMd = `# 한 줄 요약\n개인 아이디어용 키 유출 감시 도구.\n\n## 요구사항\n### R1. [P0] 사용자는 커밋 전 API 키 유출을 감지할 수 있어야 한다\n정규식으로 키 패턴을 검사해 차단한다.\n- 수락 기준: AWS 키가 포함되면 커밋을 종료 코드 1로 막는다.\n\n## 기능\n### F1. Pre-commit 키 스캐너 (R1)\n변경된 파일을 읽어 키 패턴을 검사한다.`;
   const prdDeps = deps({
     myPrds: async () => [{ id: '11111111-1111-1111-1111-111111111111', title: '키 유출 감시', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-19T00:00:00Z' }],
@@ -527,7 +533,7 @@ test('list_my_prds and get_my_prd expose personal saved PRDs in markdown and age
     } : null,
   });
 
-  const listed = await toolResult('list_my_prds', {}, prdDeps);
+  const listed = await toolResult('get_my_prd', {}, prdDeps);
   assert.equal(listed.isError, undefined);
   assert.match(listed.text, /키 유출 감시/);
   assert.match(listed.text, /Personal idea PRD/);
@@ -536,7 +542,7 @@ test('list_my_prds and get_my_prd expose personal saved PRDs in markdown and age
   assert.equal(raw.isError, undefined);
   assert.match(raw.text, /Pre-commit 키 스캐너/);
 
-  const brief = await toolResult('get_my_prd', { id: '11111111-1111-1111-1111-111111111111', format: 'agents' }, prdDeps);
+  const brief = await toolResult('get_my_prd', { id: 'prd:11111111-1111-1111-1111-111111111111', format: 'agents' }, prdDeps);
   assert.equal(brief.isError, undefined);
   assert.match(brief.text, /Save as AGENTS\.md/);
   assert.match(brief.text, /F-01 Pre-commit 키 스캐너/);
@@ -610,7 +616,7 @@ test('non-opportunity tools do not eagerly load opportunities', async () => {
   await handleRpc(call('get_kept_items', {}), lazyDeps, 'https://x.test');
   await handleRpc(call('find_related_content', { idea: 'agent memory caching' }), lazyDeps, 'https://x.test');
   await handleRpc(call('watch_idea', { idea: 'leaked api keys alert' }), lazyDeps, 'https://x.test');
-  await handleRpc(call('list_my_prds', {}), lazyDeps, 'https://x.test');
+  await handleRpc(call('get_my_prd', {}), lazyDeps, 'https://x.test');
   assert.equal(oppCalls, 0);
 });
 
@@ -666,7 +672,7 @@ test('a pinned PRD wins over a newer PRD cached for the current quotes, so featu
   const newer = normalizeSpec({ summary: 'newer', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Regenerated feature', requirements: [1] }] }, 1);
   const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
   const used = deps({ cachedSpec: async () => ({ input, spec: newer }), pinnedSpec: async () => ({ input, spec: pinned }) });
-  const checklist = await toolResult('get_build_checklist', { slug: 'memory' }, used);
+  const checklist = await toolResult('resume_project', { slug: 'memory' }, used);
   assert.match(checklist.text, /Pinned feature/);
   assert.doesNotMatch(checklist.text, /Regenerated feature/);
 });

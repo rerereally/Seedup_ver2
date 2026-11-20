@@ -1,6 +1,6 @@
 // Server callers pass the signed-in client. All database access stays in existing data-layer functions and RLS.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
+import { draftReport, userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { recentProjectVerifications } from '@/lib/db/verifications';
 import { projectMemory } from '@/lib/db/project-memory';
@@ -25,11 +25,12 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
   // A public opportunity existing does not make it this user's supervisor project.
   if (!project && !dossier) return null;
   const evidenceIds = dossier?.evidence_ids ?? opportunity?.evidence.slice(0, 12).map((row) => row.id) ?? [];
-  const [goal, memory, progress, commits, cached, verifications, history] = await Promise.all([
+  const [goal, memory, progress, commits, cached, verifications, history, report] = await Promise.all([
     currentProjectGoal(client, userId, key), projectMemory(client, userId, key),
     readBuildProgress(client, userId, key), readFeatureCommits(client, userId, key), cachedPrd(evidenceIds),
     recentProjectVerifications(client, userId, key).catch(() => null),
     readBuildProgressHistory(client, userId, key).catch((): BuildProgressHistory => ({})),
+    key.startsWith('prd:') ? draftReport(client, userId, key.slice(4)).catch(() => null) : null,
   ]);
   const spec = cached?.spec ?? null;
   const lastActivityAt = latestActivity([
@@ -47,7 +48,7 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     lockSpec: goal ? null : spec,
     drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
     // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
-    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence) },
+    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence), report },
     repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
     commits: [...commits].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 30).map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
     facts: memory.facts,

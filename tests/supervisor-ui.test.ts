@@ -171,7 +171,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
 
 test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: [], decisions: [], files: [], verifications: [],
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [], report: null }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: [], decisions: [], files: [], verifications: [],
     handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = allTabs(project, 'en');
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
@@ -200,7 +200,7 @@ test('dashboard renders the goal first, all criterion states, safe text, English
 
 test('empty dashboard shows missing records without claiming verification or inventing a goal', () => {
   const project: SupervisorDetail = { key: KEY, title: 'empty', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [], report: null }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
@@ -213,7 +213,7 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
   assert.equal(pickTab(undefined), 'overview');
   const project: SupervisorDetail = { key: KEY, title: 't', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
     features: [], specAvailable: false, lockSpec: null, drift: null, decisions: [], files: [], verifications: [], handoffs: [],
-    prd: { markdown: '# Spec title', quotes: [{ quote: 'I keep losing issues', url: 'https://news.ycombinator.com/item?id=1', platform: 'hn' }] },
+    prd: { markdown: '# Spec title', quotes: [{ quote: 'I keep losing issues', url: 'https://news.ycombinator.com/item?id=1', platform: 'hn' }], report: { markdown: '# Report\n\nVerdict: no signal yet', level: 'no_signal', generatedAt: '2026-11-20T10:00:00Z' } },
     repo: 'octo/app', track: 'personal', strict: true,
     commits: [{ sha: 'a'.repeat(40), message: 'Add digest\nbody', featureId: 'F-01', files: 2, at: '2026-11-20T10:00:00Z', dismissed: false }],
     facts: [{ projectKey: KEY, kind: 'env_name', text: 'SLACK_WEBHOOK_URL', author: 'Claude Code', at: '2026-11-20T10:00:00Z' }],
@@ -223,6 +223,7 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
     context: { initialize: '- prd:x (v2): Ship the digest', sessionStart: '# Seedup goal\nShip the digest', memory: 'Recent decisions\n- Use Supabase' } };
   const render = (tab: (typeof DASHBOARD_TABS)[number]) => renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en', tab }));
   assert.ok(render('prd').includes('Spec title') && render('prd').includes('I keep losing issues'));
+  assert.ok(render('prd').includes('Validation report') && render('prd').includes('Verdict: no signal yet'));
   assert.ok(render('activity').includes('https://github.com/octo/app/commit/' + 'a'.repeat(40)) && render('activity').includes('Add digest'));
   assert.ok(!render('activity').includes('body'));
   assert.ok(render('memory').includes('SLACK_WEBHOOK_URL'));
@@ -239,7 +240,7 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
 
 test('a PRD with no locked goal (one made over MCP) gets the lock form on its dashboard', () => {
   const project: SupervisorDetail = { key: KEY, title: 'mcp prd', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [], report: null }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('목표 잠그기'));
   assert.ok(!html.includes('기획 탭에서 목표를 잠가 주세요'));

@@ -118,6 +118,25 @@ export async function saveIdeaDraft(service: SupabaseClient, userId: string, ide
   return (data as { id: string }).id;
 }
 
+export type SavedValidationReport = { markdown: string; level: string; generatedAt: string };
+
+/**
+ * Keeps the validate_idea report on its draft (validation_report column). Kept apart from saveIdeaDraft and never
+ * thrown, so a database without the column (migration not applied yet) still saves the draft itself.
+ */
+export async function saveDraftReport(service: SupabaseClient, userId: string, id: string, report: SavedValidationReport) {
+  const { error } = await service.from('evidence_dossiers').update({ validation_report: report }).eq('user_id', userId).eq('id', id);
+  if (error) console.error('validation report save failed', error.message);
+}
+
+/** The saved validate_idea report for one PRD or draft, or null (none saved, or the column is not there yet). */
+export async function draftReport(client: SupabaseClient, userId: string, id: string): Promise<SavedValidationReport | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await client.from('evidence_dossiers').select('validation_report').eq('user_id', userId).eq('id', id).maybeSingle();
+  const report = (data as { validation_report?: unknown } | null)?.validation_report as Partial<SavedValidationReport> | null | undefined;
+  return !error && typeof report?.markdown === 'string' ? { markdown: report.markdown, level: String(report.level ?? ''), generatedAt: String(report.generatedAt ?? '') } : null;
+}
+
 /** A draft saved by saveIdeaDraft that has no PRD yet. */
 export async function userIdeaDraft(service: SupabaseClient, userId: string, id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;

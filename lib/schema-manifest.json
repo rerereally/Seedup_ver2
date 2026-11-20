@@ -2774,5 +2774,14 @@
         "retried"
       ]
     ]
+  },
+  {
+    "file": "20261121020000_dossier_validation_report.sql",
+    "columns": [
+      [
+        "evidence_dossiers",
+        "validation_report"
+      ]
+    ]
   }
 ]

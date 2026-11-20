@@ -187,7 +187,13 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
     </section>}
     {tab === 'flow' && (spec && flow ? flow : <p className="text-sm text-muted">{t('PRD 명세가 없어 흐름을 그릴 수 없습니다.', 'No PRD spec to draw.')}</p>)}
     {tab === 'prd' && <>
-    <section className="min-w-0" aria-labelledby="prd-heading">
+    {project.prd.report && <section className="min-w-0" aria-labelledby="report-heading">
+      <h2 id="report-heading" className="text-xl font-semibold text-ink">{t('검증 리포트', 'Validation report')} <span className="text-[13px] font-normal text-muted">· validate_idea · <ActivityTime at={project.prd.report.generatedAt || null} lang={lang} /></span></h2>
+      <details className="mt-3 rounded-lg border border-outline-soft p-4"><summary className="cursor-pointer text-sm font-semibold text-ink">{t('에이전트가 받은 리포트 전체 보기', 'Show the full report the agent got')}</summary>
+        <div className="mt-3"><MarkdownContent content={project.prd.report.markdown.replace(/^# .*\n+/, '')} /></div>
+      </details>
+    </section>}
+    <section className={`min-w-0 ${project.prd.report ? 'border-t border-outline-soft pt-6' : ''}`} aria-labelledby="prd-heading">
       <h2 id="prd-heading" className="text-xl font-semibold text-ink">PRD</h2>
       <p className="mt-2 text-[13px] text-muted">{t('generate_verified_prd · get_my_prd가 쓰는 같은 PRD입니다.', 'The same PRD generate_verified_prd and get_my_prd use.')}</p>
       {project.prd.markdown ? <div className="mt-4"><MarkdownContent content={project.prd.markdown.replace(/^# .*\n+/, '')} /></div>

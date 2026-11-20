@@ -66,6 +66,9 @@ export type P0AuditVerdict = {
   check?: string;
 };
 
+/** How the P0 critic pass ended: nothing to check, checked, the model failed, or its result was kept back. */
+export type P0AuditStatus = 'done' | 'nothing' | 'failed' | 'overruled';
+
 export type P0AuditChange = {
   id: string;
   verdict: 'partial' | 'unsupported';
@@ -306,10 +309,10 @@ export async function auditP0Evidence(
   input: SpecInput,
   spec: Spec,
   options: { model?: string; timeoutMs?: number; deadline?: number; onUsage?: (usage: ModelUsage) => void } = {},
-): Promise<{ spec: Spec; changes: P0AuditChange[]; audited: boolean }> {
+): Promise<{ spec: Spec; changes: P0AuditChange[]; audited: boolean; status: P0AuditStatus }> {
   const p0 = spec.requirements.filter((row) => row.priority === 'P0');
   if (!p0.length || !input.evidence.length) {
-    return { spec, changes: [], audited: false };
+    return { spec, changes: [], audited: false, status: 'nothing' };
   }
 
   const pairs = p0.map((row) => {
@@ -351,7 +354,7 @@ ${pairs}
   }).catch(() => null);
 
   if (!raw || !Array.isArray(raw.verdicts)) {
-    return { spec, changes: [], audited: false };
+    return { spec, changes: [], audited: false, status: 'failed' };
   }
 
   const verdicts: P0AuditVerdict[] = raw.verdicts.flatMap((item) => {
@@ -370,13 +373,13 @@ ${pairs}
   });
 
   if (!verdicts.length) {
-    return { spec, changes: [], audited: true };
+    return { spec, changes: [], audited: true, status: 'done' };
   }
 
   const applied = applyP0Audit(spec, verdicts);
   // Guard against a critic wiping out every verified requirement on a problem PRD.
   if (spec.origin !== 'idea' && applied.spec.requirements.length === 0 && spec.requirements.length > 0) {
-    return { spec, changes: [], audited: true };
+    return { spec, changes: [], audited: true, status: 'overruled' };
   }
-  return { ...applied, audited: true };
+  return { ...applied, audited: true, status: 'done' };
 }

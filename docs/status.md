@@ -45,15 +45,15 @@
 | 1 | B2 기획 탭 목표 카드와 잠금 화면 | Codex(기술 책임 정지훈) | PR #133 머지(Claude Code 세션이 대신 진행) | B1 뒤에 머지. 로그인 상태 실제 저장 확인과 원문 0건 PRD의 저장 ID 전달이 남음 |
 | 1 보완 | 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시 | 정지훈 · Claude Code | PR #149 머지 | |
 | 2 2단 검증 · 이탈 검사 | A1 정적 검사 · 검증 토큰 · 이탈 규칙 | 정지훈 · Claude Code | PR #140 머지(일부) | 계획 순서와 달리 단계 1 A2(#142)보다 앞서 머지. 로컬 훅 1단 검사는 남음 |
-| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 가능 | [프롬프트](prompts/codex-s2-a2.md). B1 · B2 · 1 보완 머지됨 |
+| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | PR #162 머지 | SHA 검증 · `get_verification` · 엄격 완료 게이트, MCP 도구 23개. 검증은 공개 GitHub 저장소만. 운영에서 공개 저장소 SHA로 검증 → 조회 → 완료 한 번 확인 필요 |
 | 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-s2-a3.md). 코드 변경 없음(측정 · 데모 · 문서) |
 | 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `20261120160000_verifications.sql` 적용 확인 대기(정지훈), `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
 | 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 머지 | 신호등은 아직 모두 ⚪(검증 수준 필드는 2 보완 ②). 알리기 전 베타 표시 또는 숨김(단계 0) |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
-| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완 | 정지훈 | 시작 가능(①, ③). ② · ④는 A2 뒤 | ②는 마이그레이션 포함 |
+| 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완 | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함 |
 | 2 | 9절 확인 조사 | Codex(GPT 6.1 Sol · 웹 검색, 장차희 계획 세션이 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-section9.md). 계획 9절 · 단계 2 보완 ⑤ · ⑥에 반영 |
-| 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-handoff-web.md) |
-| 연결 2 | MCP 파일 제공 도구(`setup_project`) | 정지훈 | A2 뒤 | |
+| 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md) |
+| 연결 2 | MCP 파일 제공 도구(`setup_project`) | 정지훈 | 시작 가능(A2 머지됨) | |
 
 ## 3. 결정 대기
 
@@ -70,7 +70,7 @@
 - 처리방침(`lib/legal.ts`)에 "어느 입력이 어느 모델로 가는지"를 모델 이름까지 적기: 아이디어 · PRD는 무료 모델, 검증 코드는 GPT 6.2 Sol 또는 Haiku 5.5(개발 계열과 다른 쪽). B1 PR #151 머지 뒤 작은 PR로(정지훈).
 - OpenRouter에서 GPT 6.2 Sol을 부를 수 있는지 확인(정지훈). 안 되면 검증 모델을 다시 정해야 함(우리 Codex CLI 계정에서는 6.2가 막혀 6.1 Sol로 개발 중).
 - DESIGN.md 8.5 결정 반영 구현: `app/globals.css`에 `warn` · `warn-soft` 토큰, MCP Apps 카드(`lib/mcp/apps.ts`) 색을 2절 토큰에 맞춤, `goalSummary`의 미착수 표시 ⚪ → ⬜(`lib/supervisor/goal.ts`), 대시보드 이탈 경고에 `warn`. 정지훈(A1 · A2 파일), 단계 2 A2와 함께.
-- 교차 계열 판정: A2가 `startVerification`에 `developmentModel`(MCP 클라이언트 정보에서)을 넘겨야 함. 단계 2 A2 칸에서.
+- 교차 계열 판정: A2(#162)는 `verify_feature`의 선택 입력 `developed_with`(`codex` · `claude-code`)로 계열을 넘김. 값이 없으면(Antigravity 등) 계열을 거르지 않으므로 `VERIFIER_MODELS` 순서가 판정 모델을 정함.
 - 실제 프로젝트로 핵심 고리 검증: 단계 2 완료 뒤 시작(보류 기능을 꺼내는 조건과 같음).
 
 ## 4. 사람 일 (계속 진행)

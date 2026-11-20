@@ -19,11 +19,11 @@ const DRIFT_MESSAGES = {
   touched_done: 'Files of a completed feature changed. Recheck that feature.',
 };
 
-export const DASHBOARD_TABS = ['overview', 'work', 'files', 'flow', 'prd', 'activity', 'memory', 'setup'] as const;
+export const DASHBOARD_TABS = ['overview', 'work', 'files', 'flow', 'prd', 'activity', 'memory', 'setup', 'usage'] as const;
 export type DashboardTab = (typeof DASHBOARD_TABS)[number];
 const TAB_LABELS: Record<DashboardTab, [string, string]> = {
   overview: ['개요', 'Overview'], work: ['작업 현황', 'Work'], files: ['파일 지도', 'File map'], flow: ['흐름', 'Flow'], prd: ['PRD · 원문', 'PRD · quotes'], activity: ['검증 · 커밋', 'Checks · commits'],
-  memory: ['기록', 'Memory'], setup: ['에이전트 설정', 'Agent setup'],
+  memory: ['기록', 'Memory'], setup: ['에이전트 설정', 'Agent setup'], usage: ['토큰 · 비용', 'Tokens and cost'],
 };
 const TASK_KINDS: Record<string, [string, string]> = {
   auth: ['로그인', 'Auth'], database: ['데이터베이스', 'Database'], payment: ['결제', 'Payment'], api_key: ['API 키', 'API key'], deploy: ['배포', 'Deploy'], decision: ['결정', 'Decision'],
@@ -38,7 +38,7 @@ const FACT_LABELS: Record<string, [string, string]> = {
 
 /** One project's supervisor page, split into tabs (?tab=) so everything the MCP tools recorded has a place on the web. */
 /** `flow` is the PRD flow view (SpecFlow), passed in by the page because it is a client component with CSS modules. */
-export default function Dashboard({ project, lang, tab = 'overview', flow }: { project: SupervisorDetail; lang: Lang; tab?: DashboardTab; flow?: React.ReactNode }) {
+export default function Dashboard({ project, lang, tab = 'overview', flow, usage }: { project: SupervisorDetail; lang: Lang; tab?: DashboardTab; flow?: React.ReactNode; usage?: React.ReactNode }) {
   const t = translator(lang);
   const goal = project.goal;
   const spec = project.spec;
@@ -59,6 +59,7 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
     <nav aria-label={t('프로젝트 보기', 'Project views')} className="tabs">
       {DASHBOARD_TABS.map((key) => <Link key={key} href={href(key)} aria-current={tab === key ? 'page' : undefined} className="tab">{t(...TAB_LABELS[key])}</Link>)}
     </nav>
+    {tab === 'usage' && usage}
     {tab === 'overview' && <>
     <section className="card min-w-0 p-5 sm:p-6" aria-labelledby="goal-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -282,6 +283,10 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
     </section>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="files-heading">
       <h2 id="files-heading" className="text-xl font-semibold text-ink">{t('저장소에 넣을 파일 (setup_project)', 'Files for the repository (setup_project)')}</h2>
+      {project.files.length > 0 && <p className="mt-2 text-sm text-muted">{t(
+        '사용량을 보내려면 터미널에 SEEDUP_USAGE_TOKEN을 설정하세요. Claude Code는 Stop 훅, Codex는 node .seedup/usage.mjs codex 명령을 씁니다. 대화 내용, 파일 경로, 코드는 보내지 않습니다.',
+        'To opt in, set SEEDUP_USAGE_TOKEN in your shell. Claude Code uploads through its Stop hook. For Codex, run node .seedup/usage.mjs codex. Conversation content, paths, and code stay local.',
+      )}</p>}
       {!project.files.length ? <p className="mt-4 text-sm text-muted">{t('목표를 잠그면 훅과 검사 파일이 만들어집니다.', 'Hook and check files appear once a goal is locked.')}</p>
         : project.files.map((file) => <details key={file.path} className="border-b border-outline-soft py-3 text-sm">
           <summary className="cursor-pointer font-mono text-ink">{file.path}</summary>

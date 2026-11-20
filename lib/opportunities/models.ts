@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cached, forget } from '../cache';
+import { priceFor } from '../pricing';
 import { isFreeOpenRouterModel, prdFreeModels } from '../llm';
 
 export const DEFAULT_PAID_PRD_MODEL = 'openai/gpt-6.2-sol';
@@ -34,16 +35,16 @@ export const EXAONE_ID = 'exaone';
 /** A model the PRD screens may offer. Only ids on this server-side list are ever called. */
 export type PrdModel = { id: string; label: string; note: string; free: boolean; available: boolean; reason?: string; base?: true };
 
-type Choice = { id: string; label: string; note: string; usdPerMillion: { input: number; output: number } };
+type Choice = { id: string; label: string; note: string };
 
 // OpenRouter ids and prices checked on 2026-11-17 (US$ per million tokens). The notes give the cost of one PRD
 // (about 5k tokens in, 3k out), up to twice that when the quality check asks for one repair.
 const PAID: Choice[] = [
-  { id: DEFAULT_PAID_PRD_MODEL, label: 'GPT 6.2 Sol', note: '꼼꼼함 · 1건 약 60~110원', usdPerMillion: { input: 2, output: 10 } },
-  { id: HAIKU_MODEL, label: 'Claude Haiku 5.5', note: '저렴하고 빠름 · 1건 약 3~6원', usdPerMillion: { input: 0.1, output: 0.5 } },
-  { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek V4.1 Flash', note: '가장 저렴 · 1건 약 2~5원', usdPerMillion: { input: 0.04, output: 0.5 } },
-  { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5', note: '꼼꼼함 · 1건 약 60~110원', usdPerMillion: { input: 2, output: 10 } },
-  { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5.5', note: '가장 비쌈 · 1건 약 110~220원', usdPerMillion: { input: 4, output: 20 } },
+  { id: DEFAULT_PAID_PRD_MODEL, label: 'GPT 6.2 Sol', note: '꼼꼼함 · 1건 약 60~110원' },
+  { id: HAIKU_MODEL, label: 'Claude Haiku 5.5', note: '저렴하고 빠름 · 1건 약 3~6원' },
+  { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek V4.1 Flash', note: '가장 저렴 · 1건 약 2~5원' },
+  { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5', note: '꼼꼼함 · 1건 약 60~110원' },
+  { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5.5', note: '가장 비쌈 · 1건 약 110~220원' },
 ];
 
 const baseModel = () => process.env.OPENROUTER_MODEL?.trim() ?? '';
@@ -132,7 +133,7 @@ export function criticWebModels(writerModel?: string, freeFallback: readonly str
 
 /** Estimated US$ for one call, from the token counts the provider reported. Free models cost nothing. */
 export function estimateCost(model: string, promptTokens: number, completionTokens: number) {
-  const price = model === DEFAULT_PAID_PRD_MODEL ? { input: 2, output: 10 } : PAID.find((row) => row.id === model)?.usdPerMillion;
+  const price = priceFor(model);
   return price ? (promptTokens * price.input + completionTokens * price.output) / 1_000_000 : 0;
 }
 

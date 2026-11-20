@@ -1,6 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { writePrdRun } from '@/lib/db/agent-usage';
+import { priceFor } from '../pricing';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ModelUsage } from '../llm';
 import { estimateCost } from './models';
+
+export { recentPrdRuns } from '@/lib/db/agent-usage';
 
 export type PrdRunKind = 'prd' | 'revise' | 'slots' | 'report';
 
@@ -15,14 +20,18 @@ export function prdRunLog(service: SupabaseClient | null, user: { id: string; em
     onUsage: (usage: ModelUsage) => {
       calls.push(usage);
     },
-    async finish(ok: boolean, title: string, writerModel?: string) {
+    async finish(ok: boolean, title: string, writerModel?: string, projectKey?: string | null) {
       if (!service) return;
       const promptTokens = calls.reduce((sum, call) => sum + call.promptTokens, 0);
       const completionTokens = calls.reduce((sum, call) => sum + call.completionTokens, 0);
       const cost = calls.reduce((sum, call) => sum + estimateCost(call.model, call.promptTokens, call.completionTokens), 0);
       // Full PRD runs can name the writer even when a different model answered an auxiliary call later.
       const answered = writerModel ?? calls.at(-1)?.model ?? chosen;
-      const { error } = await service.from('prd_runs').insert({
+      const runKey = randomUUID();
+      const { error, hasRunKey } = await writePrdRun(service, {
+        run_key: runKey,
+        project_key: projectKey ?? null,
+        cost_complete: calls.every((call) => priceFor(call.model) !== null || !(call.promptTokens || call.completionTokens)),
         user_id: user.id,
         email: user.email ?? null,
         kind,
@@ -35,16 +44,14 @@ export function prdRunLog(service: SupabaseClient | null, user: { id: string; em
         completion_tokens: completionTokens,
         cost_usd: Number(cost.toFixed(5)),
         duration_ms: Date.now() - startedAt,
-      });
-      if (error) console.error('prd run not logged:', error.message);
+      }).catch((error: unknown) => ({ error: { message: String(error) }, hasRunKey: false }));
+      if (error) {
+        console.error('prd run not logged:', error.message);
+        return;
+      }
+      return hasRunKey ? runKey : undefined;
     },
   };
 }
 
 export type PrdRunRow = { created_at: string; email: string | null; kind: PrdRunKind; model: string; requested_model: string; title: string; ok: boolean; prompt_tokens: number; completion_tokens: number; cost_usd: number; duration_ms: number };
-
-export async function recentPrdRuns(service: SupabaseClient | null, limit = 60): Promise<PrdRunRow[]> {
-  if (!service) return [];
-  const { data, error } = await service.from('prd_runs').select('created_at,email,kind,model,requested_model,title,ok,prompt_tokens,completion_tokens,cost_usd,duration_ms').order('created_at', { ascending: false }).limit(limit);
-  return error ? [] : (data ?? []) as PrdRunRow[];
-}

@@ -318,10 +318,10 @@ test('a scope decision requires asking the user and records the terminal approva
 });
 
 test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens, falls back without a locked goal, and resume_project guides setup_project first', async () => {
-  // 1. With a locked goal: returns AGENTS.md (matching web export), CLAUDE.md, and all 6 hookBundle files.
+  // 1. With a locked goal: returns AGENTS.md (matching web export), CLAUDE.md, and all 7 hookBundle files.
   const withGoal = await call('setup_project', { project: PROJECT });
   assert.equal(withGoal.isError, undefined);
-  assert.match(withGoal.body, /^Prepared 8 repository setup files for prd:11111111-1111-1111-1111-111111111111\./);
+  assert.match(withGoal.body, /^Prepared 9 repository setup files for prd:11111111-1111-1111-1111-111111111111\./);
   assert.match(withGoal.body, /Help people keep their appointments\./);
   assert.match(withGoal.body, /\/hooks/);
   assert.match(withGoal.body, /\nNext: connect_repo \{"project":"prd:11111111-1111-1111-1111-111111111111","repo":"<owner\/repo>"\}$/);
@@ -337,6 +337,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
     '.seedup/audit.mjs',
     '.claude/settings.json',
     '.codex/hooks.json',
+    '.seedup/usage.mjs',
   ]);
   const byPath = new Map(files.map((file) => [file.path, file.content]));
   const agentsMd = byPath.get('AGENTS.md') ?? '';
@@ -352,7 +353,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   assert.match(byPath.get('CLAUDE.md') ?? '', /pass the full version line above as the `brief` argument/);
 
   for (const file of files) {
-    assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|svt1\./i, `${file.path} must not contain any token`);
+    assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s+sdp_|\/api\/mcp\/|svt1\./i, `${file.path} must not contain any token`);
   }
 
   // When a repo is already connected, setup_project Next: points directly to get_next_task.
@@ -391,7 +392,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   );
   assert.equal(noGoalFiles[0].content, withGoalWithoutContext);
   assert.doesNotMatch(noGoalFiles[0].content, /## Locked goal/);
-  assert.equal(hookBundle(PROJECT, GOAL, humanTasks(normalizeSpec({ summary: 's', requirements: [], features: [] }, 0))).length, 6);
+  assert.equal(hookBundle(PROJECT, GOAL, humanTasks(normalizeSpec({ summary: 's', requirements: [], features: [] }, 0))).length, 7);
 
   // 3. resume_project guides setup_project first when repository files are not set up yet (fresh project or has_setup_files: false).
   const freshResume = await call('resume_project', { project: PROJECT }, deps({

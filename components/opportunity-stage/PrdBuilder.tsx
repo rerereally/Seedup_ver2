@@ -26,7 +26,8 @@ import PrdSend, { NotionImportHint } from './PrdSend';
 import { GraphEdges, LivePrd, Wireframes, liveStepsAfter, type LivePhase, type LiveStep } from './PrdParts';
 import styles from './stage.module.css';
 
-type Version = { spec: Spec; label: string; at: string };
+type Version = { spec: Spec; label: string; at: string; runKeys?: string[] };
+const resultRunKeys = (key: unknown) => typeof key === 'string' ? [key] : [];
 const MAX_VERSIONS = 20;
 // Versions kept in this browser, so a reload or a later visit picks the work up again. Ten keeps it well under the
 // storage quota (a spec is a few kilobytes).
@@ -129,7 +130,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [versions, setVersions] = useState<Version[]>(initial?.spec ? [{ spec: initial.spec, label: t('불러온 PRD', 'Loaded PRD'), at: initial.createdAt }] : []);
   const [compare, setCompare] = useState<number | null>(null);
   const previous = versions.length > 1 ? versions[versions.length - 2].spec : null;
-  const addVersion = (next: Spec, label: string) => setVersions((list) => [...list, { spec: next, label, at: new Date().toISOString() }].slice(-MAX_VERSIONS));
+  const addVersion = (next: Spec, label: string, runKeys: string[] = [], restored = false) => setVersions((list) => [...list, {
+    spec: next, label, at: new Date().toISOString(), runKeys: restored ? runKeys : [...(list.at(-1)?.runKeys ?? []), ...runKeys],
+  }].slice(-MAX_VERSIONS));
   const [view, setView] = useState<View>('doc');
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
@@ -261,12 +264,13 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     if (json.cached) setMessage(t(`AI 모델이 지금 응답하지 않아, 같은 근거로 ${new Date(String(json.cachedAt)).toLocaleString('ko-KR')}에 만든 PRD를 보여줍니다.`, `The AI model is not answering right now, so this is the PRD made from the same quotes on ${new Date(String(json.cachedAt)).toLocaleString('en-US')}.`));
     setSpec(nextSpec);
     onSpec?.(nextSpec);
-    setVersions([{ spec: nextSpec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
+    const runKeys = resultRunKeys(json.runKey);
+    setVersions([{ spec: nextSpec, runKeys, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
     setView('doc');
     setCompare(null);
     setFocus(null);
     const quoteIds = onSaved ? nextInput.evidence.map((row) => row.id) : nextIds ?? evidenceIds;
-    void save(renderSpecMarkdown(nextInput, nextSpec), quoteIds);
+    void save(renderSpecMarkdown(nextInput, nextSpec), quoteIds, { runKeys });
   };
 
   const showLive = (phase: LivePhase, restarted = false) => {
@@ -378,7 +382,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: readinessWithQuestions(row.slots, current.lang ?? lang, json.slots) } : row)) });
         setSpec((current) => current && fill(current));
         // Filled slots belong to the current version, so a reload brings them back too.
-        setVersions((list) => list.length ? [...list.slice(0, -1), { ...list[list.length - 1], spec: fill(list[list.length - 1].spec) }] : list);
+        setVersions((list) => list.length ? [...list.slice(0, -1), { ...list[list.length - 1], spec: fill(list[list.length - 1].spec), runKeys: [...(list.at(-1)?.runKeys ?? []), ...resultRunKeys(json.runKey)] }] : list);
       }
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -401,7 +405,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       if (!ok) fail(code, json, t('수정하지 못했습니다.', 'Could not revise.'));
       else {
         const next = json.spec as Spec;
-        addVersion(next, label);
+        addVersion(next, label, resultRunKeys(json.runKey));
         setSpec(next);
         onSpec?.(next);
         setFocus(null);
@@ -427,7 +431,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       if (!ok) fail(code, json, t('화면을 설계하지 못했습니다.', 'Could not design the screens.'));
       else {
         const next = json.spec as Spec;
-        addVersion(next, t('화면 설계', 'Screens designed'));
+        addVersion(next, t('화면 설계', 'Screens designed'), resultRunKeys(json.runKey));
         setSpec(next);
         onSpec?.(next);
         setSaveState('idle');
@@ -455,7 +459,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     if (!target) return;
     setSpec(target.spec);
     onSpec?.(target.spec);
-    addVersion(target.spec, t(`버전 ${index + 1}로 되돌림`, `Back to version ${index + 1}`));
+    addVersion(target.spec, t(`버전 ${index + 1}로 되돌림`, `Back to version ${index + 1}`), target.runKeys ?? [], true);
     setCompare(null);
     setSaveState('idle');
     setMessage(t(`버전 ${index + 1}로 되돌렸습니다.`, `Went back to version ${index + 1}.`));
@@ -466,8 +470,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     return changedLines(renderSpecMarkdown(input, versions[compare - 1].spec), renderSpecMarkdown(input, versions[compare].spec));
   }, [compare, input, versions]);
 
-  const save = async (document: string, quoteIds: string[]) => {
+  const save = async (document: string, quoteIds: string[], options: { spec?: Spec; runKeys?: string[] } = {}) => {
     setSaveState('saving');
+    const runKeys = options.runKeys ?? versions.at(-1)?.runKeys ?? [];
     setError('');
     setNeedsLogin(false);
     try {
@@ -477,6 +482,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         ...(Array.isArray(requestBody?.liveEvidence) ? { liveEvidence: requestBody.liveEvidence.filter((row) => quoteIds.includes(row.id)) } : {}),
         ...(agentSlug ? { opportunitySlug: agentSlug } : {}),
         prdMarkdown: document || undefined,
+        ...(runKeys.length ? { runKeys } : {}),
       });
       if (!mounted.current) return;
       if (!ok) {

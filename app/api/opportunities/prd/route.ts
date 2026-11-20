@@ -63,11 +63,11 @@ export async function POST(request: Request) {
       console.error('PRD generation failed', error);
       return null;
     });
-    await run.finish(Boolean(result), input.title);
+    const runKey = await run.finish(Boolean(result), input.title);
     if (result) {
       // The cache stands in for anyone's failed request, so it keeps only full-scope PRDs.
       if (!personal && !beginner && !stack.length) await cachePrd(ids, input, result.spec);
-      return { ok: true as const, input, spec: result.spec, markdown: result.markdown, agentBrief: result.agentBrief };
+      return { ok: true as const, runKey, input, spec: result.spec, markdown: result.markdown, agentBrief: result.agentBrief };
     }
     await releaseDailyUsage(supabase, 'prd');
     // The free model fails often; the last good PRD for the same quotes is better than an empty screen.

@@ -113,10 +113,10 @@ export async function POST(request: Request) {
     console.error('PRD revise failed', error);
     return null;
   });
-  await run.finish(Boolean(spec), input.title);
+  const runKey = await run.finish(Boolean(spec), input.title);
   if (!spec) {
     await releaseDailyUsage(supabase, 'prd_revise');
     return NextResponse.json({ error: screensOnly ? '화면을 설계하지 못했습니다. 잠시 후 다시 시도해주세요.' : '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });
   }
-  return NextResponse.json({ ok: true, spec: withEvidenceStrength(withPrdReadiness(spec), input.evidence) });
+  return NextResponse.json({ ok: true, runKey, spec: withEvidenceStrength(withPrdReadiness(spec), input.evidence) });
 }

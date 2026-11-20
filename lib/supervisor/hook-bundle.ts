@@ -2,9 +2,11 @@
 // agent thinks to call Seedup. Session start (and resume/clear/compact/fork) puts the locked goal and the next-task
 // instruction back into context; pre-compact asks Claude to preserve the handoff in its summary or warns in Codex;
 // stopping with unsaved, unpushed, or blocked work asks once for a handoff note; pre-commit runs the stage-1 static
-// check (plan 3-4) on staged lines and stops a commit with a blocker. Files only, no network and no token:
+// check (plan 3-4) on staged lines and stops a commit with a blocker. Usage uploads are opt-in:
 // the goal is a snapshot of the locked version, and the agent asks the MCP server for anything live.
 // Hook commands run through Node (.seedup/hook.mjs) so macOS, Linux and Windows share one bundle without needing sh.
+import { claudeCodeUsage } from '../../scripts/usage/claude-code';
+import { codexUsage } from '../../scripts/usage/codex';
 import { goalSummary } from './goal';
 import { localAuditScript } from './local-audit';
 import type { HumanTask, ProjectGoal, ProjectKey } from './types';
@@ -32,7 +34,7 @@ function hookCommand(event: HookEvent, useClaudeDir: boolean) {
   const missing = event === 'session-start'
     ? "else{console.log('Seedup 훅 파일(.seedup/hook.mjs)이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.')}"
     : '';
-  const summaryArg = event === 'pre-compact' && useClaudeDir ? ",'--summary'" : '';
+  const eventArg = !useClaudeDir ? '' : event === 'stop' ? ",'--claude'" : event === 'pre-compact' ? ",'--summary'" : '';
   const body = [
     "const fs=require('fs'),p=require('path'),cp=require('child_process');",
     "let s='';try{s=process.stdin.isTTY?'':fs.readFileSync(0,'utf8')}catch{}",
@@ -40,7 +42,7 @@ function hookCommand(event: HookEvent, useClaudeDir: boolean) {
     `let f='';for(const b of ${roots}.filter(Boolean)){`,
     "for(let d=p.resolve(b);;){const t=p.join(d,'.seedup','hook.mjs');if(fs.existsSync(t)){f=t;break}const u=p.dirname(d);if(u===d)break;d=u}",
     'if(f)break}',
-    `if(f){process.exit(cp.spawnSync(process.execPath,[f,'${event}'${summaryArg}],{input:s,stdio:['pipe','inherit','inherit']}).status??0)}${missing}`,
+    `if(f){process.exit(cp.spawnSync(process.execPath,[f,'${event}'${eventArg}],{input:s,stdio:['pipe','inherit','inherit']}).status??0)}${missing}`,
   ].join('');
   return `node -e "${body}"`;
 }
@@ -62,6 +64,14 @@ function goalFile(projectKey: ProjectKey, goal: ProjectGoal, tasks: HumanTask[])
     '훅은 sh 없이 Node로 `.seedup/hook.mjs`를 실행하므로 macOS · Linux · Windows에서 같은 묶음을 씁니다(Node 필요).',
     '- Claude Code: `.claude/settings.json`을 저장소에 넣거나 기존 `hooks`에 합치세요.',
     '- Codex CLI: `.codex/hooks.json`을 저장소에 넣은 뒤, 세션에서 `/hooks`를 열어 현재 훅 정의를 검토하고 신뢰해야 실행됩니다.',
+    '',
+    '## 사용량 업로드 (선택) / Usage upload (optional)',
+    '업로드하려면 터미널 환경 변수 `SEEDUP_USAGE_TOKEN`에 본인의 Seedup MCP 토큰을 설정하세요. 토큰은 묶음에 들어 있지 않습니다.',
+    'To opt in, set `SEEDUP_USAGE_TOKEN` to your personal Seedup MCP token in your shell. The bundle contains no token.',
+    '- Claude Code: 위 설정을 넣으면 Stop 훅에서 업로드합니다. / With the settings above, the Stop hook uploads usage.',
+    '- Codex: 프로젝트 루트에서 `node .seedup/usage.mjs codex`를 실행하세요. / Run `node .seedup/usage.mjs codex` at the project root.',
+    '토큰 수, 모델, 집계에 필요한 프로젝트 · 세션 ID와 시각만 보냅니다. 대화 내용, 파일 경로, 코드는 보내지 않습니다.',
+    'Only token counts, model, project and session IDs, and timestamps are uploaded. Conversation content, file paths, and code stay local.',
     '',
     '## 커밋 전 검사 켜기',
     '커밋하기 전에 추가된 줄을 검사합니다(시크릿, 건너뛴 테스트, not implemented 예외는 커밋을 막고, 나머지는 경고만). Node가 있어야 합니다.',
@@ -88,7 +98,7 @@ git -C "$root" diff --cached -U0 --no-color | node "$root/.seedup/audit.mjs"
  */
 function hookScript(projectKey: ProjectKey) {
   return `#!/usr/bin/env node
-// Seedup local hooks (session-start, pre-compact, stop, pre-commit). Plain Node, no packages, no network, no token.
+// Seedup local hooks (session-start, pre-compact, stop, pre-commit). Usage upload requires explicit opt-in.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -225,6 +235,13 @@ function runPreCompact(root, summary) {
 function runStop(root, payload) {
   if (payload.stop_hook_active === true) return;
   if (!isGitWorkTree(root)) return;
+  if (process.argv[3] === '--claude' && process.env.SEEDUP_USAGE_TOKEN && typeof payload.transcript_path === 'string') {
+    const collector = join(root, '.seedup', 'usage.mjs');
+    if (existsSync(collector)) spawnSync(process.execPath, [collector, 'claude-code'], {
+      input: JSON.stringify({ transcript_path: payload.transcript_path, session_id: payload.session_id }),
+      stdio: ['pipe', 'ignore', 'inherit'], timeout: 20_000,
+    });
+  }
   const dirty = hasDirty(root);
   const unpushed = hasUnpushed(root);
   const blockers = auditBlockerCount(root);
@@ -296,5 +313,88 @@ export function hookBundle(projectKey: ProjectKey, goal: ProjectGoal, tasks: Hum
     { path: '.seedup/audit.mjs', content: localAuditScript() },
     { path: '.claude/settings.json', content: `${JSON.stringify(hookSettings(), null, 2)}\n` },
     { path: '.codex/hooks.json', content: `${JSON.stringify(codexHookSettings(), null, 2)}\n` },
+    { path: '.seedup/usage.mjs', content: usageScript(projectKey) },
   ];
+}
+
+function usageScript(projectKey: ProjectKey) {
+  const site = URL.parse(process.env.NEXT_PUBLIC_SITE_URL || '')?.origin ?? 'https://seedup.rerereally.com';
+  return `#!/usr/bin/env node
+// Opt-in upload. Only token counts, model, project/session IDs and timestamps leave this machine.
+// Conversation content, file paths and code stay local. The bundle contains no credentials.
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const PROJECT = ${JSON.stringify(projectKey)};
+const SITE = ${JSON.stringify(site)};
+` + String.raw`
+const configuredToken = process.env.SEEDUP_USAGE_TOKEN;
+const token = /^sdp_[a-f0-9]{48}$/i.test(configuredToken || '') ? configuredToken : null;
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const CHECKPOINT_DIR = join(homedir(), '.seedup', 'usage');
+const isSession = (value) => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
+const isModel = (value) => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,123}(?:\[1m\])?$/.test(value);
+const count = (value) => Number.isInteger(value) && value >= 0 && value <= 2_147_483_647;
+
+function* jsonLines(file) {
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    try {
+      const value = JSON.parse(line);
+      if (value && typeof value === 'object') yield value;
+    } catch { /* A log can end with an incomplete line while the client is writing. */ }
+  }
+}
+
+function usageRow(ts, model, input, output, reads = 0, writes = 0) {
+  if (typeof ts !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(ts)
+    || !Number.isFinite(Date.parse(ts)) || !isModel(model) || ![input, output, reads, writes].every(count)) return null;
+  const instant = ts.slice(0, 19) + '.' + (ts.slice(19, -1).replace(/^\./, '')).slice(0, 6).padEnd(6, '0') + 'Z';
+  return { ts: instant, model, input_tokens: input, output_tokens: output, cache_read_tokens: reads, cache_write_tokens: writes };
+}
+` + claudeCodeUsage + codexUsage + String.raw`
+async function upload(source, session) {
+  const url = new URL('/api/usage', SITE);
+  if (url.protocol !== 'https:') throw new Error('invalid endpoint');
+  const id = createHash('sha256').update(JSON.stringify([url.origin, token, PROJECT, source, session.id])).digest('hex');
+  const state = join(CHECKPOINT_DIR, id + '.json');
+  const acknowledged = new Set(existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')) : []);
+  const keyOf = (row) => row.ts + '/' + row.model;
+  const pending = session.rows.filter((row) => !acknowledged.has(keyOf(row)));
+  for (let index = 0; index < pending.length; index += 500) {
+    const rows = pending.slice(index, index + 500);
+    const response = await fetch(url, {
+      method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000),
+      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+      body: JSON.stringify({ project: PROJECT, source, session_id: session.id, rows }),
+    });
+    if (!response.ok) throw new Error('upload failed');
+    for (const row of rows) acknowledged.add(keyOf(row));
+    mkdirSync(CHECKPOINT_DIR, { recursive: true, mode: 0o700 });
+    const tmp = state + '.' + randomUUID();
+    writeFileSync(tmp, JSON.stringify([...acknowledged]), { mode: 0o600 });
+    renameSync(tmp, state);
+  }
+}
+
+try {
+  if (token && process.argv[2] === 'claude-code') {
+    const session = claudeSession(JSON.parse(readFileSync(0, 'utf8')));
+    if (session?.rows.length) await upload('claude_code', session);
+  } else if (token && process.argv[2] === 'codex') {
+    const logs = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions');
+    if (existsSync(logs)) {
+      for (const file of codexLogs(logs)) {
+        const session = codexSession(file, ROOT);
+        if (session?.rows.length) await upload('codex', session);
+      }
+    }
+  }
+} catch {
+  console.error('Seedup: 사용량을 보내지 못했습니다. 다음 실행에서 다시 시도합니다. / Usage upload failed. The next run will retry.');
+  process.exitCode = 1;
+}
+`;
 }

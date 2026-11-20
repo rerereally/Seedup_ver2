@@ -17,6 +17,7 @@ test('MCP logs one paid generation per draft and public PRD, including writer fa
   const title = 'My on-call bot';
   const calls: Array<Record<string, unknown>> = [];
   const rows: Array<Record<string, unknown>> = [];
+  const claims: Array<Record<string, unknown>> = [];
   let saved: string | null = null;
   t.mock.method(globalThis, 'fetch', async (source: string, init?: RequestInit) => {
     const url = new URL(source);
@@ -44,12 +45,12 @@ test('MCP logs one paid generation per draft and public PRD, including writer fa
       case '/rest/v1/prd_runs':
         rows.push(body);
         return new Response(null, { status: 201 });
+      case '/rest/v1/rpc/save_dossier_with_usage':
+        claims.push(body);
+        if (body.p_draft_id === id) saved = body.p_dossier.prd_markdown;
+        return Response.json(id);
       case '/rest/v1/evidence_dossiers': {
         if (method === 'POST') return Response.json({ id });
-        if (method === 'PATCH') {
-          saved = body.prd_markdown;
-          return new Response(null, { status: 204 });
-        }
         const select = url.searchParams.get('select');
         if (select === 'validation_report') return Response.json([{ validation_report: {
           markdown: '# saved validation', competitors: [{ name: 'Team Handover', description: 'Lists notes for Slack only.' }],
@@ -80,6 +81,9 @@ test('MCP logs one paid generation per draft and public PRD, including writer fa
   await generate('gif-api-replacement', true);
   assert.equal(rows.length, 2);
   assert.equal(rows[0].title, title);
+  assert.deepEqual(claims.map(({ p_user_id, p_run_keys, p_project_slug, p_draft_id }) => [p_user_id, p_run_keys, p_project_slug, p_draft_id]), [
+    [user, [rows[0].run_key], null, id], [user, [rows[1].run_key], 'gif-api-replacement', null],
+  ]);
   for (const row of rows) {
     assert.equal(row.user_id, user);
     assert.equal(row.kind, 'prd');

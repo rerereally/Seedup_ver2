@@ -1,6 +1,7 @@
+import { saveDossierUsage } from '@/lib/db/agent-usage';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
 import { readLiveEvidence, safeSourceUrl } from '@/lib/opportunities/live-evidence';
-import { deleteDossier, dossierKeyFor, hasSharedDossier, legacyDossierTitle, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
+import { deleteDossier, dossierKeyFor, hasSharedDossier, legacyDossierTitle, updateSavedPrd } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -41,18 +42,17 @@ export async function POST(request: Request) {
   const evidenceIds = combinedEvidence.map((item) => item.id);
   const dossierKey = dossierKeyFor(evidenceIds, title, await legacyDossierTitle(supabase, data.user.id, evidenceIds));
 
-  const { data: saved, error } = await saveDossier(supabase, {
-    user_id: data.user.id,
+  const { data: saved, error } = await saveDossierUsage(supabase, data.user.id, {
     dossier_key: dossierKey,
     title,
     opportunity_slug: lead?.slug ?? matchedSlug ?? null,
     evidence_ids: evidenceIds,
     evidence: combinedEvidence,
     ...(prd ? { prd_markdown: prd } : {}),
-  });
+  }, prd ? body?.runKeys : undefined, matchedSlug || null);
 
-  if (error) {
-    console.error('Dossier save failed', error.message);
+  if (error || !saved) {
+    if (error) console.error('Dossier save failed', error.message);
     return NextResponse.json({ error: '저장하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
   // A missing sharing column must not prevent saving a PRD.

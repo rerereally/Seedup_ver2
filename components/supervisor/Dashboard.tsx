@@ -3,6 +3,7 @@ import GoalLock from '@/components/goal/GoalLock';
 import MarkdownContent from '@/components/MarkdownContent';
 import { translator, type Lang } from '@/lib/i18n';
 import type { FeatureStatus } from '@/lib/opportunities/build-progress';
+import { SLOT_KEYS, slotLabels } from '@/lib/opportunities/spec';
 import type { SupervisorDetail } from './data';
 import { ActivityTime } from './ProjectList';
 import VerificationHistory from './VerificationHistory';
@@ -23,6 +24,9 @@ export type DashboardTab = (typeof DASHBOARD_TABS)[number];
 const TAB_LABELS: Record<DashboardTab, [string, string]> = {
   overview: ['개요', 'Overview'], work: ['작업 현황', 'Work'], files: ['파일 지도', 'File map'], flow: ['흐름', 'Flow'], prd: ['PRD · 원문', 'PRD · quotes'], activity: ['검증 · 커밋', 'Checks · commits'],
   memory: ['기록', 'Memory'], setup: ['에이전트 설정', 'Agent setup'],
+};
+const TASK_KINDS: Record<string, [string, string]> = {
+  auth: ['로그인', 'Auth'], database: ['데이터베이스', 'Database'], payment: ['결제', 'Payment'], api_key: ['API 키', 'API key'], deploy: ['배포', 'Deploy'], decision: ['결정', 'Decision'],
 };
 const WORKING = new Set<FeatureStatus>(['in_progress', 'improving', 'needs_recheck']);
 const dirOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.');
@@ -107,7 +111,26 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
     </div>
     </>}
     {tab === 'work' && <>
-    <section className="min-w-0" aria-labelledby="working-heading">
+    <section className="min-w-0" aria-labelledby="human-heading">
+      <h2 id="human-heading" className="text-xl font-semibold text-ink">{t('사람이 먼저 할 일', 'Set up first (by a person)')} <span className="num text-muted">{project.humanTasks.length}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('get_next_task가 코드보다 먼저 알려 주는 계정 · 키 · 결정. 그동안 에이전트는 가짜 값으로 진행할 수 있습니다.', 'Accounts, keys and decisions get_next_task puts before code. Meanwhile the agent can work against mocks.')}</p>
+      {!project.humanTasks.length ? <p className="mt-4 text-sm text-muted">{t('PRD에서 찾은 사람 할 일이 없습니다.', 'No setup tasks found in the PRD.')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{project.humanTasks.map((task) => <li key={task.id} className="py-3 text-sm">
+          <p className="flex flex-wrap items-baseline justify-between gap-2"><b className="font-semibold text-ink">{task.title}</b><span className="text-[13px] text-muted">{t(...(TASK_KINDS[task.category] ?? TASK_KINDS.decision))}{task.estimatedMinutes ? ` · ${t(`약 ${task.estimatedMinutes}분`, `~${task.estimatedMinutes} min`)}` : ''}{task.unblocksFeatureIds.length ? ` · ${task.unblocksFeatureIds.join(', ')}` : ''}</span></p>
+          {task.envVars.length > 0 && <p className="mt-1 break-all font-mono text-[13px] text-tertiary">{task.envVars.join(', ')}</p>}
+          {task.guideSteps.length > 0 && <details className="mt-1 text-[13px] text-muted"><summary className="cursor-pointer">{t('하는 방법', 'How to')}</summary>
+            <ol className="mt-1 list-decimal space-y-1 pl-5">{task.guideSteps.map((step, index) => <li key={index}>{step}</li>)}</ol>
+            {task.mockContractHint && <p className="mt-2">{t('그동안 가짜로', 'Meanwhile, mock')}: {task.mockContractHint}</p>}
+          </details>}
+        </li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="env-heading">
+      <h2 id="env-heading" className="text-xl font-semibold text-ink">{t('필요한 환경 변수 이름', 'Required env key names')} <span className="num text-muted">{project.envNames.length}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('check_env가 로컬의 키 이름과 비교하는 목록입니다. 값은 Seedup에 보내지도 저장되지도 않습니다.', 'The list check_env compares local key names against. Values are never sent or stored.')}</p>
+      {!project.envNames.length ? <p className="mt-4 text-sm text-muted">{t('아직 알려진 키 이름이 없습니다.', 'No key names known yet.')}</p>
+        : <ul className="mt-3 flex flex-wrap gap-2">{project.envNames.map((name) => <li key={name} className="rounded border border-outline-soft px-2 py-1 font-mono text-[13px] text-ink">{name}</li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="working-heading">
       <h2 id="working-heading" className="text-xl font-semibold text-ink">{t('지금 작업 중', 'In progress now')}</h2>
       <p className="mt-2 text-[13px] text-muted">{t('update_feature_status로 에이전트가 보고한 상태', 'Status the agents reported with update_feature_status')}</p>
       {!working.length ? <p className="mt-4 text-sm text-muted">{t('작업 중으로 보고된 기능이 없습니다.', 'No feature is reported in progress.')}</p>
@@ -125,6 +148,12 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
           <p><span className="font-mono text-muted">{project.next.feature.id}</span> <b className="font-semibold text-ink">{project.next.feature.title}</b></p>
           {project.next.feature.detail && <p className="mt-1 text-tertiary">{project.next.feature.detail}</p>}
           <p className="mt-2 text-[13px] text-muted">{project.next.why}</p>
+          {project.next.feature.slots && <dl className="mt-3 grid gap-3 border-t border-outline-soft pt-3 sm:grid-cols-2">
+            {SLOT_KEYS.filter((key) => project.next?.feature?.slots?.[key]?.length).map((key) => <div key={key}>
+              <dt className="text-[13px] font-semibold text-ink">{slotLabels(lang)[key]}</dt>
+              <dd><ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px] text-tertiary">{project.next!.feature!.slots![key].map((line, index) => <li key={index}>{line}</li>)}</ul></dd>
+            </div>)}
+          </dl>}
         </div> : <p className="mt-4 text-sm text-muted">{project.next.why}</p>}
     </section>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="board-heading">

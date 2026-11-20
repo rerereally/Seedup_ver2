@@ -11,6 +11,7 @@ import { readBuildProgress, readBuildProgressHistory, type BuildProgressHistory 
 import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
 import { pickNextTask } from '@/lib/mcp/server';
 import { hookBundle, hookSettings } from '@/lib/supervisor/hook-bundle';
+import { humanTasks } from '@/lib/supervisor/human-queue';
 import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
 
 export async function supervisorDetail(client: SupabaseClient, userId: string, rawKey: string) {
@@ -53,6 +54,10 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     // What get_next_task, explain_file and the PRD's flow views work from, for the work, file map and flow tabs.
     spec, progress, history,
     next: spec ? pickNextTask(spec, progress, goal) : null,
+    // What get_next_task puts before code (setup a person does) and what check_env compares the local names against.
+    humanTasks: spec ? humanTasks(spec) : [],
+    envNames: [...new Set([...(spec ? humanTasks(spec).flatMap((task) => task.envVars) : []),
+      ...memory.facts.filter((fact) => fact.kind === 'env_name').map((fact) => fact.text)])],
     featureFiles: summarizeFeatureCommits(commits.filter((row) => !row.dismissed_at)),
     specQuotes: (cached?.input.evidence ?? []).map((row) => ({ quote: row.quote, url: row.url, platform: row.platform })),
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'

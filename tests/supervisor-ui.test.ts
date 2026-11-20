@@ -168,7 +168,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
 
 test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [],  drift: [], decisions: [], files: [], verifications: [],
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: [], decisions: [], files: [], verifications: [],
     handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = allTabs(project, 'en');
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
@@ -197,7 +197,7 @@ test('dashboard renders the goal first, all criterion states, safe text, English
 
 test('empty dashboard shows missing records without claiming verification or inventing a goal', () => {
   const project: SupervisorDetail = { key: KEY, title: 'empty', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
@@ -214,7 +214,9 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
     repo: 'octo/app', track: 'personal', strict: true,
     commits: [{ sha: 'a'.repeat(40), message: 'Add digest\nbody', featureId: 'F-01', files: 2, at: '2026-11-20T10:00:00Z', dismissed: false }],
     facts: [{ projectKey: KEY, kind: 'env_name', text: 'SLACK_WEBHOOK_URL', author: 'Claude Code', at: '2026-11-20T10:00:00Z' }],
-    spec, progress, history: {}, next: null, featureFiles: { 'F-01': { count: 1, files: ['src/lib/read.py', 'README.md'] } }, specQuotes: [] };
+    spec, progress, history: {}, next: null, featureFiles: { 'F-01': { count: 1, files: ['src/lib/read.py', 'README.md'] } }, specQuotes: [],
+    humanTasks: [{ id: 'H-1', title: 'Create a Slack webhook', category: 'api_key', envVars: ['SLACK_WEBHOOK_URL'], estimatedMinutes: 5, guideSteps: ['Open Slack apps'], unblocksFeatureIds: ['F-01'], mockContractHint: 'log the message', done: false }],
+    envNames: ['SLACK_WEBHOOK_URL'] };
   const render = (tab: (typeof DASHBOARD_TABS)[number]) => renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en', tab }));
   assert.ok(render('prd').includes('Spec title') && render('prd').includes('I keep losing issues'));
   assert.ok(render('activity').includes('https://github.com/octo/app/commit/' + 'a'.repeat(40)) && render('activity').includes('Add digest'));
@@ -225,12 +227,13 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
   assert.ok(render('overview').includes('aria-current="page"'));
   const files = render('files');
   assert.ok(files.includes('src/lib/') && files.includes('read.py') && files.includes('README.md') && files.includes('F-01'));
-  assert.ok(render('work').includes(spec.features[0].title));
+  const work = render('work');
+  assert.ok(work.includes(spec.features[0].title) && work.includes('Create a Slack webhook') && work.includes('SLACK_WEBHOOK_URL') && work.includes('log the message'));
 });
 
 test('a PRD with no locked goal (one made over MCP) gets the lock form on its dashboard', () => {
   const project: SupervisorDetail = { key: KEY, title: 'mcp prd', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('목표 잠그기'));
   assert.ok(!html.includes('기획 탭에서 목표를 잠가 주세요'));

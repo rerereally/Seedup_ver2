@@ -135,7 +135,7 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   assert.deepEqual(d.calls, ['consume', 'generate']);
   const draft = await handleRpc(call('generate_verified_prd', { slug: 'schema' }), deps(), '') as { result: { content: Array<{ text: string }> } };
   assert.match(draft.result.content[0].text, /AGENTS\.md/);
-  assert.match(draft.result.content[0].text, /get_next_task \{"slug":"schema"\} at the start of each session/);
+  assert.match(draft.result.content[0].text, /resume_project \{"project":"schema"\} before working, then get_next_task \{"slug":"schema"\}/);
 });
 
 test('a cached PRD is returned without spending the daily limit; a used-up limit is a tool error', async () => {

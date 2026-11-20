@@ -197,6 +197,8 @@ test('initialize and AGENTS.md expose the locked goal for a saved PRD', async ()
     await call('generate_verified_prd', { project: PROJECT }),
   ]) {
     assert.match(brief.body, /Save as AGENTS.md/);
+    assert.ok(brief.body.includes('resume_project ' + JSON.stringify({ project: PROJECT })));
+    assert.match(brief.body, /before stopping.*save_handoff/i);
     assert.ok(brief.body.includes(PROJECT));
     assert.ok(brief.body.includes(GOAL.statement));
     assert.match(brief.body, /Success criteria\n- G-1 Schedule reminders/);
@@ -266,6 +268,8 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   ]);
   const byPath = new Map(files.map((file) => [file.path, file.content]));
   const agentsMd = byPath.get('AGENTS.md') ?? '';
+  assert.ok(agentsMd.includes('resume_project ' + JSON.stringify({ project: PROJECT })));
+  assert.ok(Buffer.byteLength(agentsMd, 'utf8') <= 24_000);
   assert.ok(agentsMd.includes(`## Project key\n\`${PROJECT}\``));
   assert.ok(agentsMd.includes(`## Locked goal (v2)\n${GOAL.statement}`));
   assert.match(agentsMd, /G-1 Schedule reminders \(measure: Deliver within one minute\)/);
@@ -284,7 +288,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   }));
   assert.match(withRepo.body, /\nNext: get_next_task \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
 
-  // 2. Without a locked goal: AGENTS.md uses the existing byte-for-byte format and hook bundle is omitted.
+  // 2. Without a locked goal: AGENTS.md uses the shared renderer without goal context and the hook bundle is omitted.
   const withoutGoal = await call('setup_project', { project: PROJECT }, deps({ projectGoal: async () => null }));
   assert.equal(withoutGoal.isError, undefined);
   assert.equal(withoutGoal.structuredContent?.goalLocked, false);

@@ -153,7 +153,9 @@ test('exports keep source links, carry slots, and keep hypotheses out of the bui
   assert.match(markdown, /```mermaid/);
   for (const format of ['agents', 'claude', 'cursor'] as const) {
     const brief = renderAgentBrief(input, spec, format);
-    assert.match(brief, /call get_next_task with the opportunity slug at the start of each session/);
+    assert.match(brief, format === 'agents'
+      ? /call resume_project with the project key before working, then get_next_task with the opportunity slug/
+      : /call get_next_task with the opportunity slug at the start of each session/);
     assert.match(brief, /- \[ \] F-01 build it/);
     assert.match(brief, /inputs: email/);
     assert.match(brief, /data: \(open question\)/);

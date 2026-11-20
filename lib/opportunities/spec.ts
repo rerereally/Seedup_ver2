@@ -524,9 +524,23 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
   const flow = mermaidFlow(spec);
   const goal = format === 'agents' ? context?.goal : undefined;
   const recentDecisions = format === 'agents' ? context?.decisions : undefined;
-  return `${intro[format]}
+  const nextTask = opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug';
+  const resume = opportunitySlug ? `resume_project ${JSON.stringify({ project: opportunitySlug })}` : 'resume_project with the project key';
+  const sessionRule = format === 'agents'
+    ? `- For a Seedup project, at session start or after compaction or resuming, call ${resume} before working, then ${nextTask} to pick a feature. Before stopping, leave a handoff with save_handoff for the same project.`
+    : `- For a Seedup project, call ${nextTask} at the start of each session to pick the feature to work on.`;
+  const rules = `## Rules
+- Ship one feature at a time and keep each change small.
+${sessionRule}
+- For a Seedup project, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
+- Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
+- If the user has enabled commit uploads for this project, call link_commit after each commit with the project key, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).${goal ? '\n- Ask the user in the terminal before changing the locked goal or scope. Record their answer with record_decision.' : ''}
+- Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
+- When a readiness slot says "open question", ask instead of guessing.
+- Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.`;
+  const brief = `${intro[format]}
 ${spec.draft ? '\n> HYPOTHESIS DRAFT: the evidence is below the qualification bar. Confirm with real users before building beyond a prototype.\n' : ''}
-${format === 'agents' && opportunitySlug ? `## Project key\n\`${opportunitySlug}\`\n\n` : ''}## ${goal ? `Locked goal (v${goal.version})` : 'Goal'}
+${format === 'agents' && opportunitySlug ? `## Project key\n\`${opportunitySlug}\`\n\n` : ''}${format === 'agents' ? rules + '\n\n' : ''}## ${goal ? `Locked goal (v${goal.version})` : 'Goal'}
 ${goal?.statement ?? spec.summary}
 
 ## Problem
@@ -542,20 +556,19 @@ ${bullets(goal?.outOfScope ?? spec.nonGoals, 'Nothing listed yet.')}
 ## ${goal ? 'Success criteria' : 'Done when'}
 ${bullets(goal?.criteria.map((row) => `${row.id} ${row.text} (measure: ${row.measure})`) ?? spec.metrics, 'Agree on a measurable outcome first.')}
 
-${recentDecisions?.length ? `## Recent decisions\n${bullets(recentDecisions, '')}\n\n` : ''}${spec.reviewNotes?.length ? `## Review notes\n${bullets(spec.reviewNotes, '')}\n\n` : ''}${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
-- Ship one feature at a time and keep each change small.
-- For a Seedup project, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
-- For a Seedup project, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
-- Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
-- If the user has enabled commit uploads for this project, call link_commit after each commit with the project key, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).${goal ? '\n- Ask the user in the terminal before changing the locked goal or scope. Record their answer with record_decision.' : ''}
-- Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
-- When a readiness slot says "open question", ask instead of guessing.
-- Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.
-
-## User evidence
+${recentDecisions?.length ? `## Recent decisions\n${bullets(recentDecisions, '')}\n\n` : ''}${spec.reviewNotes?.length ? `## Review notes\n${bullets(spec.reviewNotes, '')}\n\n` : ''}${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}${format === 'agents' ? '' : rules + '\n\n'}## User evidence
 ${evidenceSection(input.evidence, 'en')}
 ${spec.features.length ? `\n${ISSUE_HANDOFF}\n` : ''}
 `;
+  if (format !== 'agents') return brief;
+  // Antigravity truncates AGENTS.md past 24,000 UTF-8 bytes. Keep the rules and point to the full PRD.
+  const limit = 24_000;
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(brief);
+  if (bytes.byteLength <= limit) return brief;
+  const notice = '\n\nThis AGENTS.md is abbreviated to fit the rule file limit. Read the full PRD in Seedup.\n';
+  const prefix = new TextDecoder().decode(bytes.subarray(0, limit - encoder.encode(notice).byteLength), { stream: true });
+  return prefix.slice(0, prefix.lastIndexOf('\n')) + notice;
 }
 
 /**

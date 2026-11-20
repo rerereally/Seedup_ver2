@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -146,6 +146,35 @@ test('hook bundle: goal file, Node runner, Claude and Codex configs with full ma
   assert.throws(() => hookBundle("x'; rm -rf ~", goal));
 });
 
+test('the generated SessionStart script asks the agent to resume the project after compaction or resuming', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'seedup-hook-compact-'));
+  const [goalFile] = writeBundle(dir);
+  const run = (input: string) => {
+    const result = spawnSync(process.execPath, [join(dir, '.seedup/hook.mjs'), 'session-start'], {
+      cwd: dir,
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PROJECT_DIR: '' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const payload = (source?: string) => JSON.stringify({ source, cwd: dir });
+  const instruction = `작업을 이어가기 전에 Seedup MCP의 resume_project(프로젝트 ${goal.projectKey})를 호출해 마지막 인계, 최근 결정, 진행 상태를 확인하세요.\n`;
+  assert.equal(run(payload('compact')), goalFile.content + '대화가 압축되었습니다. ' + instruction);
+  assert.equal(run(payload('resume')), goalFile.content + '대화가 재개되었습니다. ' + instruction);
+  for (const input of [payload('startup'), payload('clear'), payload('fork'), payload('unknown'), payload(), '', '{broken']) {
+    assert.equal(run(input), goalFile.content, input);
+  }
+
+  writeFileSync(join(dir, goalFile.path), '# Existing goal without a trailing newline');
+  assert.equal(run(payload('compact')), '# Existing goal without a trailing newline\n대화가 압축되었습니다. ' + instruction);
+  unlinkSync(join(dir, goalFile.path));
+  const missing = 'Seedup 목표 파일(.seedup/goal.md)이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.\n';
+  assert.equal(run(payload('startup')), missing);
+  assert.equal(run(payload('compact')), missing + '대화가 압축되었습니다. ' + instruction);
+});
+
 test('SessionStart and PreCompact resolve the project root from a subdirectory or stdin cwd without sh', () => {
   const dir = mkdtempSync(join(tmpdir(), 'seedup-hook-root-'));
   const outside = mkdtempSync(join(tmpdir(), 'seedup-hook-outside-'));
@@ -164,6 +193,12 @@ test('SessionStart and PreCompact resolve the project root from a subdirectory o
   });
   assert.equal(startFromSub.status, 0);
   assert.match(startFromSub.stdout, /Renters never miss rent/);
+  const codexAfterCompact = runHookCommand(codex.hooks.SessionStart[0].hooks[0].command, {
+    cwd: sub,
+    input: JSON.stringify({ source: 'compact', cwd: sub, hook_event_name: 'SessionStart' }),
+  });
+  assert.equal(codexAfterCompact.status, 0);
+  assert.match(codexAfterCompact.stdout, /대화가 압축되었습니다.*resume_project/);
 
   // Launched from outside the repo, locating root via stdin JSON cwd.
   const startFromOutside = runHookCommand(claude.hooks.SessionStart[0].hooks[0].command, {
@@ -190,9 +225,18 @@ test('SessionStart and PreCompact resolve the project root from a subdirectory o
     });
     assert.equal(viaShell.status, 0, viaShell.stderr);
     assert.match(viaShell.stdout, /Renters never miss rent/);
+    assert.match(viaShell.stdout, /대화가 압축되었습니다.*resume_project/);
   }
 
-  // PreCompact reminds the agent to call save_handoff using valid universal hook JSON.
+  const claudePreCompact = runHookCommand(claude.hooks.PreCompact[0].hooks[0].command, {
+    cwd: sub,
+    input: JSON.stringify({ trigger: 'auto', custom_instructions: null, cwd: sub, hook_event_name: 'PreCompact' }),
+  });
+  assert.equal(claudePreCompact.status, 0, claudePreCompact.stderr);
+  assert.match(claudePreCompact.stdout, /하던 일과 다음 할 일을 압축 요약에 남기세요/);
+  assert.doesNotMatch(claudePreCompact.stdout, /^\{/);
+
+  // Codex PreCompact accepts an informational warning as universal hook JSON.
   const preCompact = runHookCommand(codex.hooks.PreCompact[0].hooks[0].command, {
     cwd: sub,
     input: JSON.stringify({ trigger: 'auto', cwd: sub, hook_event_name: 'PreCompact' }),

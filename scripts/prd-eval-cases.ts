@@ -21,8 +21,11 @@ const IDEA_CASES = [
 
 export type PrdEvalCase = { id: string; kind: 'problem' | 'idea'; input: SpecInput | null };
 
-export function prdEvalCases(): PrdEvalCase[] {
-  const snapshot = JSON.parse(readFileSync(resolve(process.cwd(), 'lib/opportunities/data/snapshot.json'), 'utf8')) as OpportunitySnapshot;
+export function prdEvalSnapshot() {
+  return JSON.parse(readFileSync(resolve(process.cwd(), 'lib/opportunities/data/snapshot.json'), 'utf8')) as OpportunitySnapshot;
+}
+
+export function prdEvalCases(snapshot = prdEvalSnapshot()): PrdEvalCase[] {
   return [
     ...PROBLEM_CASES.map((slug) => {
       const opportunity = snapshot.opportunities.find((item) => item.slug === slug);

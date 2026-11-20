@@ -72,6 +72,8 @@ async function main() {
       weakP0: quality?.weakP0 ?? 0,
       openDecisions: quality?.openDecisions ?? 0,
       auditChanges: result?.auditChanges.length ?? 0,
+      auditDemoted: result?.auditChanges.filter(({ verdict }) => verdict === 'unsupported').length ?? 0,
+      auditNarrowed: result?.auditChanges.filter(({ narrowed }) => narrowed).length ?? 0,
     });
     console.log(`${item.id}: ${spec ? `issues ${issues.length}, requirements ${rows[rows.length - 1].requirements}, cited ${cited}, weakP0 ${quality?.weakP0 ?? 0}, openDec ${quality?.openDecisions ?? 0}` : 'failed'}, ${seconds}s (first text ${marks.firstText ?? '-'}s, repair from ${marks.repair ?? '-'}s, audit from ${marks.audit ?? '-'}s, ${result?.model ?? 'no model'})`);
   }

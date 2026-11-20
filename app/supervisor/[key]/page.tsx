@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import WorkShell from '@/components/WorkShell';
 import PageIntro from '@/components/PageIntro';
 import Dashboard, { pickTab } from '@/components/supervisor/Dashboard';
+import SpecFlow from '@/components/supervisor/SpecFlow';
 import { supervisorDetail } from '@/components/supervisor/data';
 import { decodeProjectKey } from '@/components/supervisor/model';
 import { translator } from '@/lib/i18n';
@@ -22,6 +23,7 @@ export default async function SupervisorProjectPage({ params, searchParams }: { 
   return <><Header /><WorkShell>
     <Link href="/supervisor" className="link-seed inline-flex min-h-11 items-center self-start text-sm">{t('프로젝트 목록', 'Projects')}</Link>
     <PageIntro title={project.title} meta={<span className="break-all font-mono">{project.key}</span>} />
-    <Dashboard project={project} lang={lang} tab={tab} />
+    <Dashboard project={project} lang={lang} tab={tab}
+      flow={tab === 'flow' && project.spec ? <SpecFlow spec={project.spec} quotes={project.specQuotes} progress={project.progress} lang={lang} /> : undefined} />
   </WorkShell></>;
 }

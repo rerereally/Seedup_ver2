@@ -515,7 +515,7 @@ test('full E2E loop: three entries → goal lock → agent start prompt → MCP 
       lastActivityAt: AT,
       features: signals,
       specAvailable: true,
-      lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], 
+      lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], 
       drift: driftForProject(commits, spec, goal, progress),
       decisions: memory.decisions,
       handoffs: memory.handoffs,

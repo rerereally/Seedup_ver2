@@ -18,21 +18,38 @@ const DRIFT_MESSAGES = {
   touched_done: 'Files of a completed feature changed. Recheck that feature.',
 };
 
-export const DASHBOARD_TABS = ['overview', 'prd', 'activity', 'memory', 'setup'] as const;
+export const DASHBOARD_TABS = ['overview', 'work', 'files', 'flow', 'prd', 'activity', 'memory', 'setup'] as const;
 export type DashboardTab = (typeof DASHBOARD_TABS)[number];
 const TAB_LABELS: Record<DashboardTab, [string, string]> = {
-  overview: ['개요', 'Overview'], prd: ['PRD · 원문', 'PRD · quotes'], activity: ['검증 · 커밋', 'Checks · commits'],
+  overview: ['개요', 'Overview'], work: ['작업 현황', 'Work'], files: ['파일 지도', 'File map'], flow: ['흐름', 'Flow'], prd: ['PRD · 원문', 'PRD · quotes'], activity: ['검증 · 커밋', 'Checks · commits'],
   memory: ['기록', 'Memory'], setup: ['에이전트 설정', 'Agent setup'],
 };
+const WORKING = new Set<FeatureStatus>(['in_progress', 'improving', 'needs_recheck']);
+const dirOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.');
+
 export const pickTab = (value: unknown): DashboardTab => DASHBOARD_TABS.find((tab) => tab === value) ?? 'overview';
 const FACT_LABELS: Record<string, [string, string]> = {
   stack: ['스택', 'Stack'], command: ['명령', 'Command'], env_name: ['환경 변수 이름', 'Env key name'], do_not_touch: ['건드리지 말 것', 'Do not touch'], other: ['기타', 'Other'],
 };
 
 /** One project's supervisor page, split into tabs (?tab=) so everything the MCP tools recorded has a place on the web. */
-export default function Dashboard({ project, lang, tab = 'overview' }: { project: SupervisorDetail; lang: Lang; tab?: DashboardTab }) {
+/** `flow` is the PRD flow view (SpecFlow), passed in by the page because it is a client component with CSS modules. */
+export default function Dashboard({ project, lang, tab = 'overview', flow }: { project: SupervisorDetail; lang: Lang; tab?: DashboardTab; flow?: React.ReactNode }) {
   const t = translator(lang);
   const goal = project.goal;
+  const spec = project.spec;
+  const statusOf = (id: string): FeatureStatus => project.progress[id]?.status ?? 'todo';
+  const working = spec ? spec.features.filter((row) => WORKING.has(statusOf(row.id))) : [];
+  // explain_file for every linked file at once: path → the features that touched it, their requirements and quotes.
+  const fileMap = new Map<string, string[]>();
+  for (const [featureId, { files }] of Object.entries(project.featureFiles)) for (const file of files) fileMap.set(file, [...(fileMap.get(file) ?? []), featureId]);
+  const dirs = [...new Set([...fileMap.keys()].map(dirOf))].sort();
+  const featureLine = (id: string) => {
+    const feature = spec?.features.find((row) => row.id === id);
+    const reqs = feature ? feature.requirementIds : [];
+    const quotes = spec ? [...new Set([...spec.requirements, ...spec.hypotheses].filter((row) => reqs.includes(row.id)).flatMap((row) => row.evidence))].sort((a, b) => a - b) : [];
+    return <span key={id} className="block"><span className="font-mono text-muted">{id}</span> {feature?.title ?? ''} <span className="text-muted">· {t(...STATUSES[statusOf(id)])}{reqs.length ? ` · ${reqs.join(', ')}` : ''}{quotes.length ? ` · ${quotes.map((n) => `E-${n}`).join(', ')}` : ''}</span></span>;
+  };
   const href = (next: DashboardTab) => `/supervisor/${encodeURIComponent(project.key)}${next === 'overview' ? '' : `?tab=${next}`}`;
   return <div className="min-w-0 space-y-7 [overflow-wrap:anywhere]">
     <nav aria-label={t('프로젝트 보기', 'Project views')} className="tabs">
@@ -89,6 +106,57 @@ export default function Dashboard({ project, lang, tab = 'overview' }: { project
       </section>
     </div>
     </>}
+    {tab === 'work' && <>
+    <section className="min-w-0" aria-labelledby="working-heading">
+      <h2 id="working-heading" className="text-xl font-semibold text-ink">{t('지금 작업 중', 'In progress now')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('update_feature_status로 에이전트가 보고한 상태', 'Status the agents reported with update_feature_status')}</p>
+      {!working.length ? <p className="mt-4 text-sm text-muted">{t('작업 중으로 보고된 기능이 없습니다.', 'No feature is reported in progress.')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{working.map((row) => <li key={row.id} className="py-3 text-sm">
+          <p><span className="font-mono text-muted">{row.id}</span> <b className="font-semibold text-ink">{row.title}</b> <span className="text-tertiary">· {t(...STATUSES[statusOf(row.id)])}</span></p>
+          {project.progress[row.id]?.note && <p className="mt-1 whitespace-pre-wrap text-tertiary">{project.progress[row.id].note}</p>}
+          <p className="mt-1 text-[13px] text-muted"><ActivityTime at={project.progress[row.id]?.updatedAt ?? null} lang={lang} /></p>
+        </li>)}</ul>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="next-heading">
+      <h2 id="next-heading" className="text-xl font-semibold text-ink">{t('다음 작업', 'Next task')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('get_next_task가 에이전트에게 주는 것과 같은 결과', 'The same pick get_next_task gives the agent')}</p>
+      {!project.next ? <p className="mt-4 text-sm text-muted">{t('명세가 없어 고를 수 없습니다.', 'No spec to pick from.')}</p>
+        : project.next.feature ? <div className="card mt-3 p-4 text-sm">
+          <p><span className="font-mono text-muted">{project.next.feature.id}</span> <b className="font-semibold text-ink">{project.next.feature.title}</b></p>
+          {project.next.feature.detail && <p className="mt-1 text-tertiary">{project.next.feature.detail}</p>}
+          <p className="mt-2 text-[13px] text-muted">{project.next.why}</p>
+        </div> : <p className="mt-4 text-sm text-muted">{project.next.why}</p>}
+    </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="board-heading">
+      <h2 id="board-heading" className="text-xl font-semibold text-ink">{t('기능별 진행', 'Features')}</h2>
+      {!spec?.features.length ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>
+        : <ul className="mt-3 divide-y divide-outline-soft">{spec.features.map((row) => {
+          const events = project.history[row.id] ?? [];
+          const files = project.featureFiles[row.id]?.files ?? [];
+          return <li key={row.id} className="py-3 text-sm">
+            <p className="flex flex-wrap items-baseline justify-between gap-2"><span><span className="font-mono text-muted">{row.id}</span> <span className="text-ink">{row.title}</span></span><span className={statusOf(row.id) === 'done' ? 'font-semibold text-seed' : 'text-tertiary'}>{t(...STATUSES[statusOf(row.id)])}</span></p>
+            {(events.length > 0 || files.length > 0) && <details className="mt-1 text-[13px] text-muted">
+              <summary className="cursor-pointer">{t(`상태 이력 ${events.length}개 · 파일 ${files.length}개`, `${events.length} status changes · ${files.length} files`)}</summary>
+              {events.length > 0 && <ol className="mt-2 space-y-1">{events.map((event) => <li key={event.id}><ActivityTime at={event.createdAt} lang={lang} /> · {t(...STATUSES[event.status])}{event.note && ` · ${event.note}`}</li>)}</ol>}
+              {files.length > 0 && <ul className="mt-2 space-y-1 font-mono">{files.map((file) => <li key={file} className="break-all">{file}</li>)}</ul>}
+            </details>}
+          </li>;
+        })}</ul>}
+    </section>
+    </>}
+    {tab === 'files' && <section className="min-w-0" aria-labelledby="filemap-heading">
+      <h2 id="filemap-heading" className="text-xl font-semibold text-ink">{t('파일 지도', 'File map')} <span className="num text-muted">{fileMap.size}</span></h2>
+      <p className="mt-2 text-[13px] text-muted">{t('link_commit으로 연결된 파일마다 어떤 기능 · 요구사항 · 원문에서 나왔는지(explain_file과 같은 연결)', 'Each linked file traced back to its features, requirements and quotes (the same links explain_file uses)')}</p>
+      {!fileMap.size ? <p className="mt-4 text-sm text-muted">{t('아직 연결된 파일이 없습니다. 에이전트가 커밋 뒤 link_commit 또는 verify_feature를 부르면 채워집니다.', 'No linked files yet. They fill in when the agent calls link_commit or verify_feature after a commit.')}</p>
+        : dirs.map((dir) => <details key={dir} open className="border-b border-outline-soft py-3">
+          <summary className="cursor-pointer font-mono text-sm font-semibold text-ink">{dir === '.' ? '/' : `${dir}/`}</summary>
+          <ul className="mt-2 space-y-3">{[...fileMap.entries()].filter(([file]) => dirOf(file) === dir).sort(([a], [b]) => a.localeCompare(b)).map(([file, ids]) => <li key={file} className="pl-4 text-sm">
+            <p className="break-all font-mono text-ink">{file.slice(dir === '.' ? 0 : dir.length + 1)}</p>
+            <div className="mt-1 text-[13px]">{ids.map(featureLine)}</div>
+          </li>)}</ul>
+        </details>)}
+    </section>}
+    {tab === 'flow' && (spec && flow ? flow : <p className="text-sm text-muted">{t('PRD 명세가 없어 흐름을 그릴 수 없습니다.', 'No PRD spec to draw.')}</p>)}
     {tab === 'prd' && <>
     <section className="min-w-0" aria-labelledby="prd-heading">
       <h2 id="prd-heading" className="text-xl font-semibold text-ink">PRD</h2>

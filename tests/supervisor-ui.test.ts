@@ -114,6 +114,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
       case 'project_goals': return [{ project_key: KEY, version: goal.version, track: goal.track, statement: goal.statement, criteria: goal.criteria, in_scope: goal.inScope, out_of_scope: goal.outOfScope, locked_at: goal.lockedAt, change_reason: goal.changeReason }];
       case 'project_memory': return url.searchParams.get('kind') === 'eq.decision' ? [{ id: 'd1', body: { title: '범위 축소', why: '시간', author: { kind: 'person', name: '사용자' }, approved: true, goalVersion: 2, rejected: [], featureIds: [], criterionIds: [] }, created_at: '2026-11-20T12:00:00Z' }] : [];
       case 'build_progress': return [{ feature_id: 'F-01', feature_title: '기록', status: 'done', note: 'done', updated_at: progress['F-01'].updatedAt, done_at: progress['F-01'].doneAt }];
+      case 'supervisor_projects': return [{ user_id: USER, project_key: KEY, repo: null, track: 'personal', strict: false, goal_version: 2, updated_at: '2026-11-20T09:00:00Z' }];
       default: return [];
     }
   });
@@ -152,4 +153,24 @@ test('empty dashboard shows missing records without claiming verification or inv
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
   assert.ok(!html.includes('🟢'));
+});
+
+test('the list shows supervisor projects only, not every saved PRD, and skips a project whose PRD is gone', async () => {
+  const OTHER = 'abcdef00-9999-3333-4444-555555555555';
+  const GONE = 'abcdef00-8888-3333-4444-555555555555';
+  const client = database((url) => {
+    switch (url.pathname.split('/').pop()) {
+      case 'supervisor_projects': return [
+        { user_id: USER, project_key: KEY, repo: null, track: 'personal', strict: false, goal_version: null, updated_at: '2026-11-20T09:00:00Z' },
+        { user_id: USER, project_key: `prd:${GONE}`, repo: null, track: 'personal', strict: false, goal_version: null, updated_at: '2026-11-20T08:00:00Z' },
+      ];
+      case 'evidence_dossiers': return [
+        { id: PRD, title: '감독 프로젝트', evidence_ids: [], prd_markdown: '# a', updated_at: '2026-11-19T09:00:00Z' },
+        { id: OTHER, title: '그냥 저장한 PRD', evidence_ids: [], prd_markdown: '# b', updated_at: '2026-11-19T10:00:00Z' },
+      ];
+      default: return [];
+    }
+  });
+  const list = await supervisorList(client, USER);
+  assert.deepEqual(list.map((row) => [row.key, row.title]), [[KEY, '감독 프로젝트']]);
 });

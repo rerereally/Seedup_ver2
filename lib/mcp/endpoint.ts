@@ -2,7 +2,8 @@ import { consumeUsageFor, releaseUsageFor, userForToken } from '@/lib/mcp/auth';
 import { callJsonModel } from '@/lib/llm';
 import { handleRpc } from '@/lib/mcp/server';
 import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server';
-import { getOpportunities } from '@/lib/opportunities/data';
+import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import { specInputFor } from '@/lib/opportunities/context';
 import { flagBuildProgressForCommit, readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
 import { countUnlinkedCommits, featureFiles, writeFeatureCommit } from '@/lib/opportunities/feature-commits';
 import { generatePrd, generateSlots } from '@/lib/opportunities/prd';
@@ -67,14 +68,17 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         const parsed = parsePrdMarkdown(pinned.prd_markdown);
         if (parsed) {
           const evidence = Array.isArray(pinned.evidence) ? (pinned.evidence as Evidence[]) : opportunity.evidence;
-          const spec = normalizeSpec(parsed, evidence, !opportunity.qualified);
+          const direct = opportunity.supply.filter((row) => row.relation === 'direct');
+          const competitorNotes = direct.map((row) => row.description ? `${row.name}: ${row.description}` : row.name);
+          const spec = normalizeSpec(parsed, evidence, !opportunity.qualified, { competitorNotes });
           return {
             input: {
               title: pinned.title || opportunity.name,
               problem: opportunity.problem,
               gap: opportunity.gap,
               evidence,
-              competitors: opportunity.supply.filter((row) => row.relation === 'direct').map((row) => row.name),
+              competitors: direct.map((row) => row.name),
+              competitorNotes,
             },
             spec,
           };
@@ -122,6 +126,9 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     myPrd: async (id): Promise<SavedPrdDetail | null> => {
       const row = await userPrdById(service, userId, id);
       if (!row) return null;
+      const needsListings = /^- (?:경쟁 도구 설명|Competitor listing):/m.test(row.prd_markdown);
+      const catalog = needsListings ? (await getOpportunities()).opportunities : [];
+      const picked = findEvidence(catalog, Array.isArray(row.evidence_ids) ? row.evidence_ids : []);
       return {
         id: row.id,
         title: row.title,
@@ -130,6 +137,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         updatedAt: row.updated_at,
         prdMarkdown: row.prd_markdown,
         evidence: Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [],
+        competitorNotes: specInputFor(catalog, picked)?.competitorNotes,
       };
     },
     generate: async (input, draft) => {

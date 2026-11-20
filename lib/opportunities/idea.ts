@@ -47,6 +47,7 @@ export function ideaSpecInput(opportunities: Opportunity[], brief: IdeaBrief, pi
     gap: related?.gap ?? '',
     evidence: picked.map((item) => item.evidence),
     competitors: related?.competitors ?? [],
+    ...(related?.competitorNotes?.length ? { competitorNotes: related.competitorNotes } : {}),
   };
 }
 

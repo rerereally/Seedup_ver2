@@ -3,7 +3,8 @@
 // part has a tolerant reading; anything that cannot be read is left out rather than guessed.
 import type { RawSpec } from './spec';
 
-type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'features' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions';
+type DesignSection = 'architecture' | 'dataModel' | 'interfaces' | 'stack' | 'milestones';
+type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | DesignSection;
 
 // Order matters: the first match wins, so "non-goals" is tried before "goals" and "success metrics" before "users".
 const SECTIONS: Array<[Section, RegExp]> = [
@@ -14,6 +15,8 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['goals', /목표|goals?/i],
   ['users', /대상|사용자|target|users?/i],
   ['requirements', /요구\s*사항|requirements?/i],
+  ['hypotheses', /^(?:검증이 필요한 가설|hypotheses to validate)$/i],
+  ['differentiation', /^(?:차별점|우리만 하는 한 가지|differentiation|one differentiator)$/i],
   ['rivals', /이미\s*있는\s*도구|경쟁|existing tools|competitors|rivals/i],
   ['features', /기능|features?/i],
   ['risks', /위험|risks?/i],
@@ -21,14 +24,24 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['metrics', /지표|완료\s*기준|metrics|success/i],
   ['openQuestions', /열린\s*질문|open questions?/i],
 ];
+const DESIGN_HEAD = /^(?:기술\s*설계|technical design)$/i;
+const DESIGN_SECTIONS: Array<[DesignSection, RegExp]> = [
+  ['architecture', /^(?:구조|아키텍처|architecture)$/i],
+  ['dataModel', /^(?:데이터\s*모델|data model)$/i],
+  ['interfaces', /^(?:인터페이스|interfaces?)$/i],
+  ['stack', /^(?:스택(?:과 이유)?|stack(?: and rationale)?)$/i],
+  ['milestones', /^(?:구현\s*순서|implementation order|milestones?)$/i],
+];
+const COMPETITOR_BASIS = /^(?:경쟁 도구 설명|competitor listing)\s*[:：]\s*/i;
 
 const ACCEPTANCE = /^(?:수락\s*기준|완료\s*기준|acceptance(?:\s*criteria)?)\s*[:：]\s*/i;
 const CHECK = /^(?:확인\s*방법|검증\s*방법|how to (?:check|verify|validate))\s*[:：]\s*/i;
 const EVIDENCE_LINE = /^(?:근거|evidence)\s*[:：]\s*/i;
 const SENTENCE_LABEL = /^\[(?:증언|사실|추정|testimony|fact|inference)\]\s*/i;
 const LEADING_CITATIONS = /^(?:\[\s*E\s*-?\s*\d+(?:\s*[,，/]\s*E?\s*-?\s*\d+)*\s*\]\s*)+/i;
-const ITEM = (letter: 'R' | 'F') => new RegExp(`^(?:#{2,5}\\s*|[-*+]\\s+|\\d+\\.\\s+)?\\**\\s*${letter}\\s*-?\\s*0*(\\d+)\\s*[.:)\\]]?\\**\\s*(.*)$`, 'i');
+const ITEM = (letter: 'R' | 'H' | 'F') => new RegExp(`^(?:#{2,5}\\s*|[-*+]\\s+|\\d+\\.\\s+)?\\**\\s*${letter}\\s*-?\\s*0*(\\d+)\\s*[.:)\\]]?\\**\\s*(.*)$`, 'i');
 const REQUIREMENT_ITEM = ITEM('R');
+const HYPOTHESIS_ITEM = ITEM('H');
 const FEATURE_ITEM = ITEM('F');
 
 /** Every E-number cited in a piece of text: [E1], [E1, E3], [E-2], (E4). */
@@ -62,10 +75,7 @@ const bulletText = (line: string) => line.replace(/^\s*(?:[-*+•]|\d+[.)])\s+/,
 const isBullet = (line: string) => /^\s*(?:[-*+•]|\d+[.)])\s+/.test(line);
 const isNone = (text: string) => /^(?:없음|해당 없음|none|n\/a)\.?$/i.test(text.trim());
 
-function sectionOf(heading: string): Section | null {
-  const label = stripMarks(heading.replace(/^#+\s*/, '')).replace(/[:：].*$/, '');
-  return SECTIONS.find(([, pattern]) => pattern.test(label))?.[0] ?? null;
-}
+const headingLabel = (heading: string) => stripMarks(heading.replace(/^#+\s*/, '')).replace(/[:：].*$/, '').trim();
 
 type Item = { number: number; head: string; body: string[] };
 
@@ -91,14 +101,20 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
   const text = markdown.replace(/^```(?:markdown|md)?\s*$/gim, '');
   const buckets = new Map<Section, string[]>();
   let current: Section | null = null;
+  let inDesign = false;
   for (const raw of text.split('\n')) {
     const line = raw.replace(/\s+$/, '');
     // R1/F1 lines are items even when written as headings ("### R1. 사용자는 ..." would otherwise read as the users
     // section), so they are ruled out first. An inline "# 한 줄 요약: ..." keeps its text.
-    const item = REQUIREMENT_ITEM.test(line.trim()) || FEATURE_ITEM.test(line.trim());
+    const item = REQUIREMENT_ITEM.test(line.trim()) || HYPOTHESIS_ITEM.test(line.trim()) || FEATURE_ITEM.test(line.trim());
     const heading = !item && (/^#{1,6}\s+\S/.test(line) || /^\*\*[^*]{2,40}\*\*\s*$/.test(line.trim()));
     if (heading) {
-      const section = sectionOf(line);
+      const label = headingLabel(line);
+      if (/^#{1,2}\s/.test(line)) {
+        inDesign = DESIGN_HEAD.test(label);
+        if (inDesign) { current = null; continue; }
+      }
+      const section = (inDesign ? DESIGN_SECTIONS : SECTIONS).find(([, pattern]) => pattern.test(label))?.[0];
       if (section) {
         current = section;
         const inline = line.replace(/^#+\s*/, '').split(/[:：]/).slice(1).join(':').trim();
@@ -113,11 +129,15 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     if (current) buckets.get(current)?.push(line);
   }
 
-  const requirementItems = items(buckets.get('requirements') ?? [], REQUIREMENT_ITEM);
+  const requirementItems = [
+    ...items(buckets.get('requirements') ?? [], REQUIREMENT_ITEM).map((item) => ({ ...item, kind: 'R' })),
+    ...items(buckets.get('hypotheses') ?? [], HYPOTHESIS_ITEM).map((item) => ({ ...item, kind: 'H' })),
+  ];
   if (!requirementItems.length) return null;
-  const position = new Map<number, number>();
+  const position = new Map<string, number>();
   const requirements = requirementItems.map((item, index) => {
-    if (!position.has(item.number)) position.set(item.number, index + 1);
+    const key = `${item.kind}${item.number}`;
+    if (!position.has(key)) position.set(key, index + 1);
     const acceptance: string[] = [];
     const detail: string[] = [];
     const evidenceLine: number[] = [];
@@ -131,16 +151,36 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     }
     const priority = /\bP([012])\b/i.exec(item.head)?.[1];
     const title = stripMarks(stripCitations(item.head).replace(/\[?\s*\bP[012]\b\s*\]?/i, '')).replace(/^[\s.:-]+/, '');
-    const evidence = [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' ')), ...evidenceLine])];
+    const evidence = item.kind === 'H' ? [] : [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' ')), ...evidenceLine])];
     return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), acceptance, ...(check ? { check } : {}) };
   });
 
-  const features = items(buckets.get('features') ?? [], FEATURE_ITEM).map((item) => {
-    const refs = [...item.head.matchAll(/R\s*-?\s*0*(\d+)/gi)].map((match) => Number(match[1]));
-    const fromBody = refs.length ? [] : [...item.body.join(' ').matchAll(/R\s*-?\s*0*(\d+)/gi)].map((match) => Number(match[1]));
-    const title = stripMarks(item.head.replace(/\s*[([][^)\]]*R\s*-?\s*\d+[^)\]]*[)\]]\s*$/i, '')).replace(/^[\s.:-]+/, '');
-    return { title, detail: stripCitations(prose(item.body.map(bulletText))), requirements: [...refs, ...fromBody].flatMap((n) => position.get(n) ?? []) };
+  const featurePositions = new Map<number, number>();
+  const features = items(buckets.get('features') ?? [], FEATURE_ITEM).map((item, index) => {
+    if (!featurePositions.has(item.number)) featurePositions.set(item.number, index + 1);
+    const refs = [...item.head.matchAll(/\b([RH])\s*-?\s*0*(\d+)/gi)];
+    const links = refs.length ? refs : [...item.body.join(' ').matchAll(/\b([RH])\s*-?\s*0*(\d+)/gi)];
+    const title = stripMarks(item.head.replace(/\s*[([][^)\]]*\b[RH]\s*-?\s*\d+[^)\]]*[)\]]\s*$/i, '')).replace(/^[\s.:-]+/, '');
+    return { title, detail: stripCitations(prose(item.body.map(bulletText))), requirements: links.flatMap(([, kind, number]) => position.get(`${kind.toUpperCase()}${Number(number)}`) ?? []) };
   });
+
+  const difference = (buckets.get('differentiation') ?? []).map(bulletText).filter(Boolean);
+  const claim = prdSentenceParts(difference.filter((line) => !COMPETITOR_BASIS.test(stripMarks(line))).map(stripMarks).join(' '))[0] ?? '';
+  const basis = difference.find((line) => COMPETITOR_BASIS.test(stripMarks(line))) ?? '';
+  const [name, ...excerpt] = basis.split('|');
+  const technicalDesign = {
+    architecture: prose(buckets.get('architecture') ?? []),
+    dataModel: list(buckets.get('dataModel') ?? []),
+    interfaces: list(buckets.get('interfaces') ?? []),
+    stack: list(buckets.get('stack') ?? []),
+    milestones: list(buckets.get('milestones') ?? []).map((line) => {
+      const references = /\(\s*(F\s*-?\s*\d+(?:\s*[,，/]\s*F\s*-?\s*\d+)*)\s*\)\s*\.?$/i.exec(line);
+      return {
+        title: references ? line.slice(0, references.index).trim() : line,
+        featureIds: references ? [...references[1].matchAll(/\d+/g)].flatMap((match) => featurePositions.get(Number(match[0])) ?? []) : [],
+      };
+    }),
+  };
 
   const rivals = list(buckets.get('rivals') ?? []).flatMap((line) => {
     const [name, ...rest] = line.split(/[:：]/);
@@ -160,6 +200,8 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     features,
     screens: [],
     rivals,
+    ...(claim ? { differentiation: { claim: stripCitations(claim), evidence: citedQuotes(claim), competitor: { name: stripMarks(name).replace(COMPETITOR_BASIS, ''), quote: excerpt.join('|').trim() } } } : {}),
+    ...(Object.values(technicalDesign).some((part) => part.length) ? { technicalDesign } : {}),
     risks: list(buckets.get('risks') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     assumptions: list(buckets.get('assumptions') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     metrics: list(buckets.get('metrics') ?? []),

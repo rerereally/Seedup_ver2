@@ -3,10 +3,12 @@ import { toLang } from '@/lib/i18n';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
 import { pickPrdModel } from '@/lib/opportunities/models';
+import { normalizeDifferentiation, normalizeTechnicalDesign } from '@/lib/opportunities/prd-design';
+import { findDifferentiationOverlap, withDifferentiationQuestion } from '@/lib/opportunities/prd-differentiation';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeRivals, normalizeSlots, withEvidenceStrength, withPrdReadiness } from '@/lib/opportunities/spec';
-import type { Priority, Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
+import type { Priority, Spec, SpecFeature, SpecInput, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
 import { NextResponse } from 'next/server';
@@ -21,12 +23,12 @@ const list = (value: unknown, limit: number) => (Array.isArray(value) ? value : 
 const ids = (value: unknown) => list(value, 12).filter((item): item is string => typeof item === 'string' && /^[RHFS]-\d{2}$/.test(item));
 
 /** The client sends its current spec back; only its shape is trusted, never its evidence. */
-function readSpec(value: unknown, evidenceCount: number, draft: boolean, competitors: string[]): Spec | null {
+function readSpec(value: unknown, input: SpecInput, draft: boolean): Spec | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
   const requirement = (row: unknown): SpecRequirement => {
     const record = (row ?? {}) as Record<string, unknown>;
-    const evidence = list(record.evidence, 12).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= evidenceCount);
+    const evidence = list(record.evidence, 12).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= input.evidence.length);
     const priority = typeof record.priority === 'string' && /^P[012]$/.test(record.priority) ? (record.priority as Priority) : undefined;
     const acceptance = list(record.acceptance, 4).map((item) => clip(item, 240)).filter(Boolean);
     const check = clip(record.check, 300);
@@ -41,6 +43,9 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean, competi
     return { id: clip(record.id, 8), name: clip(record.name, 80), does: clip(record.does, 240), featureIds: ids(record.featureIds) };
   });
   const strings = (key: string, limit: number) => list(raw[key], limit).map((item) => clip(item, 200)).filter(Boolean);
+  const differentiation = normalizeDifferentiation(raw.differentiation, input.evidence.length, input.competitorNotes);
+  const featureIds = ids(features.map((row) => row.id)).filter((id) => id.startsWith('F-'));
+  const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map(featureIds.map((id) => [id, id])));
   return {
     summary: clip(raw.summary, 400),
     targetUsers: strings('targetUsers', 4),
@@ -57,17 +62,20 @@ function readSpec(value: unknown, evidenceCount: number, draft: boolean, competi
     ...(clip(raw.scenario, 1000) ? { scenario: clip(raw.scenario, 1000) } : {}),
     ...(strings('goals', 5).length ? { goals: strings('goals', 5) } : {}),
     ...(strings('assumptions', 6).length ? { assumptions: strings('assumptions', 6) } : {}),
-    ...(strings('openQuestions', 6).length ? { openQuestions: strings('openQuestions', 6) } : {}),
+    ...(Array.isArray(raw.openQuestions) ? { openQuestions: list(raw.openQuestions, 8).map((item) => clip(item, 760)).filter(Boolean) } : {}),
     ...(raw.beginner === true ? { beginner: true } : {}),
     ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
     lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
     // Only rivals the server itself found for these quotes; a name the client adds is dropped, like evidence numbers.
-    ...(Array.isArray(raw.rivals) ? { rivals: normalizeRivals(raw.rivals, competitors) } : {}),
+    ...(Array.isArray(raw.rivals) ? { rivals: normalizeRivals(raw.rivals, input.competitors) } : {}),
+    ...(differentiation ? { differentiation } : {}),
+    ...(technicalDesign ? { technicalDesign } : {}),
     ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
 }
 
 export async function POST(request: Request) {
+  const deadline = Date.now() + 105_000;
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   if (!supabase || !data.user) return NextResponse.json({ error: '로그인 후 사용할 수 있습니다.' }, { status: 401 });
@@ -82,7 +90,7 @@ export async function POST(request: Request) {
   if (!resolved) return NextResponse.json({ error: '담은 근거를 찾지 못했습니다.' }, { status: 422 });
   const { input, picked } = resolved;
   const draft = !meetsEvidenceBar(picked.length, new Set(picked.map((item) => item.evidence.platform)).size);
-  const current = readSpec(body?.spec, input.evidence.length, draft, input.competitors);
+  const current = readSpec(body?.spec, input, draft);
   if (!current || !(current.requirements.length + (current.origin === 'idea' ? current.hypotheses.length : 0))) return NextResponse.json({ error: '고칠 PRD가 없습니다.' }, { status: 400 });
 
   if (!(await consumeDailyUsage(supabase, 'prd_revise', DAILY_REVISE_LIMIT))) {
@@ -92,7 +100,11 @@ export async function POST(request: Request) {
   const run = prdRun(data.user, 'revise', model ?? 'default');
   const work = screensOnly
     ? generateScreens(input, current, model, run.onUsage).then((screens) => (screens ? { ...current, screens } : null))
-    : reviseSpec(input, current, instruction, model, undefined, run.onUsage);
+    : reviseSpec(input, current, instruction, model, undefined, run.onUsage, deadline).then(async (revised) => {
+      if (!revised?.differentiation || revised.differentiation.claim === current.differentiation?.claim) return revised;
+      const overlap = await findDifferentiationOverlap(input, revised, { model, onUsage: run.onUsage, deadline });
+      return withDifferentiationQuestion(revised, overlap);
+    });
   const spec = await work.catch((error) => {
     console.error('PRD revise failed', error);
     return null;

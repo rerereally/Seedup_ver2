@@ -64,6 +64,24 @@ npm 레지스트리의 repository 필드에서 GitHub 저장소를 찾아 릴리
 ### F4. GitHub Actions 단계 (R4)
 워크플로에서 테스트가 실패하면 F1~F3을 실행하고 결과를 PR 댓글로 남긴다.
 
+## 차별점
+바뀐 목록만 보여 주는 대신, 테스트를 깨뜨린 패키지 이름과 버전을 직접 출력한다 [E3].
+
+## 기술 설계
+### 구조
+로컬 CLI가 두 lock 파일을 읽고, 임시 작업 디렉터리에서 테스트를 실행해 원인 버전을 좁힌다.
+### 데이터 모델
+- PackageChange: name, beforeVersion, afterVersion.
+- TestRun: selectedPackages, exitCode, durationMs.
+### 인터페이스
+- CLI depbisect run: 두 lock 파일과 테스트 명령을 받아 원인, 종료 코드, 고정 명령을 출력한다.
+### 스택과 이유
+- Node.js와 TypeScript: npm 프로젝트의 lock 파일과 기존 테스트 명령을 그대로 읽고 실행한다.
+### 구현 순서
+1. 두 lock 파일을 읽어 변경 패키지를 찾는다 (F1)
+2. 임시 디렉터리에서 원인 버전을 찾아 고정 명령을 검증한다 (F1, F2)
+3. GitHub 릴리스 링크를 추가한다 (F3)
+
 ## 이미 있는 도구가 못 하는 것
 - Renovate: 무엇이 바뀌었는지는 알려 주지만 무엇이 테스트를 깨뜨렸는지는 찾지 않는다[E3] → 바뀐 패키지를 이분 탐색해 원인 하나를 짚는다.
 
@@ -126,6 +144,19 @@ ${beginner ? '3~5' : '4~7'}개. 요구사항마다 아래 모양으로 쓴다.
 ${beginner ? '2~3' : '3~6'}개. 기능마다 아래 모양으로 쓴다.
 ### F번호. 기능 이름 (R번호, R번호)
 무엇을 받아 무엇을 돌려주는지 한두 문장.
+## 차별점
+우리만 하는 한 가지를 한 문장으로 쓴다. 이 차이를 뒷받침하는 원문은 문장 끝에 [E번호]로 붙인다. 경쟁 도구 설명에 근거를 두면 다음 줄에 "- 경쟁 도구 설명: 도구 이름 | 설명에서 그대로 복사한 문장"을 적는다. 둘 다 없으면 추측하지 말고 열린 질문에 남긴다.
+## 기술 설계
+### 구조
+한 단락. 주요 구성 요소와 데이터가 오가는 순서를 쓴다.
+### 데이터 모델
+목록. "엔티티: 이름과 주요 필드" 형태로 쓴다. 저장이 필요 없으면 그 이유와 입력·출력 구조를 쓴다.
+### 인터페이스
+목록. 사용자 플랫폼에 맞는 API 경로, CLI 명령 또는 화면 진입점마다 입력과 결과를 쓴다.
+### 스택과 이유
+목록. 선택한 플랫폼과 <선호 기술>을 반영하고, 기술마다 선택 이유를 적는다.
+### 구현 순서
+번호 목록 3~5개. 각 줄은 작은 동작 단위이고 끝에 구현이 끝나는 기능 번호를 "(F1, F2)" 형태로 붙인다. 기능 절에 있는 번호만 사용한다.
 ## ${h.rivals}
 <이미 있는 도구>에 적힌 도구만, "- 도구 이름: 못 하는 것 → 이 제품의 답" 모양으로. 못 하는 것은 원문, <기존 도구의 빈틈>, <이미 있는 도구>의 설명이 말하는 내용만 쓰고 원문이면 [E번호]를 붙인다. 그 밖에 알고 있는 내용이면 끝에 "(확인 필요)"를 붙인다. 도구가 없으면 이 제목을 쓰지 않는다.
 ## ${h.risks}
@@ -156,19 +187,19 @@ function systemEn(beginner: boolean) {
   const h = HEADINGS.en;
   return `${systemKo(beginner)}
 
-Write the whole PRD in English. Use these English headings instead of the Korean ones, in the same order: ${Object.values(h).slice(0, 13).map((title) => `"${title}"`).join(', ')}. Inside requirements use "- ${h.acceptance}:" and "- ${h.check}:". Requirement titles read "Users can ...". For each acceptance criterion, give a starting input or action and the observable result returned or displayed by the product. For each success metric, include the target and a "Measure: ..." clause describing the test or data to use.`;
+Write the whole PRD in English. Use these English headings instead of the Korean ones, in the same order: ${Object.values(h).slice(0, 13).map((title) => `"${title}"`).join(', ')}. Inside requirements use "- ${h.acceptance}:" and "- ${h.check}:". Requirement titles read "Users can ...". Immediately after Features include "## Differentiation" with "Competitor listing: name | exact excerpt" when relevant, and "## Technical design" with the subheadings "Architecture", "Data model", "Interfaces", "Stack and rationale", and "Implementation order". Every milestone ends with existing F IDs in parentheses. For each acceptance criterion, give a starting input or action and the observable result returned or displayed by the product. For each success metric, include the target and a "Measure: ..." clause describing the test or data to use.`;
 }
 
 export const prdSystemPrompt = (lang: Lang = 'ko', beginner = false) => (lang === 'en' ? systemEn(beginner) : systemKo(beginner));
 
 /** This PRD's data only. Every field is the server's own or clipped user input, wrapped so it reads as data. */
-export function prdUserPrompt(input: SpecInput, options: { idea?: boolean; lang?: Lang } = {}) {
+export function prdUserPrompt(input: SpecInput, options: { idea?: boolean; lang?: Lang; stack?: readonly string[] } = {}) {
   const quotes = input.evidence.map((item, index) => `E${index + 1} [${PLATFORM_LABELS[item.platform] ?? item.platform}] "${item.quote}"${item.quoteKo && options.lang !== 'en' ? `\n   (번역: ${item.quoteKo})` : ''}`).join('\n');
   return `<아이디어>
 ${input.title}
 </아이디어>
 
-<${options.idea ? '문제와 기획자 답변' : '문제'}>
+${options.stack?.length ? `<선호 기술>\n${JSON.stringify(options.stack)}\n</선호 기술>\n\n` : ''}<${options.idea ? '문제와 기획자 답변' : '문제'}>
 ${input.problem}
 </${options.idea ? '문제와 기획자 답변' : '문제'}>
 

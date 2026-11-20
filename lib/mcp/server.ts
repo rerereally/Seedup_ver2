@@ -28,6 +28,7 @@ export type SavedPrdSummary = {
 export type SavedPrdDetail = SavedPrdSummary & {
   prdMarkdown: string;
   evidence: Evidence[];
+  competitorNotes?: string[];
 };
 
 export type McpDeps = {
@@ -505,7 +506,7 @@ function renderSavedPrdExport(saved: SavedPrdDetail, format: ExportFormat | 'prd
   if (format === 'prd') return saved.prdMarkdown;
   const parsed = parsePrdMarkdown(saved.prdMarkdown);
   if (!parsed) return saved.prdMarkdown;
-  const spec = normalizeSpec(parsed, saved.evidence, saved.evidence.length < 3, { idea: !saved.opportunitySlug });
+  const spec = normalizeSpec(parsed, saved.evidence, saved.evidence.length < 3, { idea: !saved.opportunitySlug, competitorNotes: saved.competitorNotes });
   const input: SpecInput = {
     title: saved.title,
     problem: spec.background || spec.summary || saved.title,

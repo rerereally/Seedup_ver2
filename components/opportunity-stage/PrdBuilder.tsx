@@ -18,6 +18,7 @@ import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
 import type { PrdModel } from '@/lib/opportunities/models';
 import { translator } from '@/lib/i18n';
 import { citedQuotes } from '@/lib/opportunities/prd-markdown';
+import { technicalSections } from '@/lib/opportunities/prd-design';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
 import { GraphEdges, LivePrd, Wireframes, liveStepsAfter, type LivePhase, type LiveStep } from './PrdParts';
@@ -626,8 +627,10 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const sections: Array<[string, string, boolean]> = spec && input ? [
     ['overview', t('개요', 'Overview'), true],
     ['problem', t('배경', 'Background'), true],
+    ['differentiation', t('차별점', 'Differentiation'), Boolean(spec.differentiation)],
     ['requirements', t('요구사항', 'Requirements'), true],
     ['features', t('기능', 'Features'), spec.features.length > 0],
+    ['technical-design', t('기술 설계', 'Technical design'), Boolean(spec.technicalDesign)],
     ['screens', t('화면', 'Screens'), spec.screens.length > 0],
     ['non-goals', t('범위 밖', 'Out of scope'), true],
     ['risks', t('위험 요소', 'Risks'), spec.risks.length > 0],
@@ -889,6 +892,18 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         </>
                       )}
                     </section>
+                    {spec.differentiation && (
+                      <section>
+                        <h4 id="prd-differentiation" className={h2}>{t('차별점', 'Differentiation')}</h4>
+                        <p className="mt-3 break-words text-[15px] leading-7">{spec.differentiation.claim}{cites(spec.differentiation.evidence, true)}</p>
+                        {spec.differentiation.competitor && (
+                          <blockquote className="mt-2 break-words border-l-2 pl-3 text-sm leading-6 text-muted">
+                            <p>{spec.differentiation.competitor.quote}</p>
+                            <cite className="not-italic">{spec.differentiation.competitor.name}</cite>
+                          </blockquote>
+                        )}
+                      </section>
+                    )}
                     <section>
                       <h4 id="prd-requirements" className={h2}>{t('요구사항', 'Requirements')}</h4>
                       {/* Backed and unbacked lines read in one list, as a PRD does; the unbacked ones say so and how to check them. */}
@@ -941,6 +956,19 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                           </>);
                         });
                         })()}</ul>
+                      </section>
+                    )}
+                    {spec.technicalDesign && (
+                      <section className="break-words">
+                        <h4 id="prd-technical-design" className={h2}>{t('기술 설계', 'Technical design')}</h4>
+                        {technicalSections(spec.technicalDesign, lang).map(({ title, lines, paragraph, ordered }) => (
+                          <div key={title} className="mt-4">
+                            <h5 className="text-sm font-semibold">{title}</h5>
+                            {paragraph ? <p className="mt-2 text-[15px] leading-7">{lines[0]}</p> : ordered ? (
+                              <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-[15px] leading-7">{lines.map((line, index) => <li key={index}>{line}</li>)}</ol>
+                            ) : bullets(lines)}
+                          </div>
+                        ))}
                       </section>
                     )}
                     {spec.screens.length > 0 && (

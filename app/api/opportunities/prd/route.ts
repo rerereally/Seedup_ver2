@@ -1,7 +1,7 @@
 import { cachePrd, cachedPrd, prdPolicy, prdRun } from '@/lib/db/server';
 import { onboardingAnswers } from '@/lib/db/onboarding';
 import { toLang } from '@/lib/i18n';
-import { isBeginner } from '@/lib/onboarding';
+import { isBeginner, preferredStack } from '@/lib/onboarding';
 import { getOpportunities } from '@/lib/opportunities/data';
 import { inputFromBody } from '@/lib/opportunities/idea';
 import { pickPrdModel } from '@/lib/opportunities/models';
@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `PRD는 하루 ${DAILY_PRD_LIMIT}개까지 만들 수 있습니다.` }, { status: 429 });
   }
 
-  const beginner = isBeginner((await onboardingAnswers(supabase, data.user.id)) as Parameters<typeof isBeginner>[0]);
+  const answers = await onboardingAnswers(supabase, data.user.id);
+  const beginner = isBeginner(answers);
+  const stack = preferredStack(answers).slice(0, 8).map((item) => item.trim().slice(0, 60));
   // Every account may pick a model; the admin's policy decides which ones run. Anything else falls back to free.
   const model = pickPrdModel(body?.model, await prdPolicy());
   const run = prdRun(data.user, 'prd', model ?? 'default');
@@ -57,14 +59,14 @@ export async function POST(request: Request) {
 
   // Shared by both answer styles: the finished result, or the fallback when the model gave nothing.
   const make = async (onEvent?: (event: PrdEvent) => void) => {
-    const result = await generatePrd(input, { draft, lang, idea: personal, model, onUsage: run.onUsage, beginner, onEvent }).catch((error) => {
+    const result = await generatePrd(input, { draft, lang, idea: personal, model, onUsage: run.onUsage, beginner, stack, onEvent }).catch((error) => {
       console.error('PRD generation failed', error);
       return null;
     });
     await run.finish(Boolean(result), input.title);
     if (result) {
       // The cache stands in for anyone's failed request, so it keeps only full-scope PRDs.
-      if (!personal && !beginner) await cachePrd(ids, input, result.spec);
+      if (!personal && !beginner && !stack.length) await cachePrd(ids, input, result.spec);
       return { ok: true as const, input, spec: result.spec, markdown: result.markdown, agentBrief: result.agentBrief };
     }
     await releaseDailyUsage(supabase, 'prd');

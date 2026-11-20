@@ -56,7 +56,9 @@
 | 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | 도구 정리 결정 · 보완 ④ 뒤 | [프롬프트](prompts/antigravity-remaining.md) T3 |
 | 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
 | E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | T1 · T3 · T6 뒤 | [프롬프트](prompts/antigravity-remaining.md) T7 |
-| 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 시작 가능 | [프롬프트](prompts/codex-antigravity-research.md), 코드 변경 없음 |
+| 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-antigravity-research.md), 코드 변경 없음 |
+| 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-scorecard-refresh.md) |
+| 처리방침 | 입력별 모델(무료 모델 / GPT 6.2 Sol · Haiku 5.5)과 보관 범위 | Codex(장차희 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-privacy-wording.md). 출시 전 준비, 정지훈에서 옮김 |
 | 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
 | 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |
 | 도구 정리 | MCP 도구 23 → 19(추천안) | 정지훈 | 결정 대기 | 연결 2 앞 별도 PR |

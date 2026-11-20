@@ -23,6 +23,8 @@
 | [prd-builder-split.md](prd-builder-split.md) | PRD 화면(`PrdBuilder`) 나누기 리팩터링 계획 | 현행 (시작 전) |
 | [trend-and-recommendation-review.md](trend-and-recommendation-review.md) | 트렌드 수집과 추천 알고리즘 평가 | 현행 |
 | [prompts/astra-planning.md](prompts/astra-planning.md) | Astra 시작 프롬프트: 계획 세션 이어받기(총괄 · 계획 보조) | 현행 |
+| [prompts/codex-scorecard-refresh.md](prompts/codex-scorecard-refresh.md) | Codex 프롬프트: 성적표 감독관 정적 검사 숫자 갱신 | 현행 |
+| [prompts/codex-privacy-wording.md](prompts/codex-privacy-wording.md) | Codex 프롬프트: 처리방침에 입력별 모델 · 보관 범위 | 현행 |
 | [prompts/antigravity-remaining.md](prompts/antigravity-remaining.md) | Antigravity 시작 프롬프트: 단계 2 보완 ② · ④ · ⑤ · ⑥, 연결 2, 세 입구, 흐름 E2E(T1~T7) | 현행 |
 | [prompts/codex-antigravity-research.md](prompts/codex-antigravity-research.md) | Codex 조사 프롬프트: Antigravity 확인(클라이언트 호환 ①) | 현행 |
 | [prompts/client-check.md](prompts/client-check.md) | 사람용 확인 순서: 클라이언트별 실제 연결(클라이언트 호환 ②) | 현행 |

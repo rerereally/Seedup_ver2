@@ -515,6 +515,7 @@ test('full E2E loop: three entries → goal lock → agent start prompt → MCP 
       lastActivityAt: AT,
       features: signals,
       specAvailable: true,
+      lockSpec: null,
       drift: driftForProject(commits, spec, goal, progress),
       decisions: memory.decisions,
       handoffs: memory.handoffs,

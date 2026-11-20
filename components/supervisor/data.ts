@@ -40,6 +40,8 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     criteriaMet: goal?.criteria.filter((row) => row.status === 'met').length ?? 0,
     criteriaTotal: goal?.criteria.length ?? 0, lastActivityAt,
     features: featureSignals(spec, progress), specAvailable: Boolean(spec),
+    // Only until a goal is locked: the dashboard drafts the goal from it (a PRD made over MCP has no other lock screen).
+    lockSpec: goal ? null : spec,
     drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'
       ? { ...file, content: `${JSON.stringify(hookSettings(), null, 2)}\n` } : file) : [],

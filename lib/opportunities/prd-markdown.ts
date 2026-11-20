@@ -4,7 +4,7 @@
 import type { RawSpec } from './spec';
 
 type DesignSection = 'architecture' | 'dataModel' | 'interfaces' | 'stack' | 'milestones';
-type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | 'review' | DesignSection;
+type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'screens' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | 'review' | DesignSection;
 
 // Order matters: the first match wins, so "non-goals" is tried before "goals" and "success metrics" before "users".
 const SECTIONS: Array<[Section, RegExp]> = [
@@ -20,6 +20,7 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['differentiation', /^(?:차별점|우리만 하는 한 가지|differentiation|one differentiator)$/i],
   ['rivals', /이미\s*있는\s*도구|경쟁|existing tools|competitors|rivals/i],
   ['features', /기능|features?/i],
+  ['screens', /^(?:화면|Screens)\s*\(F\s*→\s*S\)$/i],
   ['risks', /위험|risks?/i],
   ['assumptions', /가정|assumptions?/i],
   ['metrics', /지표|완료\s*기준|metrics|success/i],
@@ -72,6 +73,7 @@ function featureSlots(body: string[]) {
 const REQUIREMENT_ITEM = ITEM('R');
 const HYPOTHESIS_ITEM = ITEM('H');
 const FEATURE_ITEM = ITEM('F');
+const FEATURE_REFERENCES = /\(\s*(F\s*-?\s*\d+(?:\s*[,，/]\s*F\s*-?\s*\d+)*)\s*\)\s*\.?$/i;
 
 /** Every E-number cited in a piece of text: [E1], [E1, E3], [E-2], (E4). */
 export function citedQuotes(text: string) {
@@ -193,6 +195,13 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     const { text: lines, slots } = featureSlots(item.body);
     return { title, detail: stripCitations(prose(lines.filter((line) => !SERVES_LINE.test(stripMarks(line))).map(bulletText))), requirements: links.flatMap(([, kind, number]) => position.get(`${kind.toUpperCase()}${Number(number)}`) ?? []), ...(slots ? { slots } : {}) };
   });
+  const linkedFeatures = (references: string) => [...references.matchAll(/\d+/g)].flatMap((match) => featurePositions.get(Number(match[0])) ?? []);
+  const screens = (buckets.get('screens') ?? []).flatMap((line) => {
+    const references = FEATURE_REFERENCES.exec(line);
+    if (!references) return [];
+    const screen = /^-\s+\*\*S-\d+\.\s+(.+?)\*\*(?:\s*:\s*(.*))?$/i.exec(line.slice(0, references.index).trim());
+    return screen ? [{ name: screen[1], does: screen[2] ?? '', features: linkedFeatures(references[1]) }] : [];
+  });
 
   const difference = (buckets.get('differentiation') ?? []).map(bulletText).filter(Boolean);
   const claim = prdSentenceParts(difference.filter((line) => !COMPETITOR_BASIS.test(stripMarks(line))).map(stripMarks).join(' '))[0] ?? '';
@@ -204,10 +213,10 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     interfaces: list(buckets.get('interfaces') ?? []),
     stack: list(buckets.get('stack') ?? []),
     milestones: list(buckets.get('milestones') ?? []).map((line) => {
-      const references = /\(\s*(F\s*-?\s*\d+(?:\s*[,，/]\s*F\s*-?\s*\d+)*)\s*\)\s*\.?$/i.exec(line);
+      const references = FEATURE_REFERENCES.exec(line);
       return {
         title: references ? line.slice(0, references.index).trim() : line,
-        featureIds: references ? [...references[1].matchAll(/\d+/g)].flatMap((match) => featurePositions.get(Number(match[0])) ?? []) : [],
+        featureIds: references ? linkedFeatures(references[1]) : [],
       };
     }),
   };
@@ -228,7 +237,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     non_goals: list(buckets.get('nonGoals') ?? []),
     requirements,
     features,
-    screens: [],
+    screens,
     rivals,
     ...(claim ? { differentiation: { claim: stripCitations(claim), evidence: citedQuotes(claim), competitor: { name: stripMarks(name).replace(COMPETITOR_BASIS, ''), quote: excerpt.join('|').trim() } } } : {}),
     ...(Object.values(technicalDesign).some((part) => part.length) ? { technicalDesign } : {}),

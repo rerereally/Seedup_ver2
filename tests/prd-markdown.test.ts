@@ -4,7 +4,7 @@ import { ownEvidence } from '../lib/opportunities/idea';
 import { citedQuotes, parsePrdMarkdown, prdGlance } from '../lib/opportunities/prd-markdown';
 import { prdSystemPrompt, prdUserPrompt } from '../lib/opportunities/prd-prompt';
 import { normalizeClarity, normalizeQuestions } from '../lib/opportunities/questions';
-import { normalizeSpec, renderSpecMarkdown } from '../lib/opportunities/spec';
+import { normalizeSpec, renderSpecMarkdown, withOpenScreenQuestions } from '../lib/opportunities/spec';
 import { publicEvidence } from '../lib/opportunities/types';
 
 const example = (() => {
@@ -156,4 +156,30 @@ test('a saved PRD keeps its readiness slots when read back from markdown, open o
     assert.deepEqual(back.features[0].slots, spec.features[0].slots, lang);
     assert.equal(back.features[0].detail, 'Save notes to disk', lang);
   }
+});
+
+test('saved Korean and English PRDs preserve screen links and ask only about unlinked features', () => {
+  const evidence = ownEvidence(['Notes vanish every time the app restarts.']);
+  const input = { title: 'Notes', problem: 'Notes vanish', gap: '', evidence, competitors: [] };
+  for (const lang of ['ko', 'en'] as const) {
+    const spec = { ...normalizeSpec({
+      requirements: [{ title: 'Remember notes', evidence: [1] }],
+      features: ['Write notes', 'Read notes', 'Share notes'].map((title) => ({ title, requirements: [1] })),
+      screens: [{ name: 'Editor', does: 'Write and preview notes (locally)', features: [1, 2] }, { name: 'Reader', features: [2] }],
+    }, evidence, true, { lang }), lang };
+    assert.equal(spec.screens.length, 2);
+    const markdown = renderSpecMarkdown(input, spec);
+    const raw = parsePrdMarkdown(markdown.replaceAll('F-01', 'F-08').replaceAll('F-02', 'F-04'))!;
+    const back = withOpenScreenQuestions({ ...normalizeSpec(raw, evidence, true, { lang }), lang });
+
+    assert.deepEqual(back.screens, spec.screens, lang);
+    assert.deepEqual(back.openQuestions, [lang === 'ko'
+      ? '확인 필요: F-03(Share notes) 기능은 어떤 화면에서 쓰나요?'
+      : 'Open question: Which screen uses F-03 (Share notes)?']);
+  }
+});
+
+test('model PRDs without saved screen rows keep an empty screen list', () => {
+  assert.deepEqual(parsePrdMarkdown(example)?.screens, []);
+  assert.deepEqual(parsePrdMarkdown(`${example}\n## Screens (F → S)\n- Settings screen for F-01`)?.screens, []);
 });

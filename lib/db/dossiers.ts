@@ -3,7 +3,9 @@
 // public by the owner's choice and are read with the service key.
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Evidence } from '@/lib/opportunities/types';
+import { specInputFor } from '@/lib/opportunities/context';
+import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
+import type { Evidence, SupplyItem } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -118,7 +120,8 @@ export async function saveIdeaDraft(service: SupabaseClient, userId: string, ide
   return (data as { id: string }).id;
 }
 
-export type SavedValidationReport = { markdown: string; level: string; generatedAt: string };
+type ValidationCompetitor = Pick<SupplyItem, 'name' | 'description'>;
+export type SavedValidationReport = { markdown: string; level: string; generatedAt: string; competitors?: ValidationCompetitor[] };
 
 /**
  * Keeps the validate_idea report on its draft (validation_report column). Kept apart from saveIdeaDraft and never
@@ -134,7 +137,26 @@ export async function draftReport(client: SupabaseClient, userId: string, id: st
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const { data, error } = await client.from('evidence_dossiers').select('validation_report').eq('user_id', userId).eq('id', id).maybeSingle();
   const report = (data as { validation_report?: unknown } | null)?.validation_report as Partial<SavedValidationReport> | null | undefined;
-  return !error && typeof report?.markdown === 'string' ? { markdown: report.markdown, level: String(report.level ?? ''), generatedAt: String(report.generatedAt ?? '') } : null;
+  if (error || typeof report?.markdown !== 'string') return null;
+  const competitors = Array.isArray(report.competitors) ? report.competitors.filter((row) =>
+    typeof row?.name === 'string' && typeof row.description === 'string').slice(0, 8) : undefined;
+  return { markdown: report.markdown, level: String(report.level ?? ''), generatedAt: String(report.generatedAt ?? ''), ...(competitors?.length ? { competitors } : {}) };
+}
+
+export function validationCompetitorNotes(competitors: ValidationCompetitor[]) {
+  return competitors.map(({ name, description }) => description ? `${name}: ${description}` : name);
+}
+
+/** Recheck structured competitor listings against their saved report or the published catalog. */
+export async function savedPrdCompetitorNotes(
+  client: SupabaseClient, userId: string, row: UserDossierPrd, report?: SavedValidationReport | null,
+) {
+  if (!/^- (?:경쟁 도구 설명|Competitor listing):/m.test(row.prd_markdown)) return undefined;
+  const saved = report === undefined ? await draftReport(client, userId, row.id) : report;
+  if (saved?.competitors?.length) return validationCompetitorNotes(saved.competitors);
+  const { opportunities } = await getOpportunities();
+  const picked = findEvidence(opportunities, Array.isArray(row.evidence_ids) ? row.evidence_ids : []);
+  return specInputFor(opportunities, picked)?.competitorNotes;
 }
 
 /** A draft saved by saveIdeaDraft that has no PRD yet. */

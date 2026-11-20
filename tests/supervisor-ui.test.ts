@@ -10,7 +10,7 @@ import ProjectList from '../components/supervisor/ProjectList';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
 import type { FeatureCommit } from '../lib/opportunities/feature-commits';
 import type { ProjectGoal } from '../lib/supervisor/types';
-import type { Spec } from '../lib/opportunities/spec';
+import { renderSpecMarkdown, type Spec } from '../lib/opportunities/spec';
 import { getOpportunities } from '../lib/opportunities/data';
 
 const USER = '00000000-0000-0000-0000-00000000000a';
@@ -127,6 +127,25 @@ test('a real public opportunity is still unavailable when the user has no projec
   assert.equal(await supervisorDetail(client, USER, opportunity.slug), null);
   assert.ok(!queried.some((path) => /project_goals|project_memory|build_progress|feature_commits/.test(path)));
   assert.equal(await supervisorDetail(client, USER, 'no-such-seedup-project-b2'), null);
+});
+
+test('a personal PRD with zero quotes has a lockable goal and features from its own saved Markdown', async () => {
+  const input = { title: 'Budget ledger', problem: 'Track cash spending.', gap: '', evidence: [], competitors: [] };
+  const markdown = renderSpecMarkdown(input, {
+    ...spec, lang: 'en', draft: true, goals: ['Record spending'], metrics: ['Record a purchase in one minute.'],
+    hypotheses: [{ id: 'H-01', title: 'Record a purchase', detail: 'Enter the amount and date.', priority: 'P0', evidence: [], acceptance: [] }],
+    features: [{ ...spec.features[0], requirementIds: ['H-01'] }],
+  });
+  const client = database((url) => url.pathname.endsWith('/evidence_dossiers') ? [{
+    id: PRD, title: input.title, evidence_ids: [], evidence: [], prd_markdown: markdown, updated_at: goal.lockedAt,
+  }] : []);
+  const project = await supervisorDetail(client, USER, KEY);
+  assert.ok(project?.lockSpec);
+  assert.equal(project.goal, null);
+  assert.equal(project.lockSpec.hypotheses[0].title, 'Record a purchase');
+  assert.deepEqual(project.features.map((row) => row.id), ['F-01']);
+  assert.deepEqual(project.specQuotes, []);
+  assert.match(allTabs(project, 'ko'), /목표 잠그기/);
 });
 
 test('owned personal PRD loads scoped data, exact bundle contents, criterion count and latest memory activity', async () => {

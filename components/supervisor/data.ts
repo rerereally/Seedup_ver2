@@ -1,6 +1,6 @@
 // Server callers pass the signed-in client. All database access stays in existing data-layer functions and RLS.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { draftReport, userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
+import { draftReport, savedPrdCompetitorNotes, userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { recentProjectVerifications } from '@/lib/db/verifications';
 import { projectMemory } from '@/lib/db/project-memory';
@@ -9,30 +9,39 @@ import { cachedPrd } from '@/lib/db/server';
 import { getOpportunities, getOpportunity } from '@/lib/opportunities/data';
 import { readBuildProgress, readBuildProgressHistory, type BuildProgressHistory } from '@/lib/opportunities/build-progress';
 import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
-import { activeGoalLine, contextText, pickNextTask } from '@/lib/mcp/server';
+import { activeGoalLine, contextText, pickNextTask, savedProject } from '@/lib/mcp/server';
 import { hookBundle, hookSettings } from '@/lib/supervisor/hook-bundle';
+import type { Evidence } from '@/lib/opportunities/types';
 import { humanTasks } from '@/lib/supervisor/human-queue';
 import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
 
 export async function supervisorDetail(client: SupabaseClient, userId: string, rawKey: string) {
   const key = await resolveProjectKey(client, userId, decodeProjectKey(rawKey));
   if (!key) return null;
+  const personal = key.startsWith('prd:');
   const [project, dossier, opportunity] = await Promise.all([
     supervisorProject(client, userId, key),
-    key.startsWith('prd:') ? userPrdById(client, userId, key.slice(4)) : userPinnedDossierForSlug(client, userId, key),
-    key.startsWith('prd:') ? null : getOpportunity(key),
+    personal ? userPrdById(client, userId, key.slice(4)) : userPinnedDossierForSlug(client, userId, key),
+    personal ? null : getOpportunity(key),
   ]);
   // A public opportunity existing does not make it this user's supervisor project.
   if (!project && !dossier) return null;
   const evidenceIds = dossier?.evidence_ids ?? opportunity?.evidence.slice(0, 12).map((row) => row.id) ?? [];
-  const [goal, memory, progress, commits, cached, verifications, history, report] = await Promise.all([
+  const reportPromise = personal ? draftReport(client, userId, key.slice(4)).catch(() => null) : Promise.resolve(null);
+  const personalSpec = async () => {
+    if (!dossier) return null;
+    const evidence = Array.isArray(dossier.evidence) ? dossier.evidence as Evidence[] : [];
+    const competitorNotes = await savedPrdCompetitorNotes(client, userId, dossier, await reportPromise);
+    return savedProject({ title: dossier.title, prdMarkdown: dossier.prd_markdown, evidence, competitorNotes }, key).result;
+  };
+  const [goal, memory, progress, commits, saved, verifications, history, report] = await Promise.all([
     currentProjectGoal(client, userId, key), projectMemory(client, userId, key),
-    readBuildProgress(client, userId, key), readFeatureCommits(client, userId, key), cachedPrd(evidenceIds),
+    readBuildProgress(client, userId, key), readFeatureCommits(client, userId, key), personal ? personalSpec() : cachedPrd(evidenceIds),
     recentProjectVerifications(client, userId, key).catch(() => null),
     readBuildProgressHistory(client, userId, key).catch((): BuildProgressHistory => ({})),
-    key.startsWith('prd:') ? draftReport(client, userId, key.slice(4)).catch(() => null) : null,
+    reportPromise,
   ]);
-  const spec = cached?.spec ?? null;
+  const spec = saved?.spec ?? null;
   const lastActivityAt = latestActivity([
     dossier?.updated_at, goal?.lockedAt, ...Object.values(progress).map((row) => row.updatedAt),
     ...commits.map((row) => row.created_at), ...memory.decisions.map((row) => row.at),
@@ -66,7 +75,7 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     envNames: [...new Set([...(spec ? humanTasks(spec).flatMap((task) => task.envVars) : []),
       ...memory.facts.filter((fact) => fact.kind === 'env_name').map((fact) => fact.text)])],
     featureFiles: summarizeFeatureCommits(commits.filter((row) => !row.dismissed_at)),
-    specQuotes: (cached?.input.evidence ?? []).map((row) => ({ quote: row.quote, url: row.url, platform: row.platform })),
+    specQuotes: (saved?.input.evidence ?? []).map((row) => ({ quote: row.quote, url: row.url, platform: row.platform })),
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'
       ? { ...file, content: `${JSON.stringify(hookSettings(), null, 2)}\n` } : file) : [],
   };

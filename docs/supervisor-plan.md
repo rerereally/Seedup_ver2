@@ -405,7 +405,7 @@ B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `
 
 ### 세 입구, 한 출구 (기획 탭의 세 모드를 같은 출구로)
 
-기획 탭의 "PRD 만들기 · 아이디어 검증 · 레포 분석"을 하나로 합치는 큰 통합(입구 통합) 대신, 세 모드가 모두 **같은 출구(목표 잠금 → 에이전트 단계)**로 들어오게만 잇습니다. 연결 1단계(#163) 뒤에 합니다. 담당 Codex(장차희가 지시, 기술 책임 정지훈).
+기획 탭의 "PRD 만들기 · 아이디어 검증 · 레포 분석"을 하나로 합치는 큰 통합(입구 통합) 대신, 세 모드가 모두 **같은 출구(목표 잠금 → 에이전트 단계)**로 들어오게만 잇습니다. 연결 1단계(#163) 뒤에 합니다. 담당 정지훈 · Antigravity([프롬프트](prompts/antigravity-remaining.md) T6).
 
 | 작업 | 내용 | 파일 |
 | :--- | :--- | :--- |
@@ -428,7 +428,7 @@ Claude Code · Codex · Antigravity에서 위 "작동" 다섯 가지가 빠짐�
 | ① Antigravity 확인 조사 | Codex(장차희 지시, 웹 검색, 코드 변경 없음) | 9절 조사와 같은 형식으로 Antigravity의 규칙 파일 위치(`AGENTS.md` · `GEMINI.md` 등), 훅 지원, 서버 안내문 반영, 카드 표시, 원격 MCP(`serverUrl`) 인증 방식. [프롬프트](prompts/codex-antigravity-research.md) |
 | ② 클라이언트별 실제 연결 확인 | 사람: 장차희(Claude Code, Codex), 정지훈(Antigravity, 운영 준비 직후) | 공개 테스트 저장소 하나로 연결 → `resume_project` → `connect_repo` → `get_next_task` → `update_feature_status`(in_progress) → 작은 커밋 push → `verify_feature` → `update_feature_status`(done, 토큰) → `/supervisor` 확인. 결과는 클라이언트별 다섯 기준 표로 `docs/research/<날짜>-client-check.md`. [확인 순서](prompts/client-check.md) |
 | ③ 호환 보완 코드 | 정지훈(단계 2 보완 ⑤를 넓힘) | Claude Code용 `CLAUDE.md`(`AGENTS.md`를 가리키는 한 줄) 제공(에이전트 단계 화면 · `setup_project`), 서버 안내문 앞 512자에 감독 핵심(프로젝트 키 → `resume_project` → `get_next_task`, 목표 · 범위 변경 전 확인)을 먼저 두고 리서치 설명은 뒤로, `developed_with`에 `antigravity` 추가와 개발 모델 계열을 직접 받는 입력(결정 대기), `.codex/hooks.json`, Windows `sh` 대응 |
-| ④ 스타터 팩 문구 버그 | 세 입구 ③에 포함(같은 파일) | `AgentPackDownload`의 "현재 번들에는 pre-commit 검사가 없습니다"는 #157 뒤로 틀림. 실제 묶음 내용대로 고침 |
+| ④ 스타터 팩 문구 버그 | 세 입구 ③에 포함(같은 파일, T6) | `AgentPackDownload`의 "현재 번들에는 pre-commit 검사가 없습니다"는 #157 뒤로 틀림. 실제 묶음 내용대로 고침 |
 
 ### MCP 도구 정리 (결정 대기, 정지훈)
 
@@ -597,3 +597,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: "기획 → 에이전트 연결" 칸 추가. 1단계 웹 에이전트 단계 화면 + 개인 PRD 내보내기에 목표 · 키(지금, Codex), 2단계 MCP 파일 제공 도구(A2 뒤, 정지훈).
 - 2026-11-20: 시작 문장에 저장소 연결(`connect_repo`) 추가, 연결 2단계에 목표 변경 안내 추가, "세 입구, 한 출구"와 흐름 전체 E2E 칸 추가.
 - 2026-11-20: 정지훈 요청 반영. 3-2에 클라이언트별 지원 수준 표와 "작동" 기준, "클라이언트 호환과 실제 연결 확인" 칸, "MCP 도구 정리"(추천안, 결정 대기) 칸, 보류에 심층 감독 추가 · GitHub App 결정 대기 표시.
+- 2026-11-20: 단계 2 보완 ② · ④ · ⑤ · ⑥, 연결 2, 세 입구 한 출구, 흐름 E2E를 정지훈 · Antigravity가 진행(프롬프트 `prompts/antigravity-remaining.md` T1~T7). 세 입구 한 출구 담당을 장차희 Codex에서 정지훈 Antigravity로 옮김.

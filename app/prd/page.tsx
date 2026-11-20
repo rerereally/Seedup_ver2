@@ -84,19 +84,16 @@ export default async function PrdPage({ searchParams }: { searchParams: Promise<
                 initialKind={params.mode === 'validate' || params.mode === 'repo' ? params.mode : 'prd'}
                 intro={{
                   prd: {
-                    title: t('내가 쓸 도구는 바로 PRD로', 'A tool for you goes straight to the PRD'),
-                    lead: t('질문 몇 개에 답하면 PRD와 목표가 정해지고, 코딩 에이전트가 그 목표에서 벗어나지 않게 이어서 만듭니다.', 'Answer a few questions, lock a goal, and hand it to your coding agent so it stays on that goal.'),
+                    lead: t('만들고 싶은 제품이나 기능을 PRD로 정리합니다.', 'Turn a product or feature idea into a PRD.'),
                     examples: IDEAS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) })),
                     after: sample ? <Link href={`/prd?opportunity=${encodeURIComponent(sample)}`} className="link-seed">{t('예시 PRD 먼저 보기', 'See an example PRD first')}</Link> : undefined,
                   },
                   validate: {
-                    title: t('출시할 서비스는 시장부터 확인해요', 'Check the market before you launch'),
-                    lead: t('실제 사용자 글과 이미 있는 도구로 먼저 확인한 뒤, 그 근거로 PRD와 목표를 정해 에이전트로 넘깁니다.', 'Checks real posts and existing tools first, then turns that evidence into a PRD, a goal and an agent handoff.'),
+                    lead: t('기획 전에 시장과 경쟁 대안을 확인합니다.', 'Explore the market and competing alternatives before you start planning.'),
                     examples: CHECKS.map(([shortKo, shortEn, ko, en]) => ({ label: t(shortKo, shortEn), idea: t(ko, en) })),
                   },
                   repo: {
-                    title: t('내 레포에 다음 기능을 더해요', 'Add the next feature to your repo'),
-                    lead: t('GitHub 공개 레포를 읽고 더할 기능을 고른 뒤, PRD와 목표를 정해 그 레포에서 에이전트가 이어서 만듭니다.', 'Reads your public GitHub repos, picks the next feature, then sets a PRD and goal for an agent to build in that repo.'),
+                    lead: t('현재 구현을 읽고 다음 개발을 기획합니다.', 'Review the existing implementation and plan what to build next.'),
                     examples: ['vercel', 'supabase', 'torvalds'].map((login) => ({ label: login, idea: login })),
                     after: <Link href="/newsletter-preview?path=new" className="btn-quiet h-11">{t('새로 만들기', 'Build something new')}</Link>,
                   },

@@ -35,9 +35,8 @@ export default function Dashboard({ project, lang, tab = 'overview' }: { project
   const goal = project.goal;
   const href = (next: DashboardTab) => `/supervisor/${encodeURIComponent(project.key)}${next === 'overview' ? '' : `?tab=${next}`}`;
   return <div className="min-w-0 space-y-7 [overflow-wrap:anywhere]">
-    <nav aria-label={t('프로젝트 보기', 'Project views')} className="-mx-1 flex gap-1 overflow-x-auto border-b border-outline-soft">
-      {DASHBOARD_TABS.map((key) => <Link key={key} href={href(key)} aria-current={tab === key ? 'page' : undefined}
-        className={`tab shrink-0 ${tab === key ? 'border-b-2 border-ink font-semibold text-ink' : 'text-muted'}`}>{t(...TAB_LABELS[key])}</Link>)}
+    <nav aria-label={t('프로젝트 보기', 'Project views')} className="tabs">
+      {DASHBOARD_TABS.map((key) => <Link key={key} href={href(key)} aria-current={tab === key ? 'page' : undefined} className="tab">{t(...TAB_LABELS[key])}</Link>)}
     </nav>
     {tab === 'overview' && <>
     <section className="card min-w-0 p-5 sm:p-6" aria-labelledby="goal-heading">
@@ -94,7 +93,7 @@ export default function Dashboard({ project, lang, tab = 'overview' }: { project
     <section className="min-w-0" aria-labelledby="prd-heading">
       <h2 id="prd-heading" className="text-xl font-semibold text-ink">PRD</h2>
       <p className="mt-2 text-[13px] text-muted">{t('generate_verified_prd · get_my_prd가 쓰는 같은 PRD입니다.', 'The same PRD generate_verified_prd and get_my_prd use.')}</p>
-      {project.prd.markdown ? <div className="mt-4"><MarkdownContent content={project.prd.markdown} /></div>
+      {project.prd.markdown ? <div className="mt-4"><MarkdownContent content={project.prd.markdown.replace(/^# .*\n+/, '')} /></div>
         : <p className="mt-4 text-sm text-muted">{t('아직 PRD가 없습니다. 원문만 있는 초안이면 generate_verified_prd로 만드세요.', 'No PRD yet. For a quotes-only draft, make one with generate_verified_prd.')}</p>}
     </section>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="quotes-heading">

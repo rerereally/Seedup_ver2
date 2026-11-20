@@ -46,7 +46,7 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
     prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence) },
     repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
-    commits: commits.slice(-30).reverse().map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
+    commits: [...commits].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 30).map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
     facts: memory.facts,
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'
       ? { ...file, content: `${JSON.stringify(hookSettings(), null, 2)}\n` } : file) : [],

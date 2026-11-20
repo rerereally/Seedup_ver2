@@ -23,9 +23,8 @@ export default async function SupervisorPage({ searchParams }: { searchParams: P
   const [projects, prds] = await Promise.all([tab === 'projects' ? supervisorList(client, user.id) : [], tab === 'prds' ? supervisorPrds(client, user.id) : []]);
   return <><Header /><WorkShell>
     <PageIntro title={t('감독관', 'Supervisor')} description={t('프로젝트의 잠긴 목표와 진행 기록을 확인합니다.', 'Review locked goals and project progress.')} aside={<Link href="/agents" className="btn-quiet min-h-11">{t('MCP 연동과 스타터 팩', 'MCP and starter pack')}</Link>} />
-    <nav aria-label={t('감독관 보기', 'Supervisor views')} className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-outline-soft">
-      {TABS.map(([key, ko, en]) => <Link key={key} href={key === 'projects' ? '/supervisor' : `/supervisor?tab=${key}`} aria-current={tab === key ? 'page' : undefined}
-        className={`tab shrink-0 ${tab === key ? 'border-b-2 border-ink font-semibold text-ink' : 'text-muted'}`}>{t(ko, en)}</Link>)}
+    <nav aria-label={t('감독관 보기', 'Supervisor views')} className="tabs mb-6">
+      {TABS.map(([key, ko, en]) => <Link key={key} href={key === 'projects' ? '/supervisor' : `/supervisor?tab=${key}`} aria-current={tab === key ? 'page' : undefined} className="tab">{t(ko, en)}</Link>)}
     </nav>
     {tab === 'projects' && <ProjectList projects={projects} lang={lang} />}
     {tab === 'prds' && (!prds.length ? <p className="py-8 text-sm text-muted">{t('저장한 PRD가 없습니다. 웹이나 MCP(generate_verified_prd, validate_idea)로 만들 수 있습니다.', 'No saved PRDs. Make one on the web or with MCP (generate_verified_prd, validate_idea).')}</p>

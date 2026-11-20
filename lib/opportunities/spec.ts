@@ -243,11 +243,12 @@ export function withOpenScreenQuestions(spec: Spec): Spec {
 
 /**
  * A PRD read back from the cache, brought up to what a new one guarantees without calling a model: a P0, open
- * questions in the P0 readiness slots and for features with no screen, and every direct competitor in the comparison.
+ * questions in the P0 readiness slots and for features with no screen, evidence strength on each requirement, and every
+ * direct competitor in the comparison.
  * Safe to run more than once. Older rows were written before these rules existed.
  */
-export function repairCachedSpec(input: Pick<SpecInput, 'competitors'>, spec: Spec): Spec {
-  const ready = withPrdReadiness(spec);
+export function repairCachedSpec(input: Pick<SpecInput, 'competitors' | 'evidence'>, spec: Spec): Spec {
+  const ready = withEvidenceStrength(withPrdReadiness(spec), input.evidence ?? []);
   return { ...ready, rivals: coverRivals(ready.rivals ?? [], input.competitors ?? [], ready.lang === 'en' ? 'en' : 'ko') };
 }
 

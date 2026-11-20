@@ -105,9 +105,11 @@ import { repairCachedSpec } from '../lib/opportunities/spec';
 test('a PRD read back from the cache gets a P0, open readiness questions and every listed competitor, idempotently', () => {
   const old = normalizeSpec({ summary: 's', requirements: [{ title: 'r', detail: '설정 한 줄로 모델을 바꾼다', evidence: [1], priority: 'P1' }], features: [{ title: 'f', detail: 'd', requirements: [1] }], screens: [] }, 1);
   const stored = { ...old, rivals: [{ name: 'MemoriPilot', misses: 'Copilot only', answer: '' }] };
-  const repaired = repairCachedSpec({ competitors: ['MemoriPilot', 'Cortex'] }, stored);
+  const evidence = [{ id: 'ev_1', platform: 'hn' as const, quote: 'q', quoteKo: '', url: 'https://x.test', score: 0, postedAt: '2026-11-01' }];
+  const repaired = repairCachedSpec({ competitors: ['MemoriPilot', 'Cortex'], evidence }, stored);
   assert.equal(repaired.requirements[0].priority, 'P0');
   assert.ok(repaired.features[0].slots && Object.values(repaired.features[0].slots).every((items) => items.length > 0));
   assert.deepEqual(repaired.rivals?.map((row) => row.name), ['MemoriPilot', 'Cortex']);
-  assert.deepEqual(repairCachedSpec({ competitors: ['MemoriPilot', 'Cortex'] }, repaired), repaired);
+  assert.equal(repaired.requirements[0].evidenceStrength, 'some');
+  assert.deepEqual(repairCachedSpec({ competitors: ['MemoriPilot', 'Cortex'], evidence }, repaired), repaired);
 });

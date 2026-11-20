@@ -50,13 +50,15 @@ export function firstUsersFrom(quotes: Evidence[], limit = 10) {
   return firstUserSources(quotes, limit).map((row) => ({ platform: PLATFORM_LABELS[row.platform] ?? row.platform, url: row.url, quote: row.quote }));
 }
 
-type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean };
+/** evidenceBudgetMs: time for the quote search; one search takes about 45 s on free models, a retry needs about 90 s. */
+type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean; evidenceBudgetMs?: number };
 
-// The evidence search gets a minute, so a retry with other words still leaves the rival search time in the route.
+// By default the evidence search gets a minute, leaving the rival search time inside the web route's 120 s; callers
+// with more time (MCP, 160 s) pass a longer budget so the retry with other words can run.
 const EVIDENCE_BUDGET_MS = 60_000;
 
 const reportSources = {
-  readEvidence: (idea: string): Promise<{ phrases: string[]; quotes: Evidence[] }> => searchIdeaEvidenceWithRetry(idea, { deadline: Date.now() + EVIDENCE_BUDGET_MS }),
+  readEvidence: (idea: string, budgetMs = EVIDENCE_BUDGET_MS): Promise<{ phrases: string[]; quotes: Evidence[] }> => searchIdeaEvidenceWithRetry(idea, { deadline: Date.now() + budgetMs }),
   estimate: estimateBuild,
   supply: searchSupply,
   demand: searchDemand,
@@ -67,7 +69,7 @@ const reportSources = {
 
 export async function buildValidationReport(idea: string, opportunities: Opportunity[], options: ReportOptions = {}, sources = reportSources): Promise<ValidationReport> {
   const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }).catch(() => null);
-  const live = await sources.readEvidence(idea).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
+  const live = await sources.readEvidence(idea, options.evidenceBudgetMs).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
   const queries = [idea, ...live.phrases].slice(0, 2);
   const phrases = live.phrases.length ? live.phrases : [idea];
   const [counterPhrase] = phrases;

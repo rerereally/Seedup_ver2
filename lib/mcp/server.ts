@@ -1283,7 +1283,9 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const savedBuild = saved ? savedProject(saved, slug) : null;
   const opportunities = personal ? [] : await deps.opportunities();
   const opportunity = personal ? savedBuild?.opportunity : opportunities.find((item) => item.slug === slug);
-  if (!opportunity) return projectReply('Project not found. Call search_opportunities or get_my_prd first.', null, '',
+  if (!opportunity) return projectReply(personal
+    ? 'Project not found. A key from validate_idea has no PRD yet: call generate_verified_prd with it first. Otherwise call get_my_prd.'
+    : 'Project not found. Call search_opportunities or get_my_prd first.', null, '',
     personal ? toolCall('get_my_prd', {}) : toolCall('search_opportunities', { query: '<topic>' }), true);
   const loadSpec = () => personal ? Promise.resolve(savedBuild?.result ?? null) : resolveSpecForSlug(opportunity, deps);
   if (SUPERVISOR_TOOLS.has(name)) return callSupervisorTool(name, args, opportunity, deps, loadSpec, siteUrl);

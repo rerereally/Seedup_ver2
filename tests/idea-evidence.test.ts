@@ -239,3 +239,9 @@ test('the default sources skip App Store reviews unless APP_REVIEW_EVIDENCE=true
     if (before !== undefined) process.env.APP_REVIEW_EVIDENCE = before;
   }
 });
+
+test('pasted-link quotes are shared only from public developer and Q&A sites', async () => {
+  const { shareableLinkQuotes } = await import('../lib/opportunities/idea-evidence');
+  const row = (platform: 'github' | 'stackexchange' | 'web' | 'forum') => ({ id: `lv_${platform}`, platform, quote: 'q', quoteKo: '', url: 'u', score: 0, postedAt: null });
+  assert.deepEqual(shareableLinkQuotes([row('github'), row('web'), row('stackexchange'), row('forum')]).map((item) => item.platform), ['github', 'stackexchange']);
+});

@@ -38,6 +38,9 @@ const IP_REQUESTS_PER_MINUTE = 60;
 const USER_REQUESTS_PER_MINUTE = 30;
 /** The project memory fact validate_idea leaves with the rivals it found, read back when the draft's PRD is made. */
 const RIVALS_FACT = 'Direct competitors found by validate_idea:';
+// Room for a second quote search with other words inside the MCP route's 160 s, with the rival search after it.
+const MCP_EVIDENCE_BUDGET_MS = 100_000;
+const DRAFT_PRD_BUDGET_MS = 145_000;
 
 const unauthorized = () => NextResponse.json(
   { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /agents (MCP 연동).' } },
@@ -55,6 +58,7 @@ const throttled = () => NextResponse.json(
  * `pathKey` is the token taken from /api/mcp/<token>, for apps whose connector form has no header field.
  */
 export async function handleMcpRequest(request: Request, pathKey?: string) {
+  const requestStarted = Date.now();
   if (await rateLimited(`mcp:ip:${clientOf(request)}`, IP_REQUESTS_PER_MINUTE)) return throttled();
   const service = createAdminClient();
   if (!service) return NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Server is not configured' } }, { status: 503, headers: NO_STORE });
@@ -162,7 +166,8 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       const input = ideaSpecInput((await getOpportunities()).opportunities, brief, evidence.map((item) => ({ evidence: item, slug: 'live' })), lang);
       const checked = publicEvidence(evidence);
       const draft = !meetsEvidenceBar(checked.length, new Set(checked.map((item) => item.platform)).size);
-      const result = await generatePrd(input, { draft, lang, idea: true });
+      // Ends inside the MCP route's 160 s even after the reads above; generatePrd trims its own steps to fit.
+      const result = await generatePrd(input, { draft, lang, idea: true, deadline: requestStarted + DRAFT_PRD_BUDGET_MS });
       if (!result) throw new Error('PRD model gave no answer');
       // Kept out of the shared PRD cache: an idea PRD is the user's own, as on the web.
       await setIdeaDraftPrd(service, userId, id, result.markdown);
@@ -219,7 +224,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),
     validate: async (idea) => {
       const [{ opportunities }, answers] = await Promise.all([getOpportunities(), onboardingAnswers(service, userId)]);
-      const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true }).catch(() => null);
+      const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true, evidenceBudgetMs: MCP_EVIDENCE_BUDGET_MS }).catch(() => null);
       if (!report) return null;
       // The report's quotes become the user's PRD draft, so the agent goes on to a PRD without opening the site.
       const projectKey = await saveIdeaDraft(service, userId, idea, report.quotes).then((id) => `prd:${id}`).catch((error) => {

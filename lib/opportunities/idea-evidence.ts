@@ -43,7 +43,8 @@ export const ideaEvidenceSources = {
   save: (quotes: Evidence[], terms: string[]) => saveFoundEvidence(quotes, terms),
 };
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'your', 'when', 'how', 'can', 'not', 'too', 'out', 'get', 'use', 'using', 'without']);
+// Words too common to tell one problem from another; a stored quote matched only on these would be noise.
+const STOP = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'your', 'when', 'how', 'can', 'not', 'too', 'out', 'get', 'use', 'using', 'without', 'what', 'why', 'who', 'where', 'which', 'all', 'any', 'every', 'day', 'time', 'way', 'need', 'want', 'make', 'does', 'doesn', 'don', 'didn', 'won', 'isn', 'aren', 'cant', 'one', 'new', 'just', 'very', 'really', 'still', 'much', 'many', 'more', 'most', 'like']);
 
 /** The words stored quotes are found again by: plain lowercase words of the search phrases. */
 export function termsOf(phrases: string[]) {
@@ -137,6 +138,14 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
   // Shared for the next person: quotes only, with the search words that found them; never the idea or who searched.
   await sources.save(unique, terms).catch(() => undefined);
   return { phrases, quotes: unique, reused, sites };
+}
+
+/**
+ * Quotes from a pasted link that may be shared with everyone: only from public Q&A and developer sites. Any other page
+ * may be one its author shared by link only, so its quotes stay in the PRD of the person who pasted it.
+ */
+export function shareableLinkQuotes(quotes: Evidence[]) {
+  return quotes.filter((row) => row.platform !== 'web' && row.platform !== 'forum' && row.platform !== 'own');
 }
 
 const passes = (quotes: Evidence[]) => meetsEvidenceBar(quotes.length, new Set(quotes.map((row) => row.platform)).size);

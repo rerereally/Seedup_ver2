@@ -1,3 +1,5 @@
+import { saveFoundEvidence } from '@/lib/db/found-evidence';
+import { shareableLinkQuotes, termsOf } from '@/lib/opportunities/idea-evidence';
 import { quotesFromLink, safeSourceUrl, signEvidence } from '@/lib/opportunities/live-evidence';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -14,7 +16,10 @@ const MESSAGES = {
   not_found: '그 글에서 원문과 글자 단위로 맞는 문장을 찾지 못했습니다. 문장을 그대로 복사해 넣어 보세요.',
 } as const;
 
-/** Adds quotes from a link the person found, after checking each one against the post itself. Signed in only. */
+/**
+ * Adds quotes from a link the person found, after checking each one against the post itself. Signed in only. Quotes
+ * from public developer sites also go to the shared store; other pages stay with this person (see shareableLinkQuotes).
+ */
 export async function POST(request: Request) {
   const supabase = await createClient();
   const user = await getCurrentUser();
@@ -37,5 +42,8 @@ export async function POST(request: Request) {
     await releaseDailyUsage(supabase, 'evidence_link');
     return NextResponse.json({ error: result ? MESSAGES[result.status as keyof typeof MESSAGES] : '확인하는 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.' }, { status: result?.status === 'bad_url' ? 400 : 422 });
   }
+  // Shared for the next person's search, like the quotes the web search finds; a failed save never blocks this answer.
+  const shared = shareableLinkQuotes(result.quotes);
+  await saveFoundEvidence(shared, termsOf(shared.map((row) => row.quote))).catch(() => undefined);
   return NextResponse.json({ quotes: result.quotes.flatMap((row) => signEvidence(row) ?? []) });
 }

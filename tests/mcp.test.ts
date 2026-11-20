@@ -832,3 +832,13 @@ test('get_next_task asks to fill slots for a personal PRD too, passing its key',
   await handleRpc(call('get_next_task', { project: `prd:${id}` }), personal, 'https://x.test');
   assert.deepEqual(keys, [`prd:${id}:F-01`]);
 });
+
+test('validate_idea hands the report only a model the caller named, and only an allowed paid one', async () => {
+  const seen: Array<string | undefined> = [];
+  const capture = deps({ validate: async (_idea, model) => { seen.push(model); return { text: '# report' }; } });
+  await handleRpc(call('validate_idea', { idea: 'slack issue digest' }), capture, 'https://x.test');
+  await handleRpc(call('validate_idea', { idea: 'slack issue digest', model: 'anthropic/claude-haiku-5.5' }), capture, 'https://x.test');
+  await handleRpc(call('validate_idea', { idea: 'slack issue digest', model: 'some/unknown-model' }), capture, 'https://x.test');
+  // No model: free models as before. A named one goes through; an unknown name falls back to the default paid model.
+  assert.deepEqual(seen, [undefined, 'anthropic/claude-haiku-5.5', 'openai/gpt-6.2-sol']);
+});

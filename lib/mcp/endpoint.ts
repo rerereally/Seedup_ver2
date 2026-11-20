@@ -243,9 +243,13 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       }
     },
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),
-    validate: async (idea) => {
+    validate: async (idea, model) => {
       const [{ opportunities }, answers] = await Promise.all([getOpportunities(), onboardingAnswers(service, userId)]);
-      const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true, evidenceBudgetMs: MCP_EVIDENCE_BUDGET_MS }).catch(() => null);
+      // A named model also picks the quotes (a free model took a "client issue" shift handoff for repository issues);
+      // its cost is logged like the web report's.
+      const run = model ? prdRunLog(service, { id: userId }, 'report', model) : null;
+      const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true, evidenceBudgetMs: MCP_EVIDENCE_BUDGET_MS, model, onUsage: run?.onUsage }).catch(() => null);
+      await run?.finish(Boolean(report), idea).catch((error) => console.error('MCP report run not logged:', error));
       if (!report) return null;
       // The report's quotes become the user's PRD draft, so the agent goes on to a PRD without opening the site.
       const projectKey = await saveIdeaDraft(service, userId, idea, report.quotes).then((id) => `prd:${id}`).catch((error) => {

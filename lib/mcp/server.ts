@@ -92,7 +92,8 @@ export type McpDeps = {
    * A validation report for one idea, as Markdown, and the project key (prd:<id>) its quotes were saved under as the
    * user's PRD draft; null when the report could not be made.
    */
-  validate: (idea: string) => Promise<{ text: string; projectKey?: string | null } | null>;
+  /** model: the paid model the caller named, for picking quotes too; omitted keeps the report on the free models. */
+  validate: (idea: string, model?: string) => Promise<{ text: string; projectKey?: string | null } | null>;
   /** Makes and saves the PRD for a draft that validate_idea saved; null when no such draft exists, throws when the model fails. */
   draftPrd?: (id: string, options: PaidPrdOptions) => Promise<SavedPrdDetail | null>;
   /** Starts a weekly watch on one idea; false when the person already watches the most allowed. */
@@ -1372,7 +1373,8 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
     let report: Awaited<ReturnType<McpDeps['validate']>> = null;
     try {
-      report = await deps.validate(idea);
+      // Only a model the caller named spends money on the report; the default stays free (it still applies to the PRD).
+      report = await deps.validate(idea, args.model !== undefined ? prdOptions(args).model : undefined);
     } catch (error) {
       await deps.release?.('mcp_report').catch(() => undefined);
       throw error;

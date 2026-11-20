@@ -5,7 +5,7 @@ import { inputFromBody } from '@/lib/opportunities/idea';
 import { pickPrdModel } from '@/lib/opportunities/models';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { normalizeRivals, normalizeSlots, withPrdReadiness } from '@/lib/opportunities/spec';
+import { normalizeRivals, normalizeSlots, withEvidenceStrength, withPrdReadiness } from '@/lib/opportunities/spec';
 import type { Priority, Spec, SpecFeature, SpecRequirement, SpecScreen } from '@/lib/opportunities/spec';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -102,5 +102,5 @@ export async function POST(request: Request) {
     await releaseDailyUsage(supabase, 'prd_revise');
     return NextResponse.json({ error: screensOnly ? '화면을 설계하지 못했습니다. 잠시 후 다시 시도해주세요.' : '수정하지 못했습니다. 요청을 조금 바꿔 다시 시도해주세요.' }, { status: 503 });
   }
-  return NextResponse.json({ ok: true, spec: withPrdReadiness(spec) });
+  return NextResponse.json({ ok: true, spec: withEvidenceStrength(withPrdReadiness(spec), input.evidence) });
 }

@@ -90,6 +90,7 @@ jobs:
             '/api/ingest/github?limit=15&minStars=50&pruneDays=30&maxNew=25&budgetSec=420' \
             '/api/ingest/research?limit=12&minScore=55&minFitScore=18&budgetSec=420' \
             '/api/ingest/external-trends' \
+            '?/api/ingest/model-intelligence' \
             '/api/ingest/trends' \
             '?/api/ingest/article-drafts?mode=daily&limit=12' \
             '?/api/ingest/project-ideas?limit=5' \

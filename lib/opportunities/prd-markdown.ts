@@ -24,6 +24,9 @@ const SECTIONS: Array<[Section, RegExp]> = [
 
 const ACCEPTANCE = /^(?:수락\s*기준|완료\s*기준|acceptance(?:\s*criteria)?)\s*[:：]\s*/i;
 const CHECK = /^(?:확인\s*방법|검증\s*방법|how to (?:check|verify|validate))\s*[:：]\s*/i;
+const EVIDENCE_LINE = /^(?:근거|evidence)\s*[:：]\s*/i;
+const SENTENCE_LABEL = /^\[(?:증언|사실|추정|testimony|fact|inference)\]\s*/i;
+const LEADING_CITATIONS = /^(?:\[\s*E\s*-?\s*\d+(?:\s*[,，/]\s*E?\s*-?\s*\d+)*\s*\]\s*)+/i;
 const ITEM = (letter: 'R' | 'F') => new RegExp(`^(?:#{2,5}\\s*|[-*+]\\s+|\\d+\\.\\s+)?\\**\\s*${letter}\\s*-?\\s*0*(\\d+)\\s*[.:)\\]]?\\**\\s*(.*)$`, 'i');
 const REQUIREMENT_ITEM = ITEM('R');
 const FEATURE_ITEM = ITEM('F');
@@ -35,6 +38,22 @@ export function citedQuotes(text: string) {
     for (const n of group[1].matchAll(/\d+/g)) numbers.add(Number(n[0]));
   }
   return [...numbers];
+}
+
+/** Keep a bracketed citation after punctuation with the sentence it follows. */
+export function prdSentenceParts(text: string) {
+  const parts: string[] = [];
+  for (const chunk of text.trim().split(/(?<=[.!?。！？])\s+|\r?\n/u)) {
+    const labeled = SENTENCE_LABEL.test(chunk);
+    let line = chunk.replace(SENTENCE_LABEL, '').trim();
+    const citations = labeled ? undefined : LEADING_CITATIONS.exec(line)?.[0];
+    if (citations && parts.length) {
+      parts[parts.length - 1] += ` ${citations.trim()}`;
+      line = line.slice(citations.length).replace(SENTENCE_LABEL, '').trim();
+    }
+    if (line) parts.push(line);
+  }
+  return parts;
 }
 
 const stripCitations = (text: string) => text.replace(/\s*[[(]\s*E\s*-?\s*\d+(?:\s*[,，/]\s*E?\s*-?\s*\d+)*\s*[\])]/gi, '').trim();
@@ -86,6 +105,10 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
         buckets.set(section, inline ? [inline] : buckets.get(section) ?? []);
         continue;
       }
+      if (/^#{1,2}\s/.test(line)) {
+        current = null;
+        continue;
+      }
     }
     if (current) buckets.get(current)?.push(line);
   }
@@ -97,16 +120,18 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     if (!position.has(item.number)) position.set(item.number, index + 1);
     const acceptance: string[] = [];
     const detail: string[] = [];
+    const evidenceLine: number[] = [];
     let check = '';
     for (const line of item.body) {
       const plain = stripMarks(bulletText(line));
       if (ACCEPTANCE.test(plain)) acceptance.push(stripCitations(plain.replace(ACCEPTANCE, '')));
       else if (CHECK.test(plain)) check = plain.replace(CHECK, '');
+      else if (EVIDENCE_LINE.test(plain)) evidenceLine.push(...[...plain.matchAll(/\bE-?(\d+)/gi)].map((match) => Number(match[1])));
       else detail.push(plain);
     }
     const priority = /\bP([012])\b/i.exec(item.head)?.[1];
     const title = stripMarks(stripCitations(item.head).replace(/\[?\s*\bP[012]\b\s*\]?/i, '')).replace(/^[\s.:-]+/, '');
-    const evidence = [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' '))])];
+    const evidence = [...new Set([...citedQuotes(item.head), ...citedQuotes(item.body.join(' ')), ...evidenceLine])];
     return { title, detail: stripCitations(detail.join(' ')), evidence, ...(priority ? { priority: `P${priority}` } : {}), acceptance, ...(check ? { check } : {}) };
   });
 
@@ -126,7 +151,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
   const summaryLines = (buckets.get('summary') ?? []).map((line) => line.trim()).filter(Boolean);
   return {
     summary: stripMarks(stripCitations(summaryLines.map(bulletText).join(' '))),
-    background: prose(buckets.get('background') ?? []),
+    background: prdSentenceParts(prose(buckets.get('background') ?? [])).join(' '),
     target_users: list(buckets.get('users') ?? []),
     scenario: prose(buckets.get('scenario') ?? []),
     goals: list(buckets.get('goals') ?? []),
@@ -135,8 +160,8 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     features,
     screens: [],
     rivals,
-    risks: list(buckets.get('risks') ?? []),
-    assumptions: list(buckets.get('assumptions') ?? []),
+    risks: list(buckets.get('risks') ?? []).map((line) => prdSentenceParts(line).join(' ')),
+    assumptions: list(buckets.get('assumptions') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     metrics: list(buckets.get('metrics') ?? []),
     open_questions: list(buckets.get('openQuestions') ?? []),
   };

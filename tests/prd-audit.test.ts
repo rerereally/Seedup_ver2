@@ -39,7 +39,7 @@ test('specIssues requires testable acceptance criteria on P0 requirements', () =
       { title: '버전 고정', detail: '설정 파일에서 제공사 API 버전을 1줄로 지정하면 요청 헤더에 반영한다', evidence: [1], priority: 'P2' },
     ],
     features: [{ title: '변환기', detail: '입력 스키마를 대상 제공사 형식으로 변환해 반환한다', requirements: [1, 2, 3] }],
-    metrics: ['3개 제공사 스키마 테스트 100% 통과'],
+    metrics: ['3개 제공사 스키마 테스트 100% 통과. 측정: 제공사별 변환 테스트를 실행하고 성공을 집계한다.'],
   }, 2);
 
   const issues = specIssues(missingP0Acceptance, sampleInput);
@@ -53,7 +53,7 @@ test('specIssues requires testable acceptance criteria on P0 requirements', () =
       { title: '버전 고정', detail: '설정 파일에서 제공사 API 버전을 1줄로 지정하면 요청 헤더에 반영한다', evidence: [1], priority: 'P2' },
     ],
     features: [{ title: '변환기', detail: '입력 스키마를 대상 제공사 형식으로 변환해 반환한다', requirements: [1, 2, 3] }],
-    metrics: ['3개 제공사 스키마 테스트 100% 통과'],
+    metrics: ['3개 제공사 스키마 테스트 100% 통과. 측정: 제공사별 변환 테스트를 실행하고 성공을 집계한다.'],
   }, 2);
 
   assert.deepEqual(specIssues(validP0, sampleInput), []);

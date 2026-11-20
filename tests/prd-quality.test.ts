@@ -21,7 +21,7 @@ test('the code check names vague, unserved and unmeasured parts, and stays quiet
     requirements: [1, 2, 3].map((n) => ({ title: `요구 ${n}`, detail: `설정 파일 한 줄로 ${n}번째 동작을 바꾸면 다음 요청부터 적용된다`, evidence: [1], acceptance: ['설정을 바꾼 경우 다음 요청에서 새 설정값을 반환한다'] })),
     features: [{ title: 'f', detail: 'd', requirements: [1, 2, 3] }],
     screens: [{ name: 's', does: 'd', features: [1] }],
-    metrics: ['3개 제공사에서 같은 형식'],
+    metrics: ['3개 제공사에서 같은 형식. 측정: 제공사별 응답을 같은 스키마로 검사하는 테스트를 실행한다.'],
   }, 1);
   assert.deepEqual(specIssues(good, input), []);
 });

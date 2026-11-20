@@ -67,7 +67,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         const parsed = parsePrdMarkdown(pinned.prd_markdown);
         if (parsed) {
           const evidence = Array.isArray(pinned.evidence) ? (pinned.evidence as Evidence[]) : opportunity.evidence;
-          const spec = normalizeSpec(parsed, evidence.length, !opportunity.qualified);
+          const spec = normalizeSpec(parsed, evidence, !opportunity.qualified);
           return {
             input: {
               title: pinned.title || opportunity.name,

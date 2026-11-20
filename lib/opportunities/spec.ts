@@ -3,6 +3,8 @@
 import { translator } from '../i18n';
 import { recommendToolkit, renderToolkit } from './toolkit';
 import type { Lang } from '../i18n';
+import { citedQuotes, prdSentenceParts } from './prd-markdown';
+import { isVerbatimQuote } from './rules';
 import { PLATFORM_LABELS } from './types';
 import type { Evidence } from './types';
 
@@ -48,11 +50,24 @@ export const slotIsOpen = (items: string[] | undefined) => !items?.length || ite
 export const slotsNeedReview = (slots: ReadinessSlots | null) => SLOT_KEYS.some((key) => slotIsOpen(slots?.[key]));
 
 export type Priority = 'P0' | 'P1' | 'P2';
+export type EvidenceStrength = 'strong' | 'some' | 'none';
+export const EVIDENCE_STRENGTH_LABELS: Record<EvidenceStrength, readonly [string, string]> = {
+  strong: ['근거 강함', 'Strong evidence'],
+  some: ['근거 일부', 'Some evidence'],
+  none: ['원문 근거 없음', 'No source evidence'],
+};
+
+type PrdSentenceKind = 'testimony' | 'fact' | 'inference';
+export const PRD_SENTENCE_LABELS: Record<PrdSentenceKind, readonly [string, string]> = {
+  testimony: ['증언', 'Testimony'],
+  fact: ['사실', 'Fact'],
+  inference: ['추정', 'Inference'],
+};
 /**
  * priority: P0 the first version is useless without it, P1 it ships in the first version, P2 later.
  * acceptance: conditions a test can check. check: for a line no quote backs, how to find out if it is true.
  */
-export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; priority?: Priority; acceptance?: string[]; check?: string };
+export type SpecRequirement = { id: string; title: string; detail: string; evidence: number[]; evidenceStrength?: EvidenceStrength; priority?: Priority; acceptance?: string[]; check?: string };
 export type SpecFeature = { id: string; title: string; detail: string; requirementIds: string[]; slots: ReadinessSlots | null };
 export type SpecScreen = { id: string; name: string; does: string; featureIds: string[] };
 
@@ -122,6 +137,30 @@ export type SpecInput = {
   /** "name: what it does" for each competitor, from the product search, so the PRD says what a tool misses from its listing instead of from memory. */
   competitorNotes?: string[];
 };
+
+export function evidenceStrengthFor(indices: readonly number[], evidence: readonly Evidence[]): EvidenceStrength {
+  const cited = new Map(indices.flatMap((number) => {
+    const item = evidence[number - 1];
+    return item ? [[item.id || String(number), item] as const] : [];
+  }));
+  const published = [...cited.values()].filter((row) => row.platform !== 'own');
+  if (published.length >= 3 || new Set(published.map((row) => row.platform)).size >= 2) return 'strong';
+  return cited.size ? 'some' : 'none';
+}
+
+export function withEvidenceStrength(spec: Spec, evidence: readonly Evidence[]): Spec {
+  const label = (row: SpecRequirement) => ({ ...row, evidenceStrength: evidenceStrengthFor(row.evidence, evidence) });
+  return { ...spec, requirements: spec.requirements.map(label), hypotheses: spec.hypotheses.map(label) };
+}
+
+export function prdSentenceKinds(value: string, input: SpecInput) {
+  return prdSentenceParts(value).map((text) => {
+    const testimony = citedQuotes(text).some((n) => Boolean(input.evidence[n - 1]));
+    const fact = (input.competitorNotes ?? []).some((note) => note.includes(':') && isVerbatimQuote(text, note));
+    const kind: PrdSentenceKind = testimony ? 'testimony' : fact ? 'fact' : 'inference';
+    return { kind, text };
+  });
+}
 
 export type ExportFormat = 'agents' | 'claude' | 'cursor' | 'prompt';
 
@@ -229,7 +268,8 @@ export function withPrdReadiness(original: Spec): Spec {
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
  * so nothing in the spec floats free of the evidence chain. Indexes in the raw draft are 1-based.
  */
-export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false, options: { idea?: boolean } = {}): Spec {
+export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean } = {}): Spec {
+  const evidenceCount = typeof evidence === 'number' ? evidence : evidence.length;
   const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
@@ -276,7 +316,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     if (name && featureIds.length) screens.push({ id: id('S', screens.length), name, does: text(record.does, 240), featureIds });
   });
 
-  return withP0({
+  const spec = withP0({
     summary: text(raw.summary),
     targetUsers: stringList(raw.target_users, 4),
     requirements,
@@ -301,6 +341,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
       }),
     } : {}),
   });
+  return typeof evidence === 'number' ? spec : withEvidenceStrength(spec, evidence);
 }
 
 /** Everything a spec item stands on, both directions: E <- R <- F <- S. Used to highlight a chain on screen. */
@@ -369,19 +410,22 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const lang = spec.lang ?? 'ko';
   const t = translator(lang);
   const english = lang === 'en';
+  const strength = (row: SpecRequirement) => t(...EVIDENCE_STRENGTH_LABELS[evidenceStrengthFor(row.evidence, input.evidence)]);
+  const labeled = (value: string) => prdSentenceKinds(value, input)
+    .map(({ kind, text }) => `[${t(...PRD_SENTENCE_LABELS[kind])}] ${citeTags(text)}`).join(' ');
   const acceptance = (row: SpecRequirement) => (row.acceptance?.length ? `\n${row.acceptance.map((line) => `- ${t('수락 기준', 'Acceptance')}: ${line}`).join('\n')}` : '');
   const priority = (row: SpecRequirement) => (row.priority ? `[${row.priority}] ` : '');
-  const requirements = spec.requirements.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)}`).join('\n\n');
+  const requirements = spec.requirements.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)} · ${strength(row)}`).join('\n\n');
   const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}${row.slots ? `\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}` : ''}`).join('\n\n');
   const screens = spec.screens.map((row) => `- **${row.id}. ${row.name}**${row.does ? `: ${row.does}` : ''} (${row.featureIds.join(', ')})`).join('\n');
   const flow = mermaidFlow(spec);
-  const hypotheses = spec.hypotheses.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}`).join('\n\n');
+  const hypotheses = spec.hypotheses.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}${row.check ? `\n- ${t('확인 방법', 'How to check')}: ${row.check}` : ''}\n\n${strength(row)}`).join('\n\n');
   const undefinedText = t('정의되지 않음', 'Not defined');
   return `# ${input.title} PRD
 ${spec.draft ? `\n> ${t('가설 초안: 원문이 기준(원문 3건, 플랫폼 2곳)에 못 미칩니다. 사용자 확인 전에는 검증된 PRD로 쓰지 마세요.', 'Hypothesis draft: the evidence is below the bar (3 quotes, 2 platforms). Do not treat it as a verified PRD before talking to users.')}\n` : ''}
 ## ${t('한 줄 요약', 'Summary')}
 ${spec.summary}
-${spec.background ? `\n## ${t('배경', 'Background')}\n${citeTags(spec.background)}\n` : ''}
+${spec.background ? `\n## ${t('배경', 'Background')}\n${labeled(spec.background)}\n` : ''}
 ${spec.existing?.length ? `## ${t('기존 구조 (역기획)', 'Existing structure (reverse spec)')}\n${t('지금 레포에 이미 있는 것입니다. 새 기능은 이 구조를 깨지 않아야 합니다.', 'What the repo already has. New work must not break it.')}\n\n${spec.existing.map((row) => `- **${row.name}**${row.does ? `: ${row.does}` : ''}`).join('\n')}\n\n` : ''}## ${t('해결할 문제', 'Problem')}
 ${input.problem}
 
@@ -398,8 +442,8 @@ ${screens ? `## ${t('화면 (F → S)', 'Screens (F → S)')}\n${t('원문에서
 ${bullets(spec.nonGoals, undefinedText)}
 
 ## ${t('위험 요소', 'Risks')}
-${bullets(spec.risks, undefinedText)}
-${spec.assumptions?.length ? `\n## ${t('가정', 'Assumptions')}\n${bullets(spec.assumptions, undefinedText)}\n` : ''}
+${bullets(spec.risks.map(labeled), undefinedText)}
+${spec.assumptions?.length ? `\n## ${t('가정', 'Assumptions')}\n${bullets(spec.assumptions.map(labeled), undefinedText)}\n` : ''}
 ## ${t('성공 지표', 'Success metrics')}
 ${bullets(spec.metrics, undefinedText)}
 ${spec.openQuestions?.length ? `\n## ${t('열린 질문', 'Open questions')}\n${bullets(spec.openQuestions, undefinedText)}\n` : ''}

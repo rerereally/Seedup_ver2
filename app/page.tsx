@@ -105,10 +105,14 @@ export default async function Home() {
     const text = localizedOpportunity(item, lang);
     return { slug: item.slug, name: text.name, problem: text.problem, keywords: item.keywords, qualified: item.qualified, quotes: item.evidence.slice(0, 2).map((row) => ({ id: row.id, platform: row.platform, quote: row.quote, quoteKo: row.quoteKo, url: row.url })) };
   });
-  // One real quote per problem for the band under the hero, problems that passed the bar first.
-  const drifting = [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified)).flatMap((item) => {
+  // One real quote per problem for the band under the hero: verified problems only when at least 5 pass the bar.
+  const qualifiedOpportunities = opportunities.filter((item) => item.qualified);
+  const marqueePool = qualifiedOpportunities.length >= 5
+    ? qualifiedOpportunities
+    : [...opportunities].sort((a, b) => Number(b.qualified) - Number(a.qualified));
+  const drifting = marqueePool.flatMap((item) => {
     const row = item.evidence[0];
-    return row ? [{ id: row.id, text: row.quote.slice(0, 180), source: `${PLATFORM_LABELS[row.platform]}, ${names[item.slug]}` }] : [];
+    return row ? [{ id: row.id, text: row.quote.slice(0, 180), quoteKo: row.quoteKo ? row.quoteKo.slice(0, 180) : '', source: `${PLATFORM_LABELS[row.platform]}, ${names[item.slug]}` }] : [];
   }).slice(0, 14);
   const stepHead = (n: string, label: string, title: string, body: string, link?: { href: string; text: string }, extra?: React.ReactNode) => (
     <div className="min-w-0">
@@ -137,7 +141,8 @@ export default async function Home() {
                   {/* The underline is the evidence colour: what people said is the evidence. */}
                   <span className="rise block" style={{ animationDelay: '80ms' }}><span className="underline decoration-seed/40 decoration-[0.08em] underline-offset-[0.14em]">{t('사람들의 말', 'hear what people said')}</span>{t('부터.', '.')}</span>
                 </h1>
-                <p className="rise t-lead mx-auto mb-10 mt-6 max-w-[32em]" style={{ animationDelay: '160ms' }}>{t('만들고 싶은 것을 한 줄 적으면, 개발자들이 실제로 쓴 글이 바로 아래에 뜹니다. 그 원문으로 PRD를 만들어 코딩 에이전트에 넘기세요.', 'Type one line about what you want to build and real developer posts appear right below. Turn them into a PRD for your coding agent.')}</p>
+                <p className="rise t-lead mx-auto mt-6 max-w-[32em]" style={{ animationDelay: '160ms' }}>{t('만들고 싶은 것을 한 줄 적으면, 개발자들이 실제로 쓴 글이 바로 아래에 뜹니다. 그 원문으로 PRD를 만들어 코딩 에이전트에 넘기세요.', 'Type one line about what you want to build and real developer posts appear right below. Turn them into a PRD for your coding agent.')}</p>
+                <p className="rise mx-auto mb-10 mt-3 max-w-[34em] text-[14px] leading-6 text-muted" style={{ animationDelay: '200ms' }}>{t('개발 도구, AI 도구를 만드는 사람을 위해 개발자들이 실제로 쓴 글을 모읍니다.', 'We collect posts developers actually wrote, for people building developer tools and AI tools.')}</p>
               </>
             )}
             note={(

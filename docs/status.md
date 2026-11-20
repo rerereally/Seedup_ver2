@@ -14,9 +14,9 @@
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
-| DB 마이그레이션 | 32개(main 기준). 운영에 `section_views` · `supervisor_projects` 적용됨. `20261120160000_verifications.sql`(#151)은 적용 확인 대기(정지훈) | `ls supabase/migrations`, `check-schema` |
+| DB 마이그레이션 | 35개(main `f462db9` 기준). 운영 `check-schema` 통과. `verifications`, `build_progress.verification_level`, `feature_commits.file_statuses` 직접 조회 확인(2026-11-20) | `ls supabase/migrations`, `check-schema` |
 | 단위 테스트 | 349개(53개 파일). #140에서 8개, #142에서 7개 추가. 최신 `main` 전체 실행 결과는 CI에서 확인 | `npm test` |
-| MCP | 도구 22개, 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
+| MCP | 도구 19개(#175, 운영 Codex 확인), 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
 
 ### 데이터 수집 동결
 
@@ -33,21 +33,21 @@
 
 | 단계 | 칸 | 담당 | 상태 | 막힌 것 · 메모 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 지금 출시 | 운영 `section_views` 적용, `OPENROUTER_FREE_ONLY=true` 확인 | 사람 | 시작 전 | |
+| 0 지금 출시 | 운영 `section_views` 적용, `OPENROUTER_FREE_ONLY=true` 확인 | 사람 | 일부 확인 | 운영 스키마 확인 완료. 무료 모델 설정 확인은 남음 |
 | 0 | 대표 흐름만 앞에, 로그인 → PRD → 내보내기 → MCP 직접 확인 | 사람 | 시작 전 | 메뉴 정리 · 로그인 없이 PRD는 결정 대기(3절) |
 | 0 | 처리방침 갱신(어느 입력이 어느 모델로: 아이디어 · PRD는 무료 모델, 검증 코드는 GPT 6.2 Sol 또는 Haiku 5.5) | 정지훈 | 알리기 전 | B1 #151의 문구에 모델 이름을 더함 |
 | 0 | 덜 된 화면 베타 표시나 숨김(`/supervisor` 등) | 정지훈 | 알리기 전 | 어떤 화면을 숨길지는 3-4 메뉴 정리 결정과 함께 |
 | 0 | 알리기 | 사람 | 해커톤 발표 뒤 | 그 전에 아래 두 줄 먼저(정지훈 결정) |
 | 1 목표 잠금 · 에이전트 연결 | A1 공유 타입 · 목표 모델 · 훅 번들 | 정지훈 · Claude Code | 공유 타입(#132)과 나머지(#137) 머지 | 목표 모델 · 사람 할 일 · 훅 번들. 실제 Claude Code 세션에서 훅 확인 필요 |
-| 1 | A2 MCP 목표 연결 · 공유 메모리 도구 | 정지훈 · Codex | PR #142 머지 | B1 운영 마이그레이션 적용 여부와 실제 MCP 클라이언트 연결 확인 필요 |
+| 1 | A2 MCP 목표 연결 · 공유 메모리 도구 | 정지훈 · Codex | PR #142 머지 | B1 운영 스키마와 Codex 연결 확인. 다른 클라이언트 확인은 호환 ② 참고 |
 | 1 | A3 기준 측정 · 발표 서사 | 정지훈 · Antigravity | PR #136 · #141 머지(일부 완료) | 기준 측정과 10분 발표 · 5분 질의응답 대본, 발표 전략 반영. PR 보고상 운영 저장 PRD 표본 없음. 목표 도달률 계산은 남음 |
-| 1 | B1 저장(프로젝트 · 목표 버전 · 공유 메모리) | Claude Code(기술 책임 정지훈) | PR #131 머지 | 공유 타입 반영. 정지훈이 운영 마이그레이션 `20261120150000_supervisor_projects.sql` 적용 여부 확인 |
+| 1 | B1 저장(프로젝트 · 목표 버전 · 공유 메모리) | Claude Code(기술 책임 정지훈) | PR #131 머지 | 공유 타입 반영. 운영 `check-schema`에서 `supervisor_projects` 확인 |
 | 1 | B2 기획 탭 목표 카드와 잠금 화면 | Codex(기술 책임 정지훈) | PR #133 머지(Claude Code 세션이 대신 진행) | B1 뒤에 머지. 로그인 상태 실제 저장 확인과 원문 0건 PRD의 저장 ID 전달이 남음 |
 | 1 보완 | 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시 | 정지훈 · Claude Code | PR #149 머지 | |
 | 2 2단 검증 · 이탈 검사 | A1 정적 검사 · 검증 토큰 · 이탈 규칙 | 정지훈 · Claude Code | PR #140 머지(일부) | 계획 순서와 달리 단계 1 A2(#142)보다 앞서 머지. 로컬 훅 1단 검사는 남음 |
-| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | PR #162 머지 | SHA 검증 · `get_verification` · 엄격 완료 게이트, MCP 도구 23개. 검증은 공개 GitHub 저장소만. 운영에서 공개 저장소 SHA로 검증 → 조회 → 완료 한 번 확인 필요 |
+| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | PR #162 머지 | SHA 검증 · 엄격 완료 게이트. #175에서 결과 조회를 같은 기능·SHA의 `verify_feature` 재호출로 통합. 운영에서 공개 저장소 SHA로 검증 → 조회 → 완료 한 번 확인 필요 |
 | 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-s2-a3.md). 코드 변경 없음(측정 · 데모 · 문서) |
-| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `20261120160000_verifications.sql` 적용 확인 대기(정지훈), `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
+| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `verifications` 조회 확인. `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
 | 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 머지 | 신호등은 아직 모두 ⚪(검증 수준 필드는 2 보완 ②). 알리기 전 베타 표시 또는 숨김(단계 0) |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
 | 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완, ⑦ 정적 검사 오탐(`env(…)`) | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함. ② · ④ · ⑤ · ⑥은 정지훈 · Antigravity [프롬프트](prompts/antigravity-remaining.md) T1 · T2 · T5 · T4 |
@@ -62,11 +62,11 @@
 | 실제 프로젝트 검증 | 프로젝트 3개(트랙 A · 트랙 B · 기존 저장소), 목표 도달률 첫 측정 | 장차희 · 정지훈 | 시작 조건 대기(운영 준비, 보완 ②, 실제 연결 확인 1개) | 계획 5절 "실제 프로젝트 검증", [양식](research/project-check-template.md) |
 | 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
 | 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |
-| 도구 정리 | MCP 도구 23 → 19(추천안) | 정지훈 | 결정 대기 | 연결 2 앞 별도 PR |
+| 도구 정리 | MCP 도구 23 → 19 | 정지훈 | PR #175 머지 | 운영 Codex에서 도구 19개 확인 |
 
 ## 2-1. 운영 준비 (정지훈, 🟢가 운영에서 나오려면 필요)
 
-- 운영 DB `20261120160000_verifications.sql` 적용 + `check-schema`
+- 운영 DB `20261120160000_verifications.sql` 스키마 확인 완료. `check-schema` 통과
 - `VERIFIER_MODELS`에 `openai/gpt-6.2-sol`, `anthropic/claude-haiku-5.5`
 - OpenRouter 계정 privacy · Safety Retention 설정, 두 모델이 deny 필터 아래 호출되는지 1회씩
 - GitHub 토큰 종류(시간당 요청 한도)

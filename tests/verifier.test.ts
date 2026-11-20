@@ -76,6 +76,19 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
       assert.equal(result.verdicts[0].citations[0].verified, false);
       assert.equal(result.token, null);
     });
+    await t.test('numbered model context and a three-line citation correction use the same immutable source', async () => {
+      const quote = 'export const answer = 42;';
+      const files = { 'src/answer.ts': '\n\n\n' + quote };
+      const h = harness({ evidence: { ...evidence(), files } });
+      const model = h.dependencies.model!;
+      h.dependencies.model = async <T>(prompt: string, options?: Parameters<typeof callJsonModel>[1]) => {
+        assert.equal(JSON.parse(prompt).files['src/answer.ts'], '1| \n2| \n3| \n4| ' + quote);
+        return model<T>(prompt, options); // fixture cites line 1
+      };
+      const result = await startVerification(input, h.dependencies);
+      assert.equal(result.status, 'passed');
+      assert.deepEqual(result.verdicts[0].citations, [{ path: 'src/answer.ts', line: 4, quote, verified: true }]);
+    });
     await t.test('missing required file or missing criterion cannot produce a verified token', async () => {
       const h = harness();
       const result = await startVerification({ ...input, criteria: [{ ...input.criteria[0], paths: ['unread.ts'] }] }, h.dependencies);
@@ -258,11 +271,19 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
   }
 });
 
-test('citations require literal characters at the specified line, including multiline quotes', () => {
+test('only exact same-file quotes can verify or recover a citation line', () => {
   const files = { 'a.ts': 'const x = 1;\n  return x;\nend();' };
   assert.equal(verifyCitation({ path: 'a.ts', line: 2, quote: 'return x;\nend();' }, files).verified, true);
+  const misplaced = { path: 'a.ts', line: 1, quote: 'return x;\nend();' };
+  assert.deepEqual(verifyCitation(misplaced, files), { ...misplaced, line: 2, verified: true });
+  const duplicates = { 'a.ts': 'return x;\nother();\nreturn x;' };
+  const repeated = { path: 'a.ts', line: 2, quote: 'return x;' };
+  assert.equal(verifyCitation(repeated, duplicates).verified, false);
+  assert.equal(verifyCitation({ ...repeated, line: 3 }, duplicates).verified, true);
+  assert.equal(verifyCitation({ path: 'a.ts', line: 2, quote: 'aa' }, { 'a.ts': 'aaa\nend' }).verified, false);
   for (const citation of [
-    { path: 'a.ts', line: 1, quote: 'return x;' },
+    { path: 'a.ts', line: 0, quote: 'return x;' },
+    { path: 'a.ts', line: 1, quote: '2|   return x;' },
     { path: 'a.ts', line: 2, quote: 'RETURN x;' },
     { path: 'a.ts', line: 2, quote: 'return  x;' },
     { path: 'missing.ts', line: 1, quote: 'const x = 1;' },

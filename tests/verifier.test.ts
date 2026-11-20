@@ -113,6 +113,24 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
         assert.equal(result.token, null);
       }
     });
+    await t.test('green CI from a commit that rewrote CI config cannot pass a test criterion and is reported as drift', async () => {
+      const ciDiff = `${diff}diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\n--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n@@ -1 +1 @@\n-    - run: npm test\n+    - run: echo ok\n`;
+      const files = { 'src/answer.ts': 'export const answer = 42;\n', 'tests/answer.test.ts': 'assert.equal(answer, 42);\n' };
+      const testResponse = { verdicts: [{ criterion: 'AC-1', verdict: 'met', reason: 'Tested.', citations: [{ path: 'tests/answer.test.ts', line: 1, quote: 'assert.equal(answer, 42);' }] }] };
+      const h = harness({ evidence: { ...evidence(), diff: ciDiff, files }, response: testResponse });
+      const result = await startVerification({ ...input, criteria: [{ id: 'AC-1', text: 'Tests pass', kind: 'test' }] }, h.dependencies);
+      assert.equal(result.verdicts[0].verdict, 'unclear');
+      assert.match(result.verdicts[0].reason, /\.github\/workflows\/ci\.yml/);
+      assert.equal(result.token, null);
+      assert.deepEqual(result.drift.map(({ kind, files: paths }) => ({ kind, paths })), [{ kind: 'out_of_spec', paths: ['.github/workflows/ci.yml'] }]);
+
+      const failing = harness({ evidence: { ...evidence(), diff: ciDiff, files, checks: [{ name: 'tests', conclusion: 'failure' }] }, response: testResponse });
+      assert.equal((await startVerification({ ...input, criteria: [{ id: 'AC-1', text: 'Tests pass', kind: 'test' }] }, failing.dependencies)).verdicts[0].verdict, 'not_met');
+
+      const plain = harness({ evidence: { ...evidence(), diff: ciDiff } });
+      const code = await startVerification(input, plain.dependencies);
+      assert.equal(code.verdicts[0].verdict, 'met', 'a code criterion is not judged by CI');
+    });
     await t.test('green CI does not confirm a test criterion without a verified test citation', async () => {
       const h = harness();
       const result = await startVerification({ ...input, criteria: [{ id: 'AC-1', text: 'Tests pass', kind: 'test' }] }, h.dependencies);

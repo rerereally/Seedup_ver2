@@ -143,7 +143,7 @@ A screen ships when every line holds. Each failed line costs its points.
 | 10 | Motion rules in section 4 hold, including reduced motion and no-JS |
 | 10 | Lint, type check, tests and production build pass |
 
-## 8. MCP surfaces (draft, 2026-11-20, waiting for the planning session)
+## 8. MCP surfaces (confirmed by the planning session, 2026-11-20)
 
 Seedup also shows up inside other tools, through MCP. Three surfaces, and which rules hold on each:
 

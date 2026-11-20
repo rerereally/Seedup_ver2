@@ -87,3 +87,22 @@ test('search failures still render a report with counter-evidence first and thre
   assert.match(markdown, /\/profile\?tryIdea=Slack\+issue\+digest\+%28daily%29#idea-pages/);
   assert.equal(markdown.split('\n').filter((line) => /^\d\. /.test(line)).length, 3);
 });
+
+test('the explicit agent switch measures direct, total candidates and extra queries before display caps', async () => {
+  let requests = 0;
+  const sources = {
+    readEvidence: async () => ({ phrases: ['slack issue digest'], quotes: [] }),
+    estimate: async () => null,
+    supply: async (query: string) => query === 'extra search' ? [tool('new', 'Slack issue digest')]
+      : [tool('first', 'Slack issue digest'), tool('noise', 'Keyboard shortcut')],
+    demand: async () => [],
+    webSupply: async () => [],
+    rivalAgent: () => true,
+    askRivalQueries: async () => ({ queries: requests++ === 0 ? ['extra search'] : [] }),
+  };
+  const off = await buildValidationReport('Slack issue digest', [], { rivalAgent: false }, sources);
+  assert.deepEqual(off.rivalStats, { candidates: 2, direct: 1, researchQueries: 0 });
+  assert.equal(requests, 0);
+  const on = await buildValidationReport('Slack issue digest', [], { rivalAgent: true }, sources);
+  assert.deepEqual(on.rivalStats, { candidates: 3, direct: 2, researchQueries: 1 });
+});

@@ -29,6 +29,7 @@ export type ValidationReport = {
   generatedAt: string;
   checks: ReportCheck[];
   counterQuotes: CounterQuote[];
+  rivalStats: { candidates: number; direct: number; researchQueries: number };
 };
 
 const MAX_RIVALS = 8;
@@ -49,7 +50,7 @@ export function firstUsersFrom(quotes: Evidence[], limit = 10) {
   return firstUserSources(quotes, limit).map((row) => ({ platform: PLATFORM_LABELS[row.platform] ?? row.platform, url: row.url, quote: row.quote }));
 }
 
-type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean };
+type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean };
 
 const reportSources = {
   readEvidence: findLiveEvidence,
@@ -76,13 +77,8 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   const search = async (query: string) => (await Promise.all([sources.supply(query).catch(() => []), sources.webSupply(query).catch(() => [])])).flat();
   const lists = await Promise.all(queries.map(search));
   for (const item of lists.flat()) if (item.name && item.url && !found.has(item.url)) found.set(item.url, item);
-  const agent = sources.rivalAgent();
-  if (agent) {
-    await researchRivals(idea, found, {
-      ask: sources.askRivalQueries,
-      search,
-    });
-  }
+  const agent = options.rivalAgent ?? sources.rivalAgent();
+  const researchQueries = agent ? await researchRivals(idea, found, { ask: sources.askRivalQueries, search }) : [];
   const candidates = [...found.values()].slice(0, agent ? MAX_RESEARCHED : 16);
   const matchedRivals = compareRivalListings(phrases, candidates);
   const rivals = matchedRivals.slice(0, MAX_RIVALS);
@@ -109,6 +105,7 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
     generatedAt: new Date(now).toISOString(),
     checks: validationChecks({ quotes, rivals: matchedRivals, candidateCount: candidates.length, firstUsers, build, stack: options.stack ?? [], now, lang: options.lang }),
     counterQuotes,
+    rivalStats: { candidates: found.size, direct, researchQueries: researchQueries.length },
   };
 }
 

@@ -29,6 +29,8 @@ export type EvalRow = {
   weakP0?: number;
   openDecisions?: number;
   auditChanges?: number;
+  auditDemoted?: number;
+  auditNarrowed?: number;
 };
 
 /**

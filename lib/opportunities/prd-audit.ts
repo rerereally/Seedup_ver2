@@ -68,6 +68,7 @@ export type P0AuditChange = {
   verdict: 'partial' | 'unsupported';
   reason: string;
   newId?: string;
+  narrowed?: true;
 };
 
 /**
@@ -207,6 +208,7 @@ export function applyP0Audit(spec: Spec, verdicts: P0AuditVerdict[]): { spec: Sp
       const newId = formatId('R', nextRequirements.length);
       oldToNewReq.set(row.id, newId);
       const narrowed = verdict.narrowedDetail?.trim();
+      const detail = narrowed && narrowed.length >= 15 ? narrowed.slice(0, 600) : row.detail;
       const question = verdict.openQuestion?.trim()
         || (isEn
           ? `${newId} "${row.title}": confirm scope beyond cited quotes (${verdict.reason}).`
@@ -215,9 +217,9 @@ export function applyP0Audit(spec: Spec, verdicts: P0AuditVerdict[]): { spec: Sp
       nextRequirements.push({
         ...row,
         id: newId,
-        detail: narrowed && narrowed.length >= 15 ? narrowed.slice(0, 600) : row.detail,
+        detail,
       });
-      changes.push({ id: row.id, verdict: 'partial', reason: verdict.reason, newId });
+      changes.push({ id: row.id, verdict: 'partial', reason: verdict.reason, newId, ...(detail !== row.detail ? { narrowed: true } : {}) });
       continue;
     }
 

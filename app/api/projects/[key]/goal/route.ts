@@ -42,6 +42,9 @@ export async function PUT(request: Request, context: Context) {
     if (goal === 'reason-required') {
       return Response.json({ error: '목표를 바꾸려면 바꾸는 이유가 필요합니다.', code: 'change_reason_required' }, { status: 400 });
     }
+    if (goal === 'invalid-feature-ids') {
+      return Response.json({ error: '최신 PRD를 저장한 뒤 연결할 기능을 다시 확인해 주세요.' }, { status: 400 });
+    }
     return Response.json(goal);
   } catch (error) {
     console.error('Project goal lock failed', (error as { message?: string }).message);

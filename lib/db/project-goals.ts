@@ -46,9 +46,14 @@ export function readGoalInput(body: unknown): { goal: GoalInput } | { error: str
     const measure = text(row.measure, 300);
     if (!criterionText || !measure) return { error: '성공 기준마다 내용과 재는 방법을 300자 안으로 적어 주세요.' };
     const status = STATUSES.has(row.status as SuccessCriterion['status']) ? row.status as SuccessCriterion['status'] : 'open';
+    const featureIds = row.featureIds;
+    if (featureIds !== undefined && (!Array.isArray(featureIds) || featureIds.length > 10
+      || !featureIds.every((featureId): featureId is string => typeof featureId === 'string' && /^F-\d{2}$/.test(featureId)))) {
+      return { error: '성공 기준에 연결할 기능 ID를 확인해 주세요.' };
+    }
     const id = typeof row.id === 'string' && /^G-\d{1,3}$/.test(row.id) && !used.has(row.id) ? row.id : null;
     if (id) used.add(id);
-    criteria.push(id ? { id, text: criterionText, measure, status } : { text: criterionText, measure, status });
+    criteria.push({ ...(id ? { id } : {}), text: criterionText, measure, status, ...(featureIds ? { featureIds: [...new Set(featureIds)] } : {}) });
   }
   let next = Math.max(0, ...[...used].map((id) => Number(id.slice(2))));
   const withIds = criteria.map((row) => ('id' in row ? row : { id: `G-${++next}`, ...row }));
@@ -112,7 +117,7 @@ export async function projectSpec(service: SupabaseClient, userId: string, key: 
 const RECHECK_FROM = new Set(['in_progress', 'improving', 'done']);
 
 /**
- * After a new goal version (plan 3-1): the features linked to criteria that were edited or removed go to needs_recheck,
+ * After a new goal version (plan 3-1): the features affected by edited criteria or links go to needs_recheck,
  * so get_next_task puts them first. Returns the features it flagged.
  */
 export async function recheckForGoalChange(
@@ -125,7 +130,8 @@ export async function recheckForGoalChange(
   if (!change.recheckFeatureIds.length) return [];
   const progress = await readBuildProgress(service, userId, key);
   const flagged = change.recheckFeatureIds.filter((id) => RECHECK_FROM.has(progress[id]?.status ?? 'todo'));
-  const touched = [...change.changed, ...change.removed].join(', ');
+  const linkedAdditions = next.criteria.filter((row) => row.featureIds?.length && change.added.includes(row.id)).map((row) => row.id);
+  const touched = [...change.changed, ...change.removed, ...linkedAdditions].join(', ');
   for (const id of flagged) {
     await writeBuildProgress(service, userId, key, { id, title: progress[id].title }, 'needs_recheck', `목표 v${next.version}에서 ${touched}이 바뀌어 다시 확인이 필요합니다.`);
   }
@@ -144,11 +150,16 @@ export async function userProjectGoals(userId: string, rawKey: string) {
   return {
     current: () => currentProjectGoal(service, userId, key),
     lock: async (goal: GoalInput) => {
-      const previous = await currentProjectGoal(service, userId, key);
+      const featureIds = goal.criteria.flatMap((row) => row.featureIds ?? []);
+      const [previous, spec] = await Promise.all([
+        currentProjectGoal(service, userId, key),
+        featureIds.length ? projectSpec(service, userId, key) : undefined,
+      ]);
+      if (featureIds.some((id) => !spec?.features.some((feature) => feature.id === id))) return 'invalid-feature-ids' as const;
       const locked = await lockProjectGoal(service, userId, key, goal);
       // The goal is already locked; a failed recheck must not turn the save into an error.
       if (previous && locked !== 'reason-required') {
-        await recheckForGoalChange(service, userId, key, previous, locked)
+        await recheckForGoalChange(service, userId, key, previous, locked, spec ? async () => spec : undefined)
           .catch((error) => console.error('Goal recheck failed', (error as { message?: string }).message));
       }
       return locked;

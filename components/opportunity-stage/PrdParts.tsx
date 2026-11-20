@@ -5,6 +5,7 @@
 import { useRef, useState, useMemo, useLayoutEffect } from 'react';
 import MarkdownContent from '@/components/MarkdownContent';
 import AgentCursor, { type CursorTarget } from './AgentCursor';
+import type { LivePhase, LiveStep } from '@/lib/opportunities/live-steps';
 import { translator } from '@/lib/i18n';
 import styles from './stage.module.css';
 import type { Spec, SpecFeature, traceOf } from '@/lib/opportunities/spec';
@@ -125,7 +126,8 @@ export function Wireframes({ spec, focus, pick, lang }: { spec: Spec; focus: str
   );
 }
 
-export type LivePhase = 'waiting' | 'thinking' | 'writing' | 'structuring' | 'checking' | 'auditing';
+export type { LivePhase, LiveStep } from '@/lib/opportunities/live-steps';
+export { liveStepsAfter } from '@/lib/opportunities/live-steps';
 
 const PHASES: Record<LivePhase, [string, string]> = {
   waiting: ['모델에 연결하는 중', 'Connecting to the model'],
@@ -134,6 +136,7 @@ const PHASES: Record<LivePhase, [string, string]> = {
   structuring: ['문서를 요구사항과 기능으로 나누는 중', 'Splitting the document into requirements and features'],
   checking: ['빠진 곳을 검사하고 보완하는 중', 'Checking for gaps and repairing'],
   auditing: ['P0 요구사항의 원문 근거를 대조하는 중', 'Auditing P0 requirements against cited quotes'],
+  completing: ['P0 기능의 개발 준비 항목과 화면을 채우는 중', 'Filling readiness details and screens for P0 features'],
 };
 
 // The few words on the working pointer beside the document.
@@ -144,21 +147,24 @@ const CURSOR_LABELS: Record<LivePhase, [string, string]> = {
   structuring: ['나누는 중', 'Structuring'],
   checking: ['점검 중', 'Checking'],
   auditing: ['근거 대조 중', 'Auditing'],
+  completing: ['채우는 중', 'Completing'],
 };
 
 /**
  * What the reader sees while the PRD is made: the real step the server reports, and the document itself as the model
  * writes it. A generator that does not stream (live is null) shows only the step and the time.
  */
-export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; phase: LivePhase; restarted: boolean } | null; elapsed: number; lang: 'ko' | 'en'; title?: string }) {
+export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; phase: LivePhase; restarted: boolean; steps?: LiveStep[] } | null; elapsed: number; lang: 'ko' | 'en'; title?: string }) {
   const t = translator(lang);
   const phase = live?.phase ?? 'writing';
   const page = useRef<HTMLDivElement>(null);
+  const [showSteps, setShowSteps] = useState(false);
+  const steps = live?.steps ?? [];
   // Before any text it waits where writing starts; while writing it rests on the newest section; the later steps go to
   // the section they work on (requirements for structuring and the evidence audit, features for the gap check).
   const target: CursorTarget = !live?.text || phase === 'waiting' || phase === 'thinking' ? { kind: 'first' }
     : phase === 'writing' ? { kind: 'latest' }
-    : { kind: 'match', pattern: phase === 'checking' ? /기능|Features/ : /요구사항|Requirements/ };
+    : { kind: 'match', pattern: phase === 'checking' || phase === 'completing' ? /기능|Features/ : /요구사항|Requirements/ };
   const cursor = <AgentCursor rootRef={page} target={target} label={`Seedup · ${t(CURSOR_LABELS[phase][0], CURSOR_LABELS[phase][1])}`} tick={live?.text.length ?? 0} />;
   return (
     <div className="rise-in max-w-[52em]" role="status" aria-live="polite" aria-busy="true">
@@ -169,8 +175,33 @@ export function LivePrd({ live, elapsed, lang, title }: { live: { text: string; 
           <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-seed motion-reduce:animate-none" />
           {t(PHASES[phase][0], PHASES[phase][1])}
         </p>
-        <p className="num text-sm text-muted">{elapsed}{t('초', 's')}</p>
+        <div className="flex items-baseline gap-3">
+          {steps.length > 0 && (
+            <button type="button" className="text-[13px] font-semibold text-seed underline-offset-4 hover:underline" aria-expanded={showSteps} aria-controls="prd-live-steps" onClick={() => setShowSteps((open) => !open)}>
+              {showSteps ? t('단계 숨기기', 'Hide steps') : t(`단계 보기 (${steps.length})`, `Show steps (${steps.length})`)}
+            </button>
+          )}
+          <p className="num text-sm text-muted">{elapsed}{t('초', 's')}</p>
+        </div>
       </div>
+      {showSteps && steps.length > 0 && (
+        <ol id="prd-live-steps" className="mt-2 grid gap-1.5 rounded-xl border border-outline-soft bg-white px-4 py-3 text-[13px]">
+          {steps.map((step, index) => {
+            const current = index === steps.length - 1;
+            const took = (current ? elapsed : steps[index + 1].at) - step.at;
+            const label = step.kind === 'phase' ? t(PHASES[step.phase][0], PHASES[step.phase][1])
+              : step.kind === 'section' ? t(`"${step.title}" 쓰기`, `Writing "${step.title}"`)
+              : t('첫 모델이 답하지 않아 다른 모델로 다시 시작', 'The first model did not answer; starting again with another');
+            return (
+              <li key={`${step.kind}${index}`} className={`flex items-baseline gap-2 ${step.kind === 'section' ? 'pl-5' : ''} ${current ? 'font-semibold text-ink' : 'text-tertiary'}`}>
+                <span aria-hidden="true" className={`inline-block h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full ${current ? 'animate-pulse bg-seed motion-reduce:animate-none' : 'bg-outline-strong'}`} />
+                <span className="min-w-0 flex-1">{label}{current && <span className="sr-only">{t(' (진행 중)', ' (in progress)')}</span>}</span>
+                <span className="num shrink-0 text-muted">{Math.max(0, took)}{t('초', 's')}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
       {live?.restarted && <p className="mt-2 text-[13px] text-muted">{t('첫 모델이 답하지 않아 다른 모델로 다시 쓰고 있습니다.', 'The first model did not answer, so another one is writing it again.')}</p>}
       {live?.text ? (
         <div ref={page} className="relative mt-4 rounded-2xl border border-outline-soft bg-white px-5 py-4 [&_.article-markdown]:text-[15px]">

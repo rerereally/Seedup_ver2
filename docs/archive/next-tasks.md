@@ -11,7 +11,7 @@
   - 적중 기록 강화, 홈·기회·PRD 영어 번역
   - PRD 전용 화면 `/prd`와 휴대폰 하단 고정 버튼
 - **임베딩:** 백필이 끝났습니다(741건, 남은 0건). curl은 더 돌리지 않아도 됩니다.
-- **테스트:** 138개 통과(`npm test`). (이후 최신 계획은 [service-plan.md](service-plan.md)와 [ui-plan.md](ui-plan.md) 기준)
+- **테스트:** 138개 통과(`npm test`). (이후 최신 계획은 [service-plan.md](../service-plan.md)와 [ui-plan.md](ui-plan.md) 기준)
 
 ## 1. 사용자가 직접 할 일
 | 순서 | 할 일 | 비고 |

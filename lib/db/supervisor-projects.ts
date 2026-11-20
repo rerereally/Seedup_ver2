@@ -3,6 +3,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById } from '@/lib/db/dossiers';
 import { getOpportunity } from '@/lib/opportunities/data';
+import { isGitHubLogin } from '@/lib/seeds/github';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { ProjectKey, SupervisorProject, Track } from '@/lib/supervisor/types';
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,119}$/;
@@ -56,4 +58,31 @@ export async function updateSupervisorProject(service: SupabaseClient, userId: s
     .eq('user_id', userId).eq('project_key', key).select('user_id,project_key,repo,track,strict,goal_version').single();
   if (error) throw error;
   return toProject(data as ProjectRow);
+}
+
+/** Validates an owner/repo GitHub repository identifier before saving it to supervisor_projects. */
+export function parseGitHubRepo(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const [owner, repository, extra] = trimmed.split('/');
+  if (!owner || !repository || extra !== undefined) return null;
+  if (!isGitHubLogin(owner)) return null;
+  if (!/^[a-z\d_.-]{1,100}$/i.test(repository) || /^\.+$/.test(repository)) return null;
+  return `${owner}/${repository}`;
+}
+
+/**
+ * Links an analyzed GitHub repository to a project owned by the signed-in user, keeping service-key usage inside
+ * lib/db (same pattern as userProjectGoals). Returns 'unavailable' without admin config, or null for an unowned key.
+ */
+export async function userProjectRepo(
+  userId: string,
+  rawKey: string,
+  repo: string,
+  service: SupabaseClient | null = createAdminClient(),
+): Promise<SupervisorProject | null | 'unavailable'> {
+  if (!service) return 'unavailable';
+  const key = await resolveProjectKey(service, userId, rawKey);
+  if (!key) return null;
+  return updateSupervisorProject(service, userId, key, { repo });
 }

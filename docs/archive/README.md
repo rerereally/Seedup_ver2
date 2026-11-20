@@ -35,3 +35,12 @@
 | [hackathon-topic-ideas.md](hackathon-topic-ideas.md) | Seedup 대신 고를 만한 주제 후보, 주제는 Seedup으로 정해짐 | 없음(참고용) |
 | [seedup-evaluation-strategy.md](seedup-evaluation-strategy.md) | `fe33b53` 기준 평가와 해커톤 전략, 코드가 많이 바뀜 | [scorecard.md](../scorecard.md), [supervisor-plan.md](../supervisor-plan.md) |
 | [seedup-improvements-global-strategy.md](seedup-improvements-global-strategy.md) | 위 평가를 옮긴 개선 목록, 이후 계획들로 대체됨 | [supervisor-plan.md](../supervisor-plan.md) |
+
+## 계획 검토 자료(PDF)
+
+2026-11-20 계획 세션에서 만든 PDF입니다. 내용은 Markdown 계획에 반영돼 있고, 근거 기록으로만 둡니다.
+
+| 문서 | 왜 옮겼나 | 무엇이 대체했나 |
+| :--- | :--- | :--- |
+| [seedup-v3-review-2026-11-20.pdf](seedup-v3-review-2026-11-20.pdf) | v3 계획 검토(main `05cda90` 기준)와 작업 분배 근거 | [supervisor-plan.md](../supervisor-plan.md) |
+| [seedup-plan-2026-11-20.pdf](seedup-plan-2026-11-20.pdf) | 같은 날 계획 문서를 PDF로 뽑은 것 | [supervisor-plan.md](../supervisor-plan.md)(이후 갱신은 Markdown에만) |

@@ -6,7 +6,8 @@
 
 | 항목 | 상태 | 확인 방법 |
 | :--- | :--- | :--- |
-| 머지된 PR | #79~#124 (#124는 최상위 계획 문서). 열린 PR 없음 | `gh pr list --state merged` |
+| 머지된 PR | #79~#126 (#124 최상위 계획, #125 작업 규약, #126 문서 정리). 열린 PR 없음 | `gh pr list --state merged` |
+| 문서 | 최상위 계획 · 상태 · 문서 목록 · 결정 기록 · 작업 규약(`CONTRIBUTING.md`) 갖춤. 낡은 문서 17개는 `docs/archive/` | [README.md](README.md) |
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
@@ -52,6 +53,7 @@
 | 0-4 사용자 코드 · 아이디어가 무료 모델로 감 | 단계 2 전제 조건 | 무엇이 어느 모델로 가는지 개인정보 처리방침에 어떻게 밝힐지 |
 | 3-4 메뉴 정리 · 범위 동결 | 단계 0 | 출시 때 앞에 둘 메뉴와 숨기거나 베타로 표시할 화면 |
 | 로그인 없이 PRD 만들기 | 단계 0 | 허용 여부와 한도 |
+| 운영 DB 마이그레이션 적용 담당 | 모든 단계 | `CONTRIBUTING.md` 7절에는 "PR을 머지한 사람이 머지 직후 적용"으로 적혀 있음. 두 사람이 합의하면 확정하고 `decisions.md`에 기록 |
 
 ## 4. 사람 일 (계속 진행)
 

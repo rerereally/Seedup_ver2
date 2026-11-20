@@ -407,13 +407,11 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 
 ## 10. 기존 계획에서 이어받는 작업
 
-### 10-1. 지금 상태 (2026-11-20 확인)
+### 10-1. 지금 상태
 
-- 머지: PR #79~#123. `antigravity-tasks.md`의 AG-1~9 **전부 완료**. `codex-tasks.md`의 CX-1~6, CX-9~13, CX-15, CX-16 완료. **남은 것은 CX-7, CX-8, CX-14**.
-- 마이그레이션 30개. 운영 DB에 빠진 것은 `20261120130000_section_views.sql` 하나(`check-schema` 기준).
-- 단위 테스트 318개 중 317개 통과. 실패 1개(`tests/prd-exports.test.ts`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나는 실패로, Linux CI에서는 통과.
-- MCP: 도구 16개, 프롬프트 4개, 리소스 2개.
-- **데이터 수집 동결:** 3개월치 수집이 다른 세션에서 돌고 있어 엔진 파일(`lib/opportunities/engine.ts`, `actors.ts`, `merge.ts`, `rules.ts`, `web.ts`, `live-evidence.ts`, `lib/ingest/*`, `lib/opportunities/data/*`, `scripts/run-opportunity-engine.ts`)은 동결 해제 전까지 고치지 않습니다. 3-10(근거 보강)과 아래 엔진 작업은 그 뒤에 합니다.
+숫자와 진행(머지된 PR, 남은 CX, 마이그레이션, 테스트, MCP 도구 수, 단계별 진행)은 [status.md](status.md)에만 적습니다. 이 문서에는 계획상 제약만 둡니다.
+
+- **데이터 수집 동결:** 3개월치 수집이 끝날 때까지 엔진 · 수집 파일은 고치지 않습니다(파일 목록은 status.md 1절). 3-10(근거 보강)과 아래 엔진 작업은 그 뒤에 합니다.
 
 ### 10-2. `work-plan-merged-2026-11-20.md`의 남은 항목이 가는 곳
 
@@ -449,38 +447,11 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 
 ---
 
-## 11. 문서 정리와 작업 규약 (실행 묶음)
+## 11. 문서 정리와 작업 규약 (완료)
 
-계획 세션이 정한 묶음입니다. 실행 세션에 그대로 넘깁니다. 코드는 건드리지 않습니다.
-
-### 묶음 D1. 상태 문서 하나로 + 낡은 문서 보관 (한 세션)
-
-1. `docs/status.md`를 새로 만들고 계속 갱신합니다. 내용: 10-1의 상태, 단계별 진행, 담당, 막힌 것, 결정 대기. 날짜별 진행 기록 파일은 더 만들지 않습니다.
-2. `docs/archive/`로 옮기고, `docs/archive/README.md`에 문서마다 "왜 옮겼나 · 무엇이 대체했나"를 한 줄씩 적습니다.
-   - 대체됨: `final-report.md`, `improvement-plan.md`, `next-tasks.md`, `improvement-audit-2026-11-19.md`, `platform-roadmap.md`, `agent-build-map-plan.md`, `redesign-plan.md`, `ui-plan.md`
-   - 이 문서로 흡수됨: `work-plan-merged-2026-11-20.md`, `ai-agent-work-plan.md`, `codex-tasks.md`, `antigravity-tasks.md`, `progress-2026-11-20.md`
-   - 커밋 안 된 개인 문서(보관으로 커밋): `hackathon-playbook.md`, `hackathon-topic-ideas.md`, `seedup-evaluation-strategy.md`, `seedup-improvements-global-strategy.md`
-   - 해커톤이 끝나면: `hackathon-judging-2026-11-19.md`
-3. 현행으로 남는 것: 이 문서, `status.md`, `service-plan.md`, `scorecard.md`, `user-interview.md`, `hosting.md`, `prd-builder-split.md`, `trend-and-recommendation-review.md`, `DESIGN.md`, `README.md`.
-4. `docs/README.md`(문서 목록)를 만들어 문서마다 용도와 상태(최상위 계획 / 현행 / 결정 대기 / 보관)를 한 줄로.
-5. 옮긴 문서를 가리키는 링크를 모두 고칩니다(`grep`으로 확인, 특히 `scorecard.md`, `final-report.md` 참조).
-6. `README.md`의 "현재 상태와 한계" 수치를 10-1 기준으로 고칩니다(테스트 318개, 마이그레이션 30개).
-7. PDF 두 개는 저장소에 넣지 않습니다.
-
-### 묶음 D2. 2인 작업 규약 (다른 세션, D1과 파일이 겹치지 않음)
-
-`CONTRIBUTING.md`(루트), `.github/pull_request_template.md`, `AGENTS.md`에 규약 링크 한 줄.
-
-1. **권한:** 이 문서가 최상위 계획. 계획 변경은 계획 세션에서만, 실행은 맡은 칸만.
-2. **역할과 소유:** 단계별 파일 소유표(5절)를 따름. 공용 파일(`Header.tsx`, `README.md`, `schema-manifest.json`, `lib/llm.ts`, `lib/mcp/server.ts`)은 고치기 전에 상대에게 알림. 수집 동결 파일 목록.
-3. **브랜치:** `<종류>/<작업ID>-<요약>`(종류: feat, fix, chore, docs, perf). 작업 ID는 이 문서 단계 · 에이전트 칸 기준.
-4. **PR:** 작게, CI 통과 필수, 상대 1명 확인 후 머지, 에이전트가 만든 PR은 사람이 리뷰. 템플릿에 "이 문서의 어느 칸인가", 확인한 것, 운영 DB 마이그레이션 필요 여부.
-5. **커밋 메시지:** 한국어, 작업 ID 표기.
-6. **에이전트:** 에이전트 하나에 브랜치(worktree) 하나, 8절 시작 지시 사용, 공유 타입 변경은 먼저 합의.
-7. **DB 마이그레이션:** 파일 이름 규칙, 매니페스트 재생성, 운영 적용 담당과 시점(머지 직후 적용, `check-schema`로 확인).
-8. **공유 기억:** 3-11 끝 문단. 상태는 `status.md`, 결정은 `docs/decisions.md`, 개인 에이전트 메모리는 공유로 보지 않음.
-9. **배포 · 운영:** `main` 푸시 = 자동 배포, 발표 · 출시 전 동결, 시크릿은 저장소에 넣지 않음.
-10. **알려진 환경 차이:** Windows에서 `prd-exports` 테스트 1개가 `/bin/sh` 없음으로 실패(CI는 통과). 고칠지는 별도 작은 작업.
+- **D1 문서 정리:** PR #126으로 완료. `docs/status.md`, `docs/README.md`, `docs/archive/`(문서 17개, 옮긴 이유는 `archive/README.md`).
+- **D2 작업 규약:** PR #125로 완료. 루트 `CONTRIBUTING.md`, `.github/pull_request_template.md`, `docs/decisions.md`, `AGENTS.md`의 규약 안내.
+- 남은 것: 운영 DB 마이그레이션 적용 담당(CONTRIBUTING 7절의 "머지한 사람")은 아직 합의 전이라 status.md 결정 대기에 둡니다. 해커톤 뒤 `hackathon-judging-2026-11-19.md` 보관.
 
 ---
 
@@ -488,3 +459,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 
 - 2026-11-20: 목표 중심 계획으로 새로 씀. 이 문서를 최상위 계획으로 정함. 유료화를 범위 밖으로 뺌. 공유 메모리(3-11) 추가. 기존 계획의 남은 항목을 10절로 옮김. 문서 정리 · 규약 묶음(11절) 정의.
 - 2026-11-20: 외부 평가 반영. 대상을 "AI 네이티브 1인 빌더"로 좁히고 GitHub 없는 "로컬 확인" 경로 추가. 범위를 핵심 고리(단계 1~2)와 보류로 다시 나눔(기존 단계 3과 일부 단계 1~2 항목을 보류로). 검증을 2단(로컬 즉시 + 서버 단순형)으로 바꾸고 tool calling 루프와 사용자 저장소 CI 안 판정을 뺌. 승인은 터미널 대화에서, 대시보드는 이력만. 이미 끝난 AG-2 · AG-3 · AG-6을 단계 1에서 뺌.
+- 2026-11-20: 10-1의 상태 숫자를 status.md로 넘김(중복 제거). 11절(D1 · D2)을 완료로 접음.

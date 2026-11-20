@@ -12,7 +12,7 @@
 - 단계별 담당과 파일은 [5절](docs/supervisor-plan.md#5-단계별-작업-분배-2인--에이전트-5개-단계-안에서-파일-소유-중복-없음) 표를 따릅니다. 내 칸에 없는 파일이 필요하면 고치지 말고 담당자에게 알립니다.
 - **공용 파일**은 고치기 전에 상대에게 먼저 알립니다: `components/Header.tsx`, `README.md`, `lib/schema-manifest.json`, `lib/llm.ts`, `lib/mcp/server.ts`.
 - DB 쿼리는 `lib/db/*` 안에서만 씁니다.
-- **수집 동결:** [10-1절](docs/supervisor-plan.md#10-1-지금-상태-2026-11-20-확인)의 엔진 · 수집 파일은 동결 해제 전까지 고치지 않습니다.
+- **수집 동결:** [status.md 1절](docs/status.md#데이터-수집-동결)의 엔진 · 수집 파일은 동결 해제 전까지 고치지 않습니다.
 
 ## 3. 브랜치
 

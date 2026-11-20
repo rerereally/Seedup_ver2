@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fixtureProse } from '../lib/llm-fixtures';
 import { defaultPolicy, estimateCost, pickPrdModel, prdModels } from '../lib/opportunities/models';
 import { isAdminUser } from '../lib/auth/admin';
-import { specIssues } from '../lib/opportunities/prd';
+import { generatePrd, specIssues } from '../lib/opportunities/prd';
 import { normalizeSpec } from '../lib/opportunities/spec';
 
 const input = { title: 't', problem: 'p', gap: '', competitors: [], evidence: [{ id: 'e1', platform: 'hn' as const, quote: 'q', quoteKo: '', url: 'u', score: 0, postedAt: null }] };
@@ -55,11 +56,46 @@ test('every account picks from one menu; the admin policy decides what runs, and
 });
 
 test('costs come from reported tokens, and admins come from the setting or Supabase app metadata', () => {
+  assert.equal(estimateCost('openai/gpt-6.2-sol', 1_000_000, 1_000_000), 12);
   assert.equal(estimateCost('anthropic/claude-haiku-5.5', 1_000_000, 1_000_000), 0.6);
   assert.equal(estimateCost('base/model:free', 5_000, 3_000), 0);
   assert.equal(isAdminUser({ email: 'x@example.com', app_metadata: { role: 'admin' } }), true);
   assert.equal(isAdminUser({ email: 'x@example.com', app_metadata: {} }), false);
   assert.equal(isAdminUser(null), false);
+});
+
+test('MCP PRD uses the selected effort on paid fallback and audits with the actual writer’s other family', async (t) => {
+  const keys = ['OPENROUTER_API_KEY', 'OPENROUTER_FREE_ONLY', 'LLM_FIXTURES'] as const;
+  const previous = keys.map((key) => process.env[key]);
+  process.env.OPENROUTER_API_KEY = 'mock-key';
+  process.env.OPENROUTER_FREE_ONLY = 'true';
+  delete process.env.LLM_FIXTURES;
+  const calls: Array<{ title: string; model: string; effort: string }> = [];
+  const text = fixtureProse().replace('경고 단위로 묶은 요약을 돌려준다.', '경고 단위로 묶은 요약을 돌려준다. [E1]');
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    const title = new Headers(init.headers).get('x-title') ?? '';
+    calls.push({ title, model: body.model, effort: body.reasoning.effort });
+    if (title === 'Seedup PRD' && body.model === 'anthropic/claude-haiku-5.5') {
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`);
+    }
+    return new Response(null, { status: 503 });
+  });
+  try {
+    const result = await generatePrd(input, { paid: { model: 'openai/gpt-6.2-sol', reasoning: 'medium' }, repair: false });
+    assert.equal(result?.model, 'anthropic/claude-haiku-5.5');
+    assert.deepEqual(calls.filter(({ title }) => title === 'Seedup PRD' || title === 'Seedup P0 evidence critic'), [
+      { title: 'Seedup PRD', model: 'openai/gpt-6.2-sol', effort: 'medium' },
+      { title: 'Seedup PRD', model: 'anthropic/claude-haiku-5.5', effort: 'medium' },
+      { title: 'Seedup P0 evidence critic', model: 'openai/gpt-6.2-sol', effort: 'low' },
+    ]);
+    assert.ok(calls.every(({ model }) => model === 'openai/gpt-6.2-sol' || model === 'anthropic/claude-haiku-5.5'));
+  } finally {
+    keys.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+  }
 });
 
 import { coverRivals, normalizeRivals } from '../lib/opportunities/spec';

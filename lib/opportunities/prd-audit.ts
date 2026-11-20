@@ -308,7 +308,7 @@ type RawAuditResponse = {
 export async function auditP0Evidence(
   input: SpecInput,
   spec: Spec,
-  options: { model?: string; timeoutMs?: number; deadline?: number; onUsage?: (usage: ModelUsage) => void } = {},
+  options: { model?: string; models?: string[]; timeoutMs?: number; deadline?: number; onUsage?: (usage: ModelUsage) => void } = {},
 ): Promise<{ spec: Spec; changes: P0AuditChange[]; audited: boolean; status: P0AuditStatus }> {
   const p0 = spec.requirements.filter((row) => row.priority === 'P0');
   if (!p0.length || !input.evidence.length) {
@@ -340,8 +340,8 @@ JSON만 반환합니다: {"verdicts":[{"id":"R-01","verdict":"supported|partial|
 ${pairs}
 </P0 요구사항과 인용 원문>`;
 
-  const free = prdFreeModels();
-  const models = options.model ? [options.model, ...free.filter((m) => m !== options.model)] : free;
+  // MCP supplies a single independent critic; falling back to the writer would invalidate the audit.
+  const models = options.models ?? [...new Set([...(options.model ? [options.model] : []), ...prdFreeModels()])];
   const raw = await callJsonModel<RawAuditResponse>(prompt, {
     maxTokens: 1_500,
     timeoutMs: options.timeoutMs ?? 30_000,

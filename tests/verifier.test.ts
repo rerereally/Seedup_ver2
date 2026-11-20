@@ -43,6 +43,8 @@ function harness(overrides: { evidence?: GitHubEvidence; response?: unknown; fai
     model: async <T>(_prompt: string, options?: Parameters<typeof callJsonModel>[1]) => {
       calls++;
       assert.equal(options?.noDataCollection, true);
+      assert.equal(options?.reasoning, 'high');
+      assert.ok(options?.deadline && options.deadline <= Date.now() + 110_000);
       assert.equal(options?.attempts, 1);
       assert.equal(options?.models?.length, 1);
       options?.onUsage?.({ model: options.models[0], promptTokens: 10, completionTokens: 20 });
@@ -188,10 +190,15 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
       assert.equal(JSON.stringify([...h.saved.values()]).includes(secret), false);
     });
     await t.test('model configuration rejects free and automatic routing, and separates model families', () => {
-      for (const model of ['vendor/model:free', 'openrouter/free', 'exaone', 'openrouter/auto', '']) {
+      for (const model of ['vendor/model:free', 'openrouter/free', 'exaone', 'openrouter/auto', ',']) {
         process.env.VERIFIER_MODELS = model;
         assert.throws(() => verifierModels());
       }
+      delete process.env.VERIFIER_MODELS;
+      assert.deepEqual(verifierModels(), ['openai/gpt-6.2-sol', 'anthropic/claude-haiku-5.5']);
+      assert.deepEqual(verifierModels('openai/gpt-6.2-sol'), ['anthropic/claude-haiku-5.5']);
+      process.env.VERIFIER_MODELS = ' ';
+      assert.deepEqual(verifierModels('anthropic/claude-haiku-5.5'), ['openai/gpt-6.2-sol']);
       process.env.VERIFIER_MODELS = 'vendor/claude-one,vendor/gpt-two';
       assert.deepEqual(verifierModels('other/claude-dev'), ['vendor/gpt-two']);
     });

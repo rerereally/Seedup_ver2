@@ -11,7 +11,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-pgvector-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 [![MCP Ready](https://img.shields.io/badge/MCP_Server-Claude_Code_%26_Cursor-7C3AED?style=for-the-badge)](https://modelcontextprotocol.io/)
 
-[왜 Seedup인가](#-왜-seedup을-만들었는가-why-seedup) · [아키텍처](#️-아키텍처--근거-추적-파이프라인) · [주요 기능](#-주요-기능) · [현재 상태와 한계](#-현재-상태와-한계-2026-11-19-기준) · [빠른 시작](#-빠른-시작) · [MCP 연결](#-mcp-서버-연결-claude--codex--cursor--antigravity-등) · [배포](#️-배포-cloudflare-workers)
+[왜 Seedup인가](#-왜-seedup을-만들었는가-why-seedup) · [아키텍처](#️-아키텍처--근거-추적-파이프라인) · [주요 기능](#-주요-기능) · [현재 상태와 한계](#-현재-상태와-한계-2026-11-21-기준) · [빠른 시작](#-빠른-시작) · [MCP 연결](#-mcp-서버-연결-claude--codex--cursor--antigravity-등) · [배포](#️-배포-cloudflare-workers)
 
 </div>
 
@@ -193,7 +193,7 @@ flowchart TB
 
 ---
 
-## 📊 현재 상태와 한계 (2026-11-20 기준)
+## 📊 현재 상태와 한계 (2026-11-21 기준)
 
 숨기지 않고 적습니다.
 
@@ -201,16 +201,17 @@ flowchart TB
 | :--- | :--- |
 | 공개 중인 문제 | **스냅샷 기준 37개, 그중 검증 기준(원문 3건 · 플랫폼 2곳) 통과 13개.** 기준은 일부러 엄격하게 두고, 매일 수집·보충으로 통과 수를 키웁니다 |
 | 원문 검증의 한계 | 글자 대조(`isVerbatimQuote`)는 "그 문장이 원문에 있다"만 보장하고 "그 문제와 관련 있다"는 보장하지 않습니다. 그래서 LLM 재확인과 사람 검토 목록(`review.ts`)을 함께 둡니다 |
-| 무료 모델 | 엔진은 무료 OpenRouter 모델로 매일 돌고, 일부 호출이 실패할 수 있습니다. 실패하면 이전 결과를 유지하고, 사용자 일일 한도는 돌려줍니다 |
+| 모델 | 웹 PRD · 검증 리포트 · 질문은 유료 체인(GPT 6.2 Sol → Claude Haiku 5.5)이 기본이고, 유료가 모두 실패할 때만 무료 모델로 폴백합니다. 수집 엔진은 무료 OpenRouter 모델로 매일 돌아 일부 호출이 실패할 수 있고, 실패하면 이전 결과를 유지하고 사용자 일일 한도는 돌려줍니다 |
 | 수요로 섞이는 글 | `isPromotion()`으로 제품 출시·홍보성 글(`Show HN`, `I just built...`)을 1차 필터링하지만, 본문 후반부 홍보성 문장 등 일부 오탐은 사람 검토 목록으로 보정합니다 |
 | 선행 기록 | "불만이 먼저 나오고 도구가 나중에 나왔다"는 기록과 봉인 예측(`sealed.jsonl`)은 참고용입니다. 인과관계를 뜻하지 않습니다 |
 | 영어 | 홈 · 문제 · PRD 등 주요 화면만 영어를 지원합니다 |
 | 사용자 검증 | 실사용자 테스트를 진행·준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
-| 테스트 | 단위 테스트 318개(48개 파일) 중 317개 통과. 실패 1개(`prd-exports`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나고 Linux CI에서는 통과합니다 |
-| DB 마이그레이션 | 30개. 운영 DB에는 `20261120130000_section_views.sql` 하나가 아직 적용되지 않았습니다 |
+| 테스트 | 단위 테스트 파일 76개. #220 기준 520개 중 518개 통과, 1개 건너뜀. 실패 1개(`prd-exports`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나고 Linux CI에서는 통과합니다. 브라우저 E2E 3개(세 입구 → 목표 잠금 → 에이전트 핸드오프) 통과 |
+| DB 마이그레이션 | 39개. 운영 DB에는 `20261121020000_dossier_validation_report.sql`, `20261121080000_agent_usage.sql` 두 개가 아직 적용되지 않았습니다 |
 | MCP | 도구 20개, 프롬프트 4개, 리소스 2개 |
+| 실제 프로젝트 | 2026-11-21 시험 프로젝트 1개(트랙 A CLI)가 PRD → 목표 잠금 → 에이전트 구현 → GitHub CI → 서버 판정 → 🟢까지 운영에서 한 번 갔습니다. 발견한 문제와 남은 검증은 [docs/status.md](docs/status.md) "실제 프로젝트 검증" |
 
-지금 상태는 [docs/status.md](docs/status.md), 계획은 [docs/supervisor-plan.md](docs/supervisor-plan.md)(최상위 계획), 문서 목록은 [docs/README.md](docs/README.md)에 있습니다.
+지금 상태는 [docs/status.md](docs/status.md), 방향은 [docs/supervisor-plan.md](docs/supervisor-plan.md), 문서 목록은 [docs/README.md](docs/README.md)에 있습니다.
 
 ---
 
@@ -260,6 +261,7 @@ SUPABASE_SECRET_KEY=sb_secret_your-key
 OPENROUTER_API_KEY=your-openrouter-api-key
 OPENROUTER_MODEL=nvidia/nemotron-3.5-super-vl:free
 OPENROUTER_FALLBACK_MODELS=recursive/flint-v1.0:free,openrouter/free
+# true면 유료 모델(웹 PRD · 검증의 기본 유료 체인 포함)이 전부 막힙니다. 로컬 실험용이고 운영에서는 지웁니다
 OPENROUTER_FREE_ONLY=true
 RAG_EMBEDDING_MODEL=nvidia/nemotron-3-embed-1b:free
 
@@ -417,6 +419,12 @@ npm run engine -- --persist
 npm run seal
 ```
 매일 07시(KST) GitHub Actions(`opportunity-engine.yml`)가 `--persist`로 실행합니다. 한 번의 실행은 이전 결과에 합쳐지므로 원문은 쌓이고, 약한 실행이 있어도 잃지 않습니다.
+
+밖에서 모은 원문 파일(JSONL)을 공용 근거(`found_evidence`)에 넣을 때는 아래 명령을 씁니다. 줄마다 원문 링크를 다시 받아 글자 대조를 통과한 문장만 넣습니다.
+```bash
+npm run import-evidence -- --dir <JSONL 폴더> --dry-run   # 넣지 않고 통과 · 버림 수만 집계
+npm run import-evidence -- --dir <JSONL 폴더>             # 실제로 적재
+```
 
 ### 2. 콘텐츠 수집과 임베딩 (`/api/ingest/*`)
 관리자 계정으로 `/admin/ingest`에서 실행하거나 `x-ingest-secret` 헤더로 호출합니다(URL 쿼리의 비밀값은 받지 않습니다). 매일 06시(KST) `scheduled-ingest.yml`이 실행합니다.

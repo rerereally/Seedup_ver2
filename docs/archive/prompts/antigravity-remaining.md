@@ -1,6 +1,6 @@
 # Antigravity 시작 프롬프트: 단계 2 남은 칸과 기획 → 에이전트 연결
 
-담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절(단계 2 보완, 기획 → 에이전트 연결, 세 입구 한 출구, 흐름 전체 E2E, 클라이언트 호환), 순서는 [status.md](../status.md) 2-2.
+담당 정지훈 · Antigravity. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절(단계 2 보완, 기획 → 에이전트 연결, 세 입구 한 출구, 흐름 전체 E2E, 클라이언트 호환), 순서는 [status.md](../../status.md) 2-2.
 
 ## 쓰는 법
 

@@ -4,7 +4,7 @@
 
 ## 왜 나누나
 
-`components/opportunity-stage/PrdBuilder.tsx` 한 파일(976줄)에 세 가지가 섞여 있습니다.
+`components/opportunity-stage/PrdBuilder.tsx` 한 파일(작성 때 976줄, 2026-11-21 기준 1,307줄)에 세 가지가 섞여 있습니다.
 
 - **상태와 서버 통신:** 생성 스트림, 항목 수정, 개발 준비 칸 채우기, 버전 기록
 - **보기 5개:** 문서, 기능 명세, 유저플로우, 와이어프레임, 구조 트리

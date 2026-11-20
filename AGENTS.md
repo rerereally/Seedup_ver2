@@ -10,4 +10,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## 작업 규칙
 
-코드를 고치기 전에 [`docs/supervisor-plan.md`](docs/supervisor-plan.md)(최상위 계획, 맡은 칸)와 [`CONTRIBUTING.md`](CONTRIBUTING.md)(브랜치 · 커밋 · PR · 마이그레이션 규칙)를 읽으세요. 계획을 바꿔야 하면 고치지 말고 사람에게 알리세요.
+방향은 [`docs/supervisor-plan.md`](docs/supervisor-plan.md), 브랜치 · PR · 마이그레이션 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 참고하세요. 계획에 없는 작업도 해도 됩니다. 목표 · 범위 · 유료화처럼 방향을 바꾸는 결정만 사람에게 먼저 물어보세요. 코드를 바꿔서 문서가 틀려지면 같은 PR에서 문서도 고치세요.

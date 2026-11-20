@@ -1,6 +1,6 @@
 # Codex 시작 프롬프트: 기획 → 에이전트 연결 1단계 (에이전트 단계 화면)
 
-계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 리뷰 · 머지는 정지훈. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 "기획 → 에이전트 연결" 1단계, 설계는 3-2 · 3-11절, 화면 · 문구는 [DESIGN.md](../../DESIGN.md)(2절 토큰, 8절 응답 형식).
+계획 세션(장차희)이 범위를 정하고 Codex(GPT 6.1 Sol, high)가 구현합니다. 리뷰 · 머지는 정지훈. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 "기획 → 에이전트 연결" 1단계, 설계는 3-2 · 3-11절, 화면 · 문구는 [DESIGN.md](../../../DESIGN.md)(2절 토큰, 8절 응답 형식).
 
 ## 실행 방식
 

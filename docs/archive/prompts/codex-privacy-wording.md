@@ -1,6 +1,6 @@
 # Codex 프롬프트: 처리방침에 입력별 모델과 보관 범위 밝히기 (출시 전 준비)
 
-계획 세션(장차희)이 지시하고 Codex(GPT 6.1 Sol)가 구현합니다. 리뷰 · 머지는 정지훈. 근거는 [decisions.md](../decisions.md)의 "0-4(A안)", "검증 모델: GPT 6.2 Sol · Haiku 5.5", 계획 1절 "모델" 줄, [9절 조사](../research/2026-11-20-section9.md) 6절(OpenRouter `data_collection`의 실제 의미).
+계획 세션(장차희)이 지시하고 Codex(GPT 6.1 Sol)가 구현합니다. 리뷰 · 머지는 정지훈. 근거는 [decisions.md](../../decisions.md)의 "0-4(A안)", "검증 모델: GPT 6.2 Sol · Haiku 5.5", 계획 1절 "모델" 줄, [9절 조사](../../research/2026-11-20-section9.md) 6절(OpenRouter `data_collection`의 실제 의미).
 
 ## 붙여 넣을 프롬프트
 

@@ -1,6 +1,6 @@
 # Codex 시작 프롬프트: 단계 1 A2 (MCP 목표 연결 · 공유 메모리 도구)
 
-담당 정지훈 · Codex. 계획은 [supervisor-plan.md](../supervisor-plan.md) 5절 단계 1 A2, 설계는 3-2 · 3-3 · 3-11절입니다.
+담당 정지훈 · Codex. 계획은 [supervisor-plan.md](../../supervisor-plan.md) 5절 단계 1 A2, 설계는 3-2 · 3-3 · 3-11절입니다.
 
 ## 시작 전에 사람이 확인할 것
 

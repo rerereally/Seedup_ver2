@@ -44,3 +44,23 @@
 | :--- | :--- | :--- |
 | [seedup-v3-review-2026-11-20.pdf](seedup-v3-review-2026-11-20.pdf) | v3 계획 검토(main `05cda90` 기준)와 작업 분배 근거 | [supervisor-plan.md](../supervisor-plan.md) |
 | [seedup-plan-2026-11-20.pdf](seedup-plan-2026-11-20.pdf) | 같은 날 계획 문서를 PDF로 뽑은 것 | [supervisor-plan.md](../supervisor-plan.md)(이후 갱신은 Markdown에만) |
+
+## 끝난 작업의 시작 프롬프트
+
+2026-11-21에 `docs/prompts/`에서 옮긴 프롬프트입니다. 작업이 PR로 끝나 다시 쓰지 않습니다.
+
+| 문서 | 무슨 작업 | 결과 |
+| :--- | :--- | :--- |
+| [prompts/codex-s1-a2.md](prompts/codex-s1-a2.md) | 단계 1 A2 MCP 목표 연결 · 공유 메모리 | #142 |
+| [prompts/codex-s2-a2.md](prompts/codex-s2-a2.md) | 단계 2 A2 `verify_feature` 서버 검증 연결 | #162 |
+| [prompts/codex-s2-b1.md](prompts/codex-s2-b1.md) | 단계 2 B1 서버 검증 단순형 | #151 |
+| [prompts/codex-s2-b2.md](prompts/codex-s2-b2.md) | 단계 2 B2 `/supervisor` · `/agents` 스타터 팩 | #153 |
+| [prompts/codex-handoff-web.md](prompts/codex-handoff-web.md) | 기획 → 에이전트 연결 1단계 | #163 |
+| [prompts/codex-privacy-wording.md](prompts/codex-privacy-wording.md) | 처리방침 입력별 모델 · 보관 범위 | #167, 이후 #218 |
+| [prompts/codex-scorecard-refresh.md](prompts/codex-scorecard-refresh.md) | 성적표 정적 검사 숫자 갱신 | #168 |
+| [prompts/codex-s2-research.md](prompts/codex-s2-research.md) | 계획 9절 확인 조사 | [research/2026-11-20-section9.md](../research/2026-11-20-section9.md) |
+| [prompts/antigravity-s1-a3.md](prompts/antigravity-s1-a3.md) | 단계 1 A3 기준 측정 · 발표 서사 | #136 · #141 |
+| [prompts/antigravity-s2-a3.md](prompts/antigravity-s2-a3.md) | 단계 2 A3 불량 diff · 오탐률 · 데모 | #158 |
+| [prompts/antigravity-remaining.md](prompts/antigravity-remaining.md) | 단계 2 보완 · 연결 2 · 세 입구 · 흐름 E2E | #166 · #170~#178 |
+| [prompts/codex-antigravity-research.md](prompts/codex-antigravity-research.md) | Antigravity 확인 조사 | [research/2026-11-20-antigravity.md](../research/2026-11-20-antigravity.md), 이후 Antigravity 지원 중단 |
+| [prompts/astra-planning.md](prompts/astra-planning.md) | 2026-11-20 오후 계획 세션 인계(Astra) | 상태와 규약이 바뀜. 지금 상태는 [status.md](../status.md), 규약은 [CONTRIBUTING.md](../../CONTRIBUTING.md) |

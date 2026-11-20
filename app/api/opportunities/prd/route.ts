@@ -8,6 +8,7 @@ import { pickPrdModel } from '@/lib/opportunities/models';
 import { generatePrd } from '@/lib/opportunities/prd';
 import type { PrdEvent } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
+import { withPrdReadiness } from '@/lib/opportunities/spec';
 import { publicEvidence } from '@/lib/opportunities/types';
 import { createClient } from '@/lib/supabase/server';
 import { consumeDailyUsage, releaseDailyUsage } from '@/lib/usage-limit';
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
 
   // Shared by both answer styles: the finished result, or the fallback when the model gave nothing.
   const make = async (onEvent?: (event: PrdEvent) => void) => {
-    const result = await generatePrd(input, { draft, lang, idea: personal, model, onUsage: run.onUsage, beginner, screens: false, onEvent }).catch((error) => {
+    const result = await generatePrd(input, { draft, lang, idea: personal, model, onUsage: run.onUsage, beginner, onEvent }).catch((error) => {
       console.error('PRD generation failed', error);
       return null;
     });
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
     // The free model fails often; the last good PRD for the same quotes is better than an empty screen.
     // The cache is keyed by quotes only, so it never stands in for an idea PRD written from the user's answers.
     const cached = personal ? null : await cachedPrd(ids);
-    if (cached) return { ok: true as const, cached: true, cachedAt: cached.createdAt, input: cached.input, spec: cached.spec };
+    if (cached) return { ok: true as const, cached: true, cachedAt: cached.createdAt, input: cached.input, spec: withPrdReadiness(cached.spec) };
     return null;
   };
 

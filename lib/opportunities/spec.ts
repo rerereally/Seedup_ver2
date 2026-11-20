@@ -41,6 +41,10 @@ export const SLOT_LABELS_EN: Record<keyof ReadinessSlots, string> = {
 export const slotLabels = (lang: Lang = 'ko') => (lang === 'en' ? SLOT_LABELS_EN : SLOT_LABELS);
 
 export const SLOT_KEYS = Object.keys(SLOT_LABELS) as Array<keyof ReadinessSlots>;
+export const OPEN_SLOT_MARKER = /^(확인 필요|open question)\s*:/i;
+
+export const slotIsOpen = (items: string[] | undefined) => !items?.length || items.some((line) => OPEN_SLOT_MARKER.test(line.trim()));
+export const slotsNeedReview = (slots: ReadinessSlots | null) => SLOT_KEYS.some((key) => slotIsOpen(slots?.[key]));
 
 export type Priority = 'P0' | 'P1' | 'P2';
 /**
@@ -160,6 +164,55 @@ export function normalizeSlots(raw: unknown): ReadinessSlots | null {
   return SLOT_KEYS.some((key) => slots[key].length) ? slots : null;
 }
 
+/** Priority describes build order. It never changes which rows are backed by evidence. */
+export function withP0(spec: Spec): Spec {
+  if ([...spec.requirements, ...spec.hypotheses].some((row) => row.priority === 'P0')) return spec;
+  const group = spec.requirements.length ? 'requirements' : 'hypotheses';
+  if (!spec[group].length) return spec;
+  return { ...spec, [group]: [{ ...spec[group][0], priority: 'P0' }, ...spec[group].slice(1)] };
+}
+
+export function readinessWithQuestions(slots: ReadinessSlots | null, lang: Lang = 'ko', generated?: ReadinessSlots | null): ReadinessSlots {
+  const labels = slotLabels(lang);
+  const result = emptySlots();
+  for (const key of SLOT_KEYS) {
+    const current = slots?.[key];
+    const items = slotIsOpen(current) && generated?.[key]?.length ? generated[key] : current;
+    result[key] = items?.length ? items : [lang === 'en'
+      ? `Open question: What should we specify for ${labels[key].toLowerCase()}?`
+      : `확인 필요: ${labels[key]} 항목에 어떤 조건을 정할까요?`];
+  }
+  return result;
+}
+
+export function p0FeatureIds(spec: Spec) {
+  const p0 = new Set([...spec.requirements, ...spec.hypotheses].filter((row) => row.priority === 'P0').map((row) => row.id));
+  return new Set(spec.features.filter((row) => row.requirementIds.some((rid) => p0.has(rid))).map((row) => row.id));
+}
+
+export function withOpenScreenQuestions(spec: Spec): Spec {
+  const newQuestions = spec.features.flatMap((feature) => spec.screens.some((screen) => screen.featureIds.includes(feature.id))
+    ? []
+    : [spec.lang === 'en'
+      ? `Open question: Which screen uses ${feature.id} (${feature.title})?`
+      : `확인 필요: ${feature.id}(${feature.title}) 기능은 어떤 화면에서 쓰나요?`]);
+  const prior = (spec.openQuestions ?? []).filter((line) => !/^(?:Open question: Which screen uses F-\d+ |확인 필요: F-\d+\(.+\) 기능은 어떤 화면에서 쓰나요\?$)/.test(line));
+  const openQuestions = [...prior, ...newQuestions];
+  return openQuestions.length || spec.openQuestions ? { ...spec, openQuestions } : spec;
+}
+
+/** Older cached specs can be returned immediately while showing the same unresolved decisions as new specs. */
+export function withPrdReadiness(original: Spec): Spec {
+  const spec = withP0(original);
+  const p0 = p0FeatureIds(spec);
+  return withOpenScreenQuestions({
+    ...spec,
+    features: spec.features.map((feature) => p0.has(feature.id)
+      ? { ...feature, slots: readinessWithQuestions(feature.slots, spec.lang) }
+      : feature),
+  });
+}
+
 /**
  * The model drafts, the server decides. A requirement stays a requirement only if it cites evidence the user
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
@@ -212,7 +265,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
     if (name && featureIds.length) screens.push({ id: id('S', screens.length), name, does: text(record.does, 240), featureIds });
   });
 
-  return {
+  return withP0({
     summary: text(raw.summary),
     targetUsers: stringList(raw.target_users, 4),
     requirements,
@@ -236,7 +289,7 @@ export function normalizeSpec(raw: RawSpec, evidenceCount: number, draft = false
         return name ? [{ name, does: text(record.does, 240) }] : [];
       }),
     } : {}),
-  };
+  });
 }
 
 /** Everything a spec item stands on, both directions: E <- R <- F <- S. Used to highlight a chain on screen. */

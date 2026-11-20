@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
-import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
@@ -334,7 +334,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, model, ...ideaBrief });
       if (!ok) fail(code, json, t('슬롯을 채우지 못했습니다.', 'Could not fill the slots.'));
       else {
-        const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
+        const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: readinessWithQuestions(row.slots, current.lang ?? lang, json.slots) } : row)) });
         setSpec((current) => current && fill(current));
         // Filled slots belong to the current version, so a reload brings them back too.
         setVersions((list) => list.length ? [...list.slice(0, -1), { ...list[list.length - 1], spec: fill(list[list.length - 1].spec) }] : list);
@@ -347,7 +347,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   };
 
   // Two at a time keeps the free model under its rate limit; a failed feature just stays empty.
-  const fillAll = () => spec && inBatches(spec.features.filter((row) => !row.slots && !slotPending.includes(row.id)), 2, fillSlots);
+  const fillAll = () => spec && inBatches(spec.features.filter((row) => slotsNeedReview(row.slots) && !slotPending.includes(row.id)), 2, fillSlots);
 
   // `label` names the change in the version list when the sent instruction is longer than what the person typed.
   const revise = async (text = instruction, label = text.trim()) => {
@@ -499,7 +499,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const busy = status !== 'idle';
   const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
   const quietButton = 'btn-quiet w-full justify-start whitespace-nowrap border-0 font-normal';
-  const ready6 = spec ? spec.features.filter((row) => row.slots).length : 0;
+  const ready6 = spec ? spec.features.filter((row) => !slotsNeedReview(row.slots)).length : 0;
 
   // What the right-hand panel shows for the picked node: what it is, and what it connects to.
   const detail = (() => {
@@ -578,13 +578,14 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                   <div key={key} className="py-3">
                     <div className="flex items-baseline justify-between gap-3">
                       <dt>{slotLabels(lang)[key]}</dt>
-                      <dd className={feature.slots![key].length ? 'font-medium text-seed' : 'text-muted'}>{feature.slots![key].length ? t('채움', 'Filled') : t('비어 있음', 'Empty')}</dd>
+                      <dd className={slotIsOpen(feature.slots![key]) ? 'text-muted' : 'font-medium text-seed'}>{slotIsOpen(feature.slots![key]) ? t('확인 필요', 'Needs review') : t('채움', 'Filled')}</dd>
                     </div>
                     <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join('; ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
                   </div>
                 ))}
               </dl>
-            ) : (
+            ) : null}
+            {slotsNeedReview(feature.slots) && (
               <button type="button" className="btn-quiet mt-3 w-full" disabled={slotPending.includes(feature.id)} onClick={() => void fillSlots(feature)}>
                 {slotPending.includes(feature.id) ? t('빈 칸 채우는 중', 'Filling') : t('빈 칸 채우기', 'Fill the blanks')}
               </button>
@@ -992,9 +993,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     <div className={styles.specCol}>
                       <h4>
                         {t('기능', 'Features')}
-                        {spec.features.some((row) => !row.slots) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
+                        {spec.features.some((row) => slotsNeedReview(row.slots)) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
                       </h4>
-                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}, {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>, backed(row) ? '' : styles.specHypo))}
+                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}, {slotPending.includes(row.id) ? t('채우는 중', 'filling') : slotsNeedReview(row.slots) ? t('개발 준비 확인 필요', 'readiness needs review') : t('개발 준비 채움', 'readiness filled')}</small></>, backed(row) ? '' : styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>{t('화면', 'Screens')}</h4>

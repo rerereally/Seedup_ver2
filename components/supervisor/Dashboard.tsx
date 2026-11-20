@@ -12,6 +12,11 @@ const STATUSES: Record<FeatureStatus, [string, string]> = {
   todo: ['대기', 'To do'], in_progress: ['진행 중', 'In progress'], improving: ['개선 중', 'Improving'],
   done: ['완료', 'Done'], blocked: ['막힘', 'Blocked'], needs_recheck: ['재확인 필요', 'Needs recheck'],
 };
+const CRITERION_STATUS: Record<'met' | 'partial' | 'open', [string, string]> = { met: ['🟢 충족', '🟢 Met'], partial: ['🟡 일부', '🟡 Partly met'], open: ['⬜ 미착수', '⬜ Not started'] };
+const DRIFT_KINDS: Record<keyof typeof DRIFT_MESSAGES, [string, string]> = {
+  unlinked_commit: ['⚠ 기능 미연결 커밋', '⚠ Unlinked commit'], out_of_spec: ['⚠ 명세 밖 변경', '⚠ Outside the spec'],
+  non_goal: ['⚠ 하지 않기로 한 일', '⚠ Out-of-scope item'], touched_done: ['⚠ 완료 기능 수정', '⚠ Done feature changed'],
+};
 const DRIFT_MESSAGES = {
   unlinked_commit: 'This commit is not linked to a feature. Link it with link_commit or ask the user whether it is out of scope.',
   out_of_spec: 'A screen, API route or table outside the spec was added. Update the spec or remove it.',
@@ -70,7 +75,7 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
         <p className="mt-2 text-[13px] text-muted">{t('잠근 시각', 'Locked at')}: <ActivityTime at={goal.lockedAt} lang={lang} /></p>
         <h3 className="mt-6 font-semibold text-ink">{t('성공 기준', 'Success criteria')} {project.criteriaMet}/{project.criteriaTotal}</h3>
         <ul className="mt-2 divide-y divide-outline-soft">{goal.criteria.map((criterion) => <li key={criterion.id} className="py-3 text-sm">
-          <div className="flex flex-wrap justify-between gap-2"><span className="font-mono text-muted">{criterion.id}</span><span className="text-ink">{criterion.status}</span></div>
+          <div className="flex flex-wrap justify-between gap-2"><span className="font-mono text-muted">{criterion.id}</span><span className="text-ink">{t(...CRITERION_STATUS[criterion.status])}</span></div>
           <p className="mt-1 text-ink">{criterion.text}</p><p className="mt-1 text-muted">{t('재는 방법', 'Measure')}: {criterion.measure}</p>
         </li>)}</ul>
         <h3 className="mt-4 font-semibold text-ink">{t('하지 않는 것', 'Out of scope')}</h3>
@@ -87,13 +92,14 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
         <ul className="mt-3 divide-y divide-outline-soft">{project.features.map((feature) => <li key={feature.id} className="py-4 text-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="font-mono text-muted">{feature.id}</span><span className="text-tertiary">{t(...STATUSES[feature.status])}</span></div>
           <h3 className="mt-1 font-semibold text-ink">{feature.title}</h3>
-          <p className={`mt-2 ${feature.verification === 'supervisor_verified' ? 'font-medium text-seed' : 'text-muted'}`}>
+          {/* A level only means something once the feature is done. */}
+          {feature.status === 'done' && <p className={`mt-2 ${feature.verification === 'supervisor_verified' ? 'font-medium text-seed' : 'text-muted'}`}>
             {feature.verification === 'supervisor_verified'
               ? t('🟢 감독관 검증', '🟢 Supervisor verified')
               : feature.verification === 'local_checked'
                 ? t('🔵 로컬 확인', '🔵 Local check')
                 : t('⚪ 자가 보고', '⚪ Self-reported')}
-          </p>
+          </p>}
           {feature.note && <p className="mt-2 whitespace-pre-wrap text-tertiary">{feature.note}</p>}
         </li>)}</ul>
         {!project.features.length && <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>}
@@ -103,7 +109,7 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
         {project.drift === null ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>
           : !project.drift.length ? <p className="mt-4 text-sm text-muted">{t('기록된 커밋에서 발견된 이탈이 없습니다.', 'No drift found in the recorded commits.')}</p>
           : <ul className="mt-3 divide-y divide-outline-soft">{project.drift.map((finding, index) => <li key={`${finding.sha}-${index}`} className="py-4 text-sm">
-            <p className="font-mono text-[13px] text-muted">{finding.sha.slice(0, 12)} / {finding.kind}</p>
+            <p className="text-[13px] text-muted"><span className="font-mono">{finding.sha.slice(0, 12)}</span> · <span className="font-medium text-ink">{t(...DRIFT_KINDS[finding.kind])}</span></p>
             <p className="mt-2 text-ink">{t(finding.message, DRIFT_MESSAGES[finding.kind])}</p>
             {finding.files.length > 0 && <p className="mt-2 font-mono text-[13px] text-muted">{finding.files.join(', ')}</p>}
           </li>)}</ul>}

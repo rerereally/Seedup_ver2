@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createClient } from '@supabase/supabase-js';
-import { decodeProjectKey, featureSignals, latestActivity, driftForProject } from '../components/supervisor/model';
+import { criteriaWithProgress, decodeProjectKey, featureSignals, latestActivity, driftForProject, mergeDrift } from '../components/supervisor/model';
 import { supervisorDetail, supervisorList, type SupervisorDetail } from '../components/supervisor/data';
 import Dashboard, { DASHBOARD_TABS, pickTab } from '../components/supervisor/Dashboard';
 import ProjectList from '../components/supervisor/ProjectList';
@@ -190,7 +190,8 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   assert.equal(result.criteriaTotal, 3);
   assert.equal(result.lastActivityAt, '2026-11-20T12:00:00Z');
   assert.equal(result.features[0].verification, 'self_reported');
-  assert.equal(result.drift, null);
+  // A verification run is a record, so the drift list is empty rather than "nothing recorded yet".
+  assert.deepEqual(result.drift, []);
   assert.equal(result.decisions[0].title, '범위 축소');
   assert.equal(result.verifications?.[0].feature_id, 'F-01');
   const html = allTabs(result, 'en');
@@ -212,7 +213,7 @@ test('dashboard renders the goal first, all criterion states, safe text, English
     handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = allTabs(project, 'en');
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
-  for (const value of ['open', 'partial', 'met', 'Self-reported', 'Goal version', 'Out of scope', 'Recent decisions']) assert.ok(html.includes(value));
+  for (const value of ['Not started', 'Partly met', '🟢 Met', 'Self-reported', 'Goal version', 'Out of scope', 'Recent decisions']) assert.ok(html.includes(value));
   assert.ok(!html.includes('text-seed'));
   for (const value of ['Read inputs', 'Check totals', 'Missing headers', 'Unverified commits']) assert.ok(html.includes(value));
 
@@ -301,4 +302,51 @@ test('the list shows supervisor projects only, not every saved PRD, and skips a 
   });
   const list = await supervisorList(client, USER);
   assert.deepEqual(list.map((row) => [row.key, row.title]), [[KEY, '감독 프로젝트']]);
+});
+
+test('a criterion follows its linked features: all 🟢 is met, any done is partial, a locked met stays met', () => {
+  const goal = {
+    projectKey: 'prd:x', version: 1, track: 'personal', statement: 's', inScope: [], outOfScope: [], lockedAt: '2026-11-21T00:00:00Z', changeReason: null,
+    criteria: [
+      { id: 'G-1', text: 'a', measure: 'm', status: 'open', featureIds: ['F-01', 'F-02'] },
+      { id: 'G-2', text: 'b', measure: 'm', status: 'open', featureIds: ['F-03'] },
+      { id: 'G-3', text: 'c', measure: 'm', status: 'open', featureIds: ['F-04'] },
+      { id: 'G-4', text: 'd', measure: 'm', status: 'met', featureIds: ['F-04'] },
+      { id: 'G-5', text: 'e', measure: 'm', status: 'open' },
+    ],
+  } as unknown as ProjectGoal;
+  const progress = {
+    'F-01': { status: 'done', verificationLevel: 'supervisor_verified' },
+    'F-02': { status: 'done', verificationLevel: 'local_checked' },
+    'F-03': { status: 'done', verificationLevel: 'supervisor_verified' },
+    'F-04': { status: 'in_progress' },
+  } as unknown as BuildProgress;
+  assert.deepEqual(criteriaWithProgress(goal, progress)!.criteria.map((row) => row.status), ['partial', 'met', 'open', 'met', 'open']);
+  assert.equal(goal.criteria[0].status, 'open', 'the stored goal is not changed');
+  assert.equal(criteriaWithProgress(null, progress), null);
+});
+
+test('drift shows commit findings and verification scope warnings once each', () => {
+  const finding = { kind: 'out_of_spec' as const, sha: 'abc', files: ['a.ts'], featureIds: ['F-01'], message: 'outside' };
+  assert.equal(mergeDrift(null, null), null);
+  assert.equal(mergeDrift(null, []), null);
+  assert.deepEqual(mergeDrift(null, [{ drift: [] }]), []);
+  assert.deepEqual(mergeDrift(null, [{ drift: [finding] }, { drift: [finding] }]), [finding]);
+  assert.deepEqual(mergeDrift([finding], [{ drift: [{ ...finding, message: 'other' }] }])!.map((row) => row.message), ['outside']);
+  assert.deepEqual(mergeDrift([finding], [{ drift: [{ ...finding, sha: 'def', message: 'other' }] }])!.map((row) => row.message), ['outside', 'other']);
+});
+
+test('feature notes show the check count, not the whole proof list', () => {
+  const [signal] = featureSignals(null, { 'F-01': { status: 'done', title: 'A', note: '[local_checked:abc] 로컬 검사 통과 · checks 2/2 (1: a.test passed; 2: b.test passed)', verificationLevel: 'local_checked' } } as unknown as BuildProgress);
+  assert.equal(signal.note, '로컬 검사 통과 · checks 2/2');
+});
+
+test('feature notes hide the server bookkeeping tags', () => {
+  const [signal] = featureSignals(null, { 'F-01': { status: 'done', title: 'A', note: '[supervisor_verified:5883e586] 서버 검증 통과', verificationLevel: 'supervisor_verified' } } as unknown as BuildProgress);
+  assert.equal(signal.note, '서버 검증 통과');
+});
+
+test('a proof list cut off in storage is still shortened', () => {
+  const [signal] = featureSignals(null, { 'F-01': { status: 'done', title: 'A', note: '[self_reported] 테스트 통과 · checks 6/6 (1: a.test passed; 2: b.te', verificationLevel: 'self_reported' } } as unknown as BuildProgress);
+  assert.equal(signal.note, '테스트 통과 · checks 6/6');
 });

@@ -13,7 +13,7 @@ import { activeGoalLine, contextText, pickNextTask, savedProject } from '@/lib/m
 import { hookBundle, hookSettings } from '@/lib/supervisor/hook-bundle';
 import type { Evidence } from '@/lib/opportunities/types';
 import { humanTasks } from '@/lib/supervisor/human-queue';
-import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
+import { criteriaWithProgress, decodeProjectKey, driftForProject, featureSignals, latestActivity, mergeDrift } from './model';
 
 export async function supervisorDetail(client: SupabaseClient, userId: string, rawKey: string) {
   const decoded = decodeProjectKey(rawKey);
@@ -54,14 +54,15 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     ...memory.handoffs.map((row) => row.at), ...memory.facts.map((row) => row.at),
     verifications?.[0]?.created_at,
   ]);
+  const shownGoal = criteriaWithProgress(goal, progress);
   return {
-    key, title: dossier?.title || draft?.title || opportunity?.name || key, goal, verifications, handoffs: memory.handoffs,
-    criteriaMet: goal?.criteria.filter((row) => row.status === 'met').length ?? 0,
+    key, title: dossier?.title || draft?.title || opportunity?.name || key, goal: shownGoal, verifications, handoffs: memory.handoffs,
+    criteriaMet: shownGoal?.criteria.filter((row) => row.status === 'met').length ?? 0,
     criteriaTotal: goal?.criteria.length ?? 0, lastActivityAt,
     features: featureSignals(spec, progress), specAvailable: Boolean(spec),
     // Only until a goal is locked: the dashboard drafts the goal from it (a PRD made over MCP has no other lock screen).
     lockSpec: goal ? null : spec,
-    drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
+    drift: mergeDrift(driftForProject(commits, spec, goal, progress), verifications), decisions: memory.decisions,
     // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
     prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence ?? draft?.evidence), report },
     repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
@@ -129,8 +130,9 @@ export async function supervisorList(client: SupabaseClient, userId: string): Pr
     const lastActivityAt = latestActivity([updatedAt, goal?.lockedAt, ...Object.values(progress).map((row) => row.updatedAt),
       ...commits.map((row) => row.created_at), ...memory.decisions.map((row) => row.at),
       ...memory.handoffs.map((row) => row.at), ...memory.facts.map((row) => row.at)]);
-    return { key, title, goal, criteriaMet: goal?.criteria.filter((row) => row.status === 'met').length ?? 0,
-      criteriaTotal: goal?.criteria.length ?? 0, lastActivityAt };
+    const shownGoal = criteriaWithProgress(goal, progress);
+    return { key, title, goal: shownGoal, criteriaMet: shownGoal?.criteria.filter((row) => row.status === 'met').length ?? 0,
+      criteriaTotal: shownGoal?.criteria.length ?? 0, lastActivityAt };
   }));
   return rows.sort((a, b) => (Date.parse(b.lastActivityAt ?? '') || 0) - (Date.parse(a.lastActivityAt ?? '') || 0));
 }

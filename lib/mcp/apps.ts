@@ -74,13 +74,13 @@ export function prdCard(opportunity: Opportunity, spec: Spec, siteUrl: string) {
 /** What the card draws for resume_project and update_feature_status. */
 export function checklistCard(
   opportunity: Opportunity, spec: Spec, progress: BuildProgress, criteria: (feature: Spec['features'][number]) => string[],
-  siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'self_reported' }, goal?: string, tests: Record<string, string[]> = {},
+  siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'local_checked' | 'self_reported' }, goal?: string, tests: Record<string, string[]> = {},
 ) {
   return {
     kind: 'checklist',
     slug: opportunity.slug,
     name: opportunity.name,
-    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', level: progress[feature.id]?.status === 'done' ? (progress[feature.id]?.verificationLevel === 'supervisor_verified' ? 'supervisor_verified' : 'self_reported') : null, criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? ''), ...(tests[feature.id]?.length ? { tests: tests[feature.id] } : {}) })),
+    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', level: progress[feature.id]?.status === 'done' ? (progress[feature.id]?.verificationLevel === 'supervisor_verified' || progress[feature.id]?.verificationLevel === 'local_checked' ? progress[feature.id]?.verificationLevel : 'self_reported') : null, criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? ''), ...(tests[feature.id]?.length ? { tests: tests[feature.id] } : {}) })),
     url: projectPage(siteUrl, opportunity.slug),
     ...(completion ? { completion } : {}),
     ...(goal ? { goal } : {}),
@@ -185,6 +185,7 @@ button:disabled{opacity:.5;cursor:default}
         var level = f.done ? (data.completion && data.completion.featureId === f.id ? data.completion.level : f.level) : null;
         var status = progressLabel(f.status);
         var marker = level === 'supervisor_verified' ? h('span', { class: 'tag ok', text: T('🟢 감독관 검증', '🟢 Supervisor verified') })
+          : level === 'local_checked' ? h('span', { class: 'tag', text: T('🔵 로컬 확인', '🔵 Local check') })
           : level === 'self_reported' ? h('span', { class: 'tag', text: T('⚪ 자가 보고', '⚪ Self-reported') })
           : status ? h('span', { class: f.status === 'blocked' || f.status === 'needs_recheck' ? 'tag warn' : 'tag', text: status }) : null;
         return h('div', { class: 'feat' }, h('span', { class: f.done ? 'check done' : 'check', 'aria-label': f.done ? T('완료', 'Done') : T('남음', 'To do'), text: f.done ? '✓' : '' }),

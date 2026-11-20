@@ -197,6 +197,7 @@ test('initialize and AGENTS.md expose the locked goal for a saved PRD', async ()
     await call('generate_verified_prd', { project: PROJECT }),
   ]) {
     assert.match(brief.body, /Save as AGENTS.md/);
+    assert.match(brief.body, /<!-- Seedup brief: project=prd:11111111-1111-1111-1111-111111111111 goal=2 prd=[a-f0-9]{16} -->/);
     assert.ok(brief.body.includes('resume_project ' + JSON.stringify({ project: PROJECT })));
     assert.match(brief.body, /before stopping.*save_handoff/i);
     assert.ok(brief.body.includes(PROJECT));
@@ -206,6 +207,51 @@ test('initialize and AGENTS.md expose the locked goal for a saved PRD', async ()
     assert.match(brief.body, /Recent decisions\n- Use email reminders/);
     assert.doesNotMatch(brief.body, /An older decision/);
   }
+});
+
+test('MCP compares the exported brief against the project, locked goal version and PRD structure', async () => {
+  const setup = await call('setup_project', { project: PROJECT });
+  const files = setup.structuredContent?.files ?? [];
+  const brief = files.find((file) => file.path === 'AGENTS.md')?.content.match(/^<!-- Seedup brief: .* -->$/m)?.[0];
+  assert.ok(brief);
+  assert.match(brief, /goal=2 prd=[a-f0-9]{16} -->$/);
+  assert.ok(files.find((file) => file.path === 'CLAUDE.md')?.content.includes(brief));
+  const claude = await call('get_my_prd', { id: OWN, format: 'claude' });
+  assert.ok(claude.body.includes(brief));
+
+  const revised = (prdMarkdown: string) => deps({ myPrd: async () => ({ ...SAVED, prdMarkdown }) });
+  const changeText = revised(MARKDOWN.replace('Move old notes', 'Move older notes'));
+  const added = revised(MARKDOWN.replace('## What existing', '### F-03 Browse notes (R-01)\nSee the archive.\n\n## What existing'));
+  const removed = revised(MARKDOWN.replace('### F-02 Send reminders (R-02)\nSend a reminder using Resend.\n', ''));
+  const relocked = deps({ projectGoal: async () => ({ ...GOAL, version: 3 }) });
+
+  for (const tool of ['resume_project', 'get_next_task']) {
+    const args = { project: PROJECT, has_setup_files: true };
+    const current = await call(tool, args);
+    assert.equal((await call(tool, { ...args, brief })).body, current.body);
+    assert.doesNotMatch((await call(tool, { ...args, brief }, changeText)).body, /out of date/);
+    for (const changed of [relocked, added, removed]) {
+      const stale = await call(tool, { ...args, brief }, changed);
+      assert.match(stale.body, /^AGENTS\.md is out of date\./);
+      assert.ok(stale.body.endsWith('Next: setup_project ' + JSON.stringify({ project: PROJECT })));
+      assert.doesNotMatch((await call(tool, args, changed)).body, /out of date/);
+    }
+    const wrongProject = await call(tool, { ...args, brief: brief.replace(OWN, OTHER) });
+    assert.match(wrongProject.body, /^AGENTS\.md is out of date\./);
+  }
+});
+
+test('a personal PRD with a related opportunity includes its hypothesis features in the brief version', async () => {
+  const prdMarkdown = '## Hypotheses to validate\n### H-01. Archive notes\n## Features\n### F-01. Archive notes (H-01)\nMove notes.\n';
+  const project = (markdown: string) => deps({ myPrd: async () => ({ ...SAVED, opportunitySlug: 'related-opportunity', prdMarkdown: markdown }) });
+  const setup = await call('setup_project', { project: PROJECT }, project(prdMarkdown));
+  const agents = setup.structuredContent?.files?.find((file) => file.path === 'AGENTS.md')?.content ?? '';
+  assert.match(agents, /F-01 Archive notes/);
+  const brief = agents.match(/^<!-- Seedup brief: .* -->$/m)?.[0];
+  assert.ok(brief);
+
+  const revised = project(prdMarkdown + '\n### F-02. Search notes (H-01)\nFind archived notes.');
+  assert.match((await call('resume_project', { project: PROJECT, brief }, revised)).body, /^AGENTS\.md is out of date\./);
 });
 
 test('check_env rejects values and only compares names reported from the local environment', async () => {
@@ -276,7 +322,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   assert.match(agentsMd, /## Do not build\n- Paid plans/);
   assert.doesNotMatch(agentsMd, /Recent decisions/);
   assert.match(byPath.get('CLAUDE.md') ?? '', /AGENTS\.md/);
-  assert.equal((byPath.get('CLAUDE.md') ?? '').trim().split('\n').length, 1);
+  assert.match(byPath.get('CLAUDE.md') ?? '', /pass the full version line above as the `brief` argument/);
 
   for (const file of files) {
     assert.doesNotMatch(file.content, /sdp_[a-f0-9]{48}|Bearer\s|\/api\/mcp\/|svt1\./i, `${file.path} must not contain any token`);
@@ -288,12 +334,14 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   }));
   assert.match(withRepo.body, /\nNext: get_next_task \{"project":"prd:11111111-1111-1111-1111-111111111111"\}$/);
 
-  // 2. Without a locked goal: AGENTS.md uses the shared renderer without goal context and the hook bundle is omitted.
+  // 2. Without a locked goal: AGENTS.md versions the PRD and the hook bundle is omitted.
   const withoutGoal = await call('setup_project', { project: PROJECT }, deps({ projectGoal: async () => null }));
   assert.equal(withoutGoal.isError, undefined);
   assert.equal(withoutGoal.structuredContent?.goalLocked, false);
   const noGoalFiles = withoutGoal.structuredContent?.files ?? [];
   assert.deepEqual(noGoalFiles.map((file) => file.path), ['AGENTS.md', 'CLAUDE.md']);
+  const noGoalVersion = noGoalFiles[0].content.match(/^<!-- Seedup brief: .* goal=none prd=[a-f0-9]{16} -->$/m)?.[0];
+  assert.ok(noGoalVersion);
   const withGoalWithoutContext = renderAgentBrief(
     { title: SAVED.title, problem: 'Plan tasks and reminders.', gap: '', evidence: EVIDENCE, competitors: ['Existing calendar'] },
     {
@@ -312,6 +360,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
     },
     'agents',
     PROJECT,
+    { briefVersion: noGoalVersion },
   );
   assert.equal(noGoalFiles[0].content, withGoalWithoutContext);
   assert.doesNotMatch(noGoalFiles[0].content, /## Locked goal/);

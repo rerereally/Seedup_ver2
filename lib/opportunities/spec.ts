@@ -503,7 +503,11 @@ ${evidenceSection(input.evidence, lang)}
 
 const ISSUE_HANDOFF = 'If Linear or GitHub MCP is connected, create issues for the features above before implementation using each exact F-n title, then start with P0 and report progress through Seedup MCP when connected. Skip issue creation if neither Linear nor GitHub MCP is connected.';
 
-type AgentBriefContext = { goal?: import('@/lib/supervisor/types').ProjectGoal | null; decisions?: string[] };
+type AgentBriefContext = { goal?: import('@/lib/supervisor/types').ProjectGoal | null; decisions?: string[]; briefVersion?: string };
+
+export function briefVersionInstructions(version: string) {
+  return `${version}\n\nOn session start or after resuming or compaction, pass the full version line above as the \`brief\` argument to \`resume_project\`.`;
+}
 
 /** A brief an AI coding tool follows directly. The three formats share one body so they never drift apart. */
 export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents', opportunitySlug?: string, context?: AgentBriefContext) {
@@ -524,6 +528,7 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
   const flow = mermaidFlow(spec);
   const goal = format === 'agents' ? context?.goal : undefined;
   const recentDecisions = format === 'agents' ? context?.decisions : undefined;
+  const version = (format === 'agents' || format === 'claude') && context?.briefVersion;
   const nextTask = opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug';
   const resume = opportunitySlug ? `resume_project ${JSON.stringify({ project: opportunitySlug })}` : 'resume_project with the project key';
   const sessionRule = format === 'agents'
@@ -538,7 +543,7 @@ ${sessionRule}
 - Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
 - When a readiness slot says "open question", ask instead of guessing.
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.`;
-  const brief = `${intro[format]}
+  const brief = `${intro[format]}${version ? `\n\n${briefVersionInstructions(version)}\n` : ''}
 ${spec.draft ? '\n> HYPOTHESIS DRAFT: the evidence is below the qualification bar. Confirm with real users before building beyond a prototype.\n' : ''}
 ${format === 'agents' && opportunitySlug ? `## Project key\n\`${opportunitySlug}\`\n\n` : ''}${format === 'agents' ? rules + '\n\n' : ''}## ${goal ? `Locked goal (v${goal.version})` : 'Goal'}
 ${goal?.statement ?? spec.summary}

@@ -197,6 +197,10 @@ function runSessionStart(root, payload) {
     const reason = payload.source === 'compact' ? '대화가 압축되었습니다.' : '대화가 재개되었습니다.';
     const newline = context.endsWith('\\n') ? '' : '\\n';
     process.stdout.write(\`\${newline}\${reason} 작업을 이어가기 전에 Seedup MCP의 resume_project(프로젝트 \${PROJECT_KEY})를 호출해 마지막 인계, 최근 결정, 진행 상태를 확인하세요.\\n\`);
+    try {
+      const brief = readFileSync(join(root, 'AGENTS.md'), 'utf8').match(/^<!-- Seedup brief: project=[a-z0-9:-]{1,120} goal=(?:[0-9]+|none) prd=[a-f0-9]{16} -->$/im)?.[0];
+      if (brief) process.stdout.write(\`버전 확인을 위해 이 인자로 호출하세요. resume_project \${JSON.stringify({ project: PROJECT_KEY, brief })}\\n\`);
+    } catch { /* Older setups may have no AGENTS.md yet. */ }
   }
 }
 

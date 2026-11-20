@@ -1,5 +1,6 @@
 // Seedup as an MCP server (Streamable HTTP, JSON responses only). The transport is plain JSON-RPC 2.0, so this file
 // has no dependency: the route hands it the parsed body and a context with the data sources it may use.
+import { createHash } from 'node:crypto';
 import { appResource, checklistCard, nextTaskCard, opportunitiesCard, prdCard, progressNote, projectPage, readAppResource, supervisorPage, verificationCard, withAppMeta } from '@/lib/mcp/apps';
 import type { MemoryEntry, ProjectMemory } from '@/lib/db/project-memory';
 import { completedVerificationTests, type VerificationRecord, type VerificationVerdict } from '@/lib/db/verifications';
@@ -10,7 +11,7 @@ import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, p0FeatureIds, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
+import { briefVersionInstructions, EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, p0FeatureIds, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRival } from '@/lib/opportunities/spec';
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
@@ -154,6 +155,7 @@ const memoryLines = { type: 'array', maxItems: 10, items: memoryLine };
 const APPROVED = '대화에서 승인';
 const REJECTED = '대화에서 거절';
 const CLAUDE_POINTER = 'Read and follow @AGENTS.md before making changes.\n';
+const briefArgument = { type: 'string', maxLength: 240, description: 'Optional: the full Seedup brief version line from AGENTS.md or CLAUDE.md.' };
 
 export const TOOLS = [
   {
@@ -161,6 +163,7 @@ export const TOOLS = [
     description: '[개발] Resume a project with its locked goal, connected repository, full build checklist (F-n status, done criteria, unlinked commits), recent decisions, and last handoff.',
     inputSchema: projectSchema({
       has_setup_files: { type: 'boolean', description: 'Optional: whether AGENTS.md, CLAUDE.md, and .seedup/ are already present in the local repository' },
+      brief: briefArgument,
     }),
     annotations: READ_ONLY,
   },
@@ -173,7 +176,7 @@ export const TOOLS = [
   {
     name: 'get_next_task',
     description: '[개발] Call at the start of a session. Returns the locked goal, recent memory, and one ready feature ranked by contribution to the goal, with done criteria and evidence.',
-    inputSchema: projectSchema(),
+    inputSchema: projectSchema({ brief: briefArgument }),
     annotations: READ_ONLY,
   },
   {
@@ -498,6 +501,22 @@ function scopeDecision(project: ProjectKey, feature?: string) {
 
 const prdLanguage = (spec?: Spec) => spec?.lang ?? (/[가-힣]/.test(spec?.summary ?? '') ? 'ko' : 'en');
 
+function briefVersion(key: ProjectKey, spec: Spec, goal: ProjectGoal | null | undefined) {
+  // Keep typo corrections and readiness-slot fills from invalidating the repository files.
+  const links = [
+    spec.features.map((feature) => [feature.id, [...feature.requirementIds].sort()]),
+    spec.screens.map((screen) => [screen.id, [...screen.featureIds].sort()]),
+  ];
+  const digest = createHash('sha256').update(JSON.stringify(links)).digest('hex').slice(0, 16);
+  return `<!-- Seedup brief: project=${key} goal=${goal?.version ?? 'none'} prd=${digest} -->`;
+}
+
+function staleBrief(value: unknown, key: ProjectKey, spec: Spec | undefined, goal: ProjectGoal | null | undefined) {
+  if (typeof value !== 'string' || !value.trim() || !spec || goal === undefined || value.trim() === briefVersion(key, spec, goal)) return null;
+  return projectReply('AGENTS.md is out of date. Refresh the setup files.', goal,
+    prdLanguage(spec) === 'ko' ? '> AGENTS.md가 예전 버전입니다. setup_project로 다시 받으세요.' : '', toolCall('setup_project', { project: key }));
+}
+
 function askScope(lang: Spec['lang'], project: ProjectKey, feature?: string) {
   const question = lang === 'ko' ? '잠긴 목표나 범위를 조정할까요?' : 'Should we change the locked goal or scope?';
   const options = lang === 'ko' ? '변경 승인 / 기존 범위 유지' : 'Approve the change / Keep the current scope';
@@ -512,7 +531,7 @@ function recentDecisions(memory: ProjectMemory | undefined) {
 async function projectContext(deps: McpDeps, key: ProjectKey) {
   // Legacy tools still work while the supervisor migration is being rolled out.
   const [goal, memory] = await Promise.all([
-    deps.projectGoal?.(key).catch(() => null),
+    deps.projectGoal?.(key).catch(() => undefined),
     deps.projectMemory?.(key, 3).catch(() => undefined),
   ]);
   return { goal, memory };
@@ -528,9 +547,11 @@ function contextText(goal: ProjectGoal | null | undefined, memory: ProjectMemory
   ].filter(Boolean).join('\n\n');
 }
 
-async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInput; spec: Spec } | null, deps: McpDeps): Promise<ToolResult> {
+async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInput; spec: Spec } | null, deps: McpDeps, brief: unknown): Promise<ToolResult> {
   const { slug } = opportunity;
   const [{ goal, memory }, savedProgress] = await Promise.all([projectContext(deps, slug), found ? deps.progress(slug) : undefined]);
+  const warning = staleBrief(brief, slug, found?.spec, goal);
+  if (warning) return warning;
   const context = contextText(null, memory);
   const checklist = toolCall('resume_project', { project: slug });
   if (!found) return projectReply(slug.startsWith('prd:')
@@ -742,7 +763,8 @@ function savedProject(saved: SavedPrdDetail, key: ProjectKey) {
   const platforms = [...new Set(publicQuotes.map((row) => row.platform))];
   const qualified = meetsEvidenceBar(publicQuotes.length, platforms.length);
   const spec = parsed && {
-    ...normalizeSpec(parsed, saved.evidence, !qualified, { idea: !saved.opportunitySlug, competitorNotes: saved.competitorNotes }),
+    // A personal PRD can inherit a public opportunity slug from its evidence without losing its hypothesis features.
+    ...normalizeSpec(parsed, saved.evidence, !qualified, { idea: key.startsWith('prd:'), competitorNotes: saved.competitorNotes }),
     rivals,
   };
   const input: SpecInput = {
@@ -762,8 +784,10 @@ function savedProject(saved: SavedPrdDetail, key: ProjectKey) {
 }
 
 async function renderMcpBrief(input: SpecInput, spec: Spec, format: ExportFormat, key: ProjectKey, deps: McpDeps) {
-  const { goal, memory } = format === 'agents' ? await projectContext(deps, key) : {};
-  return `Save as ${EXPORT_FILES[format]}:\n\n${renderAgentBrief(input, spec, format, key, { goal, decisions: recentDecisions(memory) })}`;
+  const { goal, memory } = format === 'agents' ? await projectContext(deps, key)
+    : format === 'claude' ? { goal: await deps.projectGoal?.(key).catch(() => null) } : {};
+  const version = format === 'agents' || format === 'claude' ? briefVersion(key, spec, goal) : undefined;
+  return `Save as ${EXPORT_FILES[format]}:\n\n${renderAgentBrief(input, spec, format, key, { goal, decisions: recentDecisions(memory), briefVersion: version })}`;
 }
 
 async function explainFileResult(opportunity: Opportunity, cached: { input: SpecInput; spec: Spec }, rawPath: unknown, deps: McpDeps): Promise<ToolResult> {
@@ -1114,6 +1138,8 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
     const [project, goal, memory, progress, cached] = await Promise.all([
       deps.supervisorProject?.(key), deps.projectGoal?.(key), deps.projectMemory?.(key, 3), deps.progress(key), loadSpec().catch(() => null),
     ]);
+    const warning = staleBrief(args.brief, key, cached?.spec, goal);
+    if (warning) return warning;
     const commits = Object.fromEntries((cached?.spec.features ?? []).flatMap(({ id }) => {
       const row = progress[id];
       const sha = row?.status === 'done' && row.verificationLevel === 'supervisor_verified'
@@ -1166,9 +1192,10 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
         true,
       );
     }
+    const version = briefVersion(key, cached.spec, goal);
     const files: BundleFile[] = [
-      { path: 'AGENTS.md', content: renderAgentBrief(cached.input, cached.spec, 'agents', key, { goal }) },
-      { path: 'CLAUDE.md', content: CLAUDE_POINTER },
+      { path: 'AGENTS.md', content: renderAgentBrief(cached.input, cached.spec, 'agents', key, { goal, briefVersion: version }) },
+      { path: 'CLAUDE.md', content: `${CLAUDE_POINTER}\n${briefVersionInstructions(version)}\n` },
       ...(goal ? hookBundle(key, goal, humanTasks(cached.spec)) : []),
     ];
     const relockUrl = `${supervisorPage(siteUrl, key)} (planning: ${projectPage(siteUrl, key)})`;
@@ -1181,7 +1208,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
         '- No MCP token or path-token is included in any file.',
       ]
       : [
-        `- No locked goal yet: AGENTS.md uses the existing PRD format and the local hook bundle is omitted. Lock a goal on the web and re-run setup_project: ${relockUrl}`,
+        `- Lock a goal on the web and re-run setup_project to get the local hook bundle: ${relockUrl}`,
         '- Codex CLI: once hooks are added, .codex/hooks.json runs only after the user reviews and trusts them in /hooks.',
         '- No MCP token or path-token is included in any file.',
       ];
@@ -1463,7 +1490,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   }
   if (needsPrd) {
     const cached = await loadSpec();
-    if (name === 'get_next_task') return nextTaskResult(opportunity, cached, deps);
+    if (name === 'get_next_task') return nextTaskResult(opportunity, cached, deps, args.brief);
     if (!cached) return projectReply(personal ? 'This saved PRD has no readable feature spec. Update it in Seedup.' : `No PRD for "${slug}" yet. Call generate_verified_prd first.`,
       await deps.projectGoal?.(slug).catch(() => null), '', toolCall('generate_verified_prd', { project: slug }), true);
     if (name === 'explain_file') {

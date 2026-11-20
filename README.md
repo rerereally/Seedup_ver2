@@ -187,7 +187,7 @@ flowchart TB
 
 ---
 
-## 📊 현재 상태와 한계 (2026-11-19 기준)
+## 📊 현재 상태와 한계 (2026-11-20 기준)
 
 숨기지 않고 적습니다.
 
@@ -200,8 +200,11 @@ flowchart TB
 | 선행 기록 | "불만이 먼저 나오고 도구가 나중에 나왔다"는 기록과 봉인 예측(`sealed.jsonl`)은 참고용입니다. 인과관계를 뜻하지 않습니다 |
 | 영어 | 홈 · 문제 · PRD 등 주요 화면만 영어를 지원합니다 |
 | 사용자 검증 | 실사용자 테스트를 진행·준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
+| 테스트 | 단위 테스트 318개(48개 파일) 중 317개 통과. 실패 1개(`prd-exports`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나고 Linux CI에서는 통과합니다 |
+| DB 마이그레이션 | 30개. 운영 DB에는 `20261120130000_section_views.sql` 하나가 아직 적용되지 않았습니다 |
+| MCP | 도구 16개, 프롬프트 4개, 리소스 2개 |
 
-더 자세한 진단과 계획은 [docs/service-plan.md](docs/service-plan.md)에 있습니다.
+지금 상태는 [docs/status.md](docs/status.md), 계획은 [docs/supervisor-plan.md](docs/supervisor-plan.md)(최상위 계획), 문서 목록은 [docs/README.md](docs/README.md)에 있습니다.
 
 ---
 
@@ -302,7 +305,7 @@ INGEST_INTERNAL_URL=http://localhost:3000
 
 ### 4. 데이터베이스(Supabase)
 
-DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<이름>.sql`로 총 **26개**가 순서대로 쌓여 있습니다. 첫 파일(`20261101000000_initial.sql`)이 전체 테이블 · 인덱스 · RLS이고, 나머지는 운영에 적용했던 순서의 증분 변경입니다. 테스트용 더미 데이터는 [supabase/seed.sql](supabase/seed.sql)(로컬 `supabase db reset` 전용), 정리 SQL은 [supabase/delete_dummy.sql](supabase/delete_dummy.sql)입니다.
+DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<이름>.sql`로 총 **30개**가 순서대로 쌓여 있습니다. 첫 파일(`20261101000000_initial.sql`)이 전체 테이블 · 인덱스 · RLS이고, 나머지는 운영에 적용했던 순서의 증분 변경입니다. 테스트용 더미 데이터는 [supabase/seed.sql](supabase/seed.sql)(로컬 `supabase db reset` 전용), 정리 SQL은 [supabase/delete_dummy.sql](supabase/delete_dummy.sql)입니다.
 
 1. **새 프로젝트:** `npx supabase link --project-ref <ref>` 후 `npx supabase db push`. 로컬 DB(Docker 필요)는 `npx supabase start` 또는 `npx supabase db reset`.
 2. **새 변경 추가:** `supabase/migrations/`에 다음 시각 접두사로 파일을 만들고 `npx tsx scripts/check-migrations.ts --write`로 `lib/schema-manifest.json`을 갱신합니다. CI(`npm run migrations`)가 파일 이름 · 순서와 매니페스트 일치 여부를 검증합니다.
@@ -312,7 +315,7 @@ DB 변경은 [supabase/migrations](supabase/migrations)에 `<YYYYMMDDHHMMSS>_<�
    - `https://seedup.rerereally.com/auth/callback`
 
 <details>
-<summary><b>마이그레이션 전체 목록 (26개) 및 운영 DB CLI 기록 동기화(최초 1회)</b></summary>
+<summary><b>마이그레이션 전체 목록 (30개) 및 운영 DB CLI 기록 동기화(최초 1회)</b></summary>
 
 운영 DB에 SQL 편집기로 먼저 적용해 둔 뒤 CLI 기록(`supabase_migrations.schema_migrations`)을 맞출 때 한 번만 실행합니다.
 
@@ -325,7 +328,7 @@ npx supabase migration repair --status applied \
   20261118120720 20261118120947 20261118121344 20261118121507 \
   20261118121746 20261118121957 20261118190338 20261119112104 \
   20261119112105 20261119120000 20261119150000 20261119160000 \
-  20261119160100 20261119170000
+  20261119160100 20261119170000 20261120010000 20261120090000 \n  20261120123000
 npx supabase migration list
 ```
 
@@ -357,6 +360,10 @@ npx supabase migration list
 | `20261119160000_feature_recheck.sql` | 공유 파일 수정 시 완료 기능 자동 `needs_recheck` 표시 RPC |
 | `20261119160100_commit_dismiss.sql` | 미연결 커밋 숨기기(`dismissed_commits`) |
 | `20261119170000_daily_research_mail.sql` | 매일 리서치 메일 구독 설정 |
+| `20261120010000_opportunity_reviews.sql` | 사람 검토 목록: 문제 숨기기 · 인용 빼기(`opportunity_reviews`) |
+| `20261120090000_public_prds.sql` | 공개 PRD 목록(`/spec`)에 올리기(`evidence_dossiers.listed`) |
+| `20261120123000_prd_reports.sql` | 공개 PRD 신고와 관리(`prd_reports`, `submit_prd_report`) |
+| `20261120130000_section_views.sql` | PRD 섹션 조회 기록(`section_views`). **운영 DB 미적용** |
 
 </details>
 
@@ -367,7 +374,7 @@ npm run dev          # http://localhost:3000
 npm run migrations   # 마이그레이션 파일 이름·순서·매니페스트 검증
 npm run typecheck
 npm run lint
-npm test             # 단위 테스트 250+개(31개 파일)
+npm test             # 단위 테스트 318개(48개 파일)
 npm run build
 npm run e2e          # Playwright 브라우저 E2E 테스트
 SMOKE_BASE_URL=http://localhost:3000 npm run smoke   # 주요 화면 · API 스모크 테스트
@@ -473,10 +480,10 @@ lib/
   usage-limit.ts · throttle.ts   원자적 일일 쿼터와 Cloudflare Rate Limiting
 extension/                    크롬 확장 "Seedup 원문 담기"
 scripts/                      엔진 실행, 메일, 점검, 재임베딩, PRD 평가, 예측 봉인
-supabase/                     전체 스키마와 26개 증분 마이그레이션 SQL
-tests/                        단위 테스트 250+개(31개 파일)
+supabase/                     전체 스키마와 마이그레이션 SQL 30개
+tests/                        단위 테스트 318개(48개 파일)
 e2e/                          Playwright E2E 테스트
-docs/                         서비스 계획, UI 계획, 트렌드·추천 평가, 사용자 확인 가이드
+docs/                         최상위 계획, 상태, 문서 목록(README.md), 보관 문서(archive/)
 ```
 
 ---

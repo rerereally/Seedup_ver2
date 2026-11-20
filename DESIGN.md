@@ -2,7 +2,7 @@
 
 The locked rules every screen follows. A change to a token, a component or a rule here is a change to the whole site:
 edit this file first, then the code. Tokens live in `app/globals.css` (`@theme` and the dark blocks); shared classes
-live in its `@layer components`. v2 (2026-11-18) is the full redesign in [docs/redesign-plan.md](docs/redesign-plan.md),
+live in its `@layer components`. v2 (2026-11-18) is the full redesign in [docs/archive/redesign-plan.md](docs/archive/redesign-plan.md),
 modelled on the feel of Manyfast, Linear and Toss: near-monochrome, the real product as the picture, calm motion.
 
 ## 1. What the product has to feel like

@@ -502,8 +502,10 @@ ${evidenceSection(input.evidence, lang)}
 
 const ISSUE_HANDOFF = 'If Linear or GitHub MCP is connected, create issues for the features above before implementation using each exact F-n title, then start with P0 and report progress through Seedup MCP when connected. Skip issue creation if neither Linear nor GitHub MCP is connected.';
 
+type AgentBriefContext = { goal?: import('@/lib/supervisor/types').ProjectGoal | null; decisions?: string[] };
+
 /** A brief an AI coding tool follows directly. The three formats share one body so they never drift apart. */
-export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents', opportunitySlug?: string) {
+export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents', opportunitySlug?: string, context?: AgentBriefContext) {
   if (format === 'prompt') return renderBuilderPrompt(input, spec);
   const intro: Record<Exclude<ExportFormat, 'prompt'>, string> = {
     agents: `# ${input.title}\n\nInstructions for coding agents (Codex and others) working in this repository.`,
@@ -519,10 +521,12 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
   const flow = mermaidFlow(spec);
+  const goal = format === 'agents' ? context?.goal : undefined;
+  const recentDecisions = format === 'agents' ? context?.decisions : undefined;
   return `${intro[format]}
 ${spec.draft ? '\n> HYPOTHESIS DRAFT: the evidence is below the qualification bar. Confirm with real users before building beyond a prototype.\n' : ''}
-## Goal
-${spec.summary}
+${format === 'agents' && opportunitySlug ? `## Project key\n\`${opportunitySlug}\`\n\n` : ''}## ${goal ? `Locked goal (v${goal.version})` : 'Goal'}
+${goal?.statement ?? spec.summary}
 
 ## Problem
 ${input.problem}
@@ -532,17 +536,17 @@ ${spec.existing?.length ? `## Existing structure (keep it working)\n${spec.exist
 ${tasks || requirementTasks || '- [ ] Confirm the problem with users before building.'}
 
 ${spec.screens.length ? `## Screens, in order (a draft, confirm with users)\n${spec.screens.map((screen) => `${screen.id}. ${screen.name}${screen.does ? `: ${screen.does}` : ''} (${screen.featureIds.join(', ')})`).join('\n')}\n\n` : ''}${flow ? `## User flow\n\`\`\`mermaid\n${flow}\n\`\`\`\n\n` : ''}## Do not build
-${bullets(spec.nonGoals, 'Nothing listed yet.')}
+${bullets(goal?.outOfScope ?? spec.nonGoals, 'Nothing listed yet.')}
 
-## Done when
-${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
+## ${goal ? 'Success criteria' : 'Done when'}
+${bullets(goal?.criteria.map((row) => `${row.id} ${row.text} (measure: ${row.measure})`) ?? spec.metrics, 'Agree on a measurable outcome first.')}
 
-${spec.reviewNotes?.length ? `## Review notes\n${bullets(spec.reviewNotes, '')}\n\n` : ''}${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
+${recentDecisions?.length ? `## Recent decisions\n${bullets(recentDecisions, '')}\n\n` : ''}${spec.reviewNotes?.length ? `## Review notes\n${bullets(spec.reviewNotes, '')}\n\n` : ''}${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
 - Ship one feature at a time and keep each change small.
-- For a Seedup opportunity, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
-- For a Seedup opportunity, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
+- For a Seedup project, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
+- For a Seedup project, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
 - Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
-- If the user has enabled commit uploads for this project, call link_commit after each commit with the opportunity slug, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).
+- If the user has enabled commit uploads for this project, call link_commit after each commit with the project key, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).${goal ? '\n- Ask the user in the terminal before changing the locked goal or scope. Record their answer with record_decision.' : ''}
 - Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
 - When a readiness slot says "open question", ask instead of guessing.
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.

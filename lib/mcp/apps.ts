@@ -21,7 +21,8 @@ export function readAppResource(uri: unknown) {
   return { contents: [{ uri: APP_URI, mimeType: APP_MIME, text: APP_HTML, _meta: { ui: { prefersBorder: true, csp: {} } } }] };
 }
 
-const page = (siteUrl: string, slug: string) => `${siteUrl}/prd?opportunity=${encodeURIComponent(slug)}`;
+export const projectPage = (siteUrl: string, key: string) =>
+  key.startsWith('prd:') ? `${siteUrl}/prd` : `${siteUrl}/prd?opportunity=${encodeURIComponent(key)}`;
 
 /** What the card draws for search_opportunities. */
 export function opportunitiesCard(found: Opportunity[], siteUrl: string) {
@@ -56,7 +57,7 @@ export function prdCard(opportunity: Opportunity, spec: Spec, siteUrl: string) {
       const served = rows.filter((row) => feature.requirementIds.includes(row.id));
       return { id: feature.id, title: feature.title, quotes: new Set(served.flatMap((row) => row.evidence)).size, hypothesis: served.length > 0 && served.every((row) => spec.hypotheses.includes(row)) };
     }),
-    url: page(siteUrl, opportunity.slug),
+    url: projectPage(siteUrl, opportunity.slug),
   };
 }
 
@@ -67,12 +68,12 @@ export function checklistCard(opportunity: Opportunity, spec: Spec, progress: Bu
     slug: opportunity.slug,
     name: opportunity.name,
     features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progress[feature.id]?.note ?? '' })),
-    url: page(siteUrl, opportunity.slug),
+    url: projectPage(siteUrl, opportunity.slug),
   };
 }
 
-export function nextTaskCard(feature: Spec['features'][number], why: string, criteria: number, quotes: number, files: string[]) {
-  return { kind: 'next', id: feature.id, title: feature.title, why, criteria, quotes, files };
+export function nextTaskCard(feature: Spec['features'][number], why: string, criteria: number, quotes: number, files: string[], goal?: string) {
+  return { kind: 'next', id: feature.id, title: feature.title, why, criteria, quotes, files, ...(goal ? { goal } : {}) };
 }
 
 // The card: plain DOM, no libraries. Text from the server goes in through textContent only (quotes come from the web).
@@ -160,6 +161,7 @@ button:disabled{opacity:.5;cursor:default}
   function next(data){
     return [h('h1', null, h('span', { class: 'id', text: data.id }), h('span', { text: data.title })),
       h('p', { class: 'sub', text: data.why }),
+      data.goal ? h('p', { class: 'muted', style: 'white-space:pre-line;overflow-wrap:anywhere', text: data.goal }) : null,
       h('p', { class: 'muted num', text: T('완료 기준 ', 'Done criteria: ') + data.criteria + T('개, 원문 ', ', quotes: ') + data.quotes + T('개', '') }),
       data.files.length
         ? h('div', { class: 'list' }, ...data.files.map(function(file){ return h('div', { class: 'muted', style: 'overflow-wrap:anywhere', text: file }); }))

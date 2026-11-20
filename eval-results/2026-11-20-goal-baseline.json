@@ -1,0 +1,37 @@
+{
+  "measuredAt": "2026-11-20T05:51:59.556Z",
+  "commitSha": "62a975d94143f8132d274b0cabf96635fbae2f59",
+  "source": "evidence_dossiers.prd_markdown",
+  "totalPrds": 0,
+  "sections": {
+    "goals": {
+      "count": 0,
+      "total": 0,
+      "rate": null
+    },
+    "nonGoals": {
+      "count": 0,
+      "total": 0,
+      "rate": null
+    },
+    "metrics": {
+      "count": 0,
+      "total": 0,
+      "rate": null
+    }
+  },
+  "allThreeFilled": {
+    "count": 0,
+    "total": 0,
+    "rate": null
+  },
+  "measurableMetrics": {
+    "measurableItems": 0,
+    "totalItems": 0,
+    "itemRate": null,
+    "prdsWithMeasurableMetric": 0,
+    "prdsWithFilledMetrics": 0,
+    "prdRate": null,
+    "filledMetricsPrdRate": null
+  }
+}

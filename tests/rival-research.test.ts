@@ -21,10 +21,30 @@ test('the rival search loop adds new tools, skips known ones, and stops when the
 test('the rival search loop stops after a round that finds nothing new, and survives a failing model or search', async () => {
   const found = new Map([[tool('a').url, tool('a')]]);
   let asked = 0;
-  await researchRivals('idea', found, { ask: async () => { asked++; return { queries: [`q${asked}`] }; }, search: async () => [tool('a')] });
+  await researchRivals('idea', found, { ask: async () => { asked++; return { queries: [`query ${asked}`] }; }, search: async () => [tool('a')] });
   assert.equal(asked, 1);
   assert.equal(found.size, 1);
   await researchRivals('idea', found, { ask: async () => { throw new Error('down'); }, search: async () => [] });
   await researchRivals('idea', found, { ask: async () => ({ queries: ['x tool'] }), search: async () => { throw new Error('down'); } });
   assert.equal(found.size, 1);
+});
+
+test('same-round searches run together and merge listings in query order', async () => {
+  const found = new Map<string, ReturnType<typeof tool>>();
+  const first = Promise.withResolvers<ReturnType<typeof tool>[]>();
+  const requested: string[] = [];
+  const report = researchRivals('idea', found, {
+    ask: async () => ({ queries: [' RAW   IDEA ', 'first query', ' FIRST QUERY ', 'second query'] }),
+    search: async (query) => {
+      requested.push(query);
+      return query === 'first query' ? first.promise : [tool('second'), { ...tool('shared'), description: 'second query result' }];
+    },
+  }, ['raw idea']);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const started = [...requested];
+  first.resolve([tool('first'), tool('shared')]);
+  assert.deepEqual(await report, ['first query', 'second query']);
+  assert.deepEqual(started, ['first query', 'second query']);
+  assert.deepEqual([...found.values()].map(({ name }) => name), ['first', 'shared', 'second']);
+  assert.equal(found.get(tool('shared').url)?.description, 'shared tool');
 });

@@ -5,6 +5,7 @@ import { searchIdeaEvidenceWithRetry } from './idea-evidence';
 import { callJsonModel, type ModelUsage } from '../llm';
 import { matchOpportunities } from './match';
 import { discoveryReply } from './outreach';
+import { isCutOffEvidenceQuote } from './quote-completeness';
 import { CROWDED_AT, compareRivalListings, counterQuotesFrom, listingLimitation, validationChecks } from './report-checks';
 import type { CounterQuote, ReportCheck } from './report-checks';
 import { firstUserSources, meetsEvidenceBar, uniqueQuotes } from './rules';
@@ -72,6 +73,8 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   // The model the person picked (allowed by the admin policy) goes first in every call; free models stay behind it.
   const choice: ModelChoice = { model: options.model, onUsage: options.onUsage };
   const estimate = sources.estimate({ problem: idea, problemEn: undefined, gap: '', gapEn: undefined, supply: [] }, choice).catch(() => null);
+  const search = async (query: string) => (await Promise.all([sources.supply(query).catch(() => []), sources.webSupply(query).catch(() => [])])).flat();
+  const rawSupply = search(idea);
   const live = await sources.readEvidence(idea, options.evidenceBudgetMs, choice).catch(() => ({ phrases: [] as string[], quotes: [] as Evidence[] }));
   const queries = [idea, ...live.phrases].slice(0, 2);
   const phrases = live.phrases.length ? live.phrases : [idea];
@@ -82,11 +85,10 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
     : Promise.resolve([]);
 
   const found = new Map<string, Omit<SupplyItem, 'relation'>>();
-  const search = async (query: string) => (await Promise.all([sources.supply(query).catch(() => []), sources.webSupply(query).catch(() => [])])).flat();
-  const lists = await Promise.all(queries.map(search));
+  const lists = await Promise.all([rawSupply, ...queries.slice(1).map(search)]);
   for (const item of lists.flat()) if (item.name && item.url && !found.has(item.url)) found.set(item.url, item);
   const agent = options.rivalAgent ?? sources.rivalAgent();
-  const researchQueries = agent ? await researchRivals(idea, found, { ask: (prompt) => sources.askRivalQueries(prompt, choice), search }) : [];
+  const researchQueries = agent ? await researchRivals(idea, found, { ask: (prompt) => sources.askRivalQueries(prompt, choice), search }, queries) : [];
   const candidates = [...found.values()].slice(0, agent ? MAX_RESEARCHED : 16);
   const matchedRivals = compareRivalListings(phrases, candidates);
   const rivals = matchedRivals.slice(0, MAX_RIVALS);
@@ -98,7 +100,7 @@ export async function buildValidationReport(idea: string, opportunities: Opportu
   const relatedItems = opportunities.filter((item) => match.slugs.includes(item.slug)).slice(0, 3);
   const platforms = new Set(quotes.map((row) => row.platform)).size;
   const direct = matchedRivals.filter((item) => item.relation === 'direct').length;
-  const firstUsers = firstUsersFrom([...quotes, ...relatedItems.flatMap((item) => item.evidence)]);
+  const firstUsers = firstUsersFrom([...quotes, ...relatedItems.flatMap((item) => item.evidence)].filter((row) => !isCutOffEvidenceQuote(row.quote)));
   const now = Date.now();
   return {
     idea,

@@ -59,6 +59,8 @@ test('counter-evidence excerpts are verbatim, topic-specific, and unique by sour
   };
   const results = counterQuotesFrom(['slack issue digest'], [
     { ...post, url: 'https://news.ycombinator.com/item?id=1', title: 'My editor', text: 'There is no need for another text editor.' },
+    { ...post, url: 'https://news.ycombinator.com/item?id=2', text: 'I already use a Slack workflow, but only when' },
+    { ...post, url: 'https://news.ycombinator.com/item?id=3', text: 'I already use a different calendar to schedule appointments.' },
     post,
     post,
     { ...post, url: 'https://localhost/prd' },
@@ -121,4 +123,30 @@ test('the model the person picked reaches every model call in the report', async
   };
   await buildValidationReport('Slack issue digest', [], { model: 'anthropic/claude-haiku-5.5' }, sources);
   assert.deepEqual(seen.sort(), ['anthropic/claude-haiku-5.5', 'anthropic/claude-haiku-5.5', 'anthropic/claude-haiku-5.5']);
+});
+
+test('raw supply starts before evidence resolves and keeps first place when listings overlap', async () => {
+  const live = Promise.withResolvers<{ phrases: string[]; quotes: Evidence[] }>();
+  const searches: string[] = [];
+  const report = buildValidationReport('raw idea', [], { searchCounterEvidence: true, rivalAgent: false }, {
+    readEvidence: () => live.promise,
+    estimate: async () => null,
+    supply: async (query) => {
+      searches.push(`supply ${query}`);
+      return [tool('shared', query === 'raw idea' ? 'Raw Slack issue digest listing' : 'Phrase Slack issue digest listing')];
+    },
+    demand: async (query) => { searches.push(`demand ${query}`); return []; },
+    webSupply: async (query) => { searches.push(`web ${query}`); return []; },
+    rivalAgent: () => false,
+    askRivalQueries: async () => null,
+  });
+  const started = [...searches];
+  live.resolve({ phrases: ['slack issue digest'], quotes: [] });
+  const result = await report;
+  assert.deepEqual(started, ['supply raw idea', 'web raw idea']);
+  assert.deepEqual(searches.slice(2), [
+    'demand slack issue digest "already use"', 'demand slack issue digest "no need"',
+    'supply slack issue digest', 'web slack issue digest',
+  ]);
+  assert.deepEqual(result.rivals.map(({ description }) => description), ['Raw Slack issue digest listing']);
 });

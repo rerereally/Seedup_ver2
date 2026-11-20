@@ -1,6 +1,6 @@
 // Layer 3 of the agent link (docs/supervisor-plan.md 3-2): Claude Code and Codex hooks that run whether or not the
 // agent thinks to call Seedup. Session start (and resume/clear/compact/fork) puts the locked goal and the next-task
-// instruction back into context; pre-compact reminds the agent to save a handoff before context is summarized;
+// instruction back into context; pre-compact asks Claude to preserve the handoff in its summary or warns in Codex;
 // stopping with unsaved, unpushed, or blocked work asks once for a handoff note; pre-commit runs the stage-1 static
 // check (plan 3-4) on staged lines and stops a commit with a blocker. Files only, no network and no token:
 // the goal is a snapshot of the locked version, and the agent asks the MCP server for anything live.
@@ -32,6 +32,7 @@ function hookCommand(event: HookEvent, useClaudeDir: boolean) {
   const missing = event === 'session-start'
     ? "else{console.log('Seedup 훅 파일(.seedup/hook.mjs)이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.')}"
     : '';
+  const summaryArg = event === 'pre-compact' && useClaudeDir ? ",'--summary'" : '';
   const body = [
     "const fs=require('fs'),p=require('path'),cp=require('child_process');",
     "let s='';try{s=process.stdin.isTTY?'':fs.readFileSync(0,'utf8')}catch{}",
@@ -39,7 +40,7 @@ function hookCommand(event: HookEvent, useClaudeDir: boolean) {
     `let f='';for(const b of ${roots}.filter(Boolean)){`,
     "for(let d=p.resolve(b);;){const t=p.join(d,'.seedup','hook.mjs');if(fs.existsSync(t)){f=t;break}const u=p.dirname(d);if(u===d)break;d=u}",
     'if(f)break}',
-    `if(f){process.exit(cp.spawnSync(process.execPath,[f,'${event}'],{input:s,stdio:['pipe','inherit','inherit']}).status??0)}${missing}`,
+    `if(f){process.exit(cp.spawnSync(process.execPath,[f,'${event}'${summaryArg}],{input:s,stdio:['pipe','inherit','inherit']}).status??0)}${missing}`,
   ].join('');
   return `node -e "${body}"`;
 }
@@ -186,16 +187,21 @@ function auditBlockerCount(root) {
   return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
-function runSessionStart(root) {
+function runSessionStart(root, payload) {
   const goalPath = join(root, GOAL_REL);
-  if (existsSync(goalPath)) {
-    process.stdout.write(readFileSync(goalPath, 'utf8'));
-  } else {
-    process.stdout.write(\`Seedup 목표 파일(\${GOAL_REL})이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.\\n\`);
+  const context = existsSync(goalPath)
+    ? readFileSync(goalPath, 'utf8')
+    : \`Seedup 목표 파일(\${GOAL_REL})이 없습니다. Seedup에서 훅 묶음을 다시 받으세요.\\n\`;
+  process.stdout.write(context);
+  if (payload.source === 'compact' || payload.source === 'resume') {
+    const reason = payload.source === 'compact' ? '대화가 압축되었습니다.' : '대화가 재개되었습니다.';
+    const newline = context.endsWith('\\n') ? '' : '\\n';
+    process.stdout.write(\`\${newline}\${reason} 작업을 이어가기 전에 Seedup MCP의 resume_project(프로젝트 \${PROJECT_KEY})를 호출해 마지막 인계, 최근 결정, 진행 상태를 확인하세요.\\n\`);
   }
 }
 
-function runPreCompact(root) {
+// shortcut: Codex PreCompact only surfaces the warning, add summary instructions when Codex supports them.
+function runPreCompact(root, summary) {
   const notes = [];
   if (isGitWorkTree(root)) {
     if (hasDirty(root)) notes.push('커밋하지 않은 변경');
@@ -204,6 +210,10 @@ function runPreCompact(root) {
     if (blockers > 0) notes.push(\`정적 검사 차단 항목 \${blockers}개\`);
   }
   const prefix = notes.length ? \`현재 \${notes.join(', ')}이 남아 있습니다. \` : '';
+  if (summary) {
+    process.stdout.write(\`\${prefix}하던 일과 다음 할 일을 압축 요약에 남기세요(프로젝트 \${PROJECT_KEY}).\\n\`);
+    return;
+  }
   const message = \`\${prefix}대화 압축 전에 Seedup MCP의 save_handoff로 하던 일, 다음 할 일, 주의할 점, 검증 안 된 커밋을 남기세요(프로젝트 \${PROJECT_KEY}). 압축 뒤에는 \${GOAL_REL}이 다시 주입됩니다.\`;
   process.stdout.write(\`\${JSON.stringify({ continue: true, systemMessage: message })}\\n\`);
 }
@@ -243,8 +253,8 @@ if (command === 'pre-commit') {
 } else {
   const payload = parsePayload(readStdin());
   const root = resolveRoot(payload);
-  if (command === 'session-start') runSessionStart(root);
-  else if (command === 'pre-compact') runPreCompact(root);
+  if (command === 'session-start') runSessionStart(root, payload);
+  else if (command === 'pre-compact') runPreCompact(root, process.argv[3] === '--summary');
   else if (command === 'stop') runStop(root, payload);
 }
 `;

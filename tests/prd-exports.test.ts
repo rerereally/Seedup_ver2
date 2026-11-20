@@ -5,7 +5,7 @@ import { featureIssue, githubIssueCommands, githubRepo, issuesCsv, issueUrl } fr
 import type { FeatureIssue } from '../lib/opportunities/issues';
 import { parsePrdMarkdown } from '../lib/opportunities/prd-markdown';
 import { savedPrdPreview, slackPrdSummary } from '../lib/opportunities/prd-share';
-import { normalizeSpec, renderAgentBrief, renderSpecMarkdown } from '../lib/opportunities/spec';
+import { normalizeSlots, normalizeSpec, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS } from '../lib/opportunities/spec';
 import type { SpecInput } from '../lib/opportunities/spec';
 
 const share = 'https://seedup.example/spec/11111111-1111-1111-1111-111111111111';
@@ -123,4 +123,30 @@ test('coding and app builder exports name the same features and condition issue 
     assert.match(brief, /If Linear or GitHub MCP is connected, create issues.*exact F-n title.*start with P0.*Seedup MCP/);
     assert.match(brief, /Skip issue creation if neither Linear nor GitHub MCP is connected\.\s*$/);
   }
+});
+
+test('AGENTS.md tells agents to resume the Seedup project before picking work and leave a handoff', () => {
+  const projectKey = 'prd:11111111-1111-1111-1111-111111111111';
+  const brief = renderAgentBrief(input, spec, 'agents', projectKey);
+  const resume = 'resume_project {"project":"prd:11111111-1111-1111-1111-111111111111"}';
+  assert.ok(brief.indexOf('## Rules') < brief.indexOf('## Goal'));
+  assert.ok(brief.includes(resume));
+  assert.ok(brief.indexOf(resume) < brief.indexOf('get_next_task'));
+  assert.match(brief, /before stopping.*save_handoff/i);
+  assert.match(brief, /## User evidence/);
+  assert.ok(Buffer.byteLength(brief, 'utf8') <= 24_000);
+  assert.doesNotMatch(renderAgentBrief(input, spec, 'cursor', projectKey), /resume_project|save_handoff/);
+});
+
+test('oversized AGENTS.md fits the 24,000 UTF-8 byte rule limit and keeps the session instructions', () => {
+  const slots = normalizeSlots(Object.fromEntries(SLOT_KEYS.map((key) => [key, Array(5).fill('요구 조건과 예외를 설명합니다.🙂'.repeat(30))])));
+  const largeSpec = { ...spec, features: Array.from({ length: 10 }, (_, index) => ({
+    ...spec.features[0], id: 'F-' + String(index + 1).padStart(2, '0'), slots,
+  })) };
+  const brief = renderAgentBrief(input, largeSpec, 'agents', 'example');
+  assert.ok(Buffer.byteLength(renderAgentBrief(input, largeSpec, 'claude', 'example'), 'utf8') > 24_000);
+  assert.ok(Buffer.byteLength(brief, 'utf8') <= 24_000);
+  assert.match(brief, /resume_project \{"project":"example"\}/);
+  assert.match(brief, /Read the full PRD in Seedup\.\s*$/);
+  assert.doesNotMatch(brief, /\uFFFD/);
 });

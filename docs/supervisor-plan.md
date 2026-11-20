@@ -486,6 +486,9 @@ PR: 연결 2(`setup_project`) **앞**에 별도 PR(이름 정리와 새 도구�
 | `E2E` | 흐름 전체 E2E |
 | `C1`~`C4` | 클라이언트 호환 ①~④ |
 | `P1`~`P6` | 점검 후속 |
+| `Q1` | PRD 생성 품질. 기반 요구사항, 기능 연결 검사와 기존 보정 1회, 준비 슬롯과 근거 있는 경쟁 비교·추천 (`lib/opportunities/prd*.ts`, `spec.ts`, `toolkit.ts`, 관련 테스트) |
+| `Q2` | 아이디어 검증 품질과 대기 시간. 기존 출처 안에서 인용 완결성, 검색어 품질, 독립 검색 병렬화 (`lib/opportunities/idea-evidence.ts`, `quote-completeness.ts`(Q1과 공유), `report.ts`, `report-checks.ts`, `rival-research.ts`, 관련 테스트) |
+| `Q3` | PRD 서버 저장 후속. 원문 없는 저장과 목표 연결, 생성 직후 기획 메모리, MCP 생성 로그와 경쟁 설명 인계 (`components/IdeaWorkspace.tsx`, `components/opportunity-stage/PrdBuilder.tsx`, `components/supervisor/data.ts`, `lib/db/dossiers.ts`, `lib/db/project-brief.ts`, `lib/mcp/endpoint.ts`, `lib/mcp/server.ts`, `lib/opportunities/prd-runs.ts`, 관련 테스트) |
 | `D1`, `D2` … | 문서 · 상태 갱신 |
 
 `S2-MCP`처럼 칸을 가리키지 않는 ID는 쓰지 않습니다. 새 칸이 필요하면 계획 세션이 이 표에 먼저 더합니다.
@@ -679,3 +682,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 아키텍처 · 워크플로우 점검 반영. "점검 후속" 칸(P1~P6)과 작업 ID 표 추가, MCP 도구 정리를 완료로 표시. 이유는 decisions.md "점검 후속".
 - 2026-11-20: Antigravity를 지원 · 작업 도구에서 뺌(3-2 표 열, 호환 ② · ③의 Antigravity 항목, 실제 프로젝트 3번 도구). `developed_with` 확장 결정 대기를 닫음. `lib/mcp/server.ts` 나누기는 보류. P2는 merge queue를 원하나 개인 계정 저장소라 불가, 방식 결정 대기. 장차희 결정.
 - 2026-11-20: P2 조직 이전 안 함(장차희). merge queue 대신 브랜치 보호를 쓸지는 결정 대기. 이전 순서 삭제.
+- 2026-11-21: 생성된 PRD 사례에서 확인한 명세 품질, 검증 대기 시간·원문 품질, 서버 저장 누락을 Q1~Q3에 배정(정지훈 요청). 데이터 수집 동결, 원문 판정 기준, 모델 정책과 비용 상한은 유지합니다.

@@ -11,6 +11,7 @@
 | 문서 | 최상위 계획 · 상태 · 문서 목록 · 결정 기록 · 작업 규약(`CONTRIBUTING.md`) 갖춤. 낡은 문서 17개는 `docs/archive/`. 단계 1 A2 · A3 시작 프롬프트는 `docs/prompts/` | [README.md](README.md) |
 | 역할 | 장차희 총괄 · 계획, 정지훈 기술 구현 · 머지 · 운영 DB 마이그레이션 적용. 정지훈이 맡긴 Claude Code 머지 세션은 4절 점검 조건을 따름(마이그레이션 PR과 자기 PR 제외) | `CONTRIBUTING.md` 1 · 4 · 7절 |
 | `main` 머지 | 해커톤 발표용 머지 동결 해제. 규약 4절에 따라 CI · 리뷰 · 계획 순서를 충족한 PR을 계속 머지 | `CONTRIBUTING.md` 4 · 9절, [결정 기록](decisions.md) |
+| 운영 배포 | **#177에서 멈춤.** main의 CI e2e가 #178부터 실패해 deploy 단계가 건너뛰어짐. #178 · #179 · #180의 코드는 운영에 없음(마이그레이션만 운영 적용). 원인 수정은 PR #182(머지 대기), 머지 뒤 deploy 재개 확인 필요 | GitHub Actions `CI` 실행 기록 |
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
@@ -55,8 +56,8 @@
 | 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md). 시작 문장에 저장소 연결(`connect_repo`) 포함 |
 | 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | PR #176 머지 | setup_project 및 웹 목표 재잠금 링크 추가. 운영 MCP 도구 목록에서 setup_project 확인 |
 | 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
-| 3-10 일부 | 아이디어 근거 검색 · MCP 개인 PRD 연결 | 정지훈 | PR #180 머지 | 공용 원문 재사용·재검색·비로그인 검색·생활 분야 Q&A, P0 열린 질문 먼저. 계획상 보류 구간 일부가 앞당겨졌으며 수집 동결 파일은 변경 없음. App Store 리뷰는 권리 확인 대기. 운영 MCP 초안 → PRD 직접 확인 필요 |
-| E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | PR #178 머지 | 세 입구 → 목표 잠금 → 에이전트 안내 브라우저 테스트와 테스트용 GitHub·모델을 사용한 MCP → 🟢 통합 테스트 추가. 실제 운영 프로젝트 완주는 별도 |
+| 3-10 일부 | 아이디어 근거 검색 · MCP 개인 PRD 연결 | 정지훈 | PR #180 머지 | 공용 원문 재사용·재검색·비로그인 검색·생활 분야 Q&A, P0 열린 질문 먼저. 계획상 보류 구간 일부가 앞당겨졌으며 수집 동결 파일은 변경 없음. App Store 리뷰는 권리 확인 대기. 운영 MCP 초안 → PRD 직접 확인 필요. **알려진 문제(#182에서 수정, 머지 대기):** ① 저장된 개인 PRD를 다시 읽으면 준비 항목이 사라져 P0 기능마다 막연한 질문 6개가 나옴 ② 같은 원문을 담은 다른 아이디어가 저장 행 · 프로젝트 키 · 잠긴 목표를 나눠 써서 뒤 아이디어가 앞 PRD를 덮어씀. 운영에서 이미 덮어써진 저장본이 있는지는 확인 안 함 |
+| E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | PR #178 머지 | 세 입구 → 목표 잠금 → 에이전트 안내 브라우저 테스트와 테스트용 GitHub·모델을 사용한 MCP → 🟢 통합 테스트 추가. 실제 운영 프로젝트 완주는 별도. 브라우저 테스트는 머지 뒤 CI에서 계속 실패(겹치는 선택자 2개, 위 ② 저장본 충돌). 수정은 PR #182 |
 | 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-antigravity.md). `AGENTS.md` 지원, 훅은 형식이 달라 어댑터 필요, 개발 모델 계열 입력 필요 |
 | 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex 시도 → 샌드박스 실패, 계획 세션이 측정 | PR #168 열림 | 불량 diff 25/25, 새 오탐 후보(`env(…)`) → 보완 ⑦ |
 | 처리방침 | 입력별 모델(무료 모델 / GPT 6.2 Sol · Haiku 5.5)과 보관 범위 | Codex(장차희 지시 · 기술 책임 정지훈) | PR #167 열림 | [프롬프트](prompts/codex-privacy-wording.md). 출시 전 준비 |

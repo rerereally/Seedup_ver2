@@ -63,7 +63,7 @@ const MIN_AUDIT_MS = 20_000;
 const MIN_READINESS_MS = 12_000;
 
 /** What the PRD route streams to the page: the model's own events, plus the steps after the text is written. */
-export type PrdEvent = StreamEvent | { type: 'stage'; stage: 'structuring' | 'checking' | 'auditing' };
+export type PrdEvent = StreamEvent | { type: 'stage'; stage: 'structuring' | 'checking' | 'auditing' | 'completing' };
 
 export type PrdOptions = { draft?: boolean; lang?: Lang; idea?: boolean; model?: string; onUsage?: (usage: ModelUsage) => void; beginner?: boolean; screens?: boolean; onEvent?: (event: PrdEvent) => void; deadline?: number; repair?: boolean; auditP0?: boolean; criticModel?: string };
 
@@ -123,6 +123,7 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
     auditChanges = audited.changes;
   }
 
+  options.onEvent?.({ type: 'stage', stage: 'completing' });
   spec = await completePrd(input, spec, { ...options, deadline });
   return { spec, markdown: renderSpecMarkdown(input, spec), agentBrief: renderAgentBrief(input, spec), written: written.text, model: written.model, auditChanges };
 }

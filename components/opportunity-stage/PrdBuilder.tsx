@@ -19,7 +19,7 @@ import { translator } from '@/lib/i18n';
 import { citedQuotes } from '@/lib/opportunities/prd-markdown';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
-import { GraphEdges, LivePrd, Wireframes, type LivePhase } from './PrdParts';
+import { GraphEdges, LivePrd, Wireframes, liveStepsAfter, type LivePhase, type LiveStep } from './PrdParts';
 import styles from './stage.module.css';
 
 type Version = { spec: Spec; label: string; at: string };
@@ -124,8 +124,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [status, setStatus] = useState<'idle' | 'loading' | 'revising'>('idle');
   // The PRD as the model writes it, shown until the checked spec arrives. Text is buffered in a ref and drawn once a
   // frame, so a fast model's hundreds of small pieces do not re-render the page hundreds of times.
-  const [live, setLive] = useState<{ text: string; phase: LivePhase; restarted: boolean } | null>(null);
+  const [live, setLive] = useState<{ text: string; phase: LivePhase; restarted: boolean; steps: LiveStep[] } | null>(null);
   const liveText = useRef('');
+  // What the server has done so far, for the step list beside the live document.
+  const liveSteps = useRef<LiveStep[]>([]);
+  const liveStart = useRef(0);
   const liveFrame = useRef(0);
   // Seconds since the current PRD request started, so the wait shows where the work usually is.
   const [elapsed, setElapsed] = useState(0);
@@ -233,7 +236,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
 
   const showLive = (phase: LivePhase, restarted = false) => {
     cancelAnimationFrame(liveFrame.current);
-    liveFrame.current = requestAnimationFrame(() => setLive((before) => ({ text: liveText.current, phase, restarted: restarted || Boolean(before?.restarted) })));
+    liveSteps.current = liveStepsAfter(liveSteps.current, { phase, text: liveText.current, restarted, at: Math.round((Date.now() - liveStart.current) / 1000) });
+    liveFrame.current = requestAnimationFrame(() => setLive((before) => ({ text: liveText.current, phase, restarted: restarted || Boolean(before?.restarted), steps: liveSteps.current })));
   };
 
   const generate = async () => {
@@ -253,7 +257,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         else accept(json);
         return;
       }
-      setLive({ text: '', phase: 'waiting', restarted: false });
+      liveStart.current = Date.now();
+      liveSteps.current = liveStepsAfter([], { phase: 'waiting', text: '', restarted: false, at: 0 });
+      setLive({ text: '', phase: 'waiting', restarted: false, steps: liveSteps.current });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';

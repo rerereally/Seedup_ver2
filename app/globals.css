@@ -672,3 +672,23 @@ body {
   border-top: 1px solid var(--color-outline-soft);
   padding-top: 2rem;
 }
+
+/* The working pointer on the PRD being written (components/opportunity-stage/AgentCursor.tsx). */
+@keyframes cursor-click {
+  from { transform: scale(0.3); opacity: 0.45; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+@keyframes cursor-press {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.82) rotate(-6deg); }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.agent-cursor { transition: transform 820ms cubic-bezier(.34,1.56,.64,1), opacity 200ms; }
+.agent-cursor-click { animation: cursor-click 520ms ease-out forwards; }
+.agent-cursor-press { transform-origin: 20% 10%; animation: cursor-press 360ms cubic-bezier(.3,1.5,.6,1); }
+@media (prefers-reduced-motion: reduce) {
+  .agent-cursor { transition: none !important; }
+  .agent-cursor-click { display: none; }
+  .agent-cursor-press { animation: none; }
+}

@@ -16,7 +16,7 @@
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
 | DB 마이그레이션 | 35개(main `f462db9` 기준). 운영 `check-schema` 통과. `verifications`, `build_progress.verification_level`, `feature_commits.file_statuses` 직접 조회 확인(2026-11-20) | `ls supabase/migrations`, `check-schema` |
 | 단위 테스트 | 349개(53개 파일). #140에서 8개, #142에서 7개 추가. 최신 `main` 전체 실행 결과는 CI에서 확인 | `npm test` |
-| MCP | 도구 19개(#175, 운영 Codex 확인), 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
+| MCP | 도구 20개(main #176), 운영 조회 시 19개(#175). 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
 
 ### 데이터 수집 동결
 
@@ -53,7 +53,7 @@
 | 2 보완 | ① 프로젝트 목록 함수(#156), ② 기능별 검증 수준, ③ pre-commit(#157), ④ 이탈 입력, ⑤ 훅 형식 보완, ⑥ 검증 운영 보완, ⑦ 정적 검사 오탐(`env(…)`) | 정지훈 | ①, ③ 머지. ② · ④ 시작 가능(A2 머지됨) | ②는 마이그레이션 포함. ② · ④ · ⑤ · ⑥은 정지훈 · Antigravity [프롬프트](prompts/antigravity-remaining.md) T1 · T2 · T5 · T4 |
 | 2 | 9절 확인 조사 | Codex(GPT 6.1 Sol · 웹 검색, 장차희 계획 세션이 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-section9.md). 계획 9절 · 단계 2 보완 ⑤ · ⑥에 반영 |
 | 연결 1 | 기획 → 에이전트 연결 1단계: 에이전트 단계 화면, 개인 PRD `AGENTS.md`에 목표 · 키 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #163 머지 | [프롬프트](prompts/codex-handoff-web.md). 시작 문장에 저장소 연결(`connect_repo`) 포함 |
-| 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | 도구 정리 결정 · 보완 ④ 뒤 | [프롬프트](prompts/antigravity-remaining.md) T3 |
+| 연결 2 | MCP 파일 제공 도구(`setup_project`), 목표 변경 시 웹 재잠금 링크 | 정지훈 · Antigravity | PR #176 머지 | setup_project 및 웹 목표 재잠금 링크 추가. 확인 시점 운영 MCP에는 setup_project 미노출 |
 | 세 입구 | ① 레포 분석 → 출구, ② 검증 → PRD 근거, ③ `/agents` 프로젝트별 시작 문장(+ 스타터 팩 문구 버그) | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-remaining.md) T6 |
 | E2E | 흐름 전체(로그인 → 목표 잠금 → 에이전트 → 🟢) | 정지훈 · Antigravity | T1 · T3 · T6 뒤 | [프롬프트](prompts/antigravity-remaining.md) T7 |
 | 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 완료(2026-11-20) | [보고서](research/2026-11-20-antigravity.md). `AGENTS.md` 지원, 훅은 형식이 달라 어댑터 필요, 개발 모델 계열 입력 필요 |

@@ -28,7 +28,9 @@ function harness(overrides: { evidence?: GitHubEvidence; response?: unknown; fai
     find: async (scope) => [...saved.values()].find((row) => row.userId === scope.userId && row.projectKey === scope.projectKey && row.featureId === scope.featureId && row.repo === scope.repo && row.sha === scope.sha) ?? null,
     claim: async (row) => {
       const existing = [...saved.values()].find((item) => item.userId === row.userId && item.projectKey === row.projectKey && item.featureId === row.featureId && item.repo === row.repo && item.sha === row.sha);
-      if (existing) return structuredClone(existing);
+      if (row.retried) {
+        if (existing?.status !== 'error' || existing.retried) return null;
+      } else if (existing) return structuredClone(existing);
       saved.set(row.id, structuredClone(row));
       return row;
     },
@@ -43,7 +45,7 @@ function harness(overrides: { evidence?: GitHubEvidence; response?: unknown; fai
     model: async <T>(_prompt: string, options?: Parameters<typeof callJsonModel>[1]) => {
       calls++;
       assert.equal(options?.noDataCollection, true);
-      assert.equal(options?.reasoning, 'high');
+      assert.equal(options?.reasoning, 'low');
       assert.ok(options?.deadline && options.deadline <= Date.now() + 110_000);
       assert.equal(options?.attempts, 1);
       assert.equal(options?.models?.length, 1);
@@ -163,6 +165,55 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
       const result = await startVerification(input, h.dependencies);
       assert.equal(result.status, 'error');
       assert.deepEqual(h.stats(), { calls: 2, collected: 1, charged: 1, refunded: 1 });
+    });
+    await t.test('one caller retries an existing error in place and polling cannot start a third attempt', async () => {
+      const h = harness({ response: { verdicts: [] } });
+      const first = await startVerification(input, h.dependencies);
+      assert.match(first.errorMessage ?? '', /criterion verdicts/);
+      const pending = Promise.withResolvers<void>();
+      const collect = h.dependencies.github!;
+      h.dependencies.github = async (...args) => { await pending.promise; return collect(...args); };
+      const retry = startVerification(input, h.dependencies);
+      const poll = await startVerification(input, h.dependencies);
+      assert.equal(poll.status, 'running');
+      assert.equal(poll.id, first.id);
+      pending.resolve();
+      assert.equal((await retry).status, 'error');
+      assert.equal((await startVerification(input, h.dependencies)).retried, true);
+      assert.deepEqual(h.stats(), { calls: 4, collected: 2, charged: 2, refunded: 2 });
+    });
+    await t.test('a legacy error can recover on the same SHA and its passing result is reused', async () => {
+      const h = harness();
+      const model = h.dependencies.model;
+      h.dependencies.model = async () => null;
+      const failed = await startVerification(input, h.dependencies);
+      const legacy = { ...failed };
+      delete legacy.retried;
+      h.saved.set(legacy.id, legacy);
+      h.dependencies.model = model;
+      const recovered = await startVerification(input, h.dependencies);
+      assert.equal(recovered.id, legacy.id);
+      assert.equal(recovered.status, 'passed');
+      assert.equal(recovered.errorMessage, null);
+      assert.ok(readVerificationToken(recovered.token!, input, 'test-signing-key'));
+      assert.equal((await startVerification(input, h.dependencies)).id, recovered.id);
+      assert.deepEqual(h.stats(), { calls: 1, collected: 2, charged: 2, refunded: 1 });
+    });
+    await t.test('fallback has reserved time and clears the earlier model diagnostic on success', async () => {
+      const h = harness();
+      const deadlines: number[] = [];
+      h.dependencies.model = async <T>(_prompt: string, options?: Parameters<typeof callJsonModel>[1]) => {
+        deadlines.push(options!.deadline!);
+        if (deadlines.length === 1) {
+          options!.onUsage?.({ model: 'vendor/paid-one', promptTokens: 100, completionTokens: 6000 });
+          return null;
+        }
+        return response() as T;
+      };
+      const result = await startVerification(input, h.dependencies);
+      assert.ok(deadlines[1] - deadlines[0] >= 50_000);
+      assert.equal(result.status, 'passed');
+      assert.equal(result.errorMessage, null);
     });
     await t.test('downstream persistence failure refunds once and clears a minted token', async () => {
       const h = harness({ failSave: true });

@@ -13,40 +13,42 @@ export type VerificationRecord = Omit<Verification, 'verdicts'> & {
   githubRequests?: number;
   durationMs?: number | null;
   errorMessage?: string | null;
+  retried?: boolean;
 };
 export type VerificationScope = Pick<Verification, 'userId' | 'projectKey' | 'featureId' | 'repo' | 'sha'>;
 export type VerificationStore = {
   authorize: (scope: VerificationScope) => Promise<void>;
   find: (scope: VerificationScope) => Promise<VerificationRecord | null>;
-  claim: (row: VerificationRecord) => Promise<VerificationRecord>;
+  /** Return null if another caller already claimed this error for retry. */
+  claim: (row: VerificationRecord) => Promise<VerificationRecord | null>;
   save: (row: VerificationRecord) => Promise<void>;
   get: (userId: string, id: string) => Promise<VerificationRecord | null>;
   consume: (userId: string) => Promise<boolean>;
   refund: (userId: string) => Promise<void>;
 };
 
-const COLUMNS = 'id,user_id,project_key,feature_id,repo,sha,status,findings,verdicts,drift,checks,model,input_tokens,output_tokens,cost_usd,token,created_at,finished_at,unseen,github_requests,duration_ms,error_message';
+const COLUMNS = 'id,user_id,project_key,feature_id,repo,sha,status,findings,verdicts,drift,checks,model,input_tokens,output_tokens,cost_usd,token,created_at,finished_at,unseen,github_requests,duration_ms,error_message,retried';
 type Row = {
   id: string; user_id: string; project_key: string; feature_id: string; repo: string; sha: string;
   status: Verification['status']; findings: Verification['findings']; verdicts: VerificationRecord['verdicts'];
   drift: Verification['drift']; checks: Verification['checks']; model: string | null;
   input_tokens: number; output_tokens: number; cost_usd: number; token: string | null;
   created_at: string; finished_at: string | null; unseen: UnseenFile[];
-  github_requests?: number; duration_ms?: number | null; error_message?: string | null;
+  github_requests?: number; duration_ms?: number | null; error_message?: string | null; retried?: boolean;
 };
 const fromRow = (r: Row): VerificationRecord => ({
   id: r.id, userId: r.user_id, projectKey: r.project_key, featureId: r.feature_id, repo: r.repo, sha: r.sha,
   status: r.status, findings: r.findings, verdicts: r.verdicts, drift: r.drift, checks: r.checks, model: r.model,
   inputTokens: r.input_tokens, outputTokens: r.output_tokens, costUsd: r.cost_usd, token: r.token,
   createdAt: r.created_at, finishedAt: r.finished_at, unseen: r.unseen,
-  githubRequests: r.github_requests ?? 0, durationMs: r.duration_ms ?? null, errorMessage: r.error_message ?? null,
+  githubRequests: r.github_requests ?? 0, durationMs: r.duration_ms ?? null, errorMessage: r.error_message ?? null, retried: r.retried ?? false,
 });
 const toRow = (r: VerificationRecord): Row => ({
   id: r.id, user_id: r.userId, project_key: r.projectKey, feature_id: r.featureId, repo: r.repo, sha: r.sha,
   status: r.status, findings: r.findings, verdicts: r.verdicts, drift: r.drift, checks: r.checks, model: r.model,
   input_tokens: r.inputTokens, output_tokens: r.outputTokens, cost_usd: r.costUsd, token: r.token,
   created_at: r.createdAt, finished_at: r.finishedAt, unseen: r.unseen,
-  github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null,
+  github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null, retried: r.retried ?? false,
 });
 
 /** Load test evidence only from the verified SHAs recorded when these features were marked done. */
@@ -84,6 +86,13 @@ export function verificationStore(): VerificationStore {
     },
     find,
     async claim(row) {
+      if (row.retried) {
+        const { data, error } = await db.from('verifications').update(toRow(row))
+          .eq('id', row.id).eq('user_id', row.userId).eq('status', 'error').eq('retried', false)
+          .select('id').maybeSingle();
+        if (error) throw error;
+        return data ? row : null;
+      }
       const { error } = await db.from('verifications').insert(toRow(row));
       if (!error) return row;
       if (error.code === '23505') {

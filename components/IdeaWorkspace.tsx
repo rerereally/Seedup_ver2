@@ -453,6 +453,16 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, generated, idea]);
 
+  // A locked goal is where the agent takes over, so what the chat learned goes to the project's memory then, as
+  // validate_idea does for MCP. The server skips lines it already has, so locking again repeats nothing.
+  const onGoalLocked = (locked: boolean) => {
+    setGoalLocked(locked);
+    if (!locked || !projectKey) return;
+    const competitors = [...new Set([...validationCompetitors, ...selectedProblems.flatMap((item) => item.competitorNotes)])].slice(0, 8);
+    const rows = brief.answers.filter((row) => row.key !== 'validation_competitors');
+    fetch(`/api/projects/${encodeURIComponent(projectKey)}/brief`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ competitors, answers: rows }) }).catch(() => undefined);
+  };
+
   if (restored && !idea) {
     return <IdeaStart onSubmit={send} en={en} problems={pool.filter((item) => item.qualified)} />;
   }
@@ -655,7 +665,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         </section>
 
         <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-white px-5 pb-28 pt-6 [scrollbar-width:thin] lg:order-2 lg:block lg:overflow-y-auto lg:px-10 lg:pb-10`}>
-          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
+          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={onGoalLocked} />}
           <PrdBuilder
             title={idea}
             projectKey={projectKey ?? undefined}

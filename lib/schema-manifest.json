@@ -2352,6 +2352,38 @@
     ]
   },
   {
+    "file": "20261120010000_opportunity_reviews.sql",
+    "tables": [
+      "opportunity_reviews"
+    ],
+    "columns": [
+      [
+        "opportunity_reviews",
+        "slug"
+      ],
+      [
+        "opportunity_reviews",
+        "kind"
+      ],
+      [
+        "opportunity_reviews",
+        "quote"
+      ],
+      [
+        "opportunity_reviews",
+        "reason"
+      ],
+      [
+        "opportunity_reviews",
+        "created_by"
+      ],
+      [
+        "opportunity_reviews",
+        "created_at"
+      ]
+    ]
+  },
+  {
     "file": "20261120090000_public_prds.sql",
     "columns": [
       [

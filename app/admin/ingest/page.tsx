@@ -10,11 +10,14 @@ import Header from '@/components/Header';
 import SubmitButton from '@/components/SubmitButton';
 import { getIngestQualitySummary, getIngestRejections, getIngestRuns, getRecommendationQuality } from '@/lib/data';
 import { isAdminUser } from '@/lib/auth/admin';
+import { dropOpportunityQuoteAction, hideOpportunityAction, removeOpportunityReviewAction } from '@/app/actions/opportunity-reviews';
 import { pendingPrdReports } from '@/lib/db/prd-reports';
 import { translator } from '@/lib/i18n';
 import { getLang } from '@/lib/i18n-server';
 import { prebuildDemoPrd, savePrdModelPolicy } from '@/app/actions/prd-models';
+import { readOpportunityReviews } from '@/lib/db/opportunity-reviews';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { fallbackOpportunityReviews } from '@/lib/opportunities/review';
 import { REPORT_REASONS } from '@/lib/opportunities/prd-report-input';
 import { PRD_MAX_EVIDENCE, readPrdCache } from '@/lib/opportunities/prd-cache';
 import { loadPrdPolicy, modelLabel, prdModels } from '@/lib/opportunities/models';
@@ -92,7 +95,7 @@ const DIGEST_SKIP_MESSAGES: Record<string, string> = {
 // For showing costs in won; an estimate, not an exchange-rate feed.
 const KRW_PER_USD = 1_400;
 
-export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string; demo?: string; prdReport?: string }> }) {
+export default async function IngestAdminPage({ searchParams }: { searchParams: Promise<{ status?: string; target?: string; newsletter?: string; sent?: string; reason?: string; digest?: string; kind?: string; duplicates?: string; failed?: string; prdModels?: string; demo?: string; prdReport?: string; review?: string }> }) {
   const supabase = await createClient();
   const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
   // Anyone who is not an admin, signed in or not, gets the same 404 as a page that does not exist.
@@ -100,8 +103,10 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
 
   const params = await searchParams;
   const service = createAdminClient();
-  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns, funnelRows, apiSpec, reports, lang] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service), loadFunnelRows(service), readApiSpec(), pendingPrdReports(), getLang()]);
+  const [allRuns, rejections, qualitySummary, recommendationQuality, prdPolicy, prdRuns, funnelRows, apiSpec, reports, lang, dbReviews] = await Promise.all([getIngestRuns(200), getIngestRejections(), getIngestQualitySummary(), getRecommendationQuality(), loadPrdPolicy(service), recentPrdRuns(service), loadFunnelRows(service), readApiSpec(), pendingPrdReports(), getLang(), readOpportunityReviews(service)]);
   const t = translator(lang);
+  const reviewRows = dbReviews ?? fallbackOpportunityReviews();
+  const reviewsFromDb = dbReviews !== null;
   const funnels = recentFunnels(funnelRows);
   const schemaGaps = apiSpec ? missingSchema(apiSpec) : null;
   const prdMenu = prdModels(prdPolicy);
@@ -296,6 +301,89 @@ export default async function IngestAdminPage({ searchParams }: { searchParams: 
                 </div>
               </div>
             ))}
+          </section>
+
+          <section id="opportunity-reviews" className="scroll-mt-24 border border-outline-soft bg-white p-5 md:p-6" aria-labelledby="opportunity-reviews-heading">
+            <h2 id="opportunity-reviews-heading" className="text-2xl font-bold text-ink">사람 검토 목록</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+              단일 제품 기능 요청이나 소프트웨어로 풀 문제가 아닌 항목을 숨기고, 주제와 맞지 않는 원문 인용을 뺍니다. 저장하면 배포 없이 사이트, MCP, 메일에 반영됩니다.
+              {!reviewsFromDb && ' (현재 DB 테이블을 읽지 못해 코드 상수 목록으로 동작 중입니다.)'}
+            </p>
+            {params.review && (
+              <p className={`mt-4 rounded-lg border px-4 py-3 text-sm font-semibold ${params.review === 'saved' || params.review === 'deleted' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                {params.review === 'saved'
+                  ? '검토 목록에 반영했습니다.'
+                  : params.review === 'deleted'
+                    ? '검토 항목을 삭제했습니다.'
+                    : `저장하지 못했습니다 (${params.review}). supabase/migrations/20261120010000_opportunity_reviews.sql 적용 여부를 확인하세요.`}
+              </p>
+            )}
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
+              <form action={hideOpportunityAction} className="grid gap-3 border border-outline-soft bg-surface-lowest p-4">
+                <h3 className="text-base font-bold text-ink">문제 숨기기</h3>
+                <label className="grid gap-1 text-sm text-ink">
+                  <span className="font-semibold">문제 슬러그 (slug)</span>
+                  <input name="slug" type="text" required placeholder="예: milvus-missing-now-function" className="border border-outline-soft bg-white px-3 py-2 text-sm text-ink" />
+                </label>
+                <label className="grid gap-1 text-sm text-ink">
+                  <span className="font-semibold">숨기는 이유</span>
+                  <input name="reason" type="text" required placeholder="예: 특정 벤더 전용 기능 요청" className="border border-outline-soft bg-white px-3 py-2 text-sm text-ink" />
+                </label>
+                <SubmitButton pendingText="숨기는 중" className="justify-self-start bg-ink px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">문제 숨기기</SubmitButton>
+              </form>
+
+              <form action={dropOpportunityQuoteAction} className="grid gap-3 border border-outline-soft bg-surface-lowest p-4">
+                <h3 className="text-base font-bold text-ink">인용 빼기</h3>
+                <label className="grid gap-1 text-sm text-ink">
+                  <span className="font-semibold">문제 슬러그 (slug)</span>
+                  <input name="slug" type="text" required placeholder="예: ai-agent-guardrails" className="border border-outline-soft bg-white px-3 py-2 text-sm text-ink" />
+                </label>
+                <label className="grid gap-1 text-sm text-ink">
+                  <span className="font-semibold">뺄 원문 문장</span>
+                  <input name="quote" type="text" required placeholder="원문에 들어 있는 문장 그대로 입력" className="border border-outline-soft bg-white px-3 py-2 text-sm text-ink" />
+                </label>
+                <label className="grid gap-1 text-sm text-ink">
+                  <span className="font-semibold">빼는 이유 (선택)</span>
+                  <input name="reason" type="text" placeholder="예: 다른 주제의 인용" className="border border-outline-soft bg-white px-3 py-2 text-sm text-ink" />
+                </label>
+                <SubmitButton pendingText="빼는 중" className="justify-self-start bg-ink px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90">인용 빼기</SubmitButton>
+              </form>
+            </div>
+
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="border-b border-outline-soft text-xs text-muted">
+                  <tr>
+                    <th className="py-2 pr-4 font-medium">종류</th>
+                    <th className="py-2 pr-4 font-medium">슬러그</th>
+                    <th className="py-2 pr-4 font-medium">내용 / 이유</th>
+                    <th className="py-2 text-right font-medium">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-soft">
+                  {reviewRows.map((row) => (
+                    <tr key={`${row.kind}:${row.slug}:${row.quote}`}>
+                      <td className="whitespace-nowrap py-2 pr-4 font-semibold text-ink">{row.kind === 'hide' ? '문제 숨김' : '인용 제외'}</td>
+                      <td className="whitespace-nowrap py-2 pr-4 font-mono text-xs text-ink">{row.slug}</td>
+                      <td className="py-2 pr-4 text-muted">
+                        {row.kind === 'drop_quote' && <q className="mr-2 text-ink">{row.quote}</q>}
+                        {row.reason && <span>({row.reason})</span>}
+                      </td>
+                      <td className="whitespace-nowrap py-2 text-right">
+                        {reviewsFromDb && (
+                          <form action={removeOpportunityReviewAction} className="inline">
+                            <input type="hidden" name="slug" value={row.slug} />
+                            <input type="hidden" name="kind" value={row.kind} />
+                            <input type="hidden" name="quote" value={row.quote} />
+                            <SubmitButton pendingText="삭제 중" className="text-xs font-semibold text-muted underline-offset-4 hover:text-ink hover:underline">되돌리기</SubmitButton>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section id="prd-models" className="scroll-mt-24 border border-outline-soft bg-white p-5 md:p-6">

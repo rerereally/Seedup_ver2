@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
+import { recommendToolkit } from '@/lib/opportunities/toolkit';
 import { EXPORT_FILES, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
@@ -607,7 +608,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     ['assumptions', t('가정', 'Assumptions'), Boolean(spec.assumptions?.length)],
     ['done', t('성공 지표', 'Success metrics'), true],
     ['questions', t('열린 질문', 'Open questions'), Boolean(spec.openQuestions?.length)],
+    ['toolkit', t('추천 도구와 점검', 'Tools and checks'), true],
   ] : [];
+  const toolkit = spec ? recommendToolkit(spec) : [];
   const bullets = (rows: string[]) => rows.length
     ? <ul className="mt-3 grid list-disc gap-1.5 pl-5 text-[15px] leading-7 marker:text-outline-strong">{rows.map((row) => <li key={row}>{row}</li>)}</ul>
     : <p className="mt-3 text-[15px] leading-7 text-muted">{t('정의되지 않음', 'Not defined')}</p>;
@@ -949,6 +952,27 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         {bullets(spec.openQuestions)}
                       </section>
                     ) : null}
+                    <section>
+                      <h4 id="prd-toolkit" className={h2}>{t('추천 도구와 점검', 'Tools and checks')}</h4>
+                      <p className="mt-1 text-[13px] text-muted">{t('검토한 목록에서 이 PRD의 내용에 맞는 것만 골랐습니다. 자동으로 설치하지 않으며, AGENTS.md에도 들어갑니다.', 'Picked from a reviewed list by the words in this PRD. Nothing is installed; the list also goes into AGENTS.md.')}</p>
+                      {(['build', 'before-deploy', 'after-deploy'] as const).map((stage) => {
+                        const rows = toolkit.filter((row) => row.tool.stage === stage);
+                        return rows.length ? (
+                          <div key={stage} className="mt-4">
+                            <p className="label">{stage === 'build' ? t('만들 때', 'While building') : stage === 'before-deploy' ? t('배포 전 점검', 'Before deploy') : t('배포 후 점검', 'After deploy')}</p>
+                            <ul className="mt-2 grid gap-2 text-[15px] leading-7">
+                              {rows.map(({ tool, features }) => (
+                                <li key={tool.id}>
+                                  <a href={tool.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-seed underline-offset-4 hover:underline">{tool.name}</a>
+                                  <span className="text-tertiary">: {t(tool.why[0], tool.why[1])}</span>
+                                  {features.length > 0 && <span className="ml-1 text-[13px] text-muted">({features.join(', ')})</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null;
+                      })}
+                    </section>
                     {spec.rivals?.length ? (
                       <section>
                         <h4 className={h2}>{t('이미 있는 도구가 못 하는 것', 'What existing tools miss')}</h4>

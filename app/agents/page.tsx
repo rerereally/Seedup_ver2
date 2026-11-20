@@ -82,7 +82,7 @@ export default async function AgentsPage() {
             </section>
           </aside>
         </div>
-        <AgentPackDownload projects={projects.map(({ key, title }) => ({ key, title }))} unavailable={packUnavailable} />
+        <AgentPackDownload projects={projects.map(({ key, title }) => ({ key, title }))} unavailable={packUnavailable} showStartPrompt />
       </WorkShell>
       <Footer />
     </>

@@ -9,8 +9,12 @@ import { readSavedSeedResult, saveSeedResult } from '@/lib/seeds/saved-result';
 import type { SavedSeedResult } from '@/lib/seeds/saved-result';
 import { inBatches } from '@/lib/utils';
 import PrdBuilder from '@/components/opportunity-stage/PrdBuilder';
+import { RepoGoalExit, repoSpecInput, saveRepoPrdProject } from '@/components/goal/RepoExit';
+import { useLang } from '@/components/LangProvider';
 import { usePrdModel } from '@/components/ModelPicker';
+import { translator } from '@/lib/i18n';
 import type { PrdModel } from '@/lib/opportunities/models';
+import type { Spec } from '@/lib/opportunities/spec';
 
 type RepoCard = {
   name: string;
@@ -130,6 +134,73 @@ function LinkList({ items, isFresh }: { items: SeedLink[]; isFresh: (href: strin
         </li>
       ))}
     </ul>
+  );
+}
+
+function RepoPrdExit({
+  login,
+  repo,
+  ideaSummary,
+  models,
+  loginNext,
+}: {
+  login: string;
+  repo: Pick<RepoCard, 'name' | 'description'>;
+  ideaSummary?: string;
+  models: PrdModel[];
+  loginNext: string;
+}) {
+  const t = translator(useLang());
+  const [spec, setSpec] = useState<Spec | null>(null);
+  const [projectKey, setProjectKey] = useState<string | null>(null);
+  const [goalLocked, setGoalLocked] = useState(false);
+  const [repoConnected, setRepoConnected] = useState(false);
+  const savedFor = useRef('');
+  const input = repoSpecInput(login, repo, ideaSummary);
+
+  const handleSpec = (next: Spec) => {
+    setSpec(next);
+    const repoKey = `${login}/${repo.name}`;
+    if (savedFor.current === repoKey) return;
+    savedFor.current = repoKey;
+    void saveRepoPrdProject({ login, repoName: repo.name, input, spec: next }).then((saved) => {
+      if (savedFor.current !== repoKey) return;
+      if (saved.projectKey) {
+        setProjectKey(saved.projectKey);
+        setRepoConnected(saved.repoConnected);
+      } else {
+        savedFor.current = '';
+      }
+    });
+  };
+
+  return (
+    <div className="min-w-0">
+      <PrdBuilder
+        models={models}
+        title={input.title}
+        projectKey={projectKey ?? undefined}
+        evidenceIds={[]}
+        ready
+        loginNext={loginNext}
+        endpoint="/api/seeds"
+        requestBody={{ user: login, repo: repo.name }}
+        generateLabel={t('이 저장소로 PRD·기능 명세 만들기', 'Make a PRD & feature spec for this repo')}
+        onSpec={handleSpec}
+      />
+      {spec && (
+        <RepoGoalExit
+          login={login}
+          repoName={repo.name}
+          input={input}
+          spec={spec}
+          projectKey={projectKey}
+          goalLocked={goalLocked}
+          repoConnected={repoConnected}
+          onLocked={setGoalLocked}
+        />
+      )}
+    </div>
   );
 }
 
@@ -384,15 +455,13 @@ export default function SeedAdvisor({ run, onStatus, loginNext = '/prd/repo', se
             )}
 
             <Section title="PRD·기능 명세 만들기" note="README·파일 구조와 가까운 기회의 원문으로 기존 구조 + 새 기능 명세를 만듭니다">
-              <PrdBuilder
+              <RepoPrdExit
+                key={`${result.login}/${repo.name}`}
+                login={result.login}
+                repo={repo}
+                ideaSummary={idea?.summary}
                 models={models}
-                title={`${repo.name} 역기획`}
-                evidenceIds={[]}
-                ready
                 loginNext={loginNext}
-                endpoint="/api/seeds"
-                requestBody={{ user: result.login, repo: repo.name }}
-                generateLabel="이 저장소로 PRD·기능 명세 만들기"
               />
             </Section>
 

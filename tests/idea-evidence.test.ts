@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { phrasePrompt, searchIdeaEvidence, searchIdeaEvidenceWithRetry, termsOf } from '../lib/opportunities/idea-evidence';
+import { fallbackPhrases, phrasePrompt, searchIdeaEvidence, searchIdeaEvidenceWithRetry, termsOf } from '../lib/opportunities/idea-evidence';
 
 type FakePost = { platform: 'github' | 'hn' | 'stackoverflow' | 'web'; url: string; title: string; text: string; score: number; postedAt: null };
 type FakeStored = { id: string; platform: 'github' | 'hn' | 'stackoverflow' | 'web'; quote: string; quoteKo: string; url: string; score: number; postedAt: null; terms: string[] };
@@ -222,11 +222,34 @@ test('the retry does not run when the first search already passes the bar', asyn
   assert.equal(new Set(result.quotes.map((row) => row.platform)).size, 2);
 });
 
-test('a null phrase answer returns an empty result and never searches', async () => {
+test('a null phrase answer (output spent on reasoning) still searches, on phrases made from the idea', async () => {
   const { sources, calls } = fakeSources({ phrase: () => null });
   const result = await searchIdeaEvidence(IDEA, {}, sources);
-  assert.deepEqual(result, { phrases: [], quotes: [], reused: 0, sites: [] });
-  assert.equal(calls.demand.length, 0);
+  assert.equal(result.fallback, true);
+  assert.deepEqual(result.phrases, ['Zarnoff ledger freelancers', 'Zarnoff ledger for freelancers']);
+  assert.deepEqual(calls.demand.map((row) => row.phrase), result.phrases);
+});
+
+test('the Slack digest idea in Korean, with no phrase from the model, searches its product names and its own words', async () => {
+  const idea = '저장소 이슈를 요약해 매일 팀 Slack으로 보내는 자동화 도구';
+  const { sources, calls } = fakeSources({ phrase: () => ({ phrases: [] }) });
+  const result = await searchIdeaEvidence(idea, {}, sources);
+  assert.ok(calls.demand.length >= 1 && calls.demand.length <= 3);
+  assert.ok(result.phrases.includes('Slack'));
+  assert.equal(result.fallback, true);
+});
+
+test('fallback phrases skip what an earlier search tried and stay within the phrase limit', () => {
+  assert.deepEqual(fallbackPhrases('GitHub issue digest to Slack', ['GitHub issue digest Slack']), ['GitHub issue digest to Slack']);
+  assert.deepEqual(fallbackPhrases('   '), []);
+  assert.ok(fallbackPhrases('a b c d e f g h i j').length <= 3);
+});
+
+test('a model answer with phrases is used as before, without the fallback mark', async () => {
+  const { sources } = fakeSources({ phrase: phraseAnswer(['ledger sync lost']) });
+  const result = await searchIdeaEvidence(IDEA, {}, sources);
+  assert.equal(result.fallback, undefined);
+  assert.deepEqual(result.phrases, ['ledger sync lost']);
 });
 
 test('the default sources skip App Store reviews unless APP_REVIEW_EVIDENCE=true', async () => {

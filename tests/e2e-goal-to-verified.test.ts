@@ -517,6 +517,8 @@ test('full E2E loop: three entries → goal lock → agent start prompt → MCP 
       specAvailable: true,
       drift: driftForProject(commits, spec, goal, progress),
       decisions: memory.decisions,
+      handoffs: memory.handoffs,
+      verifications: [],
       files: [],
     };
     assert.deepEqual(detail.drift, []);

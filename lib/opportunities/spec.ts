@@ -414,7 +414,7 @@ export function renderSpecMarkdown(input: SpecInput, spec: Spec) {
   const strength = (row: SpecRequirement) => t(...EVIDENCE_STRENGTH_LABELS[evidenceStrengthFor(row.evidence, input.evidence)]);
   const labeled = (value: string) => prdSentenceKinds(value, input)
     .map(({ kind, text }) => `[${t(...PRD_SENTENCE_LABELS[kind])}] ${citeTags(text)}`).join(' ');
-  const acceptance = (row: SpecRequirement) => (row.acceptance?.length ? `\n${row.acceptance.map((line) => `- ${t('수락 기준', 'Acceptance')}: ${line}`).join('\n')}` : '');
+  const acceptance = (row: SpecRequirement) => (row.acceptance?.length ? `\n${row.acceptance.map((line) => `- [ ] ${t('수락 기준', 'Acceptance')}: ${line}`).join('\n')}` : '');
   const priority = (row: SpecRequirement) => (row.priority ? `[${row.priority}] ` : '');
   const requirements = spec.requirements.map((row) => `### ${row.id}. ${priority(row)}${row.title}\n${row.detail ? `${row.detail}\n` : ''}${acceptance(row)}\n\n${t('근거', 'Evidence')}: ${cite(row.evidence)} · ${strength(row)}`).join('\n\n');
   const features = spec.features.map((row) => `### ${row.id}. ${row.title}\n${row.detail}\n\n${t('충족하는 요구사항', 'Serves')}: ${row.requirementIds.join(', ')}${row.slots ? `\n\n${t('개발 준비 슬롯', 'Development readiness slots')}\n${slotLines(row.slots, english, lang)}` : ''}`).join('\n\n');
@@ -453,6 +453,8 @@ ${evidenceSection(input.evidence, lang)}
 `;
 }
 
+const ISSUE_HANDOFF = 'If Linear or GitHub MCP is connected, create issues for the features above before implementation using each exact F-n title, then start with P0 and report progress through Seedup MCP when connected. Skip issue creation if neither Linear nor GitHub MCP is connected.';
+
 /** A brief an AI coding tool follows directly. The three formats share one body so they never drift apart. */
 export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFormat = 'agents', opportunitySlug?: string) {
   if (format === 'prompt') return renderBuilderPrompt(input, spec);
@@ -462,10 +464,11 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
     // Cursor reads project rules from .cursor/rules/*.mdc; this front matter applies the rule to every request.
     cursor: `---\ndescription: Product spec for ${input.title.replace(/\s+/g, ' ')}\nalwaysApply: true\n---\n\n# ${input.title}: Cursor rules\n\nYou are working in a project defined by the spec below. Follow it exactly.`,
   };
+  const p0 = p0FeatureIds(spec);
   const tasks = spec.features.map((feature) => {
     const requirements = feature.requirementIds.map((rid) => spec.requirements.find((row) => row.id === rid)).filter(Boolean);
     const accept = requirements.flatMap((row) => row!.acceptance ?? []);
-    return `- [ ] ${feature.id}. ${feature.title}: ${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
+    return `- [ ] ${feature.id} ${feature.title}\n  - ${p0.has(feature.id) ? '(P0) ' : ''}${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
   const flow = mermaidFlow(spec);
@@ -498,6 +501,7 @@ ${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.
 
 ## User evidence
 ${evidenceSection(input.evidence, 'en')}
+${spec.features.length ? `\n${ISSUE_HANDOFF}\n` : ''}
 `;
 }
 
@@ -507,7 +511,8 @@ ${evidenceSection(input.evidence, 'en')}
  */
 export function renderBuilderPrompt(input: SpecInput, spec: Spec) {
   const rows = spec.features.length ? spec.features : spec.requirements;
-  const features = rows.map((row, index) => `${index + 1}. ${row.title}: ${row.detail}`).join('\n');
+  const p0 = p0FeatureIds(spec);
+  const features = rows.map((row) => `- ${row.id} ${row.title}\n  ${p0.has(row.id) ? '(P0) ' : ''}${row.detail}`).join('\n');
   const quotes = input.evidence.slice(0, 3).map((item) => `- "${item.quote}"`).join('\n');
   const screens = spec.screens.map((row) => `- ${row.name}${row.does ? `: ${row.does}` : ''}`).join('\n');
   return `Build a simple web app: ${input.title}.
@@ -524,5 +529,6 @@ Do not build yet:
 ${bullets(spec.nonGoals, 'Anything not listed above.')}
 
 Keep it simple: no sign-up unless a feature needs it, use sample data first, and ask me before adding payments or outside APIs.
+${spec.features.length ? `\n${ISSUE_HANDOFF}\n` : ''}
 `;
 }

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { findEvidence, getOpportunities, leadOpportunity } from '@/lib/opportunities/data';
 import { readLiveEvidence, safeSourceUrl } from '@/lib/opportunities/live-evidence';
-import { deleteDossier, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
+import { deleteDossier, hasSharedDossier, saveDossier, updateSavedPrd } from '@/lib/db/dossiers';
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
@@ -58,7 +58,9 @@ export async function POST(request: Request) {
     console.error('Dossier save failed', error.message);
     return NextResponse.json({ error: '저장하지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }
-  return NextResponse.json({ ok: true, id: saved.id });
+  // A missing sharing column must not prevent saving a PRD.
+  const sharePath = prd && await hasSharedDossier(supabase, data.user.id, saved.id) ? `/spec/${saved.id}` : null;
+  return NextResponse.json({ ok: true, id: saved.id, sharePath });
 }
 
 export async function DELETE(request: Request) {

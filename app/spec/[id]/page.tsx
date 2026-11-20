@@ -3,22 +3,37 @@ import Footer from '@/components/Footer';
 import Logo from '@/components/Logo';
 import PrdReportForm from '@/components/PrdReportForm';
 import { sharedPrd } from '@/lib/db/dossiers';
+import { savedPrdPreview } from '@/lib/opportunities/prd-share';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import SpecActions from './SpecActions';
 
-export const metadata: Metadata = {
-  title: '공유된 PRD',
-  robots: { index: false, follow: false },
-};
+const robots = { index: false, follow: false };
+type SharedSpecProps = { params: Promise<{ id: string }> };
 
 /** A PRD its owner chose to share. Read with the service role, and only when the owner turned sharing on. */
-async function getSharedSpec(id: string) {
+const getSharedSpec = cache(async (id: string) => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   return sharedPrd(id);
+});
+
+export async function generateMetadata({ params }: SharedSpecProps): Promise<Metadata> {
+  const { id } = await params;
+  const spec = await getSharedSpec(id);
+  if (!spec) return { title: '공유된 PRD', robots };
+  const title = `${spec.title} PRD`;
+  const description = Array.from(savedPrdPreview(spec.prd_markdown).summary || title).slice(0, 200).join('');
+  return {
+    title,
+    description,
+    robots,
+    openGraph: { title, description, url: `/spec/${id}`, siteName: 'Seedup', type: 'website' },
+    twitter: { card: 'summary', title, description },
+  };
 }
 
-export default async function SharedSpecPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SharedSpecPage({ params }: SharedSpecProps) {
   const { id } = await params;
   const spec = await getSharedSpec(id);
   if (!spec) notFound();

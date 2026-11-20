@@ -1,9 +1,11 @@
 'use client';
 
 import { downloadText } from '@/components/opportunity-stage/download';
+import PrdSend, { NotionImportHint } from '@/components/opportunity-stage/PrdSend';
 import { builtReply } from '@/lib/opportunities/outreach';
+import { savedPrdPreview } from '@/lib/opportunities/prd-share';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 /** Read, copy, download or delete a saved evidence dossier from the 북마크 card. */
 export default function DossierPrd({ id, title, markdown, shared: initiallyShared = false, listed: initiallyListed = false, built: initiallyBuilt = null, quotes = [] }: { id: string; title: string; markdown: string | null; shared?: boolean; listed?: boolean; built?: { url: string; note: string } | null; quotes?: Array<{ quote: string; url: string }> }) {
@@ -16,6 +18,7 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
   const sharePath = `/spec/${id}`;
   const [built, setBuilt] = useState(initiallyBuilt);
   const [savingBuilt, setSavingBuilt] = useState(false);
+  const preview = useMemo(() => markdown ? savedPrdPreview(markdown) : null, [markdown]);
 
   // "I built this": the link goes public under the problem, and the people who described it get a reply to post by hand.
   const saveBuilt = async (next: { url: string; note: string } | null) => {
@@ -115,14 +118,16 @@ export default function DossierPrd({ id, title, markdown, shared: initiallyShare
           <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words border-t border-outline-soft px-4 py-3 font-sans text-[13px] leading-6 text-ink">{markdown}</pre>
         </details>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="relative mt-3 flex flex-wrap items-center gap-2">
         {markdown && <button type="button" className="btn-quiet" onClick={copy}>마크다운 복사</button>}
         {markdown && <button type="button" className="btn-quiet" onClick={() => downloadText('PRD.md', markdown)}>PRD.md 받기</button>}
         {markdown && <button type="button" className="btn-quiet" disabled={sharing} aria-pressed={shared} onClick={() => void toggleShare()}>{shared ? '공유 링크 끄기' : '공유 링크 만들기'}</button>}
         {markdown && <button type="button" className="btn-quiet" disabled={sharing} aria-pressed={listed} onClick={() => void toggleList()}>{listed ? '공개 목록에서 내리기' : '공개 목록에 올리기'}</button>}
         {markdown && shared && <a href={sharePath} target="_blank" rel="noopener noreferrer" className="btn-quiet">공유 화면 열기</a>}
+        {preview && <PrdSend title={title} {...preview} sharePath={shared ? sharePath : undefined} />}
         <button type="button" className="btn-quiet" disabled={deleting} onClick={remove}>{deleting ? '지우는 중' : '삭제'}</button>
       </div>
+      {markdown && <div className="mt-2"><NotionImportHint /></div>}
       {markdown && (
         <details className="mt-3 rounded-xl border border-outline-soft">
           <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-seed">{built ? '만든 것과 원문 작성자에게 보낼 답글' : '이걸로 만들었어요'}</summary>

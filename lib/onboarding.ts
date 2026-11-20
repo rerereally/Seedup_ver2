@@ -49,6 +49,11 @@ export const onboardingQuestions = [
 
 export type OnboardingAnswers = Record<string, string | string[]>;
 
+export function preferredStack(answers: unknown) {
+  const stack = (answers as Partial<OnboardingAnswers> | null)?.preferred_stack;
+  return [stack].flat().filter((value): value is string => typeof value === 'string' && Boolean(value.trim()) && value !== '아직 모르겠음');
+}
+
 /** 입문자·초보자 answers to the level question; they get a smaller, plain-language PRD. */
 export function isBeginner(answers: unknown) {
   const level = (answers as Record<string, unknown> | null | undefined)?.level;

@@ -1,61 +1,77 @@
 'use client';
 
+import { useLang } from '@/components/LangProvider';
 import MarkdownContent from '@/components/MarkdownContent';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
+import { translator } from '@/lib/i18n';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-type Report = { markdown: string; verdict: { level: string } };
+type Report = { markdown: string };
 
-// The report is plain Markdown with bare addresses; the renderer links only [text](url), so each address becomes one, named by its site.
+// Convert the report's plain source addresses into links named by their host.
 const linkify = (markdown: string) => markdown.replace(/(^|\s)(https?:\/\/[^\s)]+)/g, (_, space: string, url: string) => {
-  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return '링크'; } })();
-  return `${space}[${host}](${url})`;
+  try {
+    return `${space}[${new URL(url).hostname.replace(/^www\./, '')}](${url})`;
+  } catch {
+    return space + url;
+  }
 });
 
-/** The evidence-based check for one idea: real quotes, rival tools, build size and first users (POST /api/opportunities/report). */
-export default function ValidationReportPanel({ idea, isLoggedIn }: { idea: string; isLoggedIn: boolean }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+export default function ValidationReportPanel({ idea, isLoggedIn, onComplete }: { idea: string; isLoggedIn: boolean; onComplete: () => void }) {
+  const lang = useLang();
+  const t = translator(lang);
+  const active = useRef<AbortController | null>(null);
+  const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
-  const [checked, setChecked] = useState('');
   const text = idea.trim();
+  useEffect(() => () => active.current?.abort(), []);
 
   const run = async () => {
-    setState('loading');
+    if (active.current) return;
+    const controller = new AbortController();
+    active.current = controller;
+    setLoading(true);
     setError('');
-    const response = await fetch('/api/opportunities/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text }) }).catch(() => null);
-    const body = await response?.json().catch(() => null) as (Report & { error?: string }) | null;
-    if (!response?.ok || !body?.markdown) {
-      setState('error');
-      setError(body?.error ?? '리포트를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
-      return;
+    try {
+      const response = await fetch('/api/opportunities/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea: text, lang }), signal: controller.signal });
+      const body = await response.json().catch(() => null) as (Report & { error?: string }) | null;
+      if (controller.signal.aborted) return;
+      if (!response.ok || !body?.markdown) {
+        setError(body?.error ?? t('리포트를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not make the report. Try again shortly.'));
+        return;
+      }
+      setReport(body);
+      onComplete();
+    } catch {
+      if (!controller.signal.aborted) setError(t('연결이 끊겼습니다. 잠시 뒤 다시 시도해 주세요.', 'The connection was interrupted. Try again shortly.'));
+    } finally {
+      active.current = null;
+      if (!controller.signal.aborted) setLoading(false);
     }
-    setReport(body);
-    setChecked(text);
-    setState('done');
   };
 
   return (
     <section aria-labelledby="validation-report" className="card p-6 md:p-7">
-      <h2 id="validation-report" className="text-lg font-semibold text-ink">원문으로 검증하기</h2>
-      <p className="mt-1.5 text-sm leading-6 text-muted">검증 리포트는 GitHub 이슈, Hacker News, Stack Overflow에서 이 문제를 겪는 사람의 글을 찾아 원문과 글자 그대로 맞는 문장만 담고, 이미 있는 도구와 첫 사용자 후보를 함께 보여 줍니다. 1분 정도 걸리고 하루 3번까지 만들 수 있습니다.</p>
+      <h2 id="validation-report" className="text-lg font-semibold text-ink">{t('검증 리포트', 'Validation report')}</h2>
+      <p className="mt-1.5 text-sm leading-6 text-muted">{t('실패할 이유와 원문, 기존 도구, 첫 인터뷰 후보를 확인합니다. 하루 3번까지 실행할 수 있습니다.', 'Review what could go wrong, source quotes, competing tools, and potential interviewees. Up to three reports per day.')}</p>
       {!isLoggedIn ? (
-        <Link href="/login?next=/ideas" className="btn mt-4 h-11 px-5">로그인하고 검증 리포트 만들기</Link>
+        <Link href={`/login?next=${encodeURIComponent(`/prd/validate?idea=${encodeURIComponent(text)}`)}`} className="btn mt-4 h-11 px-5">{t('로그인하고 검증하기', 'Sign in to validate')}</Link>
       ) : (
-        <button type="button" className="btn mt-4 h-11 px-5" onClick={() => void run()} disabled={state === 'loading' || text.length < 4}>
-          {state === 'loading' ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />원문을 찾는 중</> : state === 'done' && checked === text ? '다시 만들기' : '검증 리포트 만들기'}
+        <button type="button" className="btn mt-4 h-11 px-5" onClick={() => void run()} disabled={loading || text.length < 4}>
+          {loading ? <><Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin motion-reduce:animate-none" />{t('원문을 찾는 중', 'Searching sources')}</>
+            : report ? t('다시 만들기', 'Run again') : t('검증 리포트 만들기', 'Create validation report')}
         </button>
       )}
-      {state === 'error' && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
-      {state === 'done' && report && (
+      {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
+      {report && (
         <div className="mt-6 border-t border-outline-soft pt-5">
-          {/* The first line repeats the idea as a title; this section already names it. */}
           <MarkdownContent content={linkify(report.markdown.split('\n').slice(1).join('\n'))} />
           <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-outline-soft pt-5">
-            <Link href={`/prd/new?idea=${encodeURIComponent(checked)}`} className="btn h-10 px-4 text-sm">이 아이디어로 PRD 만들기</Link>
-            <WatchIdeaButton idea={checked} />
+            <Link href={`/prd/new?idea=${encodeURIComponent(text)}`} className="btn h-10 px-4 text-sm">{t('이 아이디어로 PRD 만들기', 'Make a PRD from this idea')}</Link>
+            <WatchIdeaButton idea={text} />
           </div>
         </div>
       )}

@@ -23,6 +23,8 @@
 | [prd-builder-split.md](prd-builder-split.md) | PRD 화면(`PrdBuilder`) 나누기 리팩터링 계획 | 현행 (시작 전) |
 | [trend-and-recommendation-review.md](trend-and-recommendation-review.md) | 트렌드 수집과 추천 알고리즘 평가 | 현행 |
 | [prompts/astra-planning.md](prompts/astra-planning.md) | Astra 시작 프롬프트: 계획 세션 이어받기(총괄 · 계획 보조) | 현행 |
+| [prompts/codex-s2-a2.md](prompts/codex-s2-a2.md) | Codex 시작 프롬프트: 단계 2 A2 (`verify_feature` 서버 검증 연결, 완료 게이트) | 현행 |
+| [prompts/antigravity-s2-a3.md](prompts/antigravity-s2-a3.md) | Antigravity 시작 프롬프트: 단계 2 A3 (불량 diff · 오탐률 · 데모) | 현행 |
 | [prompts/codex-s2-b1.md](prompts/codex-s2-b1.md) | Codex 시작 프롬프트: 단계 2 B1 (서버 검증 단순형, 0-4 A안) | 현행 |
 | [prompts/codex-s2-b2.md](prompts/codex-s2-b2.md) | Codex 시작 프롬프트: 단계 2 B2 (최소 `/supervisor` · `/agents` 스타터 팩) | 현행 |
 | [prompts/codex-s1-a2.md](prompts/codex-s1-a2.md) | Codex 시작 프롬프트: 단계 1 A2 (MCP 목표 연결 · 공유 메모리 도구) | 현행 (A1 · B1 머지 뒤 사용) |

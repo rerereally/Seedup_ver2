@@ -1,12 +1,12 @@
 # Seedup 상태
 
-마지막 갱신 2026-11-20(오후). 계획은 [supervisor-plan.md](supervisor-plan.md)(최상위 계획)를 따르고, 이 파일은 **지금 어디까지 왔는지만** 적습니다. 날짜별 진행 기록 파일은 따로 만들지 않고 이 파일을 고칩니다. 바꿀 때는 맨 위 날짜를 고치고, 숫자는 아래 "확인 방법"으로 직접 다시 셉니다.
+마지막 갱신 2026-11-20(저녁). 계획은 [supervisor-plan.md](supervisor-plan.md)(최상위 계획)를 따르고, 이 파일은 **지금 어디까지 왔는지만** 적습니다. 날짜별 진행 기록 파일은 따로 만들지 않고 이 파일을 고칩니다. 바꿀 때는 맨 위 날짜를 고치고, 숫자는 아래 "확인 방법"으로 직접 다시 셉니다.
 
 ## 1. 지금 상태
 
 | 항목 | 상태 | 확인 방법 |
 | :--- | :--- | :--- |
-| 머지된 PR | #79~#137, #139~#142. #141은 발표 문서, #142는 단계 1 A2, #140은 단계 2 A1 일부 | `gh pr list --state merged --limit 20` |
+| 머지된 PR | #79~#137, #139~#154. 최근: #149 단계 1 보완, #151 단계 2 B1 서버 검증, #153 단계 2 B2 대시보드 · 스타터 팩, #152 · #154 계획 묶음 | `gh pr list --state merged --limit 20` |
 | 열린 PR | 갱신 시점 기준 기능 PR 없음 | `gh pr list` |
 | 문서 | 최상위 계획 · 상태 · 문서 목록 · 결정 기록 · 작업 규약(`CONTRIBUTING.md`) 갖춤. 낡은 문서 17개는 `docs/archive/`. 단계 1 A2 · A3 시작 프롬프트는 `docs/prompts/` | [README.md](README.md) |
 | 역할 | 장차희 총괄 · 계획, 정지훈 기술 구현 · 머지 · 운영 DB 마이그레이션 적용. 정지훈이 맡긴 Claude Code 머지 세션은 4절 점검 조건을 따름(마이그레이션 PR과 자기 PR 제외) | `CONTRIBUTING.md` 1 · 4 · 7절 |
@@ -14,7 +14,7 @@
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
-| DB 마이그레이션 | 31개(main 기준). 운영에 `section_views` · `supervisor_projects` 적용됨(정지훈, `check-schema` 확인). B1 PR #151의 `20261120160000_verifications.sql`은 머지 때 적용 필요 | `ls supabase/migrations`, `check-schema` |
+| DB 마이그레이션 | 32개(main 기준). 운영에 `section_views` · `supervisor_projects` 적용됨. `20261120160000_verifications.sql`(#151)은 적용 확인 대기(정지훈) | `ls supabase/migrations`, `check-schema` |
 | 단위 테스트 | 349개(53개 파일). #140에서 8개, #142에서 7개 추가. 최신 `main` 전체 실행 결과는 CI에서 확인 | `npm test` |
 | MCP | 도구 22개, 프롬프트 4개, 리소스 2개 | `lib/mcp/server.ts` |
 
@@ -43,15 +43,15 @@
 | 1 | A3 기준 측정 · 발표 서사 | 정지훈 · Antigravity | PR #136 · #141 머지(일부 완료) | 기준 측정과 10분 발표 · 5분 질의응답 대본, 발표 전략 반영. PR 보고상 운영 저장 PRD 표본 없음. 목표 도달률 계산은 남음 |
 | 1 | B1 저장(프로젝트 · 목표 버전 · 공유 메모리) | Claude Code(기술 책임 정지훈) | PR #131 머지 | 공유 타입 반영. 정지훈이 운영 마이그레이션 `20261120150000_supervisor_projects.sql` 적용 여부 확인 |
 | 1 | B2 기획 탭 목표 카드와 잠금 화면 | Codex(기술 책임 정지훈) | PR #133 머지(Claude Code 세션이 대신 진행) | B1 뒤에 머지. 로그인 상태 실제 저장 확인과 원문 0건 PRD의 저장 ID 전달이 남음 |
-| 1 보완 | 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시 | 정지훈 · Claude Code | 계획 반영(시작 전) | 단계 2 A2보다 먼저 머지(`lib/mcp/server.ts` 겹침) |
+| 1 보완 | 목표 재잠금 → 기능 재확인, 목표 카드 A1 판정 · 성공 기준 id 버그, 사람이 먼저 할 일 표시 | 정지훈 · Claude Code | PR #149 머지 | |
 | 2 2단 검증 · 이탈 검사 | A1 정적 검사 · 검증 토큰 · 이탈 규칙 | 정지훈 · Claude Code | PR #140 머지(일부) | 계획 순서와 달리 단계 1 A2(#142)보다 앞서 머지. 로컬 훅 1단 검사는 남음 |
-| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 전 | |
-| 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 전 | |
-| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 열림(계획 칸 확인 완료) | 머지 때: 운영 마이그레이션, `VERIFIER_MODELS`=GPT 6.2 Sol · Haiku 5.5, OpenRouter data_collection deny 지원 확인, 처리방침에 검증 모델 이름 반영(아래 후속), costUsd는 아직 0 |
-| 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 열림(계획 칸 확인 완료) | 마이그레이션 없음. 지금 신호등은 모두 ⚪(검증 수준 필드는 단계 2 보완 ②) |
+| 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 가능 | [프롬프트](prompts/codex-s2-a2.md). B1 · B2 · 1 보완 머지됨 |
+| 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 가능 | [프롬프트](prompts/antigravity-s2-a3.md). 코드 변경 없음(측정 · 데모 · 문서) |
+| 2 | B1 서버 검증(단순형) | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #151 머지 | 운영 `20261120160000_verifications.sql` 적용 확인 대기(정지훈), `VERIFIER_MODELS` 설정, OpenRouter data_collection deny · 6.2 호출 확인, costUsd는 아직 0 |
+| 2 | B2 `/supervisor` 대시보드 · `/agents` 스타터 팩 | Codex(GPT 6.1 Sol, 장차희 계획 세션이 지시 · 기술 책임 정지훈) | PR #153 머지 | 신호등은 아직 모두 ⚪(검증 수준 필드는 2 보완 ②). 알리기 전 베타 표시 또는 숨김(단계 0) |
 | 2 | MCP 화면 · 응답 기준(DESIGN.md 8절) | 초안 정지훈 · 확정 계획 세션 | 완료(#147 초안, 확정 2026-11-20) | A2 · B2 응답 · 카드가 이 기준을 따름 |
-| 2 보완 | 프로젝트 목록 함수, 기능별 검증 수준(🟢 · 🔵 · ⚪), pre-commit, 이탈 입력 보강 | 정지훈 | 계획 반영(시작 전) | #151 · #153 머지 뒤. ② · ④는 A2 뒤, ②는 마이그레이션 포함 |
-| 2 | 9절 확인 조사 | Codex(장차희 지시) | B2 뒤 시작 | 코드 변경 없음 |
+| 2 보완 | 프로젝트 목록 함수, 기능별 검증 수준(🟢 · 🔵 · ⚪), pre-commit, 이탈 입력 보강 | 정지훈 | 시작 가능(①, ③). ② · ④는 A2 뒤 | ②는 마이그레이션 포함 |
+| 2 | 9절 확인 조사 | Codex(장차희 지시) | 시작 가능(B2 끝남) | 코드 변경 없음 |
 
 ## 3. 결정 대기
 

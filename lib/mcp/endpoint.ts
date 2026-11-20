@@ -17,7 +17,7 @@ import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
-import { saveDossier, saveIdeaDraft, setIdeaDraftPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { saveDossier, saveIdeaDraft, setIdeaDraftPrd, updateSavedPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
 import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
@@ -129,7 +129,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         prd_markdown: renderSpecMarkdown(result.input, result.spec),
       });
     },
-    fillSlots: async (cached, featureId) => {
+    fillSlots: async (cached, featureId, key) => {
       const feature = cached.spec.features.find((row) => row.id === featureId);
       if (!feature) return null;
       const rows = [...cached.spec.requirements, ...cached.spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
@@ -140,7 +140,17 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
       ]);
       if (!slots) return null;
       const spec = { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots } : row)) };
-      await writePrdCache(service, cached.input.evidence.map((item) => item.id), cached.input, spec);
+      if (key.startsWith('prd:')) {
+        // A personal PRD stays on its owner's row; the shared cache must never hold it. A failed save still returns the slots.
+        try {
+          const { error } = await updateSavedPrd(service, userId, key.slice(4), { prd_markdown: renderSpecMarkdown(cached.input, spec), updated_at: new Date().toISOString() });
+          if (error) throw error;
+        } catch (error) {
+          console.error('MCP personal slot save failed', error);
+        }
+      } else {
+        await writePrdCache(service, cached.input.evidence.map((item) => item.id), cached.input, spec);
+      }
       return { input: cached.input, spec };
     },
     myPrds: async (limit): Promise<SavedPrdSummary[]> => {
@@ -151,6 +161,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         opportunitySlug: row.opportunity_slug,
         evidenceCount: Array.isArray(row.evidence_ids) ? row.evidence_ids.length : 0,
         updatedAt: row.updated_at,
+        hasPrd: Boolean(row.prd_markdown),
       }));
     },
     myPrd: readMyPrd,

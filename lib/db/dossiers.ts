@@ -119,16 +119,19 @@ export type UserDossierPrd = {
   updated_at: string;
 };
 
-/** Saved PRDs owned by one user (service-role lookup for personal MCP tokens). */
-export async function userPrds(service: SupabaseClient, userId: string, limit = 20): Promise<UserDossierPrd[]> {
+/** A row from userPrds: null markdown means a draft (validate_idea quotes with no PRD yet). */
+export type UserDossierRow = Omit<UserDossierPrd, 'prd_markdown'> & { prd_markdown: string | null };
+
+/** Saved PRDs and idea drafts owned by one user (service-role lookup for personal MCP tokens). */
+export async function userPrds(service: SupabaseClient, userId: string, limit = 20): Promise<UserDossierRow[]> {
   const { data, error } = await service
     .from('evidence_dossiers')
     .select('id,title,opportunity_slug,evidence_ids,evidence,prd_markdown,updated_at')
     .eq('user_id', userId)
-    .not('prd_markdown', 'is', null)
+    .or('prd_markdown.not.is.null,opportunity_slug.is.null')
     .order('updated_at', { ascending: false })
     .limit(limit);
-  return error ? [] : ((data ?? []) as UserDossierPrd[]);
+  return error ? [] : ((data ?? []) as UserDossierRow[]);
 }
 
 /** One saved PRD owned by the user (service-role lookup for personal MCP tokens). */

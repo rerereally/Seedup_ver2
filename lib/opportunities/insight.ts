@@ -161,11 +161,13 @@ export function dossierChanges(savedEvidenceIds: string[], savedAt: string, oppo
  * Where a saved PRD reopens: its opportunity's workspace, or the workspace over the quotes it was made from.
  * The workspace 404s when none of the quotes are left, so those fall back to bookmarks, where the saved markdown is.
  */
-export function dossierHref(dossier: { opportunity_slug: string | null; evidence_ids: string[] }, opportunities: Opportunity[]): string {
+export function dossierHref(dossier: { id?: string; opportunity_slug: string | null; evidence_ids: string[] }, opportunities: Opportunity[]): string {
   if (dossier.opportunity_slug && opportunities.some((item) => item.slug === dossier.opportunity_slug)) return `/prd?opportunity=${encodeURIComponent(dossier.opportunity_slug)}`;
   const known = new Set(opportunities.flatMap((item) => item.evidence.map((row) => row.id)));
   const ids = dossier.evidence_ids.filter((id) => known.has(id));
-  return ids.length ? `/prd?evidence=${encodeURIComponent(ids.join(','))}` : '/scrap';
+  if (ids.length) return `/prd?evidence=${encodeURIComponent(ids.join(','))}`;
+  // A PRD from quotes found live (validate_idea, MCP) matches no opportunity: its project page shows it.
+  return dossier.id ? `/supervisor/${encodeURIComponent(`prd:${dossier.id}`)}` : '/scrap';
 }
 
 export type TrackRecordSummary = { hits: number; total: number; rate: number; tools: number; medianLeadDays: number; maxLeadDays: number };

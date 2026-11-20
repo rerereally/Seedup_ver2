@@ -866,6 +866,26 @@ const OPPORTUNITY_TOOLS = new Set([
 
 const SUPERVISOR_TOOLS = new Set(['resume_project', 'setup_project', 'connect_repo', 'check_env', 'record_decision', 'save_handoff', 'get_project_memory']);
 
+/** The project page, plus the planning page when it is a different one (public opportunities). */
+const webPages = (siteUrl: string, key: string) => {
+  const project = supervisorPage(siteUrl, key);
+  const planning = projectPage(siteUrl, key);
+  return planning === project ? project : `${project} (planning: ${planning})`;
+};
+
+const webLine = (siteUrl: string, key: string) =>
+  `On the web (goal, features, verifications; in the Claude desktop app, open it in the browser pane): ${supervisorPage(siteUrl, key)}`;
+
+/**
+ * Every successful project tool call on a personal PRD ends with its web page, so what the agent did can be seen there.
+ * Public opportunity keys are left out: their project page exists only once the user starts tracking one.
+ */
+export function withWebLink(result: ToolResult, name: string, args: Record<string, unknown>, siteUrl: string): ToolResult {
+  const key = projectKey(args);
+  if (result.isError || !key?.startsWith('prd:') || (!OPPORTUNITY_TOOLS.has(name) && !SUPERVISOR_TOOLS.has(name))) return result;
+  return { ...result, content: [...result.content, { type: 'text', text: webLine(siteUrl, key) }] };
+}
+
 const verifyNext = (project: ProjectKey, feature: string, sha: string | undefined) =>
   toolCall('verify_feature', { project, feature, sha: sha ?? '<full GitHub SHA>' });
 
@@ -1211,7 +1231,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
       { path: 'CLAUDE.md', content: `${CLAUDE_POINTER}\n${briefVersionInstructions(version)}\n` },
       ...(goal ? hookBundle(key, goal, humanTasks(cached.spec)) : []),
     ];
-    const relockUrl = `${supervisorPage(siteUrl, key)} (planning: ${projectPage(siteUrl, key)})`;
+    const relockUrl = webPages(siteUrl, key);
     const fileList = files.map((file) => `- ${file.path}${file.executable ? ' (executable)' : ''}`).join('\n');
     const notes = goal
       ? [
@@ -1306,7 +1326,7 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
   };
   const saved = await deps.addProjectMemory(key, { kind: 'decision', body });
   const relockHint = scopeChange && approved !== false
-    ? `Re-lock the goal on the web (MCP has no goal-lock tool): ${supervisorPage(siteUrl, key)} (planning: ${projectPage(siteUrl, key)})`
+    ? `Re-lock the goal on the web (MCP has no goal-lock tool): ${webPages(siteUrl, key)}`
     : '';
   const note = scopeChange && approved === null ? [askScope(prdLanguage(), key, featureIds[0]), relockHint].filter(Boolean).join('\n')
     : approval === APPROVED && scopeChange ? `${APPROVED}. Have the user lock the revised goal before implementing the change.\n${relockHint}`
@@ -1356,7 +1376,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     }
     const { model, reasoning } = prdOptions(args);
     return text(report.projectKey
-      ? `${report.text}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey, ...(args.model !== undefined ? { model } : {}), ...(args.reasoning !== undefined ? { reasoning } : {}) })}`
+      ? `${report.text}\n\n${webLine(siteUrl, report.projectKey)}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey, ...(args.model !== undefined ? { model } : {}), ...(args.reasoning !== undefined ? { reasoning } : {}) })}`
       : report.text);
   }
   if (name === 'watch_idea') {
@@ -1659,7 +1679,7 @@ async function handleOne(message: RpcRequest, deps: McpDeps, siteUrl: string) {
       const name = String(message.params?.name ?? '');
       const args = (message.params?.arguments ?? {}) as Record<string, unknown>;
       try {
-        return reply(await callTool(name, args, deps, siteUrl));
+        return reply(withWebLink(await callTool(name, args, deps, siteUrl), name, args, siteUrl));
       } catch (error) {
         console.error('MCP tool failed', name, error);
         return reply(text('The tool failed. Try again.', true));

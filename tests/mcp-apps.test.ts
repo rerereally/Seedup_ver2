@@ -105,3 +105,21 @@ test('get_next_task includes only the selected feature’s related files', async
   assert.doesNotMatch(result.content[0].text, /lib\/search\.ts|관련 파일 정보 없음/);
   assert.deepEqual(result.structuredContent.files, ['lib/notes.ts']);
 });
+
+test('personal PRD tool replies end with the project web page; public slugs and errors do not', async () => {
+  const { withWebLink } = await import('../lib/mcp/server');
+  const ok = { content: [{ type: 'text' as const, text: 'done' }] };
+  const key = 'prd:11111111-1111-1111-1111-111111111111';
+  const linked = withWebLink(ok, 'get_next_task', { project: key }, 'https://seedup.test/');
+  assert.equal(linked.content.length, 2);
+  assert.ok(linked.content[1].text.endsWith('https://seedup.test/supervisor/prd%3A11111111-1111-1111-1111-111111111111'));
+  assert.equal(withWebLink(ok, 'get_next_task', { project: 'some-public-slug' }, 'https://seedup.test').content.length, 1);
+  assert.equal(withWebLink({ ...ok, isError: true }, 'get_next_task', { project: key }, 'https://seedup.test').content.length, 1);
+  assert.equal(withWebLink(ok, 'search_opportunities', { project: key }, 'https://seedup.test').content.length, 1);
+});
+
+test('a saved PRD that matches no opportunity links to its project page instead of bookmarks', async () => {
+  const { dossierHref } = await import('../lib/opportunities/insight');
+  assert.equal(dossierHref({ id: 'abc', opportunity_slug: null, evidence_ids: ['live-1'] }, []), '/supervisor/prd%3Aabc');
+  assert.equal(dossierHref({ opportunity_slug: null, evidence_ids: [] }, []), '/scrap');
+});

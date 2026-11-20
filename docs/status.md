@@ -67,6 +67,7 @@
 
 - 처리방침(`lib/legal.ts`)에 "어느 입력이 어느 모델로 가는지"를 모델 이름까지 적기: 아이디어 · PRD는 무료 모델, 검증 코드는 GPT 6.2 Sol 또는 Haiku 5.5(개발 계열과 다른 쪽). B1 PR #151 머지 뒤 작은 PR로(정지훈).
 - OpenRouter에서 GPT 6.2 Sol을 부를 수 있는지 확인(정지훈). 안 되면 검증 모델을 다시 정해야 함(우리 Codex CLI 계정에서는 6.2가 막혀 6.1 Sol로 개발 중).
+- DESIGN.md 8.5 결정 반영 구현: `app/globals.css`에 `warn` · `warn-soft` 토큰, MCP Apps 카드(`lib/mcp/apps.ts`) 색을 2절 토큰에 맞춤, `goalSummary`의 미착수 표시 ⚪ → ⬜(`lib/supervisor/goal.ts`), 대시보드 이탈 경고에 `warn`. 정지훈(A1 · A2 파일), 단계 2 A2와 함께.
 - 교차 계열 판정: A2가 `startVerification`에 `developmentModel`(MCP 클라이언트 정보에서)을 넘겨야 함. 단계 2 A2 칸에서.
 - 실제 프로젝트로 핵심 고리 검증: 단계 2 완료 뒤 시작(보류 기능을 꺼내는 조건과 같음).
 

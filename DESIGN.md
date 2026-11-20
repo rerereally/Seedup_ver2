@@ -33,6 +33,7 @@ the real thing: real quotes, real counts, a real PRD. It is a precise instrument
 | `seed` | #127a4c | #3ecf8e | the one accent: primary action, evidence, "passed" |
 | `seed-soft` | #ecf7f1 | #0f241a | evidence highlight, selected |
 | `on-seed` | #ffffff | #04140c | text on a seed fill |
+| `warn` / `warn-soft` | #9a5b00 / #fbf2e3 | #f0b75a / #2a1f0c | blocked, needs recheck, drift warnings. Always with a word, never alone. Never for "passed" |
 | `seed-deep` / `on-deep` | #0f6640 / #fff | #17402e / #fff | one large green band per page at most |
 | `glow` | seed at 10% | seed at 12% | the soft light behind an intro hero or frame, never behind text alone |
 
@@ -187,7 +188,7 @@ Two mark sets appear in the same responses, so each mark always carries its word
 | Set | Marks | Text and card |
 | --- | --- | --- |
 | Feature verification (plan 3-4) | 🟢 `supervisor_verified` · 🔵 `local_checked` · ⚪ `self_reported` | "🟢 감독관 검증 / supervisor verified", "🔵 로컬 확인 / local check", "⚪ 자가 보고 / self-reported". Only 🟢 may use `seed` |
-| Success criterion (plan 2-3) | `met` · `partial` · `open` | "met / 충족", "partial / 일부", "open / 미착수". In text, `goalSummary` prefixes 🟢 / 🟡 / ⚪ |
+| Success criterion (plan 2-3) | `met` · `partial` · `open` | "met / 충족", "partial / 일부", "open / 미착수". In text, `goalSummary` prefixes 🟢 / 🟡 / ⬜ (⚪ belongs to the verification set only) |
 
 Green means a server check passed: never for a self-report, a local check or a draft.
 
@@ -219,10 +220,10 @@ Green means a server check passed: never for a self-report, a local check or a d
 - The card works at 360px, light and dark, keyboard only.
 - `tests/mcp.test.ts` and the tool's own test cover the new text.
 
-### 8.5 Open for the planning session
+### 8.5 Decided by the planning session (2026-11-20)
 
-- **A warning colour.** The card already uses `warn` (#9a5b00 / #f0b75a) for blocked and needs-recheck, and drift
-  warnings (plan 3-6) will need it on `/supervisor`. Section 2 has no such token: add a `warn` / `warn-soft` pair, or
-  show warnings with `outline-strong` and words only.
-- **⚪ means two things** (self-reported, and criterion not started). Keep both with their words (8.2), or swap one.
-- **Agent-facing English.** Tool text is English today; confirm that, or move to the PRD's language throughout.
+- **Warning colour:** add the `warn` / `warn-soft` pair to section 2 (the card's existing hexes). Used for blocked,
+  needs-recheck and drift warnings, always with a word.
+- **⚪ has one meaning:** self-reported. A success criterion not started is ⬜ "open / 미착수".
+- **Language:** instructions to the agent stay in English; text the agent shows the person word for word is in the
+  PRD's language (8.1, unchanged).

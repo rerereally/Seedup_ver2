@@ -8,7 +8,9 @@ import WatchIdeaButton from '@/components/WatchIdeaButton';
 import ModelPicker from '@/components/ModelPicker';
 import { Bubble, Stages } from '@/components/WorkSplit';
 import PrdBuilder, { forgetStoredPrd } from '@/components/opportunity-stage/PrdBuilder';
+import GoalLock from '@/components/goal/GoalLock';
 import type { PrdModel } from '@/lib/opportunities/models';
+import type { Spec } from '@/lib/opportunities/spec';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import { ideaAudience } from '@/lib/ideas/input';
@@ -99,6 +101,10 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [change, setChange] = useState<{ id: number; text: string } | null>(null);
   const [pending, setPending] = useState<'generate' | 'revise' | null>(null);
   const [generated, setGenerated] = useState(false);
+  // The PRD the goal is drafted from, its saved dossier as a project key (`prd:<id>`), and whether a goal is locked.
+  const [spec, setSpec] = useState<Spec | null>(null);
+  const [projectKey, setProjectKey] = useState<string | null>(null);
+  const [goalLocked, setGoalLocked] = useState(false);
   const [reviewRequested, setReviewRequested] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [live, setLive] = useState<LiveQuote[]>([]);
@@ -316,6 +322,10 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setOwn([]);
     planFor.current = '';
     setGenerated(false);
+    setSpec(null);
+    setProjectKey(null);
+    setGoalLocked(false);
+    keyFor.current = '';
     setPending(null);
     setPane('chat');
   };
@@ -386,6 +396,20 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restored, signedIn, idea, passes, search.state, live.length]);
 
+  // The id of the saved PRD, for the goal API. The same title and evidence upsert the same bookmark PrdBuilder saves, and
+  // leave its markdown alone. shortcut: a PRD with no quotes gets no id here (422), until PrdBuilder reports its saved id.
+  const keyFor = useRef('');
+  useEffect(() => {
+    if (!signedIn || !generated || keyFor.current === idea) return;
+    keyFor.current = idea;
+    fetch('/api/opportunities/dossiers', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: idea, evidenceIds: keptIds, liveEvidence: keptLive }) })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json: { id?: string } | null) => { if (keyFor.current === idea && json?.id) setProjectKey(`prd:${json.id}`); })
+      .catch(() => undefined);
+    // Once per generated idea; later quote edits do not move the PRD to a new bookmark.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, generated, idea]);
+
   if (restored && !idea) {
     return <IdeaStart onSubmit={send} en={en} problems={pool.filter((item) => item.qualified)} />;
   }
@@ -404,7 +428,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     { label: keptQuotes.length ? t(`근거 ${keptQuotes.length}건`, `${keptQuotes.length} quotes`) : t('근거 없음', 'No quotes'), state: keptQuotes.length ? 'done' : 'todo' },
     { label: planning ? t('질문 준비 중', 'Preparing questions') : t(`질문 ${answered}/${questions.length}`, `Questions ${answered}/${questions.length}`), state: current || planning ? 'now' : 'done' },
     { label: 'PRD', state: generated ? 'done' : current || planning ? 'todo' : 'now' },
-    { label: t('에이전트', 'Agent'), state: generated ? 'now' : 'todo' },
+    { label: t('목표', 'Goal'), state: goalLocked ? 'done' : generated ? 'now' : 'todo' },
+    { label: t('에이전트', 'Agent'), state: goalLocked ? 'now' : 'todo' },
   ];
   const picker = <EvidencePicker matched={matched} live={live} saved={saved.filter((row) => !live.some((item) => item.id === row.id))} keptIds={keptIds} toggle={toggle} keptCount={keptQuotes.length} keptPlatforms={keptPlatforms} passes={passes} en={en} search={search} onSearch={() => void searchWeb()} onAddLink={addLink} signedIn={signedIn} loginNext={loginNext} idea={idea} own={own} setOwn={setOwn} />;
   const threeColumns = !generated;
@@ -537,6 +562,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             {generated && (
               <Bubble role="assistant">
                 <p>{t('PRD를 만들었습니다. 오른쪽에서 문서, 기능 명세, 유저플로우, 와이어프레임을 확인하세요. 고칠 점은 여기에 적으면 바로 반영합니다.', 'The PRD is ready. See the document, feature spec, user flow and wireframes on the right. Type a change here and it is applied.')}</p>
+                <p className="mt-2">{t('다음은 문서 맨 위의 목표 카드에서 목표와 성공 기준을 잠그는 일입니다.', 'Next, lock the goal and its success criteria in the goal card at the top of the document.')}</p>
               </Bubble>
             )}
             {notes.map((note) => <Bubble key={note.id} role={note.role}>{note.text}</Bubble>)}
@@ -581,6 +607,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         </section>
 
         <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-white px-5 pb-28 pt-6 [scrollbar-width:thin] lg:order-2 lg:block lg:overflow-y-auto lg:px-10 lg:pb-10`}>
+          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={() => setGoalLocked(true)} />}
           <PrdBuilder
             title={idea}
             evidenceIds={keptIds}
@@ -593,7 +620,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             generateSignal={signal}
             externalInstruction={change}
             hideControls={!generated}
-            onSpec={() => {
+            onSpec={(next) => {
+              setSpec(next);
               if (pending === 'revise') say('assistant', t('반영했습니다. 바뀐 곳은 오른쪽 문서와 그래프에서 확인할 수 있습니다.', 'Done. The document and graph on the right show what changed.'));
               setGenerated(true);
               setPending(null);

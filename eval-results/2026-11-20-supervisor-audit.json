@@ -1,19 +1,19 @@
 {
-  "measuredAt": "2026-11-20T07:26:19.792Z",
-  "commitSha": "cc9bd0b374009daba79bb704dd7c302bf306d4e7",
+  "measuredAt": "2026-11-20T08:16:00.676Z",
+  "commitSha": "2eb5f44b42839f9fa582da55354cdf2530894909",
   "command": "npx tsx scripts/eval-supervisor.ts",
   "fixtures": {
     "total": 25,
-    "matched": 21,
+    "matched": 25,
     "blockCases": {
-      "matched": 8,
+      "matched": 9,
       "total": 9,
-      "rate": 88.9
+      "rate": 100
     },
     "warnCases": {
-      "matched": 8,
+      "matched": 11,
       "total": 11,
-      "rate": 72.7
+      "rate": 100
     },
     "cleanCases": {
       "clean": 5,
@@ -21,60 +21,7 @@
       "total": 5,
       "falsePositiveRate": 0
     },
-    "mismatches": [
-      {
-        "id": "lie-03",
-        "label": "하드코딩된 mock 송장 목록 반환",
-        "expect": "warn",
-        "actual": "clean",
-        "expectedCodes": [
-          "LIE_MOCK"
-        ],
-        "actualCodes": [],
-        "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
-      },
-      {
-        "id": "lie-04",
-        "label": "placeholder 텍스트를 반환하는 알림 초안 생성기",
-        "expect": "warn",
-        "actual": "clean",
-        "expectedCodes": [
-          "LIE_MOCK"
-        ],
-        "actualCodes": [],
-        "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
-      },
-      {
-        "id": "lie-06",
-        "label": "여러 줄로 작성된 빈 catch 블록",
-        "expect": "warn",
-        "actual": "clean",
-        "expectedCodes": [
-          "LIE_EMPTY_CATCH"
-        ],
-        "actualCodes": [],
-        "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
-      },
-      {
-        "id": "sec-06",
-        "label": "NEXT_PUBLIC_ 접두사에 API_KEY 변수 노출",
-        "expect": "block",
-        "actual": "clean",
-        "expectedCodes": [
-          "SEC_CLIENT_SECRET"
-        ],
-        "actualCodes": [],
-        "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
-      }
-    ],
+    "mismatches": [],
     "results": [
       {
         "id": "lie-01",
@@ -110,27 +57,31 @@
         "id": "lie-03",
         "label": "하드코딩된 mock 송장 목록 반환",
         "expect": "warn",
-        "actual": "clean",
+        "actual": "warn",
         "expectedCodes": [
           "LIE_MOCK"
         ],
-        "actualCodes": [],
+        "actualCodes": [
+          "LIE_MOCK"
+        ],
         "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
+        "warningCount": 2,
+        "matched": true
       },
       {
         "id": "lie-04",
         "label": "placeholder 텍스트를 반환하는 알림 초안 생성기",
         "expect": "warn",
-        "actual": "clean",
+        "actual": "warn",
         "expectedCodes": [
           "LIE_MOCK"
         ],
-        "actualCodes": [],
+        "actualCodes": [
+          "LIE_MOCK"
+        ],
         "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
+        "warningCount": 2,
+        "matched": true
       },
       {
         "id": "lie-05",
@@ -151,14 +102,16 @@
         "id": "lie-06",
         "label": "여러 줄로 작성된 빈 catch 블록",
         "expect": "warn",
-        "actual": "clean",
+        "actual": "warn",
         "expectedCodes": [
           "LIE_EMPTY_CATCH"
         ],
-        "actualCodes": [],
+        "actualCodes": [
+          "LIE_EMPTY_CATCH"
+        ],
         "blockerCount": 0,
-        "warningCount": 0,
-        "matched": false
+        "warningCount": 1,
+        "matched": true
       },
       {
         "id": "lie-07",
@@ -299,14 +252,16 @@
         "id": "sec-06",
         "label": "NEXT_PUBLIC_ 접두사에 API_KEY 변수 노출",
         "expect": "block",
-        "actual": "clean",
+        "actual": "block",
         "expectedCodes": [
           "SEC_CLIENT_SECRET"
         ],
-        "actualCodes": [],
-        "blockerCount": 0,
+        "actualCodes": [
+          "SEC_CLIENT_SECRET"
+        ],
+        "blockerCount": 1,
         "warningCount": 0,
-        "matched": false
+        "matched": true
       },
       {
         "id": "sec-07",
@@ -428,15 +383,40 @@
   "mergeCommits": {
     "ref": "main",
     "commitsScanned": 100,
-    "commitsWithAnyFinding": 10,
-    "commitsBlocked": 1,
-    "commitsBlockedRate": 1,
-    "totalFindings": 36,
-    "totalBlockerHits": 3,
-    "totalWarningHits": 33,
+    "commitsWithAnyFinding": 11,
+    "commitsBlocked": 2,
+    "commitsBlockedRate": 2,
+    "totalFindings": 39,
+    "totalBlockerHits": 4,
+    "totalWarningHits": 35,
     "byRule": [
       {
         "code": "SEC_SECRET_LEAK",
+        "hits": 2,
+        "blockerHits": 2,
+        "warningHits": 0,
+        "commitsHit": 1,
+        "commitRate": 1,
+        "falsePositiveCandidates": 2,
+        "examples": [
+          {
+            "sha": "5dbdc8d",
+            "file": "supabase/config.toml",
+            "line": 305,
+            "severity": "blocker",
+            "snippet": "env(…"
+          },
+          {
+            "sha": "5dbdc8d",
+            "file": "supabase/config.toml",
+            "line": 337,
+            "severity": "blocker",
+            "snippet": "env(…"
+          }
+        ]
+      },
+      {
+        "code": "SEC_CLIENT_SECRET",
         "hits": 0,
         "blockerHits": 0,
         "warningHits": 0,
@@ -444,24 +424,6 @@
         "commitRate": 0,
         "falsePositiveCandidates": 0,
         "examples": []
-      },
-      {
-        "code": "SEC_CLIENT_SECRET",
-        "hits": 1,
-        "blockerHits": 1,
-        "warningHits": 0,
-        "commitsHit": 1,
-        "commitRate": 1,
-        "falsePositiveCandidates": 1,
-        "examples": [
-          {
-            "sha": "d6f1ede",
-            "file": "tests/supervisor-core.test.ts",
-            "line": 27,
-            "severity": "blocker",
-            "snippet": "NEXT_PUBLIC_SUPABASE_SECRET"
-          }
-        ]
       },
       {
         "code": "LIE_SKIPPED_TEST",
@@ -514,28 +476,28 @@
         "hits": 29,
         "blockerHits": 0,
         "warningHits": 29,
-        "commitsHit": 8,
-        "commitRate": 8,
+        "commitsHit": 9,
+        "commitRate": 9,
         "falsePositiveCandidates": 0,
         "examples": [
           {
-            "sha": "5d7ba40",
-            "file": "lib/mcp/server.ts",
-            "line": 538,
+            "sha": "d6f1ede",
+            "file": "lib/supervisor/diff-audit.ts",
+            "line": 71,
             "severity": "warning",
-            "snippet": "mock"
+            "snippet": "MOCK"
           },
           {
-            "sha": "5d7ba40",
-            "file": "lib/mcp/server.ts",
-            "line": 546,
+            "sha": "d6f1ede",
+            "file": "lib/supervisor/diff-audit.ts",
+            "line": 88,
             "severity": "warning",
-            "snippet": "mock"
+            "snippet": "MOCK"
           },
           {
-            "sha": "5d7ba40",
-            "file": "lib/mcp/server.ts",
-            "line": 547,
+            "sha": "d6f1ede",
+            "file": "lib/supervisor/diff-audit.ts",
+            "line": 89,
             "severity": "warning",
             "snippet": "Mock"
           }
@@ -579,13 +541,28 @@
       },
       {
         "code": "SEC_SQLI",
-        "hits": 0,
+        "hits": 2,
         "blockerHits": 0,
-        "warningHits": 0,
-        "commitsHit": 0,
-        "commitRate": 0,
+        "warningHits": 2,
+        "commitsHit": 1,
+        "commitRate": 1,
         "falsePositiveCandidates": 0,
-        "examples": []
+        "examples": [
+          {
+            "sha": "5dbdc8d",
+            "file": "scripts/check-rls.ts",
+            "line": 111,
+            "severity": "warning",
+            "snippet": "`${who} insert failed for another reason (${added.error.code}: ${"
+          },
+          {
+            "sha": "5dbdc8d",
+            "file": "scripts/check-rls.ts",
+            "line": 156,
+            "severity": "warning",
+            "snippet": "`::error::${count} test row(s) left in ${table}; delete the rows of ${"
+          }
+        ]
       },
       {
         "code": "SEC_NO_AUTH",
@@ -623,17 +600,24 @@
       },
       {
         "sha": "d6f1ede",
-        "code": "SEC_CLIENT_SECRET",
-        "file": "tests/supervisor-core.test.ts",
-        "line": 27,
-        "snippet": "NEXT_PUBLIC_SUPABASE_SECRET"
-      },
-      {
-        "sha": "d6f1ede",
         "code": "LIE_SKIPPED_TEST",
         "file": "tests/supervisor-core.test.ts",
         "line": 28,
         "snippet": "test.skip("
+      },
+      {
+        "sha": "5dbdc8d",
+        "code": "SEC_SECRET_LEAK",
+        "file": "supabase/config.toml",
+        "line": 305,
+        "snippet": "env(…"
+      },
+      {
+        "sha": "5dbdc8d",
+        "code": "SEC_SECRET_LEAK",
+        "file": "supabase/config.toml",
+        "line": 337,
+        "snippet": "env(…"
       }
     ]
   }

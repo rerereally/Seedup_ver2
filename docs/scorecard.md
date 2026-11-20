@@ -64,33 +64,36 @@
 
 ## 감독관 정적 검사
 
-- **측정일:** 2026-11-20 (커밋 `cc9bd0b`)
+- **측정일:** 2026-11-20 (커밋 `2eb5f44`, 규칙 보완 #160 반영 뒤)
 - **명령:** `npx tsx scripts/eval-supervisor.ts`
 - **원본 결과:** `eval-results/2026-11-20-supervisor-audit.json`
+- **이전 값(규칙 보완 #160 전, 커밋 `cc9bd0b`):** 불량 diff 전체 일치 84.0% (21/25), 차단 적중 88.9% (8/9), 경고 정확도 72.7% (8/11)
 
 ### 불량 diff fixtures (25건)
 
 | 항목 | 결과 | 집계 방식 | 기록일 |
 |---|---|---|---|
-| 전체 일치 | 84.0% (21/25) | `tests/fixtures/bad-diffs.json` (`auditDiff`) | 2026-11-20 |
-| 차단 규칙 적중률 (`expect=block`) | 88.9% (8/9) | 코드 집계 (`sec-06` 미탐) | 2026-11-20 |
-| 경고 판정 정확도 (`expect=warn`) | 72.7% (8/11) | 코드 집계 (`lie-03`, `lie-04`, `lie-06` 미탐) | 2026-11-20 |
+| 전체 일치 | 100.0% (25/25) | `tests/fixtures/bad-diffs.json` (`auditDiff`) | 2026-11-20 |
+| 차단 규칙 적중률 (`expect=block`) | 100.0% (9/9) | 코드 집계 | 2026-11-20 |
+| 경고 판정 정확도 (`expect=warn`) | 100.0% (11/11) | 코드 집계 | 2026-11-20 |
 | 정상 코드 오탐 수 (`expect=clean`) | 0/5 (0.0%) | 코드 집계 | 2026-11-20 |
 
 ### `main` 최근 머지 커밋 100건 (첫 부모 diff 기준)
 
-- **전체 걸린 커밋:** 10/100건 (총 36건: 차단 3건 · 경고 33건)
-- **오탐 후보 수 (실제 머지 커밋 중 차단 규칙 적중):** 3건 / 1커밋 (`1.0%`, 모두 커밋 `d6f1ede`의 `lib/supervisor/diff-audit.ts` 및 `tests/supervisor-core.test.ts` 내 규칙 · 테스트 문자열 리터럴)
+- **전체 걸린 커밋:** 11/100건 (차단 4건 · 경고 35건)
+- **오탐 후보 수 (실제 머지 커밋 중 차단 규칙 적중):** 4건 / 2커밋 (`2.0%`)
+  - `d6f1ede`의 `lib/supervisor/diff-audit.ts:82`(`NotImplementedError`), `tests/supervisor-core.test.ts:28`(`test.skip(`): 규칙 · 테스트 자체의 문자열(#160 이전 커밋, 지금 코드에서는 `seedup-allow`로 처리)
+  - `5dbdc8d`의 `supabase/config.toml:305`, `:337`(`env(…)`): 환경변수 참조를 시크릿으로 잘못 잡음. **새 오탐 후보**(규칙 보완 필요)
 
 | 규칙 | 걸린 수 | 차단 수 (오탐 후보) | 경고 수 | 걸린 커밋 수 | 커밋 비율 |
 |---|---:|---:|---:|---:|---:|
-| `SEC_SECRET_LEAK` | 0 | 0 | 0 | 0 | 0.0% |
-| `SEC_CLIENT_SECRET` | 1 | 1 | 0 | 1 | 1.0% |
+| `SEC_SECRET_LEAK` | 2 | 2 | 0 | 1 | 1.0% |
+| `SEC_CLIENT_SECRET` | 0 | 0 | 0 | 0 | 0.0% |
 | `LIE_SKIPPED_TEST` | 1 | 1 | 0 | 1 | 1.0% |
 | `LIE_EMPTY_IMPL` | 1 | 1 | 0 | 1 | 1.0% |
 | `LIE_TODO` | 0 | 0 | 0 | 0 | 0.0% |
-| `LIE_MOCK` | 29 | 0 | 29 | 8 | 8.0% |
+| `LIE_MOCK` | 29 | 0 | 29 | 9 | 9.0% |
 | `LIE_EMPTY_CATCH` | 1 | 0 | 1 | 1 | 1.0% |
 | `SEC_XSS` | 1 | 0 | 1 | 1 | 1.0% |
-| `SEC_SQLI` | 0 | 0 | 0 | 0 | 0.0% |
+| `SEC_SQLI` | 2 | 0 | 2 | 1 | 1.0% |
 | `SEC_NO_AUTH` | 2 | 0 | 2 | 2 | 2.0% |

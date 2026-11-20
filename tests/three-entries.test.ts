@@ -4,11 +4,13 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createClient } from '@supabase/supabase-js';
 import AgentPackDownload from '../components/AgentPackDownload';
 import LangProvider from '../components/LangProvider';
 import { RepoGoalExit, repoSpecInput, saveRepoPrdProject } from '../components/goal/RepoExit';
 import { buildValidationHandoff, readValidationPrdInput, validationPrdHref, type ValidationReportPayload } from '../components/ValidationReportPanel';
 import { agentStartPrompt, supervisorHref } from '../components/goal/prompt';
+import { parseGitHubRepo, userProjectRepo } from '../lib/db/supervisor-projects';
 import type { Spec } from '../lib/opportunities/spec';
 
 const PRD_ID = 'abcdef00-1111-2222-3333-444444444444';
@@ -193,4 +195,56 @@ test('/agents renders per-project start prompts without tokens and fixes the sta
   const source = readFileSync(join(process.cwd(), 'components/AgentPackDownload.tsx'), 'utf8');
   assert.doesNotMatch(source, /현재 번들에는 pre-commit 검사가 없습니다|The current bundle has no pre-commit check/);
   assert.match(source, /\.seedup\/pre-commit\.sh/);
+});
+
+test('parseGitHubRepo and userProjectRepo validate owner/repo and update only the caller-owned project key', async () => {
+  assert.equal(parseGitHubRepo('octocat/demo-cli'), 'octocat/demo-cli');
+  assert.equal(parseGitHubRepo('  octocat/my.repo_1  '), 'octocat/my.repo_1');
+  for (const bad of ['', 'octocat', 'octocat/a/b', '-bad/repo', 'octocat/..', 'https://github.com/octocat/demo', null, 42]) {
+    assert.equal(parseGitHubRepo(bad), null, String(bad));
+  }
+
+  assert.equal(await userProjectRepo('user-1', PROJECT_KEY, 'octocat/demo-cli', null), 'unavailable');
+
+  const OWNER = '00000000-0000-0000-0000-000000000001';
+  const OTHER_PRD = 'prd:ffffffff-1111-2222-3333-444444444444';
+  const calls: Array<{ method: string; path: string; body: unknown }> = [];
+  const service = createClient('https://supabase.invalid', 'service-key', {
+    auth: { persistSession: false },
+    global: {
+      fetch: async (url, init) => {
+        const parsed = new URL(String(url));
+        const method = init?.method ?? 'GET';
+        const body = init?.body ? JSON.parse(String(init.body)) : null;
+        calls.push({ method, path: parsed.pathname, body });
+        if (parsed.pathname === '/rest/v1/evidence_dossiers') {
+          const idEq = parsed.searchParams.get('id');
+          assert.equal(parsed.searchParams.get('user_id'), `eq.${OWNER}`);
+          if (idEq === `eq.${PRD_ID}`) {
+            return Response.json({ id: PRD_ID, title: 'demo-cli 역기획', opportunity_slug: null, evidence_ids: [], evidence: [], prd_markdown: '# prd', updated_at: '2026-11-20T00:00:00Z' });
+          }
+          return Response.json(null);
+        }
+        if (parsed.pathname === '/rest/v1/supervisor_projects' && method === 'POST') {
+          return Response.json([]);
+        }
+        if (parsed.pathname === '/rest/v1/supervisor_projects' && method === 'PATCH') {
+          assert.equal(parsed.searchParams.get('user_id'), `eq.${OWNER}`);
+          assert.equal(parsed.searchParams.get('project_key'), `eq.${PROJECT_KEY}`);
+          return Response.json({ user_id: OWNER, project_key: PROJECT_KEY, repo: body.repo, track: 'personal', strict: false, goal_version: null });
+        }
+        return Response.json([]);
+      },
+    },
+  });
+
+  // Unowned PRD key is rejected before any write to supervisor_projects.
+  assert.equal(await userProjectRepo(OWNER, OTHER_PRD, 'octocat/demo-cli', service), null);
+  assert.equal(calls.some((call) => call.path === '/rest/v1/supervisor_projects'), false);
+
+  // Owned PRD key saves the repo to supervisor_projects.
+  const linked = await userProjectRepo(OWNER, PROJECT_KEY, 'octocat/demo-cli', service);
+  assert.ok(linked && linked !== 'unavailable');
+  assert.equal(linked.projectKey, PROJECT_KEY);
+  assert.equal(linked.repo, 'octocat/demo-cli');
 });

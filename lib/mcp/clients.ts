@@ -44,9 +44,13 @@ export function mcpClients(siteUrl: string, token: string): McpClient[] {
     {
       id: 'codex',
       name: 'Codex',
-      snippet: `[mcp_servers.seedup]\nurl = "${endpoint}"\nhttp_headers = { Authorization = "Bearer ${token}" }`,
+      snippet: `[mcp_servers.seedup]\nurl = "${endpoint}"\ntool_timeout_sec = 180\nhttp_headers = { Authorization = "Bearer ${token}" }`,
       where: '~/.codex/config.toml',
-      steps: ['~/.codex/config.toml 파일 끝에 붙여 넣습니다. Codex CLI, IDE 확장, 앱이 이 파일을 같이 씁니다.', 'Codex를 다시 열고 /mcp로 seedup을 확인합니다.'],
+      steps: [
+        '~/.codex/config.toml 파일 끝에 붙여 넣습니다. Codex CLI, IDE 확장, 앱이 이 파일을 같이 씁니다.',
+        'tool_timeout_sec는 검증·PRD 호출이 최대 약 2분 30초 걸려도 Codex가 기본값(60초)에서 끊지 않게 합니다.',
+        'Codex를 다시 열고 /mcp로 seedup을 확인합니다.',
+      ],
     },
     {
       id: 'cursor',

@@ -79,7 +79,7 @@ export function checklistCard(
     kind: 'checklist',
     slug: opportunity.slug,
     name: opportunity.name,
-    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? '') })),
+    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', level: progress[feature.id]?.status === 'done' ? (progress[feature.id]?.verificationLevel === 'supervisor_verified' ? 'supervisor_verified' : 'self_reported') : null, criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? '') })),
     url: projectPage(siteUrl, opportunity.slug),
     ...(completion ? { completion } : {}),
     ...(goal ? { goal } : {}),
@@ -181,7 +181,7 @@ button:disabled{opacity:.5;cursor:default}
       h('p', { class: 'sub num', text: T('기능 ', 'Features ') + done + ' / ' + data.features.length + T(' 완료', ' done') }),
       h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(done / total * 100) + '%' })),
       h('div', { class: 'list' }, ...data.features.map(function(f){
-        var level = f.done && data.completion && data.completion.featureId === f.id ? data.completion.level : null;
+        var level = f.done ? (data.completion && data.completion.featureId === f.id ? data.completion.level : f.level) : null;
         var status = progressLabel(f.status);
         var marker = level === 'supervisor_verified' ? h('span', { class: 'tag ok', text: T('🟢 감독관 검증', '🟢 Supervisor verified') })
           : level === 'self_reported' ? h('span', { class: 'tag', text: T('⚪ 자가 보고', '⚪ Self-reported') })

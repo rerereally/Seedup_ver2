@@ -770,3 +770,32 @@ test('get_next_task asks the open questions of a P0 feature first, until an appr
   assert.match(opened.text, /^F-01 Store notes \[todo\]/);
   assert.match(opened.text, /\nNext: update_feature_status .*"status":"in_progress"/);
 });
+
+test('done counts keep supervisor-verified apart from self-reported features', async () => {
+  const { doneSummary } = await import('../lib/mcp/server');
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'R', evidence: [1] }], features: [{ title: 'A', requirements: [1] }, { title: 'B', requirements: [1] }, { title: 'C', requirements: [1] }] }, 1);
+  const progress: BuildProgress = {
+    'F-01': { status: 'done', note: '', updatedAt: '2026-11-20T00:00:00Z', verificationLevel: 'supervisor_verified' },
+    'F-02': { status: 'done', note: '', updatedAt: '2026-11-20T00:00:00Z', verificationLevel: 'self_reported' },
+  } as unknown as BuildProgress;
+  assert.equal(doneSummary(spec, progress), '2/3 done (🟢 1 supervisor verified, ⚪ 1 self-reported)');
+});
+
+test('get_my_prd lists a validate_idea draft with the call that makes its PRD', async () => {
+  const id = '22222222-3333-4444-5555-666666666666';
+  const answer = await handleRpc(call('get_my_prd', {}), deps({ myPrds: async () => [{ id, title: 'meal plan', opportunitySlug: null, evidenceCount: 2, updatedAt: '2026-11-20T00:00:00Z', hasPrd: false }] }), 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(answer.result.content[0].text, new RegExp(`no PRD yet\\. Make it: generate_verified_prd \\{"project":"prd:${id}"\\}`));
+  assert.doesNotMatch(answer.result.content[0].text, /get_my_prd \{"id"/);
+});
+
+test('get_next_task asks to fill slots for a personal PRD too, passing its key', async () => {
+  const id = '33333333-4444-5555-6666-777777777777';
+  const markdown = '# 한 줄 요약\n메모 도구.\n\n## 요구사항\n### R1. [P0] 메모가 재시작 뒤에도 남는다\n저장한다.\n- 수락 기준: 재시작 뒤 메모가 보인다.\n\n## 기능\n### F1. 메모 저장 (R1)\n디스크에 저장한다.';
+  const keys: string[] = [];
+  const personal = deps({
+    myPrd: async () => ({ id, title: '메모', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-20T00:00:00Z', prdMarkdown: markdown, evidence: [] }),
+    fillSlots: async (cached, featureId, key) => { keys.push(`${key}:${featureId}`); return null; },
+  });
+  await handleRpc(call('get_next_task', { project: `prd:${id}` }), personal, 'https://x.test');
+  assert.deepEqual(keys, [`prd:${id}:F-01`]);
+});

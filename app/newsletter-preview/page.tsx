@@ -59,7 +59,10 @@ export default async function NewsletterPreviewPage({ searchParams }: { searchPa
       <Header />
       <main id="main-content" className="page-shell grow">
         <h1 className="page-intro-title">인사이트</h1>
-        <p className="mt-1 text-sm text-muted">{today}, 기회 분석 {updated} 갱신</p>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted">
+          <span>{today}, 기회 분석 {updated} 갱신</span>
+          <Link href="/predictions" className="link-seed">{t('봉인 예측 적중 기록', 'Sealed prediction track record')}</Link>
+        </p>
         <TodayChanges
           research={dailyResearch(opportunities, now)}
           totals={dailyTotals(opportunities, now, 7)}

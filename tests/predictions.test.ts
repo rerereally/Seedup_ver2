@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { hashPrediction, parseSealedPredictions, scorePredictions, sealPredictions } from '../lib/opportunities/predictions';
+import { hashPrediction, parseSealedPredictions, predictionRecord, predictionSampleNote, predictionSummary, scorePredictions, sealPredictions } from '../lib/opportunities/predictions';
 import type { Opportunity, SupplyItem } from '../lib/opportunities/types';
 import { appendPredictions } from '../scripts/seal-predictions';
 
@@ -87,7 +87,7 @@ test('scoring uses dated direct tools strictly after the seal through the deadli
   assert.equal(score([current], deadline - 1).status, 'pending');
   assert.equal(score([current], deadline).status, 'miss');
   assert.equal(score([current], deadline + day).status, 'miss');
-  assert.equal(score([], deadline).status, 'miss');
+  assert.equal(score([], deadline).status, 'pending');
 
   const beforeDeadline = { ...current, supply: [tool('2026-11-21T10:00:00Z')] };
   assert.equal(score([beforeDeadline], now + day).status, 'pending');
@@ -95,4 +95,30 @@ test('scoring uses dated direct tools strictly after the seal through the deadli
   const onDeadline = { ...current, supply: [tool('2026-11-24T10:00:00Z')] };
   assert.deepEqual(score([onDeadline], deadline), { ...sealed, status: 'hit' });
   assert.equal(sealed.hash, hashPrediction(sealed));
+});
+
+test('the record compares the sealed counts to the latest collection without treating quote growth as a hit', () => {
+  const [sealed] = sealPredictions([opportunity], now);
+  const afterDeadline = now + 8 * day;
+  const recorded: Opportunity = {
+    ...opportunity, status: 'closed', directCount: 2, evidence: [...opportunity.evidence, { ...opportunity.evidence[0], id: 'new' }],
+    history: [
+      { at: new Date(now - day).toISOString(), evidence: 3, platforms: 2, direct: 1, status: 'open', qualified: true },
+      { at: new Date(now + day).toISOString(), evidence: 4, platforms: 2, direct: 2, status: 'closed', qualified: true },
+    ],
+    supply: [tool(new Date(afterDeadline).toISOString())],
+  };
+  const [row] = predictionRecord([sealed], [recorded], afterDeadline);
+  assert.equal(row.status, 'miss');
+  assert.equal(row.statusAtSeal, 'open');
+  assert.deepEqual(row.current, { evidenceCount: 4, directCount: 2, status: 'closed' });
+  assert.equal(row.newDirect.length, 1);
+  assert.equal(predictionRecord([sealed], [recorded], now - 1)[0].current, null);
+});
+
+test('only resolved predictions count toward the hit rate and minimum sample', () => {
+  assert.deepEqual(predictionSummary([{ status: 'hit' }, { status: 'miss' }, { status: 'pending' }]), { hits: 1, sample: 2, pending: 1, rate: 0.5 });
+  assert.equal(predictionSummary([{ status: 'pending' }]).rate, null);
+  assert.equal(predictionSampleNote(9, 'ko'), '아직 판단하기 이릅니다.');
+  assert.equal(predictionSampleNote(10, 'en'), null);
 });

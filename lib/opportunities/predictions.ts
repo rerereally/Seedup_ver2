@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { translator, type Lang } from '../i18n';
 import { toolAppearedAfter, trackRecord, trackRecordSummary } from './insight';
 import type { Opportunity } from './types';
 
@@ -46,10 +47,40 @@ export function scorePredictions(sealed: readonly SealedPrediction[], opportunit
     const sealedAt = Date.parse(prediction.sealedAt);
     const deadline = sealedAt + prediction.withinDays * 86_400_000;
     const through = Math.min(now, deadline);
-    const hit = bySlug.get(prediction.slug)?.supply.some((tool) => tool.relation === 'direct' && toolAppearedAfter(tool, sealedAt, through));
-    const status: PredictionStatus = hit ? 'hit' : now >= deadline ? 'miss' : 'pending';
+    const opportunity = bySlug.get(prediction.slug);
+    const hit = opportunity?.supply.some((tool) => tool.relation === 'direct' && toolAppearedAfter(tool, sealedAt, through));
+    const status: PredictionStatus = hit ? 'hit' : opportunity && now >= deadline ? 'miss' : 'pending';
     return { ...prediction, status };
   });
+}
+
+export function predictionRecord(sealed: readonly SealedPrediction[], opportunities: readonly Opportunity[], asOf: number) {
+  const bySlug = new Map(opportunities.map((item) => [item.slug, item]));
+  return scorePredictions(sealed, opportunities, asOf).map((row) => {
+    const start = Date.parse(row.sealedAt);
+    const opportunity = bySlug.get(row.slug);
+    const observed = asOf >= start ? opportunity : undefined;
+    const statusAtSeal = opportunity?.history?.findLast((point) => Date.parse(point.at) <= start)?.status ?? null;
+    const newDirect = observed?.supply.filter((tool) => tool.relation === 'direct' && toolAppearedAfter(tool, start, asOf)) ?? [];
+    return {
+      ...row,
+      deadline: start + row.withinDays * 86_400_000,
+      statusAtSeal,
+      current: observed ? { evidenceCount: observed.evidence.length, directCount: observed.directCount, status: observed.status } : null,
+      newDirect,
+      nameEn: opportunity?.nameEn,
+    };
+  });
+}
+
+export function predictionSummary(rows: readonly { status: PredictionStatus }[]) {
+  const hits = rows.filter(({ status }) => status === 'hit').length;
+  const sample = rows.filter(({ status }) => status !== 'pending').length;
+  return { hits, sample, pending: rows.length - sample, rate: sample ? hits / sample : null };
+}
+
+export function predictionSampleNote(sample: number, lang: Lang) {
+  return sample < 10 ? translator(lang)('아직 판단하기 이릅니다.', 'It is too early to draw a conclusion.') : null;
 }
 
 export function parseSealedPredictions(jsonl: string): SealedPrediction[] {

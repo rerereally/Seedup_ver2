@@ -113,6 +113,13 @@ test('verifier: immutable evidence, gates, accounting and cache', async (t) => {
         assert.equal(result.token, null);
       }
     });
+    await t.test('green CI does not confirm a test criterion without a verified test citation', async () => {
+      const h = harness();
+      const result = await startVerification({ ...input, criteria: [{ id: 'AC-1', text: 'Tests pass', kind: 'test' }] }, h.dependencies);
+      assert.equal(result.verdicts[0].verdict, 'unclear');
+      assert.deepEqual(result.verdicts[0].testEvidence, { criterionText: 'Tests pass', files: [], checks: [] });
+      assert.equal(result.token, null);
+    });
     await t.test('all met issues a token bound to user, project, feature and SHA and counts usage', async () => {
       const h = harness();
       const result = await startVerification(input, h.dependencies);

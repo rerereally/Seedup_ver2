@@ -75,7 +75,7 @@ function dependencies(over: Partial<McpDeps> = {}) {
 }
 
 const rpc = (name: string, args: Record<string, unknown>) => ({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
-type Reply = { result: { isError?: boolean; content: [{ text: string }]; structuredContent?: { status?: string; verified?: boolean; id?: string } } };
+type Reply = { result: { isError?: boolean; content: [{ text: string }]; structuredContent?: { status?: string; verified?: boolean; id?: string; tests?: string[]; features?: Array<{ tests?: string[] }> } } };
 
 async function call(name: string, args: Record<string, unknown>, deps = dependencies().deps) {
   const { result } = await handleRpc(rpc(name, { project: PROJECT, ...args }), deps, SITE) as Reply;
@@ -106,9 +106,13 @@ test('MCP verifies server criteria against immutable GitHub evidence, with B1 ch
   let charged = 0;
   let modelCalls = 0;
   let blocked = false;
+  let saved: VerificationRecord | undefined;
   const source = 'export const noteId = 42;';
+  const testPath = 'tests/notes.test.ts';
+  const testSource = 'assert.equal(noteId, 42);';
+  const check = 'node test (tests/notes.test.ts)';
   const store: VerificationStore = {
-    authorize: async () => {}, find: async () => null, claim: async (row) => row, save: async () => {},
+    authorize: async () => {}, find: async () => null, claim: async (row) => row, save: async (row) => { saved = row; },
     get: async () => null, consume: async () => { charged++; return true; }, refund: async () => { assert.fail('Unexpected refund'); },
   };
   const verifier: VerifierDependencies = {
@@ -118,7 +122,10 @@ test('MCP verifies server criteria against immutable GitHub evidence, with B1 ch
       assert.equal(sha, SHA);
       return {
         sha, diff: `diff --git a/src/notes.ts b/src/notes.ts\n--- a/src/notes.ts\n+++ b/src/notes.ts\n@@ -1 +1 @@\n+${blocked ? 'throw new Error("not implemented");' : source}\n`,
-        files: { 'src/notes.ts': source }, checks: [{ name: 'test', conclusion: 'success' }], unseen: [],
+        files: { 'src/notes.ts': source, [testPath]: testSource }, checks: [
+          { name: check, conclusion: 'success' }, { name: 'build', conclusion: 'success' },
+          { name: 'other-tests/notes.test.ts', conclusion: 'success' },
+        ], unseen: [],
       };
     },
     model: async <T>(prompt: string, options?: Parameters<NonNullable<VerifierDependencies['model']>>[1]) => {
@@ -127,7 +134,9 @@ test('MCP verifies server criteria against immutable GitHub evidence, with B1 ch
       assert.equal(options?.noDataCollection, true);
       assert.doesNotMatch(prompt, /agent-criterion/);
       return { verdicts: ['1', '2'].map((criterion) => ({
-        criterion, verdict: 'met', reason: source, citations: [{ path: 'src/notes.ts', line: 1, quote: source }],
+        criterion, verdict: 'met', reason: source, citations: [criterion === '1'
+          ? { path: 'src/notes.ts', line: 1, quote: source }
+          : { path: testPath, line: 1, quote: testSource }],
       })) } as T;
     },
     sign: (payload) => signVerificationToken(payload, SIGNING_KEY),
@@ -148,6 +157,10 @@ test('MCP verifies server criteria against immutable GitHub evidence, with B1 ch
   assert.match(result.body, /^F-01 @ abcd1234: 🟢 supervisor verified\.\nGoal v1/);
   assert.match(result.body, /⬜ G-1 Save notes/);
   assert.match(result.body, /Criterion verdicts.*met: 1, 2/);
+  const testLine = `Tests for criterion 2: ${testPath} · CI: ${check}`;
+  assert.ok(result.body.includes(testLine));
+  assert.deepEqual(result.structuredContent?.tests, [testLine]);
+  assert.deepEqual(saved?.verdicts[1].testEvidence, { criterionText: 'Notes test passes in CI', files: [testPath], checks: [check] });
   assert.doesNotMatch(result.body, /export const noteId/);
   const next = result.body.split('\n').at(-1)!;
   assert.match(next, /^Next: update_feature_status /);
@@ -157,6 +170,31 @@ test('MCP verifies server criteria against immutable GitHub evidence, with B1 ch
   assert.doesNotMatch(JSON.stringify(result.structuredContent), /svt1\./);
   assert.deepEqual(progress, {});
   assert.deepEqual([modelCalls, charged], [1, 1]);
+
+  setEnv(t, 'NEXT_PUBLIC_SUPABASE_URL', 'https://supabase.invalid');
+  setEnv(t, 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'test-publishable');
+  setEnv(t, 'SUPABASE_SECRET_KEY', 'test-service-key');
+  const wrongVerdicts = [{ ...saved!.verdicts[1], testEvidence: { ...saved!.verdicts[1].testEvidence!, files: ['tests/other.test.ts'] } }];
+  const read = t.mock.method(globalThis, 'fetch', async (input: string) => {
+    const url = new URL(input);
+    assert.equal(url.pathname, '/rest/v1/verifications');
+    assert.equal(url.searchParams.get('user_id'), `eq.${USER}`);
+    assert.equal(url.searchParams.get('project_key'), `eq.${PROJECT}`);
+    assert.equal(url.searchParams.get('repo'), `eq.${project.repo}`);
+    assert.equal(url.searchParams.get('status'), 'eq.passed');
+    assert.equal(url.searchParams.get('feature_id'), 'in.(F-01)');
+    assert.equal(url.searchParams.get('sha'), `in.(${SHA})`);
+    return Response.json([{ feature_id: 'F-01', sha: SHA, verdicts: saved!.verdicts }, { feature_id: 'F-01', sha: 'c'.repeat(40), verdicts: wrongVerdicts }]);
+  });
+  await call('update_feature_status', done, deps);
+  const resumed = await call('resume_project', {}, deps);
+  assert.equal(read.mock.callCount(), 1);
+  assert.ok(resumed.body.includes(testLine));
+  assert.deepEqual(resumed.structuredContent?.features?.[0].tests, [testLine]);
+
+  const revisedSpec = { ...spec, requirements: spec.requirements.map((row) => ({ ...row, acceptance: ['Saving returns an ID', 'Different test passes in CI'] })) };
+  const changed = await call('resume_project', {}, { ...deps, cachedSpec: async () => ({ input, spec: revisedSpec }) });
+  assert.doesNotMatch(changed.body, /tests\/notes\.test\.ts/);
 
   blocked = true;
   const rejected = await call('verify_feature', { feature: 'F-01', sha: SHA }, deps);
@@ -191,7 +229,7 @@ test('done verifies the proof against the user, project, feature and SHA and app
   assert.match(done.body, /\nNext: get_next_task \{"project":"notes"\}$/);
   assert.equal(progress['F-01'].status, 'done');
   assert.equal(progress['F-01'].verificationLevel, 'supervisor_verified');
-  assert.match(progress['F-01'].note, /^\[supervisor_verified:abcd1234\]/);
+  assert.ok(progress['F-01'].note.startsWith(`[supervisor_verified:${SHA}]`));
   assert.doesNotMatch(progress['F-01'].note, /svt1\./);
 });
 

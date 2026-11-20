@@ -73,13 +73,13 @@ export function prdCard(opportunity: Opportunity, spec: Spec, siteUrl: string) {
 /** What the card draws for resume_project and update_feature_status. */
 export function checklistCard(
   opportunity: Opportunity, spec: Spec, progress: BuildProgress, criteria: (feature: Spec['features'][number]) => string[],
-  siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'self_reported' }, goal?: string,
+  siteUrl: string, completion?: { featureId: string; level: 'supervisor_verified' | 'self_reported' }, goal?: string, tests: Record<string, string[]> = {},
 ) {
   return {
     kind: 'checklist',
     slug: opportunity.slug,
     name: opportunity.name,
-    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', level: progress[feature.id]?.status === 'done' ? (progress[feature.id]?.verificationLevel === 'supervisor_verified' ? 'supervisor_verified' : 'self_reported') : null, criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? '') })),
+    features: spec.features.map((feature) => ({ id: feature.id, title: feature.title, status: progress[feature.id]?.status ?? 'todo', done: progress[feature.id]?.status === 'done', level: progress[feature.id]?.status === 'done' ? (progress[feature.id]?.verificationLevel === 'supervisor_verified' ? 'supervisor_verified' : 'self_reported') : null, criteria: criteria(feature).length, note: progressNote(progress[feature.id]?.note ?? ''), ...(tests[feature.id]?.length ? { tests: tests[feature.id] } : {}) })),
     url: projectPage(siteUrl, opportunity.slug),
     ...(completion ? { completion } : {}),
     ...(goal ? { goal } : {}),
@@ -92,11 +92,11 @@ export function nextTaskCard(feature: Spec['features'][number], why: string, cri
 
 export function verificationCard(
   row: VerificationRecord, goal: string, verdicts: Array<{ criterion: string; verdict: string; citations: number }>,
-  blockers: number, warnings: number,
+  blockers: number, warnings: number, tests: string[],
 ) {
   return {
     kind: 'verification', project: row.projectKey, id: row.id, feature: row.featureId, sha: row.sha.slice(0, 8), fullSha: row.sha,
-    status: row.status, verified: row.status === 'passed' && Boolean(row.token), goal, verdicts, blockers, warnings, drift: row.drift.length,
+    status: row.status, verified: row.status === 'passed' && Boolean(row.token), goal, verdicts, blockers, warnings, drift: row.drift.length, ...(tests.length ? { tests } : {}),
   };
 }
 
@@ -188,7 +188,8 @@ button:disabled{opacity:.5;cursor:default}
           : status ? h('span', { class: f.status === 'blocked' || f.status === 'needs_recheck' ? 'tag warn' : 'tag', text: status }) : null;
         return h('div', { class: 'feat' }, h('span', { class: f.done ? 'check done' : 'check', 'aria-label': f.done ? T('완료', 'Done') : T('남음', 'To do'), text: f.done ? '✓' : '' }),
           h('div', null, h('div', null, h('span', { class: 'id', text: f.id }), f.title), marker,
-            h('div', { class: 'muted', text: f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass')) })));
+            h('div', { class: 'muted', text: f.note || (f.criteria + T('개 기준을 통과하면 완료', ' criteria to pass')) }),
+            ...(f.tests || []).map(function(line){ return h('div', { class: 'muted', style: 'overflow-wrap:anywhere', text: line }); })));
       })),
       h('div', { class: 'actions' }, h('button', { text: T('웹에서 보기', 'Open on the web'), on: function(){ open(data.url); } })),
       h('p', { class: 'muted', text: T('상태는 에이전트가 update_feature_status로 보고합니다. 완료는 기준을 모두 확인해야 기록됩니다.', 'The agent reports status with update_feature_status; done needs every criterion checked.') })];
@@ -218,6 +219,7 @@ button:disabled{opacity:.5;cursor:default}
           h('span', { class: 'muted', text: T('인용 대조 ', 'Checked citations: ') + row.citations })),
           h('span', { class: row.verdict === 'met' ? 'tag' : 'tag warn', text: verdict[row.verdict] }));
       })) : null,
+      ...(data.tests || []).map(function(line){ return h('div', { class: 'muted', style: 'overflow-wrap:anywhere', text: line }); }),
       data.blockers ? h('p', { class: 'tag warn', text: T('차단 항목 ', 'Blockers: ') + data.blockers }) : null,
       data.warnings ? h('p', { class: 'tag warn', text: T('정적 검사 경고 ', 'Static warnings: ') + data.warnings }) : null,
       data.drift ? h('p', { class: 'tag warn', text: T('범위 경고 ', 'Scope warnings: ') + data.drift }) : null,

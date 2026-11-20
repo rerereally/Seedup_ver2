@@ -12,9 +12,6 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  "placement": {
-    "region" : "aws:us-east-1"
-  },
   // Per-visitor request limits used by lib/throttle.ts, one binding per limit (RL_<requests per minute>). Counted
   // across Worker instances in each Cloudflare location; the namespace ids only need to be unique in this account.
   "ratelimits": [

@@ -9,7 +9,7 @@ import type { Opportunity } from '../lib/opportunities/types';
 const opportunity = { slug: 'memory', name: 'Agent memory', problem: 'Agents forget', gap: '', keywords: ['agent', 'memory'], status: 'open', qualified: true, platforms: ['hn', 'github'], supply: [], directCount: 1,
   evidence: [1, 2, 3].map((n) => ({ id: `e${n}`, platform: n === 1 ? 'hn' : 'github', quote: `quote ${n}`, quoteKo: '', url: `https://example.com/${n}`, score: 1, postedAt: null })) } as unknown as Opportunity;
 const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1, 2], acceptance: ['Notes survive restarts'] }], features: [{ title: 'Store notes', detail: 'Save notes to disk', requirements: [1] }] }, 3);
-spec.features[0].slots = { inputs: ['Note text'], rules: [], errors: [], access: [], data: [], done: ['Saving returns an id'] };
+spec.features[0].slots = { inputs: ['Note text'], rules: ['One note per id'], errors: ['A full disk returns an error'], access: ['Local user only'], data: ['notes.json'], done: ['Saving returns an id'] };
 const input = { title: 'T', problem: 'P', gap: '', evidence: [...opportunity.evidence].reverse(), competitors: [] };
 const deps = (over: Partial<McpDeps> = {}): McpDeps => ({
   opportunities: async () => [opportunity],

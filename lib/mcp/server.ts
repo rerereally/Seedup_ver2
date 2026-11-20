@@ -10,8 +10,8 @@ import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
-import type { ExportFormat, Spec, SpecInput, SpecRival } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, p0FeatureIds, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
+import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRival } from '@/lib/opportunities/spec';
 import { publicEvidence } from '@/lib/opportunities/types';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 import { isGitHubLogin } from '@/lib/seeds/github';
@@ -549,6 +549,10 @@ async function nextTaskResult(opportunity: Opportunity, found: { input: SpecInpu
       feature = updated;
     }
   }
+  // A P0 feature not started yet with open readiness questions is not built on a guess: the agent gets the questions
+  // to ask the user, and the coding task opens once an answer approved in the conversation is recorded for it.
+  const questions = status === 'todo' && p0FeatureIds(cached.spec).has(feature.id) ? openQuestionsOf(feature) : [];
+  if (questions.length && !(await answeredFeature(deps, slug, feature.id))) return questionsFirst(slug, goal, context, feature, questions);
   const criteria = featureCriteria(cached.spec, feature);
   // The cache key ignores order, but E-n always refers to the order saved with the PRD.
   // Fall back to the pinned PRD's own stored evidence if the daily engine rotated a quote out of opportunity.evidence.
@@ -594,6 +598,32 @@ update_feature_status ${JSON.stringify({ ...args, status: 'blocked', note: '<wha
     task.scopeCheck ? scopeDecision(slug, feature.id) : toolCall('update_feature_status', { ...args, status: 'in_progress' })),
     structuredContent: nextTaskCard(feature, why, criteria.length, quotes.length, files, shortGoal(goal) || undefined),
   };
+}
+
+/** The readiness slots of a feature still left open, as questions for the user. */
+export function openQuestionsOf(feature: SpecFeature) {
+  return SLOT_KEYS.flatMap((key) => {
+    const items = feature.slots?.[key] ?? [];
+    if (!items.length) return [`${SLOT_LABELS_EN[key]}: what should it be?`];
+    return items.filter((line) => OPEN_SLOT_MARKER.test(line.trim())).map((line) => `${SLOT_LABELS_EN[key]}: ${line.trim().replace(OPEN_SLOT_MARKER, '').trim()}`);
+  }).slice(0, 6);
+}
+
+/** True once a decision the user approved in the conversation names this feature. */
+async function answeredFeature(deps: McpDeps, key: ProjectKey, featureId: string) {
+  const memory = await deps.projectMemory?.(key, 50).catch(() => undefined);
+  return Boolean(memory?.decisions.some((decision) => decision.approved === true && decision.featureIds.includes(featureId)));
+}
+
+function questionsFirst(key: ProjectKey, goal: ProjectGoal | null | undefined, context: string, feature: SpecFeature, questions: string[]): ToolResult {
+  const record = { project: key, title: '<the answer>', why: '<the user’s reason>', agent: '<your name>', scope_change: false, feature_ids: [feature.id], approval: APPROVED };
+  return projectReply(`${feature.id} ${oneLine(feature.title)} [open questions]`, goal, `${context ? `${context}\n\n` : ''}${feature.detail}
+
+The answers change how ${feature.id} is built, so do not guess. Ask the user in the terminal, one question at a time:
+${questions.map((line, index) => `${index + 1}. ${line}`).join('\n')}
+
+A suggested default, or leaving the case out of the first version, is a valid answer. Record the answers for this feature, then call get_next_task again:
+record_decision ${JSON.stringify(record)}`, toolCall('record_decision', record));
 }
 
 /**

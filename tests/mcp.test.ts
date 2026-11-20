@@ -6,6 +6,14 @@ import { normalizeFeatureId } from '../lib/opportunities/build-progress';
 import type { BuildProgress } from '../lib/opportunities/build-progress';
 import { normalizeSpec } from '../lib/opportunities/spec';
 import type { Opportunity } from '../lib/opportunities/types';
+import type { ProjectMemory } from '../lib/db/project-memory';
+
+/** Memory holding the user's approved answer for F-01, so a P0 feature with open readiness questions opens its task. */
+const answeredF01: ProjectMemory = {
+  decisions: [{ id: 'd1', projectKey: 'memory', goalVersion: 1, title: 'Overwrite on same title', why: 'User answered', rejected: [], author: { kind: 'agent', name: 'test' }, approved: true, featureIds: ['F-01'], criterionIds: [], at: '2026-11-20T00:00:00Z' }],
+  handoffs: [],
+  facts: [],
+};
 
 const opportunity = (slug: string, name: string, keywords: string[], qualified = true): Opportunity => ({
   slug, name, problem: `${name} problem`, gap: '', keywords, status: 'open', qualified, platforms: ['hn', 'github'],
@@ -547,7 +555,7 @@ test('pinnedSpec keeps active builds working when daily quotes change cachedSpec
   assert.equal(checklist.isError, undefined);
   assert.match(checklist.text, /F-01 Store notes/);
 
-  const task = await toolResult('get_next_task', { slug: 'memory' }, pinnedDeps);
+  const task = await toolResult('get_next_task', { slug: 'memory' }, { ...pinnedDeps, projectMemory: async () => answeredF01 });
   assert.equal(task.isError, undefined);
   assert.match(task.text, /I lose agent context every morning/);
 });
@@ -733,10 +741,32 @@ test('get_next_task fills the chosen feature’s empty readiness slots once and 
       return { input: cached.input, spec: { ...cached.spec, features: cached.spec.features.map((row) => (row.id === featureId ? { ...row, slots: filledSlots } : row)) } };
     },
   });
-  const task = await toolResult('get_next_task', { slug: 'memory' }, filled);
+  const task = await toolResult('get_next_task', { slug: 'memory' }, { ...filled, projectMemory: async () => answeredF01 });
   assert.deepEqual(asked, ['F-01']);
   assert.match(task.text, /only the owner reads notes/);
 
-  const failed = await toolResult('get_next_task', { slug: 'memory' }, deps({ cachedSpec: async () => ({ input, spec }), fillSlots: async () => null }));
+  const failed = await toolResult('get_next_task', { slug: 'memory' }, deps({ cachedSpec: async () => ({ input, spec }), fillSlots: async () => null, projectMemory: async () => answeredF01 }));
   assert.match(failed.text, /\(open question\)/);
+});
+
+test('get_next_task asks the open questions of a P0 feature first, until an approved answer names that feature', async () => {
+  const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0', acceptance: ['restart keeps notes'] }], features: [{ title: 'Store notes', requirements: [1] }] }, 1);
+  spec.features[0].slots = { inputs: ['a note title and body'], rules: ['확인 필요: 같은 제목이면 덮어쓸까요?'], errors: [], access: ['only the owner'], data: ['notes table'], done: ['restart keeps notes'] };
+  const input = { title: 'Agent memory', problem: 'p', gap: '', evidence: [{ id: 'q1', platform: 'hn' as const, quote: 'context is lost', quoteKo: '', url: 'https://example.com', score: 9, postedAt: null }], competitors: [] };
+  const withMemory = (decisions: ProjectMemory['decisions']) => deps({ cachedSpec: async () => ({ input, spec }), projectMemory: async () => ({ decisions, handoffs: [], facts: [] }) });
+
+  const asked = await toolResult('get_next_task', { slug: 'memory' }, withMemory([]));
+  assert.equal(asked.isError, undefined);
+  assert.match(asked.text, /^F-01 Store notes \[open questions\]/);
+  assert.match(asked.text, /1\. Business rules: 같은 제목이면 덮어쓸까요\?\n2\. Errors and edge cases: what should it be\?/);
+  assert.doesNotMatch(asked.text, /update_feature_status/);
+  assert.match(asked.text, /\nNext: record_decision \{.*"feature_ids":\["F-01"\].*"approval":"대화에서 승인"\}$/);
+
+  // An answer the user did not approve, or one for another feature, does not open the task.
+  const unapproved = await toolResult('get_next_task', { slug: 'memory' }, withMemory([{ ...answeredF01.decisions[0], approved: null }, { ...answeredF01.decisions[0], featureIds: ['F-02'] }]));
+  assert.match(unapproved.text, /\[open questions\]/);
+
+  const opened = await toolResult('get_next_task', { slug: 'memory' }, withMemory(answeredF01.decisions));
+  assert.match(opened.text, /^F-01 Store notes \[todo\]/);
+  assert.match(opened.text, /\nNext: update_feature_status .*"status":"in_progress"/);
 });

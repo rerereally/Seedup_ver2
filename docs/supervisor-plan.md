@@ -357,6 +357,19 @@ export type SupervisorProject = { userId: string; projectKey: ProjectKey; repo: 
 
 머지 순서: A1 → B1 → A2 → B2 + `Header.tsx` 메뉴 → A3 실측 반영.
 
+### 단계 2 보완: B2 대시보드가 남긴 빈 곳
+
+B2(PR #153)가 대시보드를 만들면서 찾은 빈 곳입니다. 대부분 `lib/db` · `lib/supervisor` · `lib/mcp` 파일이라 기술 책임자(정지훈) 쪽 칸으로 묶습니다. 담당 정지훈(에이전트는 정지훈이 고름). B1 #151 · B2 #153 머지 뒤, 단계 2 A2와 같은 파일은 A2 뒤에 합니다.
+
+| 작업 | 내용 | 파일 |
+| :--- | :--- | :--- |
+| ① 사용자별 프로젝트 목록 | `supervisor_projects`에서 사용자의 프로젝트를 최근 활동순으로 읽는 함수. 대시보드 목록이 저장 PRD 목록을 대신 쓰지 않게 교체 | `lib/db/supervisor-projects.ts`, `components/supervisor/data.ts`, 관련 테스트 |
+| ② 기능별 검증 수준 | 진행 기록에 검증 수준(🟢 `supervisor_verified` · 🔵 `local_checked` · ⚪ `self_reported`)을 저장 · 조회. 🟢는 유효한 검증 토큰이 있을 때만(A2 완료 게이트), 🔵는 로컬 훅 결과를 받을 때만. 대시보드 신호등이 이 값을 씀 | `supabase/migrations/<새 파일>`(`build_progress`에 칸 추가), `lib/opportunities/build-progress.ts`, `lib/mcp/server.ts`(A2 뒤), `components/supervisor/model.ts` |
+| ③ 훅 묶음의 `pre-commit` | 계획 3-4의 1단 로컬 검사: 커밋 전에 바뀐 줄로 정적 검사(차단 규칙만 막고 경고는 표시). 스타터 팩에 파일과 설치 안내 추가 | `lib/supervisor/hook-bundle.ts`, 필요하면 `scripts/` 아래 검사 스크립트, `tests/` |
+| ④ 이탈 검사 입력 보강 | 커밋 연결에 파일 상태(추가 · 수정 · 삭제)를 받고, diff의 마이그레이션에서 새 테이블을 읽어 `findDrift`에 넘김(명세에 없는 화면 · API · 테이블 판정) | `lib/mcp/server.ts`(`link_commit`, A2 뒤), `lib/opportunities/feature-commits.ts`, 필요하면 마이그레이션, `components/supervisor/model.ts` |
+
+순서: ①(독립) → A2 → ② · ④ → ③(언제든). ②는 마이그레이션이 있어 정지훈이 머지하며 운영 DB에 적용합니다.
+
 **단계 2에 함께 하는 것 (코드 칸 밖)**
 
 | 작업 | 담당 | 내용 | 시점 |
@@ -491,3 +504,4 @@ DB 쿼리는 lib/db/* 안에서만 작성해.
 - 2026-11-20: 0-4 결정(A안). 단계 2 B1 칸에 데이터 수집 거부 유료 경로, 처리방침 문구, 화면 안내 한 줄 추가.
 - 2026-11-20: DESIGN.md 8절 MCP 화면 · 응답 기준 확정.
 - 2026-11-20: 검증 모델(GPT 6.2 Sol · Haiku 5.5, 교차 계열), 유료 비용 보호(OpenRouter 지출 한도 + 사용자별 하루 횟수), 실제 프로젝트 검증 시점(단계 2 완료 뒤) 반영. 정지훈 결정.
+- 2026-11-20: 단계 2 보완 칸 추가(B2 #153이 남긴 빈 곳 4개: 프로젝트 목록 함수, 기능별 검증 수준, pre-commit, 이탈 입력). 담당 정지훈.

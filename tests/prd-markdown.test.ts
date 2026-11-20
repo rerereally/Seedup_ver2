@@ -144,3 +144,16 @@ test('normalizeClarity keeps only who, problem and how, and drops the suggestion
   assert.equal(normalizeClarity({ suggestion: 'x' }), null);
   assert.equal(normalizeClarity(null), null);
 });
+
+test('a saved PRD keeps its readiness slots when read back from markdown, open ones included', async () => {
+  const { normalizeSpec, renderSpecMarkdown } = await import('../lib/opportunities/spec');
+  const evidence = [{ id: 'e1', platform: 'hn' as const, quote: 'notes vanish after restart', quoteKo: '', url: 'https://example.com', score: 1, postedAt: null }];
+  const input = { title: 'Notes', problem: 'p', gap: '', evidence, competitors: [] };
+  for (const lang of ['ko', 'en'] as const) {
+    const spec = { ...normalizeSpec({ summary: 's', requirements: [{ title: 'Remember', evidence: [1], priority: 'P0' }], features: [{ title: 'Store notes', detail: 'Save notes to disk', requirements: [1] }] }, evidence, false, { lang }), lang };
+    spec.features[0].slots = { inputs: ['note title', 'note body'], rules: ['확인 필요: 같은 제목이면 덮어쓸까요?'], errors: [], access: ['owner only: read and write'], data: ['notes table'], done: ['restart keeps notes'] };
+    const back = normalizeSpec(parsePrdMarkdown(renderSpecMarkdown(input, spec))!, evidence, false, { lang });
+    assert.deepEqual(back.features[0].slots, spec.features[0].slots, lang);
+    assert.equal(back.features[0].detail, 'Save notes to disk', lang);
+  }
+});

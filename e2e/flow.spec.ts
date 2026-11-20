@@ -22,7 +22,8 @@ async function lockGoalAndVerifyHandoff(page: Page) {
   await expect(handoff.getByText(expectedPrompt)).toBeVisible();
 
   await handoff.getByRole('button', { name: '시작 문장 복사' }).click();
-  await expect(handoff.getByRole('status')).toHaveText(/시작 문장을 복사했습니다\.|아래 시작 문장을 선택해 직접 복사하세요\./);
+  // The starter pack below has its own status line, so the copy result is picked by its text.
+  await expect(handoff.getByRole('status').filter({ hasText: /시작 문장을 복사했습니다\.|아래 시작 문장을 선택해 직접 복사하세요\./ })).toBeVisible();
   expect(expectedPrompt).not.toMatch(/sdp_|Bearer|token|api[_-]?key/i);
   return { projectKey, expectedPrompt };
 }
@@ -49,7 +50,7 @@ test('idea → tailored questions → streamed PRD → AGENTS.md export → goal
   await dossierSaved;
 
   await prd.getByText('에이전트로 보내기', { exact: true }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'AGENTS.md 받기' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'AGENTS.md 받기', exact: true }).click()]);
   expect(download.suggestedFilename()).toBe('AGENTS.md');
   const brief = readFileSync((await download.path())!, 'utf8');
   expect(brief).toMatch(/F-01/);

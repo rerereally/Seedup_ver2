@@ -23,11 +23,12 @@ export function readAppResource(uri: unknown) {
   return { contents: [{ uri: APP_URI, mimeType: APP_MIME, text: APP_HTML, _meta: { ui: { prefersBorder: true, csp: {} } } }] };
 }
 
-export const projectPage = (siteUrl: string, key: string) =>
-  key.startsWith('prd:') ? `${siteUrl.replace(/\/+$/, '')}/prd` : `${siteUrl.replace(/\/+$/, '')}/prd?opportunity=${encodeURIComponent(key)}`;
-
 export const supervisorPage = (siteUrl: string, key: string) =>
   `${siteUrl.replace(/\/+$/, '')}/supervisor/${encodeURIComponent(key)}`;
+
+// A personal PRD (prd:<id>) has no page of its own in the builder, so its link is the project page that shows it.
+export const projectPage = (siteUrl: string, key: string) =>
+  key.startsWith('prd:') ? supervisorPage(siteUrl, key) : `${siteUrl.replace(/\/+$/, '')}/prd?opportunity=${encodeURIComponent(key)}`;
 
 export const progressNote = (note: string) => scrubSecrets(note
   .replace(/\[(?:supervisor_verified|self_reported|local_checked)(?::[^\]\r\n]*)?\]/gi, '')

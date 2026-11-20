@@ -280,7 +280,7 @@ test('a scope decision requires asking the user and records the terminal approva
   const args = { project: PROJECT, title: 'Add paid plans now', why: 'Users asked for billing', agent: 'Codex', scope_change: false };
   const pending = await call('record_decision', args, d);
   assert.match(pending.body, /ASK USER \(in the terminal, before acting\):/);
-  assert.match(pending.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111 \(planning: https:\/\/seedup\.test\/prd\)/);
+  assert.match(pending.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111/);
   const approval = await call('record_decision', { ...args, approval: '대화에서 승인' }, d);
   assert.match(approval.body, /대화에서 승인/);
   assert.match(approval.body, /Re-lock the goal on the web \(MCP has no goal-lock tool\): https:\/\/seedup\.test\/supervisor\/prd%3A11111111-1111-1111-1111-111111111111/);

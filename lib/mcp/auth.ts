@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isAdminUser } from '@/lib/auth/admin';
 import { usageLimitFailsOpen } from '@/lib/usage-limit';
 
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -40,6 +41,13 @@ export async function userForToken(service: SupabaseClient, authorization: strin
  * limits but can let a burst through.
  */
 export async function consumeUsageFor(service: SupabaseClient, userId: string, feature: string, dailyLimit: number) {
+  if (await countUsageFor(service, userId, feature, dailyLimit)) return true;
+  // Admins are still counted, so their spend shows in ai_usage, but the daily limit does not stop them.
+  const { data } = await service.auth.admin.getUserById(userId);
+  return isAdminUser(data.user);
+}
+
+async function countUsageFor(service: SupabaseClient, userId: string, feature: string, dailyLimit: number) {
   const { data: allowed, error: rpcError } = await service.rpc('consume_ai_usage_for', { p_user: userId, p_feature: feature, p_daily_limit: dailyLimit });
   if (!rpcError) return allowed === true;
   console.error('MCP atomic usage count failed, falling back to read-then-write', rpcError.message);

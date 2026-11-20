@@ -260,6 +260,20 @@ export default function Dashboard({ project, lang, tab = 'overview', flow }: { p
         <div><dt className="text-muted">{t('엄격 모드', 'Strict mode')}</dt><dd className="mt-1 text-ink">{project.strict ? t('켜짐: 자가 보고로 완료 불가', 'On: no self-reported done') : t('꺼짐', 'Off')}</dd></div>
       </dl>
     </section>
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="context-heading">
+      <h2 id="context-heading" className="text-xl font-semibold text-ink">{t('에이전트가 받는 컨텍스트', 'What the agent is handed')}</h2>
+      <p className="mt-2 text-[13px] text-muted">{t('세션이 바뀌거나 대화가 압축돼도 목표를 잃지 않게, 에이전트에게 그대로 들어가는 문장입니다.', 'Word for word what reaches the agent, so a new session or a compacted chat keeps the goal.')}</p>
+      {([
+        ['MCP 연결할 때', 'When MCP connects', t('최근 PRD 중 아직 충족 안 된 목표 2개까지 서버 안내문에 붙습니다.', 'Added to the server instructions for up to two unmet goals among recent PRDs.'), project.context.initialize, t('잠긴 목표가 없거나 모두 충족돼 붙지 않습니다.', 'Not added: no locked goal, or every criterion is met.')],
+        ['세션 시작 · 압축 뒤 (SessionStart 훅)', 'Session start and after compaction (SessionStart hook)', t('.seedup/goal.md를 그대로 넣고, 압축 · 재개 뒤에는 resume_project를 부르라는 안내를 덧붙입니다. 압축 직전(PreCompact)에는 save_handoff로 인계를 남기라고 알립니다.', 'Injects .seedup/goal.md; after compaction or resume it adds a call to resume_project. Before compaction (PreCompact) it asks for save_handoff.'), project.context.sessionStart, t('목표를 잠그고 저장소에 훅 파일을 넣으면 들어갑니다.', 'Starts once a goal is locked and the hook files are in the repository.')],
+        ['resume_project · get_next_task 응답', 'resume_project and get_next_task replies', t('목표 요약, 최근 결정 3개, 마지막 인수인계', 'Goal summary, last three decisions, last handoff'), project.context.memory || null, t('아직 목표 · 결정 · 인수인계가 없습니다.', 'No goal, decisions or handoff yet.')],
+      ] as const).map(([ko, en, note, body, empty]) => <details key={ko} open={Boolean(body)} className="border-b border-outline-soft py-3 text-sm">
+        <summary className="cursor-pointer font-semibold text-ink">{t(ko, en)}</summary>
+        <p className="mt-1 text-[13px] text-muted">{note}</p>
+        {body ? <pre className="terminal mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5">{body}</pre>
+          : <p className="mt-2 text-[13px] text-muted">{empty}</p>}
+      </details>)}
+    </section>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="files-heading">
       <h2 id="files-heading" className="text-xl font-semibold text-ink">{t('저장소에 넣을 파일 (setup_project)', 'Files for the repository (setup_project)')}</h2>
       {!project.files.length ? <p className="mt-4 text-sm text-muted">{t('목표를 잠그면 훅과 검사 파일이 만들어집니다.', 'Hook and check files appear once a goal is locked.')}</p>

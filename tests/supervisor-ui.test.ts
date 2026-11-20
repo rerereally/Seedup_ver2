@@ -160,6 +160,9 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   for (const value of ['Did not pass', 'Criterion', 'Unclear', 'Expected source was missing.', 'tests/read.py', 'assert active', 'Unverified']) assert.ok(html.includes(value));
   assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json']);
   assert.ok(result.files[0].content.includes(goal.statement));
+  // The context preview shows the same text the hook and MCP hand the agent.
+  assert.equal(result.context.sessionStart, result.files[0].content);
+  assert.ok(result.context.initialize?.includes(goal.statement));
   assert.ok(JSON.parse(result.files[4].content).hooks.SessionStart);
   assert.ok(JSON.parse(result.files[5].content).hooks.SessionStart);
   const list = await supervisorList(client, USER);
@@ -168,7 +171,7 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
 
 test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: [], decisions: [], files: [], verifications: [],
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: [], decisions: [], files: [], verifications: [],
     handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = allTabs(project, 'en');
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
@@ -197,7 +200,7 @@ test('dashboard renders the goal first, all criterion states, safe text, English
 
 test('empty dashboard shows missing records without claiming verification or inventing a goal', () => {
   const project: SupervisorDetail = { key: KEY, title: 'empty', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: [], specAvailable: false, lockSpec: null, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));
@@ -216,13 +219,16 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
     facts: [{ projectKey: KEY, kind: 'env_name', text: 'SLACK_WEBHOOK_URL', author: 'Claude Code', at: '2026-11-20T10:00:00Z' }],
     spec, progress, history: {}, next: null, featureFiles: { 'F-01': { count: 1, files: ['src/lib/read.py', 'README.md'] } }, specQuotes: [],
     humanTasks: [{ id: 'H-1', title: 'Create a Slack webhook', category: 'api_key', envVars: ['SLACK_WEBHOOK_URL'], estimatedMinutes: 5, guideSteps: ['Open Slack apps'], unblocksFeatureIds: ['F-01'], mockContractHint: 'log the message', done: false }],
-    envNames: ['SLACK_WEBHOOK_URL'] };
+    envNames: ['SLACK_WEBHOOK_URL'],
+    context: { initialize: '- prd:x (v2): Ship the digest', sessionStart: '# Seedup goal\nShip the digest', memory: 'Recent decisions\n- Use Supabase' } };
   const render = (tab: (typeof DASHBOARD_TABS)[number]) => renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en', tab }));
   assert.ok(render('prd').includes('Spec title') && render('prd').includes('I keep losing issues'));
   assert.ok(render('activity').includes('https://github.com/octo/app/commit/' + 'a'.repeat(40)) && render('activity').includes('Add digest'));
   assert.ok(!render('activity').includes('body'));
   assert.ok(render('memory').includes('SLACK_WEBHOOK_URL'));
-  assert.ok(render('setup').includes('octo/app') && render('setup').includes('On: no self-reported done'));
+  const setup = render('setup');
+  assert.ok(setup.includes('octo/app') && setup.includes('On: no self-reported done'));
+  assert.ok(setup.includes('- prd:x (v2): Ship the digest') && setup.includes('# Seedup goal') && setup.includes('Use Supabase'));
   assert.ok(!render('overview').includes('SLACK_WEBHOOK_URL'));
   assert.ok(render('overview').includes('aria-current="page"'));
   const files = render('files');
@@ -233,7 +239,7 @@ test('tabs: unknown values fall back to the overview, and each MCP record shows 
 
 test('a PRD with no locked goal (one made over MCP) gets the lock form on its dashboard', () => {
   const project: SupervisorDetail = { key: KEY, title: 'mcp prd', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [],  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
+    features: featureSignals(spec, progress), specAvailable: true, lockSpec: spec, prd: { markdown: null, quotes: [] }, repo: null, track: null, strict: false, commits: [], facts: [], spec: null, progress: {}, history: {}, next: null, featureFiles: {}, specQuotes: [], humanTasks: [], envNames: [], context: { initialize: null, sessionStart: null, memory: '' },  drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('목표 잠그기'));
   assert.ok(!html.includes('기획 탭에서 목표를 잠가 주세요'));

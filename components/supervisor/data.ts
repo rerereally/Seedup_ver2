@@ -9,7 +9,7 @@ import { cachedPrd } from '@/lib/db/server';
 import { getOpportunities, getOpportunity } from '@/lib/opportunities/data';
 import { readBuildProgress, readBuildProgressHistory, type BuildProgressHistory } from '@/lib/opportunities/build-progress';
 import { readFeatureCommits, summarizeFeatureCommits } from '@/lib/opportunities/feature-commits';
-import { pickNextTask } from '@/lib/mcp/server';
+import { activeGoalLine, contextText, pickNextTask } from '@/lib/mcp/server';
 import { hookBundle, hookSettings } from '@/lib/supervisor/hook-bundle';
 import { humanTasks } from '@/lib/supervisor/human-queue';
 import { decodeProjectKey, driftForProject, featureSignals, latestActivity } from './model';
@@ -54,6 +54,12 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     // What get_next_task, explain_file and the PRD's flow views work from, for the work, file map and flow tabs.
     spec, progress, history,
     next: spec ? pickNextTask(spec, progress, goal) : null,
+    // What the agent is handed, word for word: the MCP initialize line, the session-start hook file, the memory lines.
+    context: {
+      initialize: goal?.criteria.some((row) => row.status !== 'met') ? activeGoalLine(goal) : null,
+      sessionStart: goal ? hookBundle(key, goal).find((file) => file.path === '.seedup/goal.md')?.content ?? null : null,
+      memory: contextText(goal, { decisions: memory.decisions.slice(0, 3), handoffs: memory.handoffs.slice(0, 3), facts: memory.facts.slice(0, 3) }),
+    },
     // What get_next_task puts before code (setup a person does) and what check_env compares the local names against.
     humanTasks: spec ? humanTasks(spec) : [],
     envNames: [...new Set([...(spec ? humanTasks(spec).flatMap((task) => task.envVars) : []),

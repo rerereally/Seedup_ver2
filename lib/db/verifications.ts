@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '../supabase/admin';
 import { supervisorProject } from './supervisor-projects';
 import type { CriterionVerdict, Verification } from '../supervisor/types';
@@ -50,6 +51,18 @@ const toRow = (r: VerificationRecord): Row => ({
   created_at: r.createdAt, finished_at: r.finishedAt, unseen: r.unseen,
   github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null, retried: r.retried ?? false,
 });
+
+export type VerificationSummary = Pick<Row, 'id' | 'feature_id' | 'repo' | 'sha' | 'status' | 'verdicts' | 'checks' | 'model' | 'created_at' | 'duration_ms' | 'error_message'>;
+
+/** Dashboard reads use the signed-in client. Never select the verification credential for display. */
+export async function recentProjectVerifications(client: SupabaseClient, userId: string, projectKey: string): Promise<VerificationSummary[]> {
+  const { data, error } = await client.from('verifications')
+    .select('id,feature_id,repo,sha,status,verdicts,checks,model,created_at,duration_ms,error_message')
+    .eq('user_id', userId).eq('project_key', projectKey)
+    .order('created_at', { ascending: false }).limit(10);
+  if (error) throw error;
+  return data as VerificationSummary[];
+}
 
 /** Load test evidence only from the verified SHAs recorded when these features were marked done. */
 export async function completedVerificationTests(userId: string, key: string, repo: string, commits: Record<string, string>): Promise<Record<string, VerificationVerdict[]>> {

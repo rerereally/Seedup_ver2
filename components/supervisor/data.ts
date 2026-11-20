@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
+import { recentProjectVerifications } from '@/lib/db/verifications';
 import { projectMemory } from '@/lib/db/project-memory';
 import { resolveProjectKey, supervisorProject, userSupervisorProjects } from '@/lib/db/supervisor-projects';
 import { cachedPrd } from '@/lib/db/server';
@@ -22,18 +23,20 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
   // A public opportunity existing does not make it this user's supervisor project.
   if (!project && !dossier) return null;
   const evidenceIds = dossier?.evidence_ids ?? opportunity?.evidence.slice(0, 12).map((row) => row.id) ?? [];
-  const [goal, memory, progress, commits, cached] = await Promise.all([
+  const [goal, memory, progress, commits, cached, verifications] = await Promise.all([
     currentProjectGoal(client, userId, key), projectMemory(client, userId, key),
     readBuildProgress(client, userId, key), readFeatureCommits(client, userId, key), cachedPrd(evidenceIds),
+    recentProjectVerifications(client, userId, key).catch(() => null),
   ]);
   const spec = cached?.spec ?? null;
   const lastActivityAt = latestActivity([
     dossier?.updated_at, goal?.lockedAt, ...Object.values(progress).map((row) => row.updatedAt),
     ...commits.map((row) => row.created_at), ...memory.decisions.map((row) => row.at),
     ...memory.handoffs.map((row) => row.at), ...memory.facts.map((row) => row.at),
+    verifications?.[0]?.created_at,
   ]);
   return {
-    key, title: dossier?.title || opportunity?.name || key, goal,
+    key, title: dossier?.title || opportunity?.name || key, goal, verifications, handoffs: memory.handoffs,
     criteriaMet: goal?.criteria.filter((row) => row.status === 'met').length ?? 0,
     criteriaTotal: goal?.criteria.length ?? 0, lastActivityAt,
     features: featureSignals(spec, progress), specAvailable: Boolean(spec),

@@ -129,6 +129,13 @@ test('a real public opportunity is still unavailable when the user has no projec
 test('owned personal PRD loads scoped data, exact bundle contents, criterion count and latest memory activity', async () => {
   const client = database((url) => {
     switch (url.pathname.split('/').pop()) {
+      case 'verifications':
+        assert.equal(url.searchParams.get('project_key'), `eq.${KEY}`);
+        assert.ok(!url.searchParams.get('select')?.split(',').some((column) => column === '*' || column === 'token'));
+        return [{ id: 'v1', feature_id: 'F-01', repo: 'org/project', sha: 'a'.repeat(40), status: 'failed',
+          created_at: '2026-11-20T10:00:00Z', model: null, checks: [],
+          verdicts: [{ criterion: '7', verdict: 'unclear', reason: 'Expected source was missing.',
+            citations: [{ path: 'tests/read.py', line: 76, quote: 'assert active', verified: false }] }] }];
       case 'evidence_dossiers': return [{ id: PRD, title: '내 프로젝트', evidence_ids: [], prd_markdown: '# ledger', updated_at: '2026-11-19T09:00:00Z' }];
       case 'project_goals': return [{ project_key: KEY, version: goal.version, track: goal.track, statement: goal.statement, criteria: goal.criteria, in_scope: goal.inScope, out_of_scope: goal.outOfScope, locked_at: goal.lockedAt, change_reason: goal.changeReason }];
       case 'project_memory': return url.searchParams.get('kind') === 'eq.decision' ? [{ id: 'd1', body: { title: '범위 축소', why: '시간', author: { kind: 'person', name: '사용자' }, approved: true, goalVersion: 2, rejected: [], featureIds: [], criterionIds: [] }, created_at: '2026-11-20T12:00:00Z' }] : [];
@@ -145,6 +152,9 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
   assert.equal(result.features[0].verification, 'self_reported');
   assert.equal(result.drift, null);
   assert.equal(result.decisions[0].title, '범위 축소');
+  assert.equal(result.verifications?.[0].feature_id, 'F-01');
+  const html = renderToStaticMarkup(createElement(Dashboard, { project: result, lang: 'en' }));
+  for (const value of ['Did not pass', 'Criterion', 'Unclear', 'Expected source was missing.', 'tests/read.py', 'assert active', 'Unverified']) assert.ok(html.includes(value));
   assert.deepEqual(result.files.map((row) => row.path), ['.seedup/goal.md', '.seedup/hook.mjs', '.seedup/pre-commit.sh', '.seedup/audit.mjs', '.claude/settings.json', '.codex/hooks.json']);
   assert.ok(result.files[0].content.includes(goal.statement));
   assert.ok(JSON.parse(result.files[4].content).hooks.SessionStart);
@@ -155,11 +165,13 @@ test('owned personal PRD loads scoped data, exact bundle contents, criterion cou
 
 test('dashboard renders the goal first, all criterion states, safe text, English copy and green badge only for supervisor_verified', () => {
   const project: SupervisorDetail = { key: KEY, title: '<script>alert(1)</script>', goal, criteriaMet: 1, criteriaTotal: 3, lastActivityAt: goal.lockedAt,
-    features: featureSignals(spec, progress), specAvailable: true, drift: [], decisions: [], files: [] };
+    features: featureSignals(spec, progress), specAvailable: true, drift: [], decisions: [], files: [], verifications: [],
+    handoffs: [{ projectKey: KEY, agent: 'Codex', doing: 'Read inputs', next: 'Check totals', cautions: ['Missing headers'], unverifiedShas: ['b'.repeat(40)], at: goal.lockedAt }] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'en' }));
   assert.ok(html.indexOf('Locked goal') < html.indexOf('Feature signals'));
   for (const value of ['open', 'partial', 'met', 'Self-reported', 'Goal version', 'Out of scope', 'Recent decisions']) assert.ok(html.includes(value));
   assert.ok(!html.includes('text-seed'));
+  for (const value of ['Read inputs', 'Check totals', 'Missing headers', 'Unverified commits']) assert.ok(html.includes(value));
 
   const verifiedProgress: BuildProgress = {
     'F-01': { ...progress['F-01'], status: 'done', verificationLevel: 'supervisor_verified' },
@@ -182,7 +194,7 @@ test('dashboard renders the goal first, all criterion states, safe text, English
 
 test('empty dashboard shows missing records without claiming verification or inventing a goal', () => {
   const project: SupervisorDetail = { key: KEY, title: 'empty', goal: null, criteriaMet: 0, criteriaTotal: 0, lastActivityAt: null,
-    features: [], specAvailable: false, drift: null, decisions: [], files: [] };
+    features: [], specAvailable: false, drift: null, decisions: [], files: [], verifications: [], handoffs: [] };
   const html = renderToStaticMarkup(createElement(Dashboard, { project, lang: 'ko' }));
   assert.ok(html.includes('아직 기록 없음'));
   assert.ok(html.includes('아직 잠긴 목표가 없습니다'));

@@ -2,6 +2,7 @@ import { translator, type Lang } from '@/lib/i18n';
 import type { FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { SupervisorDetail } from './data';
 import { ActivityTime } from './ProjectList';
+import VerificationHistory from './VerificationHistory';
 
 const STATUSES: Record<FeatureStatus, [string, string]> = {
   todo: ['대기', 'To do'], in_progress: ['진행 중', 'In progress'], improving: ['개선 중', 'Improving'],
@@ -66,6 +67,20 @@ export default function Dashboard({ project, lang }: { project: SupervisorDetail
           </li>)}</ul>}
       </section>
     </div>
+    <VerificationHistory rows={project.verifications} lang={lang} />
+    <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="handoff-heading">
+      <h2 id="handoff-heading" className="text-xl font-semibold text-ink">{t('최근 인수인계', 'Recent handoffs')}</h2>
+      {project.handoffs.length === 0 && <p className="mt-3 text-sm text-muted">{t('기록된 인수인계가 없습니다.', 'No handoffs recorded.')}</p>}
+      {project.handoffs.map((handoff, index) => <details key={handoff.at + index} open={index === 0} className="border-b border-outline-soft py-3 text-sm">
+        <summary className="cursor-pointer font-semibold text-ink">{handoff.agent} · <ActivityTime at={handoff.at} lang={lang} /></summary>
+        <dl className="mt-3 space-y-3">
+          <div><dt className="font-semibold">{t('하던 일', 'Work in progress')}</dt><dd className="whitespace-pre-wrap text-tertiary">{handoff.doing}</dd></div>
+          <div><dt className="font-semibold">{t('다음 할 일', 'Next step')}</dt><dd className="whitespace-pre-wrap text-tertiary">{handoff.next}</dd></div>
+          {handoff.cautions.length > 0 && <div><dt className="font-semibold">{t('주의 사항', 'Cautions')}</dt><dd><ul className="list-disc pl-5">{handoff.cautions.map((item, i) => <li key={i}>{item}</li>)}</ul></dd></div>}
+          {handoff.unverifiedShas.length > 0 && <div><dt className="font-semibold">{t('미검증 커밋', 'Unverified commits')}</dt><dd className="font-mono">{handoff.unverifiedShas.join(', ')}</dd></div>}
+        </dl>
+      </details>)}
+    </section>
     <section className="min-w-0 border-t border-outline-soft pt-6" aria-labelledby="decisions-heading">
       <h2 id="decisions-heading" className="text-xl font-semibold text-ink">{t('최근 결정', 'Recent decisions')}</h2>
       {!project.decisions.length ? <p className="mt-4 text-sm text-muted">{t('아직 기록 없음', 'No records yet')}</p>

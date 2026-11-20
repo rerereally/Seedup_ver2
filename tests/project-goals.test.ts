@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createClient } from '@supabase/supabase-js';
-import { lockProjectGoal, readGoalInput } from '../lib/db/project-goals';
+import { lockProjectGoal, readGoalInput, recheckForGoalChange } from '../lib/db/project-goals';
+import { normalizeSpec } from '../lib/opportunities/spec';
+import type { ProjectGoal } from '../lib/supervisor/types';
 import { addProjectMemory } from '../lib/db/project-memory';
 import { resolveProjectKey } from '../lib/db/supervisor-projects';
 
@@ -115,4 +117,30 @@ test('an env_name fact with a value is refused before anything is stored', async
     kind: 'fact', body: { kind: 'env_name', text: 'OPENROUTER_API_KEY=sk-or-v1-abc', author: 'codex' },
   }), /key name only/);
   assert.equal(fetch.mock.callCount(), 0);
+});
+
+test('a new goal version sends started or done features of edited criteria to needs_recheck, not untouched ones', async (t) => {
+  const spec = normalizeSpec({
+    summary: 'Ledger',
+    requirements: [{ title: '하루 기록', detail: '기록이 빨리 끝난다', evidence: [1] }, { title: '월말 합계', detail: '잔고 대조', evidence: [1] }],
+    features: [{ title: '빠른 기록', detail: '기록 화면', requirements: [1] }, { title: '합계 보고서', detail: '월말 합계', requirements: [2] }],
+  }, 1);
+  const goal = (version: number, measure: string): ProjectGoal => ({
+    projectKey: `prd:${DOSSIER}`, version, track: 'personal', statement: 's', inScope: [], outOfScope: [], lockedAt: '', changeReason: null,
+    criteria: [{ id: 'G-1', text: '하루 기록이 1분 안에 끝난다', measure, status: 'open' }, { id: 'G-2', text: '월말 합계가 잔고와 맞는다', measure: '3개월 대조', status: 'open' }],
+  });
+  const writes: unknown[] = [];
+  supabase(t, (url, body) => {
+    if (url.pathname.endsWith('/rpc/write_build_progress')) { writes.push(body); return { json: true }; }
+    return { json: [
+      { feature_id: spec.features[0].id, feature_title: '빠른 기록', status: 'done', note: '', updated_at: '', done_at: '' },
+      { feature_id: spec.features[1].id, feature_title: '합계 보고서', status: 'todo', note: '', updated_at: '', done_at: null },
+    ] };
+  });
+  const flagged = await recheckForGoalChange(service, USER, `prd:${DOSSIER}`, goal(1, '저장까지 시간'), goal(2, '저장 버튼까지 초'), async () => spec);
+  assert.deepEqual(flagged, [spec.features[0].id]);
+  assert.equal(writes.length, 1);
+  assert.equal((writes[0] as { p_status: string }).p_status, 'needs_recheck');
+  assert.match((writes[0] as { p_note: string }).p_note, /목표 v2에서 G-1/);
+  assert.deepEqual(await recheckForGoalChange(service, USER, `prd:${DOSSIER}`, goal(1, 'x'), goal(2, 'x'), async () => spec), []);
 });

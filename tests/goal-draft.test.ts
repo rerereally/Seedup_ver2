@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { goalDraft, unlinkedItems } from '../components/goal/draft';
+import { goalDraft, nextCriterionId, unlinkedItems } from '../components/goal/draft';
 import type { Spec } from '../lib/opportunities/spec';
 
 const spec = {
@@ -35,4 +35,14 @@ test('unlinkedItems flags requirements and features no criterion covers', () => 
   const draft = goalDraft(spec, 'idea');
   assert.deepEqual(unlinkedItems(spec, draft.criteria).map((row) => row.id), ['R-02', 'F-02']);
   assert.deepEqual(unlinkedItems(spec, []), []);
+});
+
+test('a new criterion takes the next free id, so a removed one never passes its id on', () => {
+  const rows = [{ id: 'G-1', text: 'a', measure: 'x', status: 'open' as const }, { id: 'G-3', text: 'c', measure: 'z', status: 'open' as const }];
+  assert.equal(nextCriterionId(rows), 'G-4');
+  assert.equal(nextCriterionId([]), 'G-1');
+});
+
+test('empty criterion rows do not mark everything as unrelated', () => {
+  assert.deepEqual(unlinkedItems(spec, [{ id: 'G-1', text: ' ', measure: '', status: 'open' }]), []);
 });

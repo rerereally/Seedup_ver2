@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import type { MemoryEntry, ProjectMemory } from '../lib/db/project-memory';
 import { handleMcpRequest } from '../lib/mcp/endpoint';
-import { handleRpc, type McpDeps, type SavedPrdDetail } from '../lib/mcp/server';
+import { handleRpc, peopleFirst, type McpDeps, type SavedPrdDetail } from '../lib/mcp/server';
+import { normalizeSpec } from '../lib/opportunities/spec';
 import type { ProjectGoal } from '../lib/supervisor/types';
 
 const USER = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -237,4 +238,19 @@ test('connect_repo checks GitHub with the server token and only persists public 
   assert.match((await tool('connect_repo', { project: PROJECT, repo: 'seedup/public' })).body, /Connected Seedup\/Public/);
   assert.equal(checked, 2);
   assert.equal(writes.length, 2);
+});
+
+test('get_next_task puts person-only setup for that feature first, with key names and no values', () => {
+  const spec = normalizeSpec({
+    summary: 's',
+    requirements: [{ title: 'Pay', evidence: [1] }, { title: 'Read', evidence: [1] }],
+    features: [{ title: 'Checkout', detail: 'Stripe billing', requirements: [1] }, { title: 'Reader', detail: 'Shows notes', requirements: [2] }],
+  }, 1);
+  spec.openQuestions = ['Monthly or yearly?'];
+  const first = peopleFirst(spec, spec.features[0].id);
+  assert.match(first, /^People first/);
+  assert.match(first, /STRIPE_SECRET_KEY/);
+  assert.match(first, /never ask for or store values/);
+  assert.match(first, /1 open decision/);
+  assert.equal(peopleFirst(spec, spec.features[1].id), '');
 });

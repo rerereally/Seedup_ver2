@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import type { Spec } from '@/lib/opportunities/spec';
-import { MAX_CRITERIA, MIN_CRITERIA, criterion, goalDraft, unlinkedItems, type GoalDraft } from './draft';
+import { MAX_CRITERIA, MIN_CRITERIA, criterion, goalDraft, nextCriterionId, unlinkedItems, type GoalDraft } from './draft';
+import { humanTasks } from '@/lib/supervisor/human-queue';
 import type { ProjectGoal, SuccessCriterion, Track } from '@/lib/supervisor/types';
 
 type Save = 'idle' | 'saving' | 'saved' | 'unsaved' | 'login';
@@ -71,6 +72,8 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
 
   const criteria = editing?.criteria ?? goal?.criteria;
   const unlinked = useMemo(() => unlinkedItems(spec, criteria ?? []), [spec, criteria]);
+  // "Environment first" (plan 2-2 ①): setup only a person can do, so it happens before the agent needs it.
+  const setup = useMemo(() => humanTasks(spec).filter((task) => task.category !== 'decision').slice(0, 5), [spec]);
 
   // A 400 is the server rejecting the input: go back to the previous goal and reopen the form with its message.
   const put = async (next: ProjectGoal, previous: ProjectGoal | null) => {
@@ -103,7 +106,8 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
   const filled = editing ? filledCriteria(editing.criteria).length : 0;
   const lock = () => {
     if (!editing) return;
-    const rows = filledCriteria(editing.criteria).map((row, index) => ({ ...row, id: `G-${index + 1}`, text: row.text.trim(), measure: row.measure.trim() }));
+    // Ids stay as they are: decisions and feature links point at G-n, so a removed criterion must not pass its id on.
+    const rows = filledCriteria(editing.criteria).map((row) => ({ ...row, text: row.text.trim(), measure: row.measure.trim() }));
     const scope = [lines(editing.inScope), lines(editing.outOfScope)];
     const problem = !editing.statement.trim() ? t('목표 문장을 적어 주세요.', 'Write the goal statement.')
       : !editing.track ? t('트랙을 골라 주세요.', 'Pick a track.')
@@ -156,6 +160,21 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
     </div>
   );
 
+  const setupSection = setup.length > 0 && (
+    <div className="border-t border-outline-soft px-5 py-4">
+      <h3 className="text-[15px] font-semibold text-ink">{t(`사람이 먼저 할 일 ${setup.length}개`, `${setup.length} things to set up first`)}</h3>
+      <p className="mt-1 text-[13px] leading-5 text-muted">{t('계정과 키는 사람만 만들 수 있습니다. 그동안 에이전트는 가짜 응답으로 만들고, 키 값은 .env에만 둡니다.', 'Only a person can create accounts and keys. The agent builds against a stand-in meanwhile; key values stay in .env.')}</p>
+      <ul className="mt-2 space-y-1 text-[14px] leading-6">
+        {setup.map((task) => (
+          <li key={task.id} className="flex min-w-0 gap-2">
+            <span className="shrink-0 font-mono text-[13px] text-muted">{task.id}</span>
+            <span className="min-w-0 break-words text-tertiary">{task.title}{task.envVars.length > 0 && <span className="ml-1 font-mono text-[13px] text-muted">{task.envVars.join(' ')}</span>}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   if (!editing && goal) {
     return (
       <section aria-labelledby="goal-title" className="card mb-8 min-w-0">
@@ -187,6 +206,7 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
           ))}
         </div>
         {unlinkedSection}
+        {setupSection}
         <div className="flex flex-wrap items-center gap-2 border-t border-outline-soft px-5 py-3">
           <button type="button" className="btn-quiet h-10" onClick={() => { setForm(toForm(goal, goal.track)); setError(''); }}>{t('목표 바꾸기', 'Change the goal')}</button>
           {(save === 'unsaved' || save === 'login') && projectKey && <button type="button" className="btn-quiet h-10" onClick={() => void put(goal, null)}>{t('다시 저장', 'Save again')}</button>}
@@ -229,18 +249,18 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
           <ol className="mt-2 space-y-3">
             {editing.criteria.map((row, index) => (
               <li key={index} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2">
-                <span className="pt-2 font-mono text-[13px] text-muted">G-{index + 1}</span>
+                <span className="pt-2 font-mono text-[13px] text-muted">{row.id}</span>
                 <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                   <input aria-label={t(`성공 기준 ${index + 1}`, `Criterion ${index + 1}`)} value={row.text} maxLength={300} onChange={(event) => setCriterion(index, { text: event.target.value })} placeholder={t('무엇이 되면 성공인가', 'What counts as success')} className={`${field} h-10`} />
                   <div className="flex min-w-0 gap-2">
                     <input aria-label={t(`재는 방법 ${index + 1}`, `How to measure ${index + 1}`)} value={row.measure} maxLength={300} onChange={(event) => setCriterion(index, { measure: event.target.value })} placeholder={t('어떻게 잴까 (예: 3분 안에 완료)', 'How to measure (e.g. done in 3 min)')} className={`${field} h-10 min-w-0`} />
-                    {editing.criteria.length > MIN_CRITERIA && <button type="button" onClick={() => update({ criteria: editing.criteria.filter((_, i) => i !== index) })} className="h-10 shrink-0 rounded-lg px-2 text-[13px] text-muted hover:bg-surface-low hover:text-ink">{t('빼기', 'Remove')}<span className="sr-only"> G-{index + 1}</span></button>}
+                    {editing.criteria.length > MIN_CRITERIA && <button type="button" onClick={() => update({ criteria: editing.criteria.filter((_, i) => i !== index) })} className="h-10 shrink-0 rounded-lg px-2 text-[13px] text-muted hover:bg-surface-low hover:text-ink">{t('빼기', 'Remove')}<span className="sr-only"> {row.id}</span></button>}
                   </div>
                 </div>
               </li>
             ))}
           </ol>
-          {editing.criteria.length < MAX_CRITERIA && <button type="button" onClick={() => update({ criteria: [...editing.criteria, criterion(editing.criteria.length)] })} className="link-seed mt-2">{t('기준 더하기', 'Add a criterion')}</button>}
+          {editing.criteria.length < MAX_CRITERIA && <button type="button" onClick={() => update({ criteria: [...editing.criteria, criterion(editing.criteria.length, '', '', nextCriterionId(editing.criteria))] })} className="link-seed mt-2">{t('기준 더하기', 'Add a criterion')}</button>}
         </fieldset>
 
         <div className="grid gap-4 px-5 pt-4 sm:grid-cols-2">
@@ -261,6 +281,7 @@ export default function GoalLock({ spec, idea, projectKey, onLocked }: { spec: S
         )}
 
         {unlinkedSection && <div className="mt-4">{unlinkedSection}</div>}
+        {setupSection && <div className="mt-4">{setupSection}</div>}
 
         <div className="flex flex-wrap items-center gap-2 border-t border-outline-soft px-5 py-3 mt-4">
           <button type="submit" className="btn h-10" disabled={filled < MIN_CRITERIA}>{goal ? t('새 버전으로 잠그기', 'Lock as a new version') : t('목표 잠그기', 'Lock the goal')}</button>

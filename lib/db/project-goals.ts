@@ -1,8 +1,14 @@
 // Locked project goals (supervisor_projects.sql): every lock is a new version with its reason, never an overwrite
 // (plan 3-1). The current goal is the highest version. Written only through lock_project_goal with the service key.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { userPinnedDossierForSlug, userPrdById, type UserDossierPrd } from '@/lib/db/dossiers';
 import { resolveProjectKey } from '@/lib/db/supervisor-projects';
+import { readBuildProgress, writeBuildProgress } from '@/lib/opportunities/build-progress';
+import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
+import { normalizeSpec, type Spec } from '@/lib/opportunities/spec';
+import type { Evidence } from '@/lib/opportunities/types';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { goalChange } from '@/lib/supervisor/goal';
 import type { ProjectGoal, ProjectKey, SuccessCriterion, Track } from '@/lib/supervisor/types';
 
 export type GoalInput = Pick<ProjectGoal, 'track' | 'statement' | 'criteria' | 'inScope' | 'outOfScope' | 'changeReason'>;
@@ -89,6 +95,44 @@ export async function lockProjectGoal(service: SupabaseClient, userId: string, k
 }
 
 /**
+ * The project's spec as the MCP tools number it: a `prd:` key reads that saved PRD, a public slug the user's pinned PRD.
+ * shortcut: a slug with no pinned PRD (only the shared PRD cache) gets no spec, so no recheck; read the cache too if
+ * goals get locked on unpinned public opportunities.
+ */
+export async function projectSpec(service: SupabaseClient, userId: string, key: ProjectKey): Promise<Spec | null> {
+  const id = /^prd:(.+)$/.exec(key)?.[1];
+  const saved: UserDossierPrd | null = id ? await userPrdById(service, userId, id) : await userPinnedDossierForSlug(service, userId, key);
+  const parsed = saved ? parsePrdMarkdown(saved.prd_markdown) : null;
+  if (!saved || !parsed) return null;
+  const evidence = Array.isArray(saved.evidence) ? (saved.evidence as Evidence[]) : [];
+  return normalizeSpec(parsed, evidence, false, { idea: !saved.opportunity_slug });
+}
+
+// Only work that was started or finished can need a recheck; untouched features stay todo.
+const RECHECK_FROM = new Set(['in_progress', 'improving', 'done']);
+
+/**
+ * After a new goal version (plan 3-1): the features linked to criteria that were edited or removed go to needs_recheck,
+ * so get_next_task puts them first. Returns the features it flagged.
+ */
+export async function recheckForGoalChange(
+  service: SupabaseClient, userId: string, key: ProjectKey, previous: ProjectGoal, next: ProjectGoal,
+  loadSpec: (service: SupabaseClient, userId: string, key: ProjectKey) => Promise<Spec | null> = projectSpec,
+): Promise<string[]> {
+  const spec = await loadSpec(service, userId, key);
+  if (!spec) return [];
+  const change = goalChange(spec, previous, next);
+  if (!change.recheckFeatureIds.length) return [];
+  const progress = await readBuildProgress(service, userId, key);
+  const flagged = change.recheckFeatureIds.filter((id) => RECHECK_FROM.has(progress[id]?.status ?? 'todo'));
+  const touched = [...change.changed, ...change.removed].join(', ');
+  for (const id of flagged) {
+    await writeBuildProgress(service, userId, key, { id, title: progress[id].title }, 'needs_recheck', `목표 v${next.version}에서 ${touched}이 바뀌어 다시 확인이 필요합니다.`);
+  }
+  return flagged;
+}
+
+/**
  * The goal API's handle on one project, bound to a signed-in user and a key they may use (null otherwise), so the
  * service key stays in lib/db instead of reaching app/.
  */
@@ -99,6 +143,15 @@ export async function userProjectGoals(userId: string, rawKey: string) {
   if (!key) return null;
   return {
     current: () => currentProjectGoal(service, userId, key),
-    lock: (goal: GoalInput) => lockProjectGoal(service, userId, key, goal),
+    lock: async (goal: GoalInput) => {
+      const previous = await currentProjectGoal(service, userId, key);
+      const locked = await lockProjectGoal(service, userId, key, goal);
+      // The goal is already locked; a failed recheck must not turn the save into an error.
+      if (previous && locked !== 'reason-required') {
+        await recheckForGoalChange(service, userId, key, previous, locked)
+          .catch((error) => console.error('Goal recheck failed', (error as { message?: string }).message));
+      }
+      return locked;
+    },
   };
 }

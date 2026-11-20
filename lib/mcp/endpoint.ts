@@ -1,5 +1,6 @@
 import { consumeUsageFor, releaseUsageFor, userForToken } from '@/lib/mcp/auth';
 import { callJsonModel } from '@/lib/llm';
+import { projectPage } from '@/lib/mcp/apps';
 import { handleRpc } from '@/lib/mcp/server';
 import type { McpDeps, SavedPrdDetail, SavedPrdSummary } from '@/lib/mcp/server';
 import { findEvidence, getOpportunities } from '@/lib/opportunities/data';
@@ -16,6 +17,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
 import { saveDossier, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { currentProjectGoal } from '@/lib/db/project-goals';
+import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
+import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
 import { createHash } from 'node:crypto';
 import { addWatch } from '@/lib/db/watches';
 import { onboardingAnswers, onboardingRow } from '@/lib/db/onboarding';
@@ -140,6 +144,26 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         competitorNotes: specInputFor(catalog, picked)?.competitorNotes,
       };
     },
+    projectGoal: (key) => currentProjectGoal(service, userId, key),
+    projectMemory: (key, limit) => projectMemory(service, userId, key, limit),
+    addProjectMemory: (key, entry) => addProjectMemory(service, userId, key, entry).catch(() => {
+      throw new Error('Could not write project memory');
+    }),
+    supervisorProject: (key) => supervisorProject(service, userId, key),
+    connectRepo: async (key, repo) => {
+      const token = process.env.GITHUB_TOKEN?.trim();
+      if (!token) return null;
+      const response = await fetch(`https://api.github.com/repos/${repo}`, {
+        headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'user-agent': 'seedup' },
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(8_000),
+      }).catch(() => null);
+      if (!response?.ok) return null;
+      const found = await response.json().catch(() => null) as { private?: boolean; visibility?: string; full_name?: string } | null;
+      if (found?.private !== false || found.visibility !== 'public' || typeof found.full_name !== 'string') return null;
+      return (await updateSupervisorProject(service, userId, key, { repo: found.full_name })).repo;
+    },
     generate: async (input, draft) => {
       const result = await generatePrd(input, { draft }).catch(() => null);
       if (result) await writePrdCache(service, input.evidence.map((item) => item.id), input, result.spec);
@@ -167,7 +191,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     notifyBlocked: async (opportunity, feature) => {
       const settings = await onboardingRow<{ notify_webhook: string | null }>(service, userId, 'notify_webhook');
       if (settings?.notify_webhook) {
-        await sendWebhook(settings.notify_webhook, `${opportunity.name} · 기능 막힘`, `${feature.id} ${feature.title}\n${siteUrl}/prd?opportunity=${encodeURIComponent(opportunity.slug)}`);
+        await sendWebhook(settings.notify_webhook, `${opportunity.name} · 기능 막힘`, `${feature.id} ${feature.title}\n${projectPage(siteUrl, opportunity.slug)}`);
       }
     },
     kept: (type, limit) => readKept(service, userId, type, limit, siteUrl),

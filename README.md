@@ -139,7 +139,7 @@ flowchart TB
 ### 5. MCP 연동 (`/agents`)
 - **도구 9가지 연결:** Claude Code, Claude 앱, Codex, Cursor, VS Code, Antigravity, Gemini CLI, Windsurf, ChatGPT마다 맞는 설정을 보여 주고, 복사하거나 열 때 토큰 발급까지 한 번에 합니다. 토큰(`sdp_...`)은 DB에 SHA-256 해시로만 저장합니다.
 - **MCP Apps 카드 UI (`lib/mcp/apps.ts`):** Claude 데스크톱·웹, VS Code Copilot 등 MCP Apps 지원 클라이언트에서는 검색 결과·PRD·체크리스트·다음 작업을 인터랙티브 카드로 함께 렌더링합니다.
-- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 16개와 프롬프트 4개(`discover-and-spec`, `build-next-feature`, `pre-ship-audit`, `why-this-file`), 리소스(`seedup://prds/active`, `seedup://kept/recent`). 도구마다 `readOnlyHint` 등 annotations를 달아, 하루 한도를 쓰는 도구는 실행 전에 확인을 받습니다.
+- **표준 Streamable HTTP JSON-RPC 2.0 서버(`lib/mcp/server.ts`)**, 도구 22개와 프롬프트 4개(`discover-and-spec`, `build-next-feature`, `pre-ship-audit`, `why-this-file`), 리소스(`seedup://prds/active`, `seedup://kept/recent`). 도구마다 `readOnlyHint` 등 annotations를 달아, 하루 한도를 쓰는 도구는 실행 전에 확인을 받습니다.
 - **진행 중 PRD 고정:** 에이전트가 만들거나 사이트에서 저장한 PRD를 사용자별로 고정해, 매일 엔진이 원문을 더해도 기능 번호(`F-n`)와 진행 기록이 어긋나지 않습니다.
 
 | 도구 | 하는 일 |
@@ -148,7 +148,7 @@ flowchart TB
 | `get_opportunity` | 문제 · 빈틈 · 원문(`E-n`) · 경쟁 도구 상세 |
 | `generate_verified_prd` | 근거 추적 PRD를 `AGENTS.md` / `CLAUDE.md` / `.cursor/rules` / 프롬프트 / 마크다운으로 생성(하루 10회, 같은 근거면 캐시) |
 | `get_build_checklist` | PRD 기능(`F-n`)별 현재 상태(`todo`/`in_progress`/`improving`/`done`/`blocked`/`needs_recheck`), 완료 기준, 미연결 커밋 수 |
-| `get_next_task` | 세션 시작 시 지금 구현할 다음 기능 1건과 준비 슬롯·검증 원문·관련 파일·상태 보고 명령을 반환 |
+| `get_next_task` | 잠긴 목표와 최근 프로젝트 기억을 보여 주고 목표 기여도 순으로 다음 기능을 선택. 준비 슬롯·검증 원문·관련 파일·상태 보고 명령 포함 |
 | `update_feature_status` | 기능 상태를 `in_progress`/`improving`/`done`/`blocked`/`todo`로 보고 (`done`은 기준별 통과 증빙 필수, `blocked` 진입 시 웹훅 알림) |
 | `mark_feature_done` | `update_feature_status`의 호환 별칭 (`done` / `todo`) |
 | `link_commit` | 커밋 SHA·메시지·변경 파일 경로를 기능 `F-n`에 연결하고, 이미 완료된 다른 기능의 파일을 건드리면 자동으로 `needs_recheck` 표시 |
@@ -160,6 +160,14 @@ flowchart TB
 | `list_my_prds` | 내가 저장한 PRD 목록(내 아이디어 PRD 포함) |
 | `get_my_prd` | 저장한 PRD 하나를 마크다운이나 에이전트 파일 형식으로 |
 | `explain_file` | 파일 경로가 어떤 기능(`F-n`), 요구사항(`R-n`), 원문(`E-n`) 때문에 있는지 역추적 |
+| `resume_project` | 잠긴 목표, 연결 저장소, 진행 중 기능, 최근 결정과 마지막 인수인계로 작업 재개 |
+| `connect_repo` | 공개 GitHub 저장소(`owner/repo`)를 프로젝트에 연결 |
+| `check_env` | 에이전트가 보고한 로컬 환경 키 이름을 프로젝트에 필요한 이름과 비교 |
+| `record_decision` | 결정과 이유, 관련 기능·성공 기준, 터미널 대화에서 받은 승인 결과 기록 |
+| `save_handoff` | 하던 일, 다음 할 일, 주의 사항과 검증 전 커밋을 인수인계로 저장 |
+| `get_project_memory` | 프로젝트의 결정·인수인계·사실을 종류별 최신순으로 조회 |
+
+프로젝트 도구의 `project` 또는 `slug`에 공개 기회 slug나 `list_my_prds`가 반환한 개인 PRD 키 `prd:<id>`를 넣습니다.
 
 ### 6. 레포 분석 (`/prd/repo`)
 - `/prd` 입력창의 토글에서 **레포 분석**을 고르면 왼쪽 대화의 레포 목록에서 하나를 골라 오른쪽에서 봅니다(예전 `/seeds`는 이리로 넘어옵니다).
@@ -202,7 +210,7 @@ flowchart TB
 | 사용자 검증 | 실사용자 테스트를 진행·준비 중입니다([docs/user-interview.md](docs/user-interview.md)) |
 | 테스트 | 단위 테스트 318개(48개 파일) 중 317개 통과. 실패 1개(`prd-exports`의 gh 명령 테스트)는 `/bin/sh`가 없는 Windows에서만 나고 Linux CI에서는 통과합니다 |
 | DB 마이그레이션 | 30개. 운영 DB에는 `20261120130000_section_views.sql` 하나가 아직 적용되지 않았습니다 |
-| MCP | 도구 16개, 프롬프트 4개, 리소스 2개 |
+| MCP | 도구 22개, 프롬프트 4개, 리소스 2개 |
 
 지금 상태는 [docs/status.md](docs/status.md), 계획은 [docs/supervisor-plan.md](docs/supervisor-plan.md)(최상위 계획), 문서 목록은 [docs/README.md](docs/README.md)에 있습니다.
 

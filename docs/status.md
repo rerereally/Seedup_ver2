@@ -8,6 +8,7 @@
 | :--- | :--- | :--- |
 | 머지된 PR | #79~#126 (#124 최상위 계획, #125 작업 규약, #126 문서 정리). 열린 PR 없음 | `gh pr list --state merged` |
 | 문서 | 최상위 계획 · 상태 · 문서 목록 · 결정 기록 · 작업 규약(`CONTRIBUTING.md`) 갖춤. 낡은 문서 17개는 `docs/archive/` | [README.md](README.md) |
+| `main` 머지 동결 | 해커톤 발표(2026-11-20~21)가 끝날 때까지 기능 PR은 브랜치에서 작업만 하고 머지하지 않음(문서 PR은 예외). 해제는 발표 뒤 사람이 정함 | 이 줄 |
 | Antigravity 작업(AG) | AG-1~9 **전부 완료** | [archive/antigravity-tasks.md](archive/antigravity-tasks.md) |
 | Codex 작업(CX) 완료 | CX-1~6, CX-9~13, CX-15, CX-16 | [archive/codex-tasks.md](archive/codex-tasks.md), PR 제목 |
 | Codex 작업(CX) 남음 | CX-7 고정 뼈대와 추가 모듈, CX-8 대상별 출력, CX-14 서버 버전 기록과 항목별 댓글. 셋 다 계획 5절 "보류"로 감(CX-14의 버전 기록만 단계 1로) | [supervisor-plan.md](supervisor-plan.md) 10-2 |
@@ -36,8 +37,8 @@
 | 1 목표 잠금 · 에이전트 연결 | A1 공유 타입 · 목표 모델 · 훅 번들 | 정지훈 · Claude Code | 시작 전 | 공유 타입이 가장 먼저 단독 PR |
 | 1 | A2 MCP 목표 연결 · 공유 메모리 도구 | 정지훈 · Codex | 시작 전 | |
 | 1 | A3 기준 측정 · 발표 서사 | 정지훈 · Antigravity | 시작 전 | |
-| 1 | B1 저장(프로젝트 · 목표 버전 · 공유 메모리) | 장차희 · Claude Code | 시작 전 | |
-| 1 | B2 기획 탭 목표 카드와 잠금 화면 | 장차희 · Codex | 시작 전 | |
+| 1 | B1 저장(프로젝트 · 목표 버전 · 공유 메모리) | 장차희 · Claude Code | 진행 중(2026-11-20 시작) | 타입은 A1 머지 전까지 임시 복사본. 목표 잠금 API 계약을 PR 본문에 적음 |
+| 1 | B2 기획 탭 목표 카드와 잠금 화면 | 장차희 · Codex | 진행 중(2026-11-20 시작, Claude Code 세션이 대신 진행) | B1의 API 계약을 기준으로 화면 작성 |
 | 2 2단 검증 · 이탈 검사 | A1 정적 검사 · 검증 토큰 · 이탈 규칙 | 정지훈 · Claude Code | 시작 전 | 단계 1 뒤 |
 | 2 | A2 MCP `verify_feature` · 완료 게이트 | 정지훈 · Codex | 시작 전 | |
 | 2 | A3 불량 diff · 오탐률 · 데모 | 정지훈 · Antigravity | 시작 전 | |

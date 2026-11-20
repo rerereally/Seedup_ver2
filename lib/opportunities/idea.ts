@@ -1,11 +1,12 @@
 import { specInputFor } from './context';
 import { findEvidence } from './data';
 import { readLiveEvidence } from './live-evidence';
+import { assessPushback } from './pushback';
 import type { SpecInput } from './spec';
 import type { Evidence, Opportunity } from './types';
 
 /** What the user typed in the idea workspace: the idea itself and their answers to the planning questions. */
-export type IdeaBrief = { idea: string; answers: Array<{ question: string; answer: string }> };
+export type IdeaBrief = { idea: string; answers: Array<{ key?: string; question: string; answer: string }> };
 
 const MAX_IDEA = 300;
 const MAX_ANSWERS = 8;
@@ -24,7 +25,8 @@ export function readBrief(value: unknown): IdeaBrief | null {
     const item = (row ?? {}) as Record<string, unknown>;
     const question = clip(item.question, 120);
     const answer = clip(item.answer, MAX_ANSWER);
-    return question && answer ? [{ question, answer }] : [];
+    const key = clip(item.key, 50);
+    return question && answer ? [{ question, answer, ...(key ? { key } : {}) }] : [];
   });
   return { idea, answers };
 }
@@ -37,6 +39,8 @@ export function ideaSpecInput(opportunities: Opportunity[], brief: IdeaBrief, pi
   const related = picked.length ? specInputFor(opportunities, picked, '', lang) : null;
   const en = lang === 'en';
   const answers = brief.answers.map((row) => `- ${row.question}: ${row.answer}`).join('\n');
+  const evidence = picked.map((item) => item.evidence);
+  const pushback = assessPushback(brief.idea, brief.answers, evidence, related?.competitorNotes ?? []);
   return {
     title: brief.idea.length > 60 ? `${brief.idea.slice(0, 60)}…` : brief.idea,
     problem: [
@@ -45,9 +49,10 @@ export function ideaSpecInput(opportunities: Opportunity[], brief: IdeaBrief, pi
       related && `${en ? 'Developer problems behind the kept quotes' : '담은 원문이 말하는 개발자 문제'}:\n${related.problem}`,
     ].filter(Boolean).join('\n\n'),
     gap: related?.gap ?? '',
-    evidence: picked.map((item) => item.evidence),
+    evidence,
     competitors: related?.competitors ?? [],
     ...(related?.competitorNotes?.length ? { competitorNotes: related.competitorNotes } : {}),
+    ...(pushback.length ? { pushback } : {}),
   };
 }
 

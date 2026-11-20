@@ -109,7 +109,7 @@ export async function generatePrd(input: SpecInput, options: PrdOptions = {}) {
     raw = await structurePrd(written.text, options.model, options.onUsage, deadline);
   }
   if (!raw) return null;
-  let spec: Spec = { ...normalizeSpec(raw, input.evidence, Boolean(options.draft), { idea: options.idea, competitorNotes: input.competitorNotes }), lang, rivals: coverRivals(normalizeRivals(raw.rivals, input.competitors), input.competitors, lang), ...(options.beginner ? { beginner: true } : {}) };
+  let spec: Spec = { ...normalizeSpec(raw, input.evidence, Boolean(options.draft), { idea: options.idea, competitorNotes: input.competitorNotes, pushback: input.pushback ?? [], lang }), lang, rivals: coverRivals(normalizeRivals(raw.rivals, input.competitors), input.competitors, lang), ...(options.beginner ? { beginner: true } : {}) };
   if (!spec.summary || !(spec.requirements.length + (options.idea ? spec.hypotheses.length : 0))) return null;
 
   // One repair pass on what the code check found; kept only when it really has fewer problems.
@@ -289,7 +289,7 @@ ${(input.competitorNotes ?? []).join('\n')}`, { maxTokens: 8_000, timeoutMs, dea
   const idea = spec.origin === 'idea';
   // A revision keeps the rival comparison unless it returns a new one.
   const rivals = normalizeRivals(raw.rivals, input.competitors);
-  const revised: Spec = { ...normalizeSpec(raw, input.evidence, spec.draft, { idea, competitorNotes: input.competitorNotes }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: coverRivals(rivals.length ? rivals : spec.rivals ?? [], input.competitors, spec.lang ?? 'ko') };
+  const revised: Spec = { ...normalizeSpec(raw, input.evidence, spec.draft, { idea, competitorNotes: input.competitorNotes, pushback: input.pushback ?? [], lang: spec.lang }), lang: spec.lang ?? 'ko', ...(spec.existing ? { existing: spec.existing } : {}), ...(spec.beginner ? { beginner: true } : {}), rivals: coverRivals(rivals.length ? rivals : spec.rivals ?? [], input.competitors, spec.lang ?? 'ko') };
   if (!revised.summary || !(revised.requirements.length + (idea ? revised.hypotheses.length : 0))) return null;
   return keepUnchanged(spec, revised);
 }
@@ -306,7 +306,7 @@ export function keepUnchanged(before: Spec, revised: Spec): Spec {
     const old = rows.get(row.title);
     return old ? { ...row, priority: row.priority ?? old.priority, acceptance: row.acceptance ?? old.acceptance, check: row.check ?? old.check } : row;
   };
-  const prose = Object.fromEntries((['background', 'scenario', 'goals', 'assumptions', 'openQuestions', 'differentiation'] as const).flatMap((key) => (revised[key] === undefined && before[key] !== undefined ? [[key, before[key]]] : [])));
+  const prose = Object.fromEntries((['background', 'scenario', 'goals', 'assumptions', 'openQuestions', 'differentiation', 'reviewNotes'] as const).flatMap((key) => (revised[key] === undefined && before[key] !== undefined ? [[key, before[key]]] : [])));
   const ids = new Map(revised.features.map(({ title, id }) => [title, id]));
   const remapped = new Map(before.features.flatMap(({ id, title }) => {
     const next = ids.get(title);

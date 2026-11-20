@@ -13,6 +13,7 @@ import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import { ideaAudience } from '@/lib/ideas/input';
 import { matchOpportunities } from '@/lib/opportunities/match';
+import { assessPushback, pushbackText, suggestDirections, type DirectionSource } from '@/lib/opportunities/pushback';
 import { MIN_EVIDENCE, MIN_PLATFORMS, PLATFORM_LABELS } from '@/lib/opportunities/types';
 import type { Platform } from '@/lib/opportunities/types';
 
@@ -24,6 +25,7 @@ export type PoolItem = {
   qualified: boolean;
   quotes: Array<{ id: string; platform: Platform; quote: string; quoteKo: string; url: string }>;
 };
+export type WorkspacePoolItem = PoolItem & DirectionSource & { competitorNotes: string[] };
 
 type FixedQuestion = { key: string; ko: string; en: string; hintKo?: string; hintEn?: string; chips: Array<[string, string]> };
 /** One question as the chat shows it, in the reader's language: fixed, or written for this idea by the server. */
@@ -79,7 +81,7 @@ const readSaved = (): Saved | null => {
  * A short planning chat that fills a PRD as you answer. The difference from a plain AI writer: every idea is matched
  * against verbatim developer quotes, and only lines those quotes back are allowed to count as evidence.
  */
-export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: { pool: PoolItem[]; signedIn: boolean; initialIdea: string; models: PrdModel[] }) {
+export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: { pool: WorkspacePoolItem[]; signedIn: boolean; initialIdea: string; models: PrdModel[] }) {
   const lang = useLang();
   const t = translator(lang);
   const en = lang === 'en';
@@ -97,9 +99,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [change, setChange] = useState<{ id: number; text: string } | null>(null);
   const [pending, setPending] = useState<'generate' | 'revise' | null>(null);
   const [generated, setGenerated] = useState(false);
+  const [reviewRequested, setReviewRequested] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [live, setLive] = useState<LiveQuote[]>([]);
   const [search, setSearch] = useState<Search>({ state: 'idle' });
+  const searchVersion = useRef(0);
   // Questions written for this idea; null while they are being written, then the fixed list if none came back.
   const [plan, setPlan] = useState<Plan | null>(null);
   const [planFailed, setPlanFailed] = useState(false);
@@ -191,8 +195,9 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
   const offered = useMemo(() => [...live, ...saved.filter((row) => !live.some((item) => item.id === row.id))], [live, saved]);
   const quoteById = useMemo(() => new Map<string, PoolItem['quotes'][number]>([...pool.flatMap((item) => item.quotes.map((row) => [row.id, row] as const)), ...offered.map((row) => [row.id, row] as const)]), [pool, offered]);
-  const keptLive = offered.filter((row) => keptIds.includes(row.id));
-  const keptQuotes = keptIds.flatMap((id) => quoteById.get(id) ?? []);
+  const keptLive = useMemo(() => offered.filter((row) => keptIds.includes(row.id)), [offered, keptIds]);
+  const evidenceIds = useMemo(() => keptIds.filter((id) => !id.startsWith('lv_')), [keptIds]);
+  const keptQuotes = useMemo(() => [...evidenceIds.flatMap((id) => quoteById.get(id) ?? []), ...keptLive].slice(0, MAX_KEPT), [evidenceIds, keptLive, quoteById]);
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
 
@@ -215,12 +220,23 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
   const brief = useMemo(() => ({
     idea,
-    answers: questions.filter((question) => answers[question.key]).map((question) => ({ question: question.text, answer: answers[question.key] })),
+    answers: questions.filter((question) => answers[question.key]).map((question) => ({ key: question.key, question: question.text, answer: answers[question.key] })),
   }), [idea, answers, questions]);
+
+  const selectedProblems = useMemo(() => {
+    const evidenceOrder = new Map(evidenceIds.map((id, index) => [id, index]));
+    return pool.map((item) => {
+      const positions = item.quotes.flatMap(({ id }) => evidenceOrder.get(id) ?? []);
+      return { item, count: positions.length, first: Math.min(...positions) };
+    }).filter(({ count }) => count).sort((a, b) => b.count - a.count || a.first - b.first).map(({ item }) => item);
+  }, [evidenceIds, pool]);
+  const findings = generated || pending ? [] : assessPushback(idea, brief.answers, keptQuotes, [...new Set(selectedProblems.flatMap((item) => item.competitorNotes))].slice(0, 8));
+  const showingReview = findings.length > 0 && (!current || reviewRequested);
+  const directions = showingReview ? suggestDirections(idea, pool, [...new Set([...matched, ...selectedProblems].map((item) => item.slug))]) : [];
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
-  }, [idea, answers, notes, pending, matched.length]);
+  }, [idea, answers, notes, pending, matched.length, showingReview]);
 
   const say = (role: Note['role'], text: string) => {
     const id = nextId.current++;
@@ -251,15 +267,41 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     }
   };
 
-  const generate = () => {
+  const startGeneration = () => {
     setPending('generate');
     setSignal((n) => n + 1);
     setPane('doc');
   };
 
+  const generate = () => {
+    if (findings.length) {
+      setReviewRequested(true);
+      return;
+    }
+    startGeneration();
+  };
+
+  const chooseDirection = (direction: string, quoteIds: string[]) => {
+    searchVersion.current++;
+    setIdea(direction.slice(0, 300));
+    setAnswers({});
+    answersRef.current = {};
+    setDraft('');
+    setKept(quoteIds);
+    setTouched(true);
+    setLive([]);
+    setOwn([]);
+    setSearch({ state: 'idle' });
+    setPlan(null);
+    setPlanFailed(false);
+    planFor.current = '';
+    setReviewRequested(false);
+  };
+
   const reset = () => {
     if (Object.keys(answers).length && !window.confirm(t('답한 내용이 모두 지워집니다. 새로 시작할까요?', 'All your answers will be cleared. Start over?'))) return;
     try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* nothing saved */ }
+    searchVersion.current++;
     forgetStoredPrd(idea);
     setIdea('');
     setAnswers({});
@@ -270,6 +312,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setNotes([]);
     setPlan(null);
     setPlanFailed(false);
+    setReviewRequested(false);
     setOwn([]);
     planFor.current = '';
     setGenerated(false);
@@ -286,10 +329,12 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
 
   // Web search for quotes the stored ones do not cover. What it finds is kept right away; the person can still drop it.
   const searchWeb = async () => {
+    const version = ++searchVersion.current;
     setSearch({ state: 'busy' });
     try {
       const response = await fetch('/api/opportunities/evidence-search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ idea }) });
       const json = await response.json().catch(() => ({}));
+      if (searchVersion.current !== version) return;
       if (!response.ok) {
         setSearch({ state: 'error', message: json.error ?? t('찾지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not search. Try again shortly.') });
         return;
@@ -300,16 +345,19 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       setKept([...keptIds, ...found.map((row) => row.id).filter((id) => !keptIds.includes(id))].slice(0, MAX_KEPT));
       setSearch({ state: 'done', message: found.length ? t(`원문 ${found.length}건을 찾아 근거로 담았습니다.`, `Found and kept ${found.length} quotes.`) : t('웹에서도 맞는 원문을 찾지 못했습니다. 답변만으로 만들면 요구사항은 가설로 표시됩니다.', 'No matching quote on the web either. A PRD from your answers marks requirements as hypotheses.') });
     } catch {
+      if (searchVersion.current !== version) return;
       setSearch({ state: 'error', message: t('연결이 끊겼습니다. 다시 시도해 주세요.', 'Connection lost. Try again.') });
     }
   };
 
   // A link the person found themselves; the server keeps only sentences that appear in that post word for word.
   const addLink = async (url: string, quote: string) => {
+    const version = ++searchVersion.current;
     setSearch({ state: 'busy' });
     try {
       const response = await fetch('/api/opportunities/evidence-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url, quote, idea }) });
       const json = await response.json().catch(() => ({}));
+      if (searchVersion.current !== version) return false;
       if (!response.ok) {
         setSearch({ state: 'error', message: json.error ?? t('추가하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'Could not add it. Try again shortly.') });
         return false;
@@ -321,6 +369,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       setSearch({ state: 'done', message: t(`그 글에서 원문 ${found.length}건을 확인하고 근거로 담았습니다.`, `Checked and kept ${found.length} quotes from that post.`) });
       return true;
     } catch {
+      if (searchVersion.current !== version) return false;
       setSearch({ state: 'error', message: t('연결이 끊겼습니다. 다시 시도해 주세요.', 'Connection lost. Try again.') });
       return false;
     }
@@ -437,7 +486,35 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               </div>
             ))}
 
-            {!current && !planning && !generated && (
+            {showingReview && (
+              <Bubble role="assistant">
+                <h2 className="font-semibold text-ink">{t('이 부분은 근거와 다릅니다', 'Check these decisions against the evidence')}</h2>
+                <ul className="mt-2 list-disc space-y-2 break-words pl-5 text-[14px]">
+                  {findings.map((row) => <li key={`${row.kind}:${row.claim}`}>{pushbackText(row, lang)}</li>)}
+                </ul>
+                {directions.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold">{t('다른 방향', 'Other directions')}</h3>
+                    <p className="mt-1 text-sm text-muted">{t('방향을 바꾸면 새 원문을 담고 질문을 다시 시작합니다.', 'Choosing a new direction loads its quotes and starts the questions again.')}</p>
+                    <ul className="mt-2 grid gap-2">
+                      {directions.map((item) => (
+                        <li key={item.slug} className="grid gap-1.5 rounded-lg border border-outline-soft p-3 text-[13px]">
+                          <p className="break-words font-medium text-ink">{item.direction}</p>
+                          <p className="text-muted">{t(`원문 ${item.evidenceCount}건 · 직접 경쟁 ${item.directCount}개`, `${item.evidenceCount} quotes · ${item.directCount} direct competitors`)}</p>
+                          <button type="button" onClick={() => chooseDirection(item.direction, item.quotes.map(({ id }) => id))} className="btn-quiet h-9 justify-self-start px-3">{t('이 방향으로', 'Use this direction')}<span className="sr-only"> {item.name}</span></button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="mt-4 text-sm text-muted">{t('그대로 진행하면 위 항목을 검증할 가설로 PRD에 남깁니다.', 'Keep this direction to record these decisions as hypotheses in the PRD.')}</p>
+                {signedIn
+                  ? <button type="button" className="btn mt-2 h-10 px-4" onClick={startGeneration}>{t('그대로 진행', 'Keep this direction')}</button>
+                  : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn mt-2 h-10 px-4">{t('로그인하고 그대로 진행', 'Sign in to keep this direction')}</Link>}
+              </Bubble>
+            )}
+
+            {!current && !planning && !generated && !showingReview && (
               <Bubble role="assistant">
                 <p>{t('질문이 끝났습니다. 지금 내용으로 PRD 문서를 만들까요? 문서를 먼저 쓰고, 화면 설계와 개발 준비 칸은 문서를 확인한 뒤 버튼 하나로 이어서 만듭니다.', 'That is everything. Write the PRD document now? The document comes first; screens and readiness slots follow with one click once you have checked it.')}</p>
                 <p className={`mt-2 text-[14px] ${passes ? 'text-seed' : 'text-muted'}`}>
@@ -467,7 +544,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
           </div>
 
           <div className="border-t border-outline-soft px-4 pb-4 pt-3">
-            {!generated && (
+            {!generated && !showingReview && (
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="text-[13px] leading-5 text-muted">
                   {current || planning ? t('지금 만들면 답하지 않은 칸은 가설로 채워집니다', 'Make it now and unanswered parts are filled as hypotheses') : t('질문 끝', 'All answered')}
@@ -509,7 +586,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
             evidenceIds={keptIds}
             ready={passes}
             loginNext={loginNext}
-            requestBody={{ brief, evidenceIds: keptIds.filter((id) => !id.startsWith('lv_')), liveEvidence: keptLive, ownNotes: own, title: idea }}
+            requestBody={{ brief, evidenceIds, liveEvidence: keptLive, ownNotes: own, title: idea }}
             models={models}
             hideRevise
             signedIn={signedIn}

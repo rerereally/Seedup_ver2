@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { csvCell } from './csv';
 
 export const MAX_PAGES_PER_USER = 5;
 
@@ -23,6 +24,5 @@ export function pageCopy(idea: string, headline?: unknown, pitch?: unknown) {
 
 /** The sign-up list as CSV for the owner, with formula characters neutralised so a spreadsheet does not run them. */
 export function signupsCsv(rows: Array<{ email: string; created_at: string }>) {
-  const cell = (value: string) => `"${(/^[=+\-@]/.test(value) ? `'${value}` : value).replace(/"/g, '""')}"`;
-  return ['email,signed_up_at', ...rows.map((row) => `${cell(row.email)},${cell(row.created_at)}`)].join('\n');
+  return ['email,signed_up_at', ...rows.map((row) => `${csvCell(row.email)},${csvCell(row.created_at)}`)].join('\n');
 }

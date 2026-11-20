@@ -8,6 +8,11 @@ export function saveDossier(supabase: SupabaseClient, row: Record<string, unknow
   return supabase.from('evidence_dossiers').upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'user_id,dossier_key' }).select('id').single();
 }
 
+export async function hasSharedDossier(supabase: SupabaseClient, userId: string, id: string) {
+  const { data } = await supabase.from('evidence_dossiers').select('id').eq('id', id).eq('user_id', userId).eq('shared', true).maybeSingle();
+  return Boolean(data);
+}
+
 export function deleteDossier(supabase: SupabaseClient, userId: string, id: string) {
   return supabase.from('evidence_dossiers').delete().eq('id', id).eq('user_id', userId);
 }

@@ -154,7 +154,7 @@ test('exports keep source links, carry slots, and keep hypotheses out of the bui
   for (const format of ['agents', 'claude', 'cursor'] as const) {
     const brief = renderAgentBrief(input, spec, format);
     assert.match(brief, /call get_next_task with the opportunity slug at the start of each session/);
-    assert.match(brief, /- \[ \] F-01\. build it/);
+    assert.match(brief, /- \[ \] F-01 build it/);
     assert.match(brief, /inputs: email/);
     assert.match(brief, /data: \(open question\)/);
     assert.doesNotMatch(brief, /- \[ \] .*guess/);
@@ -389,7 +389,7 @@ test('the builder prompt carries backed features and quotes, and the Cursor rule
   const input = { title: 'T', problem: 'P', gap: '', evidence: [evidence(1), evidence(2)], competitors: [] };
   const spec = normalizeSpec({ summary: 's', requirements: [{ title: 'real', evidence: [1] }, { title: 'guess', evidence: [] }], features: [{ title: 'build it', requirements: [1] }] }, 2);
   const prompt = renderAgentBrief(input, spec, 'prompt');
-  assert.match(prompt, /1\. build it/);
+  assert.match(prompt, /F-01 build it/);
   assert.match(prompt, /"quote 1"/);
   assert.doesNotMatch(prompt, /guess|E-\d|```mermaid/);
   assert.match(renderAgentBrief(input, spec, 'cursor'), /^---\ndescription: .*\nalwaysApply: true\n---/);

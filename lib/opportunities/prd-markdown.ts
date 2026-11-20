@@ -22,7 +22,7 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['openQuestions', /열린\s*질문|open questions?/i],
 ];
 
-const ACCEPTANCE = /^(?:수락\s*기준|완료\s*기준|acceptance(?:\s*criteria)?)\s*[:：]\s*/i;
+const ACCEPTANCE = /^(?:\[[ xX]\]\s+)?(?:수락\s*기준|완료\s*기준|acceptance(?:\s*criteria)?)\s*[:：]\s*/i;
 const CHECK = /^(?:확인\s*방법|검증\s*방법|how to (?:check|verify|validate))\s*[:：]\s*/i;
 const EVIDENCE_LINE = /^(?:근거|evidence)\s*[:：]\s*/i;
 const SENTENCE_LABEL = /^\[(?:증언|사실|추정|testimony|fact|inference)\]\s*/i;

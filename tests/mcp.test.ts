@@ -105,7 +105,7 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   const d = deps();
   const answer = await handleRpc(call('generate_verified_prd', { slug: 'memory', format: 'claude' }), d, 'https://x.test') as { result: { content: Array<{ text: string }> } };
   assert.match(answer.result.content[0].text, /Save as CLAUDE\.md/);
-  assert.match(answer.result.content[0].text, /F-01\. Store notes/);
+  assert.match(answer.result.content[0].text, /F-01 Store notes/);
   assert.match(answer.result.content[0].text, /inputs: 확인 필요:/);
   assert.match(answer.result.content[0].text, /F-01\(Store notes\) 기능은 어떤 화면에서 쓰나요/);
   assert.match(answer.result.content[0].text, /update_feature_status.*in_progress.*done.*blocked/);
@@ -569,7 +569,7 @@ test('list_my_prds and get_my_prd expose personal saved PRDs in markdown and age
   const brief = await toolResult('get_my_prd', { id: '11111111-1111-1111-1111-111111111111', format: 'agents' }, prdDeps);
   assert.equal(brief.isError, undefined);
   assert.match(brief.text, /Save as AGENTS\.md/);
-  assert.match(brief.text, /F-01\. Pre-commit 키 스캐너/);
+  assert.match(brief.text, /F-01 Pre-commit 키 스캐너/);
 
   const missing = await toolResult('get_my_prd', { id: 'missing' }, prdDeps);
   assert.equal(missing.isError, true);

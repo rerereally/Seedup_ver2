@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
 import { recommendToolkit } from '@/lib/opportunities/toolkit';
-import { EVIDENCE_STRENGTH_LABELS, EXPORT_FILES, PRD_SENTENCE_LABELS, evidenceStrengthFor, prdSentenceKinds, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
+import { EVIDENCE_STRENGTH_LABELS, EXPORT_FILES, PRD_SENTENCE_LABELS, evidenceStrengthFor, p0FeatureIds, prdSentenceKinds, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput, SpecRequirement } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
@@ -20,6 +20,7 @@ import { translator } from '@/lib/i18n';
 import { citedQuotes } from '@/lib/opportunities/prd-markdown';
 import WatchIdeaButton from '@/components/WatchIdeaButton';
 import { downloadText } from './download';
+import PrdSend, { NotionImportHint } from './PrdSend';
 import { GraphEdges, LivePrd, Wireframes, liveStepsAfter, type LivePhase, type LiveStep } from './PrdParts';
 import styles from './stage.module.css';
 
@@ -178,6 +179,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [savedShare, setSavedShare] = useState<{ markdown: string; path: string } | null>(null);
 
   // Pick up where this browser left off: the stored versions win over the shared cache when they are newer.
   const storageKey = useMemo(() => storageKeyFor(title, evidenceIds), [title, evidenceIds]);
@@ -213,6 +215,11 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   }, [storageKey, input, versions]);
 
   const markdown = useMemo(() => (input && spec ? renderSpecMarkdown(input, spec) : ''), [input, spec]);
+  const p0Features = useMemo(() => {
+    if (!spec) return [];
+    const p0 = p0FeatureIds(spec);
+    return spec.features.filter((feature) => p0.has(feature.id)).map((feature) => `${feature.id} ${feature.title}`);
+  }, [spec]);
   const brief = useMemo(() => (input && spec ? renderAgentBrief(input, spec, format, agentSlug) : ''), [input, spec, format, agentSlug]);
   const trace = useMemo(() => (spec && focus ? traceOf(spec, focus) : null), [spec, focus]);
 
@@ -450,6 +457,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         setSaveState('idle');
         return;
       }
+      setSavedShare(typeof json.sharePath === 'string' ? { markdown, path: json.sharePath } : null);
       setSaveState('saved');
     } catch {
       setError(t('연결이 끊겼습니다. 다시 시도해주세요.', 'Connection lost. Please try again.'));
@@ -747,7 +755,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 ))}
               </dl>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex flex-wrap items-center gap-2">
               {!hideControls && (
                 <details className="relative">
                   <summary className="btn-quiet h-11 cursor-pointer list-none [&::-webkit-details-marker]:hidden">{t('다시 만들기', 'Make again')}</summary>
@@ -768,9 +776,17 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                 <div className={menu}>
                   <button type="button" className={quietButton} onClick={() => void copy('PRD', markdown)}>{t('PRD 복사', 'Copy PRD')}</button>
                   <button type="button" className={quietButton} onClick={() => downloadText('PRD.md', markdown)}>{t('PRD.md 받기', 'Download PRD.md')}</button>
+                  <NotionImportHint />
                   {spec.screens.length > 0 && <button type="button" className={quietButton} onClick={() => void copy('Mermaid', mermaidFlow(spec))}>{t('Mermaid 코드 복사', 'Copy Mermaid code')}</button>}
                 </div>
               </details>
+              <PrdSend
+                title={input.title}
+                summary={spec.summary}
+                p0Features={p0Features}
+                sharePath={savedShare?.markdown === markdown ? savedShare.path : undefined}
+                prd={{ input, spec }}
+              />
               {/* Everything that hands the PRD to a coding agent sits behind the one primary action. */}
               <details className="relative order-first sm:order-none">
                 <summary className="btn h-11 cursor-pointer list-none px-4 [&::-webkit-details-marker]:hidden">{t('에이전트로 보내기', 'Send to agent')}</summary>

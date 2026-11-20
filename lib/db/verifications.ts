@@ -3,7 +3,12 @@ import { supervisorProject } from './supervisor-projects';
 import type { Verification } from '../supervisor/types';
 import type { UnseenFile } from '../verifier/github';
 
-export type VerificationRecord = Verification & { unseen: UnseenFile[] };
+export type VerificationRecord = Verification & {
+  unseen: UnseenFile[];
+  githubRequests?: number;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+};
 export type VerificationScope = Pick<Verification, 'userId' | 'projectKey' | 'featureId' | 'repo' | 'sha'>;
 export type VerificationStore = {
   authorize: (scope: VerificationScope) => Promise<void>;
@@ -15,25 +20,28 @@ export type VerificationStore = {
   refund: (userId: string) => Promise<void>;
 };
 
-const COLUMNS = 'id,user_id,project_key,feature_id,repo,sha,status,findings,verdicts,drift,checks,model,input_tokens,output_tokens,cost_usd,token,created_at,finished_at,unseen';
+const COLUMNS = 'id,user_id,project_key,feature_id,repo,sha,status,findings,verdicts,drift,checks,model,input_tokens,output_tokens,cost_usd,token,created_at,finished_at,unseen,github_requests,duration_ms,error_message';
 type Row = {
   id: string; user_id: string; project_key: string; feature_id: string; repo: string; sha: string;
   status: Verification['status']; findings: Verification['findings']; verdicts: Verification['verdicts'];
   drift: Verification['drift']; checks: Verification['checks']; model: string | null;
   input_tokens: number; output_tokens: number; cost_usd: number; token: string | null;
   created_at: string; finished_at: string | null; unseen: UnseenFile[];
+  github_requests?: number; duration_ms?: number | null; error_message?: string | null;
 };
 const fromRow = (r: Row): VerificationRecord => ({
   id: r.id, userId: r.user_id, projectKey: r.project_key, featureId: r.feature_id, repo: r.repo, sha: r.sha,
   status: r.status, findings: r.findings, verdicts: r.verdicts, drift: r.drift, checks: r.checks, model: r.model,
   inputTokens: r.input_tokens, outputTokens: r.output_tokens, costUsd: r.cost_usd, token: r.token,
   createdAt: r.created_at, finishedAt: r.finished_at, unseen: r.unseen,
+  githubRequests: r.github_requests ?? 0, durationMs: r.duration_ms ?? null, errorMessage: r.error_message ?? null,
 });
 const toRow = (r: VerificationRecord): Row => ({
   id: r.id, user_id: r.userId, project_key: r.projectKey, feature_id: r.featureId, repo: r.repo, sha: r.sha,
   status: r.status, findings: r.findings, verdicts: r.verdicts, drift: r.drift, checks: r.checks, model: r.model,
   input_tokens: r.inputTokens, output_tokens: r.outputTokens, cost_usd: r.costUsd, token: r.token,
   created_at: r.createdAt, finished_at: r.finishedAt, unseen: r.unseen,
+  github_requests: r.githubRequests ?? 0, duration_ms: r.durationMs ?? null, error_message: r.errorMessage ?? null,
 });
 
 /** Service-role queries stay here; every lookup and write is scoped to the authenticated caller. */

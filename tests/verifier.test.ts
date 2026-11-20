@@ -4,8 +4,8 @@ import { callJsonModel } from '../lib/llm';
 import type { VerificationRecord, VerificationStore } from '../lib/db/verifications';
 import { readVerificationToken, signVerificationToken } from '../lib/supervisor/verify-token';
 import { verifyCitation } from '../lib/verifier/citations';
-import { collectGitHubEvidence, type GitHubEvidence } from '../lib/verifier/github';
-import { getVerification, startVerification, verifierModels, type StartVerificationInput, type VerifierDependencies } from '../lib/verifier/run';
+import { collectGitHubEvidence, MAX_FILE_ATTEMPTS, type GitHubEvidence } from '../lib/verifier/github';
+import { getVerification, NO_COMPLIANT_PROVIDER_ERROR, startVerification, verifierModels, type StartVerificationInput, type VerifierDependencies } from '../lib/verifier/run';
 
 const sha = 'a'.repeat(40);
 const input: StartVerificationInput = {
@@ -243,4 +243,84 @@ test('GitHub collector uses SHA-bound public REST data, paginates CI, and lists 
   assert.equal(paths.some((path) => path.startsWith('/contents/large.ts')), false);
   await assert.rejects(collectGitHubEvidence('owner/repo', sha, [], { token: 'test-token', fetch: async () => Response.json({ private: true }) }), /public/);
   await assert.rejects(collectGitHubEvidence('owner/repo', 'main', [], { token: 'test-token', fetch: request }), /SHA/);
+  assert.equal(result.requestCount, paths.length);
+});
+
+test('GitHub collector caps failed and binary file request attempts and marks remaining files unseen', async () => {
+  const totalFiles = MAX_FILE_ATTEMPTS + 10;
+  const changed = Array.from({ length: totalFiles }, (_, i) => ({ filename: `src/f${i}.bin`, status: 'modified' }));
+  const tree = changed.map((file) => ({ path: file.filename, type: 'blob', size: 128 }));
+  let contentRequests = 0;
+  let totalRequests = 0;
+  const request: typeof fetch = async (url) => {
+    totalRequests++;
+    const path = String(url).replace('https://api.github.com/repos/owner/repo', '');
+    if (!path) return Response.json({ private: false, visibility: 'public' });
+    if (path.includes('/commits/') && path.includes('?per_page=')) return Response.json({ sha, commit: { tree: { sha: 'b'.repeat(40) } }, files: changed });
+    if (path === `/commits/${sha}`) return new Response(diff);
+    if (path.startsWith('/git/trees/')) return Response.json({ truncated: false, tree });
+    if (path.startsWith('/contents/')) {
+      contentRequests++;
+      // Alternate between HTTP 500 failure and binary null-byte payload so 0 files succeed.
+      return contentRequests % 2 === 0
+        ? new Response('bad', { status: 500 })
+        : new Response('bin\0data');
+    }
+    if (path.includes('/check-runs?')) return Response.json({ total_count: 0, check_runs: [] });
+    throw new Error(`Unexpected path: ${path}`);
+  };
+
+  const result = await collectGitHubEvidence('owner/repo', sha, [], { fetch: request, token: 'test-token' });
+  assert.equal(contentRequests, MAX_FILE_ATTEMPTS);
+  assert.equal(Object.keys(result.files).length, 0);
+  assert.equal(result.requestCount, totalRequests);
+  const capped = result.unseen.filter((row) => row.reason === 'File request attempt limit');
+  assert.equal(capped.length, 10);
+});
+
+test('startVerification records githubRequests and durationMs, and fails clearly with refund when data_collection deny has no provider', async () => {
+  const previousModels = process.env.VERIFIER_MODELS;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  const previousFixture = process.env.LLM_FIXTURES;
+  const oldFetch = globalThis.fetch;
+  process.env.VERIFIER_MODELS = 'vendor/paid-one,vendor/paid-two';
+  process.env.OPENROUTER_API_KEY = 'test-key';
+  delete process.env.LLM_FIXTURES;
+  try {
+    // 1. Successful run records githubRequests and non-negative durationMs.
+    const ok = harness({ evidence: { ...evidence(), requestCount: 7 } });
+    const passed = await startVerification(input, ok.dependencies);
+    assert.equal(passed.status, 'passed');
+    assert.equal(passed.githubRequests, 7);
+    assert.equal(typeof passed.durationMs, 'number');
+    assert.ok((passed.durationMs ?? -1) >= 0);
+    assert.equal(passed.errorMessage, null);
+
+    // 2. OpenRouter returns 404 (no endpoint matches provider.data_collection = "deny"): never relaxes deny, sets explicit errorMessage, refunds usage.
+    const seenProviders: unknown[] = [];
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { provider?: unknown };
+      seenProviders.push(body.provider);
+      return new Response(JSON.stringify({ error: { message: 'No endpoints found that can handle the requested parameters' } }), { status: 404 });
+    };
+    const denied = harness({ evidence: { ...evidence(), requestCount: 6 } });
+    denied.dependencies.model = callJsonModel;
+    const failed = await startVerification(input, denied.dependencies);
+    assert.equal(failed.status, 'error');
+    assert.equal(failed.token, null);
+    assert.equal(failed.errorMessage, NO_COMPLIANT_PROVIDER_ERROR);
+    assert.equal(failed.githubRequests, 6);
+    assert.equal(typeof failed.durationMs, 'number');
+    assert.equal(denied.stats().charged, 1);
+    assert.equal(denied.stats().refunded, 1);
+    assert.equal(seenProviders.length, 2);
+    for (const provider of seenProviders) {
+      assert.deepEqual(provider, { data_collection: 'deny' });
+    }
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (previousModels === undefined) delete process.env.VERIFIER_MODELS; else process.env.VERIFIER_MODELS = previousModels;
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previousKey;
+    if (previousFixture === undefined) delete process.env.LLM_FIXTURES; else process.env.LLM_FIXTURES = previousFixture;
+  }
 });

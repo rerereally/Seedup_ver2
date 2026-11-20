@@ -3,6 +3,7 @@ export type GitHubEvidence = {
   sha: string; diff: string; files: Record<string, string>;
   checks: Array<{ name: string; conclusion: string | null }>;
   unseen: UnseenFile[];
+  requestCount?: number;
 };
 type CommitFile = { filename: string; status: string };
 type TreeFile = { path: string; type: string; size?: number; mode?: string };
@@ -11,6 +12,7 @@ const MAX_DIFF = 2_000_000;
 const MAX_FILE = 160_000;
 const MAX_CONTENT = 600_000;
 const MAX_FILES = 80;
+export const MAX_FILE_ATTEMPTS = 80;
 
 export function validateGitHubCommit(repo: string, sha: string) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) || repo.split('/').some((part) => part === '.' || part === '..')) throw new Error('Expected owner/repo');
@@ -40,15 +42,18 @@ async function boundedText(response: Response, max: number) {
 /** Only immutable public GitHub data. Auth never follows a redirect or leaves api.github.com. */
 export async function collectGitHubEvidence(
   repo: string, sha: string, criterionPaths: string[] = [],
-  options: { fetch?: typeof fetch; token?: string } = {},
+  options: { fetch?: typeof fetch; token?: string; maxFileAttempts?: number } = {},
 ): Promise<GitHubEvidence> {
   validateGitHubCommit(repo, sha);
   sha = sha.toLowerCase();
   const request = options.fetch ?? fetch;
   const token = options.token ?? process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN is required');
+  const maxFileAttempts = Math.max(1, options.maxFileAttempts ?? MAX_FILE_ATTEMPTS);
   const base = `https://api.github.com/repos/${repo}`;
+  let requestCount = 0;
   async function get(path: string, max = 8_000_000, accept = 'application/vnd.github+json') {
+    requestCount++;
     const response = await request(`${base}${path}`, {
       headers: { authorization: `Bearer ${token}`, accept, 'X-GitHub-Api-Version': '2022-11-28' },
       redirect: 'error', signal: AbortSignal.timeout(15_000),
@@ -80,6 +85,7 @@ export async function collectGitHubEvidence(
   for (const file of changed.filter((file) => file.status === 'removed')) unseen.push({ path: file.filename, reason: 'Deleted at this SHA' });
   const files: Record<string, string> = Object.create(null);
   let total = 0;
+  let fileAttempts = 0;
   // Explicit criterion paths first when the budget cannot hold every changed file.
   const paths = [...wanted].sort((a, b) => Number(relevant.has(b)) - Number(relevant.has(a)));
   for (const path of paths) {
@@ -88,6 +94,11 @@ export async function collectGitHubEvidence(
       unseen.push({ path, reason: !entry ? 'Not in SHA tree' : 'File or total context limit' });
       continue;
     }
+    if (fileAttempts >= maxFileAttempts) {
+      unseen.push({ path, reason: 'File request attempt limit' });
+      continue;
+    }
+    fileAttempts++;
     try {
       const content = await get(`/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${sha}`, MAX_FILE, 'application/vnd.github.raw+json');
       if (content.includes('\0')) throw new Error('Binary file');
@@ -112,5 +123,5 @@ export async function collectGitHubEvidence(
     if (checks.length >= result.total_count) break;
     if (!result.check_runs.length || page === 30) throw new Error('CI list incomplete');
   }
-  return { sha, diff, files, checks, unseen };
+  return { sha, diff, files, checks, unseen, requestCount };
 }

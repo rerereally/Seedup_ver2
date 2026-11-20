@@ -2691,5 +2691,79 @@
         "file_statuses"
       ]
     ]
+  },
+  {
+    "file": "20261120190000_found_evidence.sql",
+    "tables": [
+      "found_evidence",
+      "anon_usage"
+    ],
+    "columns": [
+      [
+        "found_evidence",
+        "id"
+      ],
+      [
+        "found_evidence",
+        "platform"
+      ],
+      [
+        "found_evidence",
+        "quote"
+      ],
+      [
+        "found_evidence",
+        "quote_ko"
+      ],
+      [
+        "found_evidence",
+        "url"
+      ],
+      [
+        "found_evidence",
+        "score"
+      ],
+      [
+        "found_evidence",
+        "posted_at"
+      ],
+      [
+        "found_evidence",
+        "terms"
+      ],
+      [
+        "found_evidence",
+        "found_count"
+      ],
+      [
+        "found_evidence",
+        "first_found_at"
+      ],
+      [
+        "found_evidence",
+        "last_found_at"
+      ],
+      [
+        "anon_usage",
+        "visitor"
+      ],
+      [
+        "anon_usage",
+        "feature"
+      ],
+      [
+        "anon_usage",
+        "usage_date"
+      ],
+      [
+        "anon_usage",
+        "count"
+      ]
+    ],
+    "functions": [
+      "save_found_evidence",
+      "consume_anon_usage",
+      "release_anon_usage"
+    ]
   }
 ]

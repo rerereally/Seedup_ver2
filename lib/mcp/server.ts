@@ -83,8 +83,13 @@ export type McpDeps = {
   notifyBlocked: (opportunity: Opportunity, feature: { id: string; title: string }) => Promise<void>;
   /** What this user kept on the site (repos, articles, papers, products), newest first. */
   kept: (type: KeptType | null, limit: number) => Promise<KeptItem[]>;
-  /** A validation report for one idea, as Markdown; null when it could not be made. */
-  validate: (idea: string) => Promise<string | null>;
+  /**
+   * A validation report for one idea, as Markdown, and the project key (prd:<id>) its quotes were saved under as the
+   * user's PRD draft; null when the report could not be made.
+   */
+  validate: (idea: string) => Promise<{ text: string; projectKey?: string | null } | null>;
+  /** Makes and saves the PRD for a draft that validate_idea saved; null when no such draft exists, throws when the model fails. */
+  draftPrd?: (id: string) => Promise<SavedPrdDetail | null>;
   /** Starts a weekly watch on one idea; false when the person already watches the most allowed. */
   watch: (idea: string) => Promise<boolean>;
 };
@@ -285,7 +290,7 @@ export const TOOLS = [
   },
   {
     name: 'generate_verified_prd',
-    description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft.',
+    description: '[기획] An evidence-traced PRD for one opportunity (evidence → requirements → features → screens) as AGENTS.md, CLAUDE.md, a Cursor rule (.cursor/rules/seedup.mdc), a paste-in prompt for app builders (Lovable, Bolt, v0) or PRD markdown. Every requirement cites a verified quote; below the evidence bar it is labeled a hypothesis draft. With a prd:<id> key from validate_idea it makes and saves that idea\'s PRD the first time.',
     inputSchema: projectSchema({
       format: { type: 'string', enum: ['agents', 'claude', 'cursor', 'prompt', 'prd'], description: 'Default agents (AGENTS.md)' },
       fresh: { type: 'boolean', description: 'Generate again for a public opportunity' },
@@ -307,7 +312,7 @@ export const TOOLS = [
   },
   {
     name: 'validate_idea',
-    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Takes about a minute; 3 a day.',
+    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites and app reviews too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
@@ -1225,7 +1230,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
     const idea = String(args.idea ?? '').trim().slice(0, 300);
     if (idea.length < 4) return text('Describe the idea in a sentence.', true);
     if (!(await deps.consume('mcp_report', MCP_DAILY_REPORT_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_REPORT_LIMIT} reports). Try again tomorrow.`, true);
-    let report: string | null = null;
+    let report: Awaited<ReturnType<McpDeps['validate']>> = null;
     try {
       report = await deps.validate(idea);
     } catch (error) {
@@ -1236,7 +1241,9 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       await deps.release?.('mcp_report').catch(() => undefined);
       return text('The report could not be made. Try again in a minute.', true);
     }
-    return text(report);
+    return text(report.projectKey
+      ? `${report.text}\n\nThe quotes are saved as your project ${report.projectKey}. Make its PRD next:\n${toolCall('generate_verified_prd', { project: report.projectKey })}`
+      : report.text);
   }
   if (name === 'watch_idea') {
     const idea = String(args.idea ?? '').trim().slice(0, 300);
@@ -1261,7 +1268,18 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
   const slug = projectKey(args);
   if (!slug) return projectReply('Provide a project key (public opportunity slug or prd:<id>) as project or slug. Both aliases must agree when present.', null, '', toolCall('get_my_prd', {}), true);
   const personal = slug.startsWith('prd:');
-  const saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
+  let saved = personal ? await deps.myPrd?.(slug.slice(4)) : null;
+  // A draft validate_idea saved has quotes but no PRD yet: generate_verified_prd makes it (counted like any PRD).
+  if (personal && !saved && name === 'generate_verified_prd' && deps.draftPrd) {
+    if (!(await deps.consume('mcp_prd', MCP_DAILY_PRD_LIMIT))) return text(`Daily limit reached (${MCP_DAILY_PRD_LIMIT} PRDs). Try again tomorrow.`, true);
+    try {
+      saved = await deps.draftPrd(slug.slice(4));
+    } catch {
+      await deps.release?.('mcp_prd').catch(() => undefined);
+      return text('The model did not answer. Try again in a minute.', true);
+    }
+    if (!saved) await deps.release?.('mcp_prd').catch(() => undefined);
+  }
   const savedBuild = saved ? savedProject(saved, slug) : null;
   const opportunities = personal ? [] : await deps.opportunities();
   const opportunity = personal ? savedBuild?.opportunity : opportunities.find((item) => item.slug === slug);

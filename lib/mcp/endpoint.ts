@@ -10,12 +10,14 @@ import { generatePrd, generateSlots } from '@/lib/opportunities/prd';
 import { readLatestPrdCacheForTitle, readPrdCache, writePrdCache } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { normalizeSpec, renderSpecMarkdown } from '@/lib/opportunities/spec';
-import type { Evidence } from '@/lib/opportunities/types';
+import { ideaSpecInput } from '@/lib/opportunities/idea';
+import { meetsEvidenceBar } from '@/lib/opportunities/rules';
+import { publicEvidence, type Evidence } from '@/lib/opportunities/types';
 import { retrieveIdeaContext } from '@/lib/ingest/rag';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { readKept } from '@/lib/mcp/kept';
 import { buildValidationReport, renderReport } from '@/lib/opportunities/report';
-import { saveDossier, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
+import { saveDossier, saveIdeaDraft, setIdeaDraftPrd, userIdeaDraft, userPinnedDossierForSlug, userPrdById, userPrds } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { addProjectMemory, projectMemory } from '@/lib/db/project-memory';
 import { supervisorProject, updateSupervisorProject } from '@/lib/db/supervisor-projects';
@@ -34,6 +36,8 @@ const SLOT_FILL_MS = 45_000;
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const IP_REQUESTS_PER_MINUTE = 60;
 const USER_REQUESTS_PER_MINUTE = 30;
+/** The project memory fact validate_idea leaves with the rivals it found, read back when the draft's PRD is made. */
+const RIVALS_FACT = 'Direct competitors found by validate_idea:';
 
 const unauthorized = () => NextResponse.json(
   { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Missing or invalid token. Create one at /agents (MCP 연동).' } },
@@ -60,6 +64,23 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
 
   const body = await request.json().catch(() => undefined);
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/+$/, '');
+  const readMyPrd = async (id: string): Promise<SavedPrdDetail | null> => {
+    const row = await userPrdById(service, userId, id);
+    if (!row) return null;
+    const needsListings = /^- (?:경쟁 도구 설명|Competitor listing):/m.test(row.prd_markdown);
+    const catalog = needsListings ? (await getOpportunities()).opportunities : [];
+    const picked = findEvidence(catalog, Array.isArray(row.evidence_ids) ? row.evidence_ids : []);
+    return {
+      id: row.id,
+      title: row.title,
+      opportunitySlug: row.opportunity_slug,
+      evidenceCount: Array.isArray(row.evidence_ids) ? row.evidence_ids.length : 0,
+      updatedAt: row.updated_at,
+      prdMarkdown: row.prd_markdown,
+      evidence: Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [],
+      competitorNotes: specInputFor(catalog, picked)?.competitorNotes,
+    };
+  };
   const deps: McpDeps = {
     opportunities: async () => (await getOpportunities()).opportunities,
     cachedSpec: (ids) => readPrdCache(service, ids),
@@ -128,22 +149,24 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         updatedAt: row.updated_at,
       }));
     },
-    myPrd: async (id): Promise<SavedPrdDetail | null> => {
-      const row = await userPrdById(service, userId, id);
+    myPrd: readMyPrd,
+    draftPrd: async (id) => {
+      const row = await userIdeaDraft(service, userId, id);
       if (!row) return null;
-      const needsListings = /^- (?:경쟁 도구 설명|Competitor listing):/m.test(row.prd_markdown);
-      const catalog = needsListings ? (await getOpportunities()).opportunities : [];
-      const picked = findEvidence(catalog, Array.isArray(row.evidence_ids) ? row.evidence_ids : []);
-      return {
-        id: row.id,
-        title: row.title,
-        opportunitySlug: row.opportunity_slug,
-        evidenceCount: Array.isArray(row.evidence_ids) ? row.evidence_ids.length : 0,
-        updatedAt: row.updated_at,
-        prdMarkdown: row.prd_markdown,
-        evidence: Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [],
-        competitorNotes: specInputFor(catalog, picked)?.competitorNotes,
-      };
+      const evidence = Array.isArray(row.evidence) ? (row.evidence as Evidence[]) : [];
+      const lang = /[가-힣]/.test(row.title) ? 'ko' : 'en';
+      // The rivals validate_idea found ride in the project's memory; the PRD weighs them the way the web flow does.
+      const memory = await projectMemory(service, userId, `prd:${id}`, 20).catch(() => null);
+      const rivals = memory?.facts.find((fact) => fact.text.startsWith(RIVALS_FACT))?.text.slice(RIVALS_FACT.length).trim() ?? '';
+      const brief = { idea: row.title, answers: rivals ? [{ key: 'validation_competitors', question: lang === 'en' ? 'Competitors found in validation report' : '검증 리포트에서 찾은 경쟁 도구', answer: rivals.slice(0, 400) }] : [] };
+      const input = ideaSpecInput((await getOpportunities()).opportunities, brief, evidence.map((item) => ({ evidence: item, slug: 'live' })), lang);
+      const checked = publicEvidence(evidence);
+      const draft = !meetsEvidenceBar(checked.length, new Set(checked.map((item) => item.platform)).size);
+      const result = await generatePrd(input, { draft, lang, idea: true });
+      if (!result) throw new Error('PRD model gave no answer');
+      // Kept out of the shared PRD cache: an idea PRD is the user's own, as on the web.
+      await setIdeaDraftPrd(service, userId, id, result.markdown);
+      return readMyPrd(id);
     },
     projectGoal: (key) => currentProjectGoal(service, userId, key),
     projectMemory: (key, limit) => projectMemory(service, userId, key, limit),
@@ -197,7 +220,17 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     validate: async (idea) => {
       const [{ opportunities }, answers] = await Promise.all([getOpportunities(), onboardingAnswers(service, userId)]);
       const report = await buildValidationReport(idea, opportunities, { stack: preferredStack(answers), searchCounterEvidence: true }).catch(() => null);
-      return report ? renderReport(report, siteUrl) : null;
+      if (!report) return null;
+      // The report's quotes become the user's PRD draft, so the agent goes on to a PRD without opening the site.
+      const projectKey = await saveIdeaDraft(service, userId, idea, report.quotes).then((id) => `prd:${id}`).catch((error) => {
+        console.error('MCP idea draft save failed', error);
+        return null;
+      });
+      const rivals = report.rivals.filter((row) => row.relation === 'direct').map((row) => row.name).slice(0, 8);
+      if (projectKey && rivals.length) {
+        await addProjectMemory(service, userId, projectKey, { kind: 'fact', body: { kind: 'other', text: `${RIVALS_FACT} ${rivals.join('; ')}`, author: 'seedup' } }).catch(() => undefined);
+      }
+      return { text: renderReport(report, siteUrl), projectKey };
     },
     watch: async (idea) => typeof (await addWatch(service, userId, idea)) === 'object',
   };

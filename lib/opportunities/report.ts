@@ -1,7 +1,7 @@
 import { translator, type Lang } from '../i18n';
 import { searchDemand, searchSupply } from './actors';
 import { estimateBuild } from './build';
-import { findLiveEvidence } from './live-evidence';
+import { searchIdeaEvidenceWithRetry } from './idea-evidence';
 import { callJsonModel } from '../llm';
 import { matchOpportunities } from './match';
 import { discoveryReply } from './outreach';
@@ -52,8 +52,11 @@ export function firstUsersFrom(quotes: Evidence[], limit = 10) {
 
 type ReportOptions = { lang?: Lang; stack?: string[]; searchCounterEvidence?: boolean; rivalAgent?: boolean };
 
+// The evidence search gets a minute, so a retry with other words still leaves the rival search time in the route.
+const EVIDENCE_BUDGET_MS = 60_000;
+
 const reportSources = {
-  readEvidence: findLiveEvidence,
+  readEvidence: (idea: string): Promise<{ phrases: string[]; quotes: Evidence[] }> => searchIdeaEvidenceWithRetry(idea, { deadline: Date.now() + EVIDENCE_BUDGET_MS }),
   estimate: estimateBuild,
   supply: searchSupply,
   demand: searchDemand,

@@ -36,7 +36,7 @@ function deps(over: Partial<McpDeps> = {}): McpDeps & { calls: string[] } {
     setProgress: async () => false,
     notifyBlocked: async () => {},
     kept: async () => [],
-    validate: async (idea) => { calls.push('validate'); return `# report ${idea}`; },
+    validate: async (idea) => { calls.push('validate'); return { text: `# report ${idea}` }; },
     watch: async () => { calls.push('watch'); return true; },
     ...over,
   };
@@ -452,6 +452,32 @@ test('validate_idea checks the daily limit before making a report, and refuses a
   assert.deepEqual(limited.calls, []);
   const empty = await handleRpc(call('validate_idea', { idea: ' ' }), deps(), 'https://x.test') as { result: { isError?: boolean } };
   assert.equal(empty.result.isError, true);
+});
+
+test('validate_idea hands back the saved draft key, and generate_verified_prd makes that draft PRD once', async () => {
+  const key = 'prd:11111111-2222-3333-4444-555555555555';
+  const saved = await handleRpc(call('validate_idea', { idea: 'meal plan for picky kids' }), deps({ validate: async () => ({ text: '# report', projectKey: key }) }), 'https://x.test') as { result: { content: Array<{ text: string }> } };
+  assert.match(saved.result.content[0].text, new RegExp(`saved as your project ${key}[\\s\\S]*generate_verified_prd \\{"project":"${key}"\\}`));
+
+  const draft = { id: key.slice(4), title: 'meal plan for picky kids', opportunitySlug: null, evidenceCount: 0, updatedAt: '2026-11-20T00:00:00Z', prdMarkdown: '# Meal plan PRD', evidence: [] };
+  const made = deps({ myPrd: async () => null, draftPrd: async (id) => { made.calls.push(`draft:${id}`); return draft; } });
+  const answer = await handleRpc(call('generate_verified_prd', { project: key, format: 'prd' }), made, 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  assert.equal(answer.result.isError, undefined);
+  assert.match(answer.result.content[0].text, /Meal plan PRD/);
+  assert.deepEqual(made.calls, ['consume', `draft:${key.slice(4)}`]);
+
+  const releases: string[] = [];
+  const missing = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => null, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { isError?: boolean } };
+  assert.equal(missing.result.isError, true);
+  const failed = await handleRpc(call('generate_verified_prd', { project: key }), deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('model'); }, release: async (feature) => { releases.push(feature); } }), 'https://x.test') as { result: { content: Array<{ text: string }>; isError?: boolean } };
+  assert.equal(failed.result.isError, true);
+  assert.match(failed.result.content[0].text, /did not answer/);
+  assert.deepEqual(releases, ['mcp_prd', 'mcp_prd']);
+
+  // Only generate_verified_prd makes a draft's PRD; other tools on a draft key do not spend the PRD limit.
+  const other = deps({ myPrd: async () => null, draftPrd: async () => { throw new Error('must not run'); } });
+  await handleRpc(call('get_next_task', { project: key }), other, 'https://x.test');
+  assert.equal(other.calls.includes('consume'), false);
 });
 
 import { firstUsersFrom, reportVerdict } from '../lib/opportunities/report';

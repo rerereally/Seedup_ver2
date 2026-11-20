@@ -9,6 +9,7 @@ import ModelPicker from '@/components/ModelPicker';
 import { Bubble, Stages } from '@/components/WorkSplit';
 import PrdBuilder, { forgetStoredPrd } from '@/components/opportunity-stage/PrdBuilder';
 import GoalLock from '@/components/goal/GoalLock';
+import { readValidationPrdInput, VALIDATION_HANDOFF_KEY } from '@/components/ValidationReportPanel';
 import type { PrdModel } from '@/lib/opportunities/models';
 import type { Spec } from '@/lib/opportunities/spec';
 import { useLang } from '@/components/LangProvider';
@@ -36,7 +37,7 @@ type Plan = { idea: string; questions: Question[] };
 /** A quote found on the web for this idea; the server signed it, so the PRD route will accept it as evidence. */
 type LiveQuote = PoolItem['quotes'][number] & { score: number; postedAt: string | null; sig: string };
 type Search = { state: 'idle' | 'busy' | 'done' | 'error'; message?: string };
-type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[]; plan?: Plan; own?: string[] };
+type Saved = { idea: string; answers: Record<string, string>; kept: string[]; touched: boolean; live?: LiveQuote[]; plan?: Plan; own?: string[]; competitors?: string[] };
 type Note = { id: number; role: 'user' | 'assistant'; text: string };
 
 const STORAGE_KEY = 'seedup:idea-workspace';
@@ -115,6 +116,8 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const [planFailed, setPlanFailed] = useState(false);
   // Sentences the maker heard in interviews or wrote down: shown as their own notes, never counted for the bar.
   const [own, setOwn] = useState<string[]>([]);
+  // Competitors carried over from the validation report entry.
+  const [validationCompetitors, setValidationCompetitors] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
 
@@ -123,19 +126,43 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const saved = readSaved();
+    let restoredKept: string[] = [];
+    let restoredLive: LiveQuote[] = [];
     if (saved && (!initialIdea || saved.idea === initialIdea)) {
       setIdea(saved.idea);
       setAnswers(saved.answers ?? {});
-      setKept(saved.kept ?? []);
+      restoredKept = saved.kept ?? [];
+      setKept(restoredKept);
       setTouched(Boolean(saved.touched));
-      setLive(Array.isArray(saved.live) ? saved.live : []);
+      restoredLive = Array.isArray(saved.live) ? saved.live : [];
+      setLive(restoredLive);
       setOwn(Array.isArray(saved.own) ? saved.own : []);
+      if (Array.isArray(saved.competitors)) setValidationCompetitors(saved.competitors);
       if (saved.plan?.idea === saved.idea) setPlan(saved.plan);
       // Answers saved before questions were tailored belong to the fixed list.
       else if (saved.answers && Object.keys(saved.answers).length) setPlanFailed(true);
     }
+    let storedValidation: string | null = null;
+    try {
+      storedValidation = window.sessionStorage.getItem(VALIDATION_HANDOFF_KEY);
+    } catch {
+      storedValidation = null;
+    }
+    const incoming = readValidationPrdInput(initialIdea, window.location.search, storedValidation, pool);
+    if (incoming) {
+      if (incoming.liveQuotes.length) {
+        const mergedLive = [...incoming.liveQuotes, ...restoredLive.filter((row) => !incoming.liveQuotes.some((next) => next.id === row.id))].slice(0, MAX_KEPT);
+        setLive(mergedLive);
+      }
+      if (incoming.evidenceIds.length) {
+        setKept([...new Set([...incoming.evidenceIds, ...restoredKept])].slice(0, MAX_KEPT));
+        setTouched(true);
+      }
+      if (incoming.competitors.length) setValidationCompetitors(incoming.competitors);
+      try { window.sessionStorage.removeItem(VALIDATION_HANDOFF_KEY); } catch { /* ignore */ }
+    }
     setRestored(true);
-  }, [initialIdea]);
+  }, [initialIdea, pool]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Sentences saved with the browser extension, offered next to the web finds; nothing is kept until the person picks it.
@@ -173,11 +200,11 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   useEffect(() => {
     if (!restored) return;
     try {
-      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live, own, ...(plan ? { plan } : {}) } satisfies Saved));
+      if (idea) window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, answers, kept: keptIds, touched, live, own, ...(validationCompetitors.length ? { competitors: validationCompetitors } : {}), ...(plan ? { plan } : {}) } satisfies Saved));
     } catch {
       // Private mode or full storage: the chat still works, it just will not survive a reload.
     }
-  }, [restored, idea, answers, keptIds, touched, live, plan, own]);
+  }, [restored, idea, answers, keptIds, touched, live, plan, own, validationCompetitors]);
 
   // Once per idea: questions about what this idea leaves open, with options from it and its closest quotes.
   const planFor = useRef('');
@@ -224,10 +251,13 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const current = step === -1 ? null : questions[step];
   const answered = questions.filter((question) => answers[question.key]).length;
 
-  const brief = useMemo(() => ({
-    idea,
-    answers: questions.filter((question) => answers[question.key]).map((question) => ({ key: question.key, question: question.text, answer: answers[question.key] })),
-  }), [idea, answers, questions]);
+  const brief = useMemo(() => {
+    const answeredRows = questions.filter((question) => answers[question.key]).map((question) => ({ key: question.key, question: question.text, answer: answers[question.key] }));
+    const extraCompetitors = validationCompetitors.length
+      ? [{ key: 'validation_competitors', question: en ? 'Competitors found in validation report' : '검증 리포트에서 찾은 경쟁 도구', answer: validationCompetitors.join('; ').slice(0, 400) }]
+      : [];
+    return { idea, answers: [...answeredRows, ...extraCompetitors].slice(0, 8) };
+  }, [idea, answers, questions, validationCompetitors, en]);
 
   const selectedProblems = useMemo(() => {
     const evidenceOrder = new Map(evidenceIds.map((id, index) => [id, index]));
@@ -236,7 +266,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
       return { item, count: positions.length, first: Math.min(...positions) };
     }).filter(({ count }) => count).sort((a, b) => b.count - a.count || a.first - b.first).map(({ item }) => item);
   }, [evidenceIds, pool]);
-  const findings = generated || pending ? [] : assessPushback(idea, brief.answers, keptQuotes, [...new Set(selectedProblems.flatMap((item) => item.competitorNotes))].slice(0, 8));
+  const findings = generated || pending ? [] : assessPushback(idea, brief.answers, keptQuotes, [...new Set([...validationCompetitors, ...selectedProblems.flatMap((item) => item.competitorNotes)])].slice(0, 8));
   const showingReview = findings.length > 0 && (!current || reviewRequested);
   const directions = showingReview ? suggestDirections(idea, pool, [...new Set([...matched, ...selectedProblems].map((item) => item.slug))]) : [];
 
@@ -320,6 +350,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
     setPlanFailed(false);
     setReviewRequested(false);
     setOwn([]);
+    setValidationCompetitors([]);
     planFor.current = '';
     setGenerated(false);
     setSpec(null);
@@ -476,9 +507,14 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
               <div className={threeColumns ? 'lg:hidden' : ''}>{picker}</div>
               {threeColumns && (
                 <p className="hidden lg:block">
-                  {matched.length
-                    ? t(`개발자 원문에서 이 아이디어와 맞는 문제 ${matched.length}개를 찾아 원문 ${keptQuotes.length}건을 근거로 담았습니다. 근거 원문 탭에서 빼거나 더할 수 있습니다.`, `Found ${matched.length} developer problems close to this idea and kept ${keptQuotes.length} quotes as evidence. Add or drop them in the Quotes tab.`)
+                  {matched.length || keptQuotes.length
+                    ? t(`이 아이디어와 맞는 원문 ${keptQuotes.length}건을 근거로 담았습니다. 근거 원문 탭에서 빼거나 더할 수 있습니다.`, `Kept ${keptQuotes.length} matching quotes as evidence. Add or drop them in the Quotes tab.`)
                     : t('저장된 원문 중 이 아이디어와 맞는 것은 아직 없습니다. 답변만으로도 만들 수 있고, 그때 요구사항은 모두 가설로 표시됩니다.', 'No stored quote matches this idea yet. Your answers alone can still make the PRD, with every requirement marked as a hypothesis.')}
+                </p>
+              )}
+              {validationCompetitors.length > 0 && (
+                <p className="mt-2 text-[13px] leading-5 text-muted [overflow-wrap:anywhere]">
+                  {t(`검증 리포트의 경쟁 도구 ${validationCompetitors.length}개를 함께 반영합니다: ${validationCompetitors.join(', ')}`, `Using ${validationCompetitors.length} competitors from the validation report: ${validationCompetitors.join(', ')}`)}
                 </p>
               )}
             </Bubble>

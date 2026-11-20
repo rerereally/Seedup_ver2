@@ -2,16 +2,36 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { agentStartPrompt, supervisorHref } from '@/components/goal/prompt';
 import { useLang } from '@/components/LangProvider';
 import { translator } from '@/lib/i18n';
 import type { BundleFile } from '@/lib/supervisor/hook-bundle';
 
-export default function AgentPackDownload({ projects, unavailable = false }: { projects: Array<{ key: string; title: string }>; unavailable?: boolean }) {
-  const t = translator(useLang());
+export default function AgentPackDownload({
+  projects,
+  unavailable = false,
+  showStartPrompt = false,
+}: {
+  projects: Array<{ key: string; title: string }>;
+  unavailable?: boolean;
+  showStartPrompt?: boolean;
+}) {
+  const lang = useLang();
+  const t = translator(lang);
   const [key, setKey] = useState(projects[0]?.key ?? '');
   const [files, setFiles] = useState<BundleFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [promptMessage, setPromptMessage] = useState('');
+
+  async function copyPrompt(project: { key: string; title: string }) {
+    try {
+      await navigator.clipboard.writeText(agentStartPrompt(project.key, lang));
+      setPromptMessage(t(`${project.title} 시작 문장 복사됨`, `Copied start prompt for ${project.title}`));
+    } catch {
+      setPromptMessage(t('복사하지 못했습니다. 아래 시작 문장을 선택해 복사해 주세요.', 'Copy failed. Select and copy the start prompt below.'));
+    }
+  }
 
   async function preview() {
     setBusy(true);
@@ -54,7 +74,41 @@ export default function AgentPackDownload({ projects, unavailable = false }: { p
       <h2 id="agent-pack-heading" className="text-xl font-semibold text-ink">{t('프로젝트 스타터 팩', 'Project starter pack')}</h2>
       <Link href="/supervisor" className="btn-quiet min-h-11">{t('감독관 열기', 'Open supervisor')}</Link>
     </div>
-    <p className="mt-3 text-sm leading-6 text-tertiary">{t('잠긴 목표와 Claude Code 훅을 프로젝트에 넣습니다. MCP 연결은 위 설정을 그대로 사용합니다.', 'Add the locked goal and Claude Code hooks to your project. Use the MCP connection configured above.')}</p>
+    <p className="mt-3 text-sm leading-6 text-tertiary">{t('잠긴 목표, 에이전트 훅, 커밋 전 로컬 검사(.seedup/audit.mjs)를 프로젝트에 넣습니다. MCP 연결은 위 설정을 그대로 사용합니다.', 'Add the locked goal, agent hooks, and the local pre-commit check (.seedup/audit.mjs) to your project. Use the MCP connection configured above.')}</p>
+    {showStartPrompt && projects.length > 0 && (
+      <div className="mt-6 min-w-0 border-t border-outline-soft pt-5">
+        <h3 className="text-[15px] font-semibold text-ink">{t('프로젝트별 시작 문장', 'Start prompt per project')}</h3>
+        <p className="mt-1 text-sm leading-6 text-muted">{t('에이전트 대화창에 그대로 붙여 넣으세요. 토큰이나 비밀값은 들어가지 않습니다.', 'Paste into your agent chat. No token or secret is included.')}</p>
+        <p role="status" className="mt-2 text-sm text-seed [overflow-wrap:anywhere]">{promptMessage}</p>
+        <ul className="rows mt-3">
+          {projects.map((project) => {
+            const prompt = agentStartPrompt(project.key, lang);
+            return (
+              <li key={project.key} className="min-w-0 py-4">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold text-ink [overflow-wrap:anywhere]">{project.title}</p>
+                    <p className="mt-0.5 font-mono text-[13px] text-muted [overflow-wrap:anywhere]">{project.key}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={supervisorHref(project.key)} className="link-seed inline-flex min-h-11 items-center px-2 text-sm">{t('감독관', 'Supervisor')}</Link>
+                    <button
+                      type="button"
+                      onClick={() => void copyPrompt(project)}
+                      className="btn-quiet min-h-11"
+                      aria-label={t(`${project.title} 시작 문장 복사`, `Copy start prompt for ${project.title}`)}
+                    >
+                      {t('시작 문장 복사', 'Copy start prompt')}
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-tertiary [overflow-wrap:anywhere]">{prompt}</p>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    )}
     {projects.length ? <form className="mt-5 flex min-w-0 flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); void preview(); }}>
       <div className="min-w-0 flex-1 basis-60">
         <label htmlFor="pack-project" className="block text-sm font-semibold text-ink">{t('프로젝트', 'Project')}</label>
@@ -68,7 +122,7 @@ export default function AgentPackDownload({ projects, unavailable = false }: { p
       : t('PRD를 저장하거나 MCP에서 프로젝트를 연결하면 스타터 팩을 받을 수 있습니다.', 'Save a PRD or connect a project through MCP to load its starter pack.')}</p>}
     <p role="status" className="mt-3 text-sm text-muted [overflow-wrap:anywhere]">{message}</p>
     {files.length > 0 && <>
-      <p className="mt-3 text-sm leading-6 text-muted">{t('파일마다 표시된 경로에 저장하세요. .claude/settings.json은 기존 hooks에 합치세요. 실행 파일은 Git Bash 등 sh 환경에서 실행 권한을 확인하세요. 현재 번들에는 pre-commit 검사가 없습니다.', 'Save each file at its displayed path. Merge .claude/settings.json into existing hooks. Check script permissions in an sh environment such as Git Bash. The current bundle has no pre-commit check.')}</p>
+      <p className="mt-3 text-sm leading-6 text-muted">{t('파일마다 표시된 경로에 저장하세요. .claude/settings.json은 기존 hooks에 합치세요. 묶음에는 커밋 전 로컬 검사(.seedup/pre-commit.sh · .seedup/audit.mjs, Node 필요)가 포함돼 있습니다. 저장소에 pre-commit 훅이 없다면 .seedup/pre-commit.sh를 .git/hooks/pre-commit으로 복사하고 실행 권한을 주세요(.seedup/goal.md 안내 참고).', 'Save each file at its displayed path. Merge .claude/settings.json into existing hooks. The bundle includes the local pre-commit check (.seedup/pre-commit.sh and .seedup/audit.mjs, Node required). If the repo has no pre-commit hook yet, copy .seedup/pre-commit.sh to .git/hooks/pre-commit and make it executable (see .seedup/goal.md).')}</p>
       <div className="mt-5 space-y-4">{files.map((file) => <article key={file.path} className="card min-w-0 p-4 sm:p-5">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <h3 className="min-w-0 font-mono text-[13px] font-semibold text-ink [overflow-wrap:anywhere]">{file.path}</h3>

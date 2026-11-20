@@ -106,6 +106,8 @@ export type Trend = {
   detected_sources?: Array<{ type: string; id: string; title: string; url?: string | null; source_name?: string | null }> | null;
   source_refs?: Array<{ type: string; id: string; title: string; url?: string | null; source_name?: string | null }> | null;
   recent_snapshots?: TrendSnapshot[];
+  /** What a chosen period ranks by: the average daily score (popular) or the rise since its first day (rising). */
+  period_value?: number | null;
 };
 
 export type TrendSnapshot = {
@@ -147,6 +149,8 @@ export type AIProduct = {
   newsletter_priority?: number | null;
   short_summary?: string | null;
   score: number | null;
+  launch_date?: string | null;
+  created_at?: string | null;
   rating_count: number | null;
   user_score_sum?: number | null;
   user_rating_average?: number | null;

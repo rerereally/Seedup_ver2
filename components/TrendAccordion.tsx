@@ -303,11 +303,25 @@ function TrendDetail({ trend, id }: { trend: Trend; id: string }) {
 
 type Category = (typeof CATEGORY_TABS)[number];
 
-export default function TrendAccordion({ trends }: { trends: Trend[] }) {
+export type PeriodMode = 'popular' | 'rising';
+
+/** A topic's number for the chosen period, for the row and the top cards. */
+function PeriodValue({ trend, label, mode }: { trend: Trend; label?: string; mode: PeriodMode }) {
+  if (!label || trend.period_value == null) return null;
+  const value = Math.round(trend.period_value);
+  if (mode === 'popular') return <span className="num text-tertiary">{label} 평균 {value}</span>;
+  return <span className={`num ${value > 0 ? 'text-seed' : 'text-muted'}`}>{label} {value > 0 ? '+' : ''}{value}</span>;
+}
+
+/**
+ * `periodLabel`: a period is chosen, so topics come ordered by `period_value`: their average score over it
+ * (`popular`) or how much it rose (`rising`).
+ */
+export default function TrendAccordion({ trends, periodLabel, mode = 'popular' }: { trends: Trend[]; periodLabel?: string; mode?: PeriodMode }) {
   const [category, setCategory] = useState<Category>(ALL);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const ranked = useMemo(() => trends.filter(isMeaningfulTrend).sort((a, b) => scoreOf(b) - scoreOf(a)), [trends]);
+  const ranked = useMemo(() => trends.filter(isMeaningfulTrend).sort((a, b) => (periodLabel ? Number(b.period_value ?? 0) - Number(a.period_value ?? 0) : 0) || scoreOf(b) - scoreOf(a)), [trends, periodLabel]);
   const counts = useMemo(() => {
     const result: Record<string, number> = { [ALL]: ranked.length };
     for (const trend of ranked) result[categoryOf(trend)] = (result[categoryOf(trend)] ?? 0) + 1;
@@ -326,14 +340,14 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
     <section className="grid gap-5">
       {leaders.length > 0 && (
         <div>
-          <h2 className="text-[17px] font-bold tracking-[-0.015em]">점수 상위 3개</h2>
+          <h2 className="text-[17px] font-bold tracking-[-0.015em]">{!periodLabel ? '점수 상위 3개' : mode === 'popular' ? `${periodLabel} 인기 상위 3개` : `${periodLabel} 동안 가장 많이 오른 3개`}</h2>
           <ol className="mt-3 grid gap-4 md:grid-cols-3">
             {leaders.map((trend, index) => {
               const snapshots = trend.recent_snapshots ?? [];
               return (
                 <li key={trend.id} className="flex">
                   <button type="button" onClick={() => openFromCard(trend)} aria-controls={`trend-${trend.id}`} className="card flex w-full flex-col p-5 text-left transition-colors hover:border-outline-strong">
-                    <span className="flex items-baseline justify-between gap-3 text-[13px] text-muted"><span>{index + 1}위, {categoryOf(trend)}</span><Change snapshots={snapshots} /></span>
+                    <span className="flex items-baseline justify-between gap-3 text-[13px] text-muted"><span>{index + 1}위, {categoryOf(trend)}</span>{periodLabel ? <PeriodValue trend={trend} label={periodLabel} mode={mode} /> : <Change snapshots={snapshots} />}</span>
                     <span className="mt-1.5 line-clamp-2 text-[17px] font-bold leading-snug tracking-tight text-ink">{trend.display_name ?? trend.keyword}</span>
                     <span className="mt-3 flex items-end justify-between gap-4">
                       <span className="num text-[32px] font-bold leading-none tracking-tight text-ink">{scoreOf(trend)}<span className="ml-1 text-sm font-normal text-muted">점</span></span>
@@ -393,6 +407,7 @@ export default function TrendAccordion({ trends }: { trends: Trend[] }) {
                     <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted">
                       {status && <span className="inline-flex items-center gap-1.5 text-tertiary"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>}
                       <Change snapshots={trend.recent_snapshots ?? []} />
+                      <PeriodValue trend={trend} label={periodLabel} mode={mode} />
                       {category === ALL && <span>{categoryOf(trend)}</span>}
                       <span className="truncate" title={compactMix(trend)}>{shortMix(trend)}</span>
                     </span>

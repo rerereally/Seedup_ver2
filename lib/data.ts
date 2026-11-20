@@ -12,6 +12,8 @@ export {
   getGitHubTrends,
   getModelIntelligence,
   getNewsItem,
+  getPeriodBaseline,
+  getTrendAverages,
   getNewsItems,
   getProjectIdea,
   getProjectIdeas,

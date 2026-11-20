@@ -4,7 +4,9 @@ import EmptyState from '@/components/EmptyState';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import ExploreTabs from '@/components/ExploreTabs';
-import { getGitHubTrends, getScrapKeySet } from '@/lib/data';
+import PeriodTabs from '@/components/PeriodTabs';
+import { getGitHubTrends, getPeriodBaseline, getScrapKeySet } from '@/lib/data';
+import { growthRate, rankByRise } from '@/lib/popularity';
 import { cleanProjectTitle } from '@/lib/utils';
 import { ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -15,8 +17,9 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 10;
 
-function buildHref(page: number) {
-  return page <= 1 ? '/github-trends' : `/github-trends?page=${page}`;
+function buildHref(page: number, period?: string | null) {
+  const query = new URLSearchParams({ ...(period ? { period } : {}), ...(page > 1 ? { page: String(page) } : {}) }).toString();
+  return `/github-trends${query ? `?${query}` : ''}`;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -24,9 +27,17 @@ function formatDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat('ko-KR', { month: '2-digit', day: '2-digit' }).format(new Date(value));
 }
 
-export default async function GitHubTrendsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function GitHubTrendsPage({ searchParams }: { searchParams: Promise<{ page?: string; period?: string }> }) {
   const params = await searchParams;
-  const [repos, scrapKeys] = await Promise.all([getGitHubTrends(), getScrapKeySet()]);
+  const [allRepos, scrapKeys] = await Promise.all([getGitHubTrends(), getScrapKeySet()]);
+  const { state, baseline } = await getPeriodBaseline('github_repo_snapshots', 'repo_full_name', 'stars', allRepos.map((repo) => repo.repo_full_name), params.period);
+  const period = state.period;
+  // A repo first tracked during the period has no starting count, so its gain is unknown and it sits out that ranking.
+  const risen = period ? rankByRise(allRepos, (repo) => Number(repo.stars ?? 0), (repo) => repo.repo_full_name, baseline, false) : null;
+  const repos = risen ? risen.map((row) => row.item) : allRepos;
+  const gain = new Map(risen?.map((row) => [row.item.id, row.rise]));
+  const rate = new Map(risen?.map((row) => [row.item.id, growthRate(row.rise, Number(row.item.stars ?? 0) - row.rise)]));
+  const percent = (value: number | null | undefined) => (value == null ? null : `${value > 0 ? '+' : ''}${(value * 100).toFixed(value !== 0 && Math.abs(value) < 0.1 ? 1 : 0)}%`);
   const page = Math.max(1, Number(params.page ?? 1) || 1);
   const totalPages = Math.max(1, Math.ceil(repos.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -40,6 +51,7 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
       <Header />
       <main id="main-content" className="page-shell page-stack grow">
         <ExploreTabs />
+        <PeriodTabs state={state} href={(key) => buildHref(1, key)} />
 
           {!repos.length ? (
             <EmptyState title="아직 모인 저장소가 없습니다" description="수집이 한 번 돌고 나면 여기에 저장소 리뷰가 올라옵니다." />
@@ -66,7 +78,7 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
                   {paginatedRepos.map((repo) => {
                     const miniProject = repo.project_idea ? cleanProjectTitle(repo.project_idea) : null;
                     const isScrapped = scrapKeys.has(`github:${repo.id}`);
-                    const delta = Number(repo.stars_delta_7d ?? 0);
+                    const delta = period ? Number(gain.get(repo.id) ?? 0) : Number(repo.stars_delta_7d ?? 0);
                     const review = repo.ai_review ?? repo.beginner_summary ?? repo.description;
 
                     return (
@@ -83,7 +95,8 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
                         <td className="hidden py-5 text-muted lg:table-cell">{repo.language ?? '-'}</td>
                         <td className="py-5 text-right">
                           <span className="num text-ink">{count(repo.stars)}</span>
-                          {delta !== 0 && <span className={`num block text-[13px] ${delta > 0 ? 'text-seed' : 'text-muted'}`}>7일 {delta > 0 ? '+' : ''}{count(delta)}</span>}
+                          {delta !== 0 && <span className={`num block text-[13px] ${delta > 0 ? 'text-seed' : 'text-muted'}`}>{period?.label ?? '7일'} {delta > 0 ? '+' : ''}{count(delta)}</span>}
+                          {period && percent(rate.get(repo.id)) && <span className="num block text-[12px] text-muted">증가율 {percent(rate.get(repo.id))}</span>}
                         </td>
                         <td className="py-3">
                           <div className="relative z-10 flex justify-end">
@@ -100,21 +113,23 @@ export default async function GitHubTrendsPage({ searchParams }: { searchParams:
               </table>
               <p className="mt-5 text-[13px] leading-6 text-muted">
                 각 저장소에는 &quot;따라 만들어 볼 것&quot;이 함께 붙습니다. 관심 분야에 맞는 항목은 주간 신호에도 들어갑니다.
-                {topRepo && <> 저장소 <span className="num">{repos.length}</span>개, 별이 가장 많은 곳 {topRepo.repo_full_name} <span className="num">{count(topRepo.stars)}</span>.</>}
+                {period
+                  ? <> {period.label} 동안 별이 가장 많이 늘어난 순서이고, 증가율은 그 기간 첫날 별 수 대비입니다. 그 기간 처음부터 기록이 있는 저장소 <span className="num">{repos.length}</span>개만 셉니다.</>
+                  : topRepo && <> 저장소 <span className="num">{repos.length}</span>개, 별이 가장 많은 곳 {topRepo.repo_full_name} <span className="num">{count(topRepo.stars)}</span>.</>}
               </p>
             </div>
           )}
 
           {repos.length > PAGE_SIZE && (
             <nav aria-label="쪽 이동" className="pager">
-              <Link href={buildHref(Math.max(1, currentPage - 1))} aria-disabled={currentPage === 1}>
+              <Link href={buildHref(Math.max(1, currentPage - 1), period?.key)} aria-disabled={currentPage === 1}>
                 <ArrowLeft aria-hidden="true" className="h-4 w-4" />
                 이전
               </Link>
               {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
-                <Link key={index + 1} href={buildHref(index + 1)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+                <Link key={index + 1} href={buildHref(index + 1, period?.key)} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
               ))}
-              <Link href={buildHref(Math.min(totalPages, currentPage + 1))} aria-disabled={currentPage === totalPages}>
+              <Link href={buildHref(Math.min(totalPages, currentPage + 1), period?.key)} aria-disabled={currentPage === totalPages}>
                 다음
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </Link>

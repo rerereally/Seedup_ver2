@@ -80,6 +80,12 @@ test('tools/list exposes every tool with MCP annotations', async () => {
     'list_my_prds',
     'get_my_prd',
     'explain_file',
+    'resume_project',
+    'connect_repo',
+    'check_env',
+    'record_decision',
+    'save_handoff',
+    'get_project_memory',
   ]);
   for (const tool of answer.result.tools) {
     assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', `${tool.name} missing readOnlyHint`);

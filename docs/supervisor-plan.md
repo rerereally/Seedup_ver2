@@ -1,6 +1,6 @@
 # Seedup 계획: 목표를 중심축으로 에이전트 개발 흐름 잡기
 
-작성일 2026-11-20. 같은 날 대화에서 정한 내용을 모두 반영한 현재 계획입니다. 이 파일의 이전 판(감독관 MCP 작업 분배)을 대체합니다. 검토 과정과 근거는 `docs/seedup-v3-review-2026-11-20.pdf`에 있습니다.
+작성일 2026-11-20. 같은 날 대화에서 정한 내용을 모두 반영한 현재 계획입니다. 이 파일의 이전 판(감독관 MCP 작업 분배)을 대체합니다. 검토 과정과 근거는 [`archive/seedup-v3-review-2026-11-20.pdf`](archive/seedup-v3-review-2026-11-20.pdf)에 있습니다.
 
 ## 이 문서의 권한
 
@@ -466,7 +466,7 @@ PR: 연결 2(`setup_project`) **앞**에 별도 PR(이름 정리와 새 도구�
 | P3 | ③ 워크플로 변경 감지 | 정지훈 | 검사한 커밋(또는 그 커밋까지 바뀐 파일)이 `.github/workflows/`나 테스트 설정을 바꿨으면, 테스트 기준은 CI success여도 `unclear`로 두고 이유를 적으며 이탈 경고(`out_of_spec`)를 남김. 로컬 `pre-commit`은 경고만 | `lib/verifier/run.ts`, `lib/supervisor/drift.ts`, `tests/verifier.test.ts` |
 | P4 | ④ 보완 ⑦ 마무리 | 정지훈 | 단계 2 보완 ⑦(`env(…)` 오탐)이 아직 남음. P3과 같은 PR로 묶지 않음(파일은 다름) | 단계 2 보완 ⑦ 칸 |
 | P5 | ⑤ 서비스 키 경로 점검 | 정지훈 | MCP는 서비스 키로 DB를 읽어 RLS가 안전망이 아님. MCP가 부르는 `lib/db/*` 함수가 모두 사용자 id로 거르는지 확인하고, 다른 사용자 키(`prd:<남의 id>`)로 부르면 404인지 테스트 하나 추가. 코드 변경은 빠진 곳이 있을 때만 | `lib/db/*`, `tests/mcp-*.test.ts` |
-| P6 | ⑥ 로컬 트리 정리 | 장차희 | `next-env.d.ts`(next dev가 다시 만드는 변경, AGENTS.md 안내대로 커밋), `hackathon-judging-2026-11-19.md`는 11절대로 `docs/archive/`로, 검토 PDF 2개는 저장소에 둘지 정함 | 루트, `docs/` |
+| P6 | ⑥ 로컬 트리 정리 | 장차희 | 검토 PDF 2개는 `docs/archive/`로 커밋(**완료**). 남은 것: `next-env.d.ts`(next dev가 다시 만드는 변경, AGENTS.md 안내대로 코드 PR에 커밋), `hackathon-judging-2026-11-19.md`는 11절대로 해커톤(2026-11-21 발표) 뒤 `docs/archive/`로 | 루트, `docs/` |
 
 결정 대기로 둔 것(status.md 3절): P2의 방식, `lib/mcp/server.ts` 나누기(1,644줄 공용 파일에 MCP 변경이 몰림, 실제 프로젝트 검증 뒤 판단 권장).
 

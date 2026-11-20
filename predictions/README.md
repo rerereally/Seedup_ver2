@@ -8,4 +8,4 @@
 node -e 'const {createHash}=require("node:crypto"); const fs=require("node:fs"); for (const line of fs.readFileSync("predictions/sealed.jsonl", "utf8").trim().split("\n").filter(Boolean)) { const {slug,name,claim,withinDays,evidenceCount,platformCount,directCount,sealedAt,hash}=JSON.parse(line); const json=JSON.stringify({slug,name,claim,withinDays,evidenceCount,platformCount,directCount,sealedAt}); if (createHash("sha256").update(json,"utf8").digest("hex")!==hash) throw Error(slug); console.log(slug,hash); }'
 ```
 
-봉인 시각보다 늦고 기한까지 출시된 직접 도구가 기록에 있으면 적중입니다. 최신 수집 시점이 기한에 이르기 전에는 기다리고, 기한까지 도구가 확인되지 않으면 빗나감으로 표시합니다.
+`/predictions`에서 봉인 시점과 최근 수집 기록을 비교할 수 있습니다. 봉인 시각보다 늦고 기한까지 출시된 직접 도구가 기록에 있으면 적중입니다. 해당 문제를 확인할 최근 수집 기록이 없거나 수집 시점이 기한 전이면 기다립니다. 수집 시점이 기한에 이르렀고 기한 안에 나온 도구가 기록에 없으면 빗나감으로 표시합니다.

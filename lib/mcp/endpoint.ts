@@ -201,7 +201,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
     supervisorProject: (key) => supervisorProject(service, userId, key),
     connectRepo: async (key, repo) => {
       const token = process.env.GITHUB_TOKEN?.trim();
-      if (!token) return null;
+      if (!token) return { error: 'github_token_missing' };
       const response = await fetch(`https://api.github.com/repos/${repo}`, {
         headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'user-agent': 'seedup' },
         cache: 'no-store',
@@ -209,6 +209,7 @@ export async function handleMcpRequest(request: Request, pathKey?: string) {
         redirect: 'manual',
         signal: AbortSignal.timeout(8_000),
       }).catch(() => null);
+      if (response?.status === 401) return { error: 'github_token_rejected' };
       if (!response?.ok) return null;
       const found = await response.json().catch(() => null) as { private?: boolean; visibility?: string; full_name?: string } | null;
       if (found?.private !== false || found.visibility !== 'public' || typeof found.full_name !== 'string') return null;

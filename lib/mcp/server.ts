@@ -69,7 +69,7 @@ export type McpDeps = {
   projectMemory?: (key: ProjectKey, limit: number) => Promise<ProjectMemory>;
   addProjectMemory?: (key: ProjectKey, entry: MemoryEntry) => Promise<{ id: string }>;
   supervisorProject?: (key: ProjectKey) => Promise<SupervisorProject | null>;
-  connectRepo?: (key: ProjectKey, repo: string) => Promise<string | null>;
+  connectRepo?: (key: ProjectKey, repo: string) => Promise<string | { error: 'github_token_missing' | 'github_token_rejected' } | null>;
   generate: (input: SpecInput, draft: boolean, options: PaidPrdOptions) => Promise<Spec | null>;
   consume: (feature: string, dailyLimit: number) => Promise<boolean>;
   /** Refunds one metered use when the downstream model call fails or returns nothing usable. */
@@ -519,8 +519,10 @@ function briefVersion(key: ProjectKey, spec: Spec, goal: ProjectGoal | null | un
     spec.features.map((feature) => [feature.id, [...feature.requirementIds].sort()]),
     spec.screens.map((screen) => [screen.id, [...screen.featureIds].sort()]),
   ];
-  const digest = createHash('sha256').update(JSON.stringify(links)).digest('hex').slice(0, 16);
-  return `<!-- Seedup brief: project=${key} goal=${goal?.version ?? 'none'} prd=${digest} -->`;
+  const digest = createHash('sha256').update(JSON.stringify(links));
+  // Refresh older exports that omitted linked hypotheses and their acceptance criteria.
+  if (spec.features.some((feature) => feature.requirementIds.some((id) => id.startsWith('H-')))) digest.update('hypotheses-in-brief');
+  return `<!-- Seedup brief: project=${key} goal=${goal?.version ?? 'none'} prd=${digest.digest('hex').slice(0, 16)} -->`;
 }
 
 function staleBrief(value: unknown, key: ProjectKey, spec: Spec | undefined, goal: ProjectGoal | null | undefined) {
@@ -1276,6 +1278,11 @@ async function callSupervisorTool(name: string, args: Record<string, unknown>, o
       return text('Provide a public GitHub repository as owner/repo.', true);
     }
     const connected = await deps.connectRepo?.(key, repo);
+    if (connected && typeof connected !== 'string') {
+      return text(connected.error === 'github_token_rejected'
+        ? 'GitHub rejected Seedup’s server GITHUB_TOKEN (401). Ask the Seedup server operator to replace it and retry.'
+        : 'Seedup’s server GITHUB_TOKEN is not configured. Ask the Seedup server operator to configure it and retry.', true);
+    }
     return connected ? text(`Connected ${connected} to ${key}.`) : text('Could not verify a public GitHub repository. Check the name or try again later.', true);
   }
   if (name === 'check_env') {

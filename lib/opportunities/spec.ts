@@ -542,10 +542,15 @@ export function renderAgentBrief(input: SpecInput, spec: Spec, format: ExportFor
     cursor: `---\ndescription: Product spec for ${input.title.replace(/\s+/g, ' ')}\nalwaysApply: true\n---\n\n# ${input.title}: Cursor rules\n\nYou are working in a project defined by the spec below. Follow it exactly.`,
   };
   const p0 = p0FeatureIds(spec);
+  const requirements = new Map([...spec.requirements, ...spec.hypotheses].map((row) => [row.id, row]));
   const tasks = spec.features.map((feature) => {
-    const requirements = feature.requirementIds.map((rid) => spec.requirements.find((row) => row.id === rid)).filter(Boolean);
-    const accept = requirements.flatMap((row) => row!.acceptance ?? []);
-    return `- [ ] ${feature.id} ${feature.title}\n  - ${p0.has(feature.id) ? '(P0) ' : ''}${feature.detail}\n  - Serves: ${requirements.map((row) => `${row!.id} ${row!.title} (evidence ${cite(row!.evidence)})`).join('; ')}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
+    const linked = feature.requirementIds.map((id) => requirements.get(id)).filter((row) => row !== undefined);
+    const serves = linked.map((row) => {
+      const basis = row.id.startsWith('H-') ? 'hypothesis, no source evidence' : `evidence ${cite(row.evidence)}`;
+      return `${row.id} ${row.title} (${basis})`;
+    }).join('; ');
+    const accept = linked.flatMap((row) => row.acceptance ?? []);
+    return `- [ ] ${feature.id} ${feature.title}\n  - ${p0.has(feature.id) ? '(P0) ' : ''}${feature.detail}\n  - Serves: ${serves}${accept.length ? `\n  - Acceptance: ${accept.join(' / ')}` : ''}${feature.slots ? `\n${slotLines(feature.slots, true)}` : ''}`;
   }).join('\n');
   const requirementTasks = spec.requirements.map((row) => `- [ ] ${row.id}. ${row.title}: ${row.detail}`).join('\n');
   const flow = mermaidFlow(spec);
@@ -563,7 +568,7 @@ ${sessionRule}
 - For a Seedup project, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).
 - Name the PRD feature in the commit message, for example Implements F-03 (R-2 ← E-5, E-9).
 - If the user has enabled commit uploads for this project, call link_commit after each commit with the project key, commit SHA, message, and changed files (\`git diff --name-only HEAD~1\`).${goal ? '\n- Ask the user in the terminal before changing the locked goal or scope. Record their answer with record_decision.' : ''}
-- Every feature must trace to a requirement and every requirement to user evidence below. Do not add work that has no source. Ask first.
+- Trace each feature to the requirements or hypotheses listed under Serves. Use the cited user evidence for requirements and ask before building unvalidated hypotheses.
 - When a readiness slot says "open question", ask instead of guessing.
 - Treat these unverified ideas as out of scope until validated: ${spec.hypotheses.map((row) => `${row.id} ${row.title}`).join(', ') || 'none'}.`;
   const brief = `${intro[format]}${version ? `\n\n${briefVersionInstructions(version)}\n` : ''}

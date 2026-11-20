@@ -68,7 +68,7 @@
 | 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
 | 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |
 | 도구 정리 | MCP 도구 23 → 19 | 정지훈 | PR #175 머지 | 운영 Codex에서 도구 19개 확인. #176 뒤 20개 |
-| 점검 후속 | 2026-11-20 아키텍처 · 워크플로우 점검에서 나온 일 ①~⑥ | 계획 5절 "점검 후속" 표 | ① 이 문서 갱신 PR, 나머지 시작 전 | |
+| 점검 후속 | 2026-11-20 아키텍처 · 워크플로우 점검에서 나온 일 ①~⑥ | 계획 5절 "점검 후속" 표 | P1 #190, P3 PR #191 열림, P4(보완 ⑦) PR #192 열림, **P5 완료(코드 변경 없음)**. P2 · P6 남음 | P5: MCP가 부르는 DB 함수 23개가 모두 사용자 id로 거름(`saveDossier`는 호출하는 쪽이 `user_id`를 넣고 `user_id,dossier_key`로 upsert, `github_trends`는 공개 자료). 남의 `prd:` 키 거부 테스트는 이미 있음(`tests/mcp-goal.test.ts`). P2는 정지훈 결정 대기, P6은 장차희 |
 
 ## 2-1. 운영 준비 (정지훈, 🟢가 운영에서 나오려면 필요)
 

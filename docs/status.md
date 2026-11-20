@@ -59,6 +59,7 @@
 | 호환 ① | Antigravity 확인 조사 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-antigravity-research.md), 코드 변경 없음 |
 | 성적표 갱신 | 감독관 정적 검사 숫자를 #160 뒤 실측값으로 | Codex(장차희 지시) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-scorecard-refresh.md) |
 | 처리방침 | 입력별 모델(무료 모델 / GPT 6.2 Sol · Haiku 5.5)과 보관 범위 | Codex(장차희 지시 · 기술 책임 정지훈) | 진행 중(2026-11-20 시작) | [프롬프트](prompts/codex-privacy-wording.md). 출시 전 준비, 정지훈에서 옮김 |
+| 실제 프로젝트 검증 | 프로젝트 3개(트랙 A · 트랙 B · 기존 저장소), 목표 도달률 첫 측정 | 장차희 · 정지훈 | 시작 조건 대기(운영 준비, 보완 ②, 실제 연결 확인 1개) | 계획 5절 "실제 프로젝트 검증", [양식](research/project-check-template.md) |
 | 호환 ② | 클라이언트별 실제 연결 확인(Claude Code · Codex · Antigravity) | 장차희 · 정지훈 | 운영 준비 뒤 | [확인 순서](prompts/client-check.md). 실제 프로젝트 게이트 첫 번째 |
 | 호환 ③ | CLAUDE.md 제공, 안내문 앞 512자, developed_with 확장, Codex 훅, Windows | 정지훈 | 결정 대기(developed_with 방식) | 단계 2 보완 ⑤를 넓힘 |
 | 도구 정리 | MCP 도구 23 → 19(추천안) | 정지훈 | 결정 대기 | 연결 2 앞 별도 PR |

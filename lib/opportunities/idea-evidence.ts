@@ -66,6 +66,19 @@ export function fallbackPhrases(idea: string, avoid: string[] = []) {
   return [...new Set([latin.slice(0, 5).join(' '), head].map((phrase) => phrase.trim()).filter((phrase) => phrase.length >= 2 && !tried.has(phrase.toLowerCase())))].slice(0, MAX_PHRASES);
 }
 
+// Posts written by idea-list projects, not by someone who has the problem: a "Problem:" issue in a repository that
+// collects problems, or a body laid out as a JTBD template. They read like testimony but are generated, so they are
+// never a quote or a first user (2026-11-21: muaddibco/RealWorldProblems#710 in the picky-meals case).
+const IDEA_LIST_REPO = /^https:\/\/github\.com\/[^/]+\/[^/]*(?:problems?|ideas?|pain-?points?)[^/]*\/issues\//i;
+const TEMPLATE_HEADINGS = [/\bJTBD\b/, /pain\s*\/\s*stakes/i, /current workaround/i, /context\s*&\s*frequency/i, /\bpersona\s*:/i];
+
+/** True for a post that is an idea-list entry rather than a person describing their own problem. */
+export function isGeneratedProblemPost(post: { url: string; title?: string; text?: string }) {
+  if (IDEA_LIST_REPO.test(post.url)) return true;
+  const body = `${post.title ?? ''}\n${post.text ?? ''}`;
+  return TEMPLATE_HEADINGS.filter((pattern) => pattern.test(body)).length >= 2;
+}
+
 export function phrasePrompt(idea: string, avoid: string[] = []) {
   return `A product idea is below, possibly in Korean. Write the phrases the people who need it would type in English when they complain about the problem online.
 Put the strongest phrase first: name the workflow or object and the concrete symptom together. Use other phrases for different symptoms or the same problem in different words. Avoid general words like "tool", "platform", and "solution".
@@ -124,10 +137,10 @@ export async function searchIdeaEvidence(idea: string, options: IdeaEvidenceOpti
   ]);
   const seen = new Set<string>();
   const fresh = [...web, ...reviews]
-    .filter((post) => post.text.length >= 40 && !seen.has(`${post.url}\n${post.text.slice(0, 80)}`) && seen.add(`${post.url}\n${post.text.slice(0, 80)}`))
+    .filter((post) => post.text.length >= 40 && !isGeneratedProblemPost(post) && !seen.has(`${post.url}\n${post.text.slice(0, 80)}`) && seen.add(`${post.url}\n${post.text.slice(0, 80)}`))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_POSTS);
-  const saved = stored.slice(0, MAX_STORED).filter((row) => !isCutOffEvidenceQuote(row.quote));
+  const saved = stored.slice(0, MAX_STORED).filter((row) => !isCutOffEvidenceQuote(row.quote) && !isGeneratedProblemPost(row));
   const posts = [
     ...fresh.map((post) => ({ ...post, saved: false })),
     ...saved.map((row) => ({ platform: row.platform, url: row.url, title: '', text: row.quote, score: row.score, postedAt: row.postedAt, saved: true })),

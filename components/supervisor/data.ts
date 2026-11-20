@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { userPrdById, userPrds, userPinnedDossierForSlug } from '@/lib/db/dossiers';
 import { currentProjectGoal } from '@/lib/db/project-goals';
 import { projectMemory } from '@/lib/db/project-memory';
-import { resolveProjectKey, supervisorProject } from '@/lib/db/supervisor-projects';
+import { resolveProjectKey, supervisorProject, userSupervisorProjects } from '@/lib/db/supervisor-projects';
 import { cachedPrd } from '@/lib/db/server';
 import { getOpportunities, getOpportunity } from '@/lib/opportunities/data';
 import { readBuildProgress } from '@/lib/opportunities/build-progress';
@@ -47,17 +47,23 @@ export type SupervisorDetail = NonNullable<Awaited<ReturnType<typeof supervisorD
 export type ProjectSummary = Pick<SupervisorDetail, 'key' | 'title' | 'goal' | 'criteriaMet' | 'criteriaTotal' | 'lastActivityAt'>;
 
 export async function supervisorList(client: SupabaseClient, userId: string): Promise<ProjectSummary[]> {
-  // No project-list data-layer function exists yet. Discover keys through published opportunities and owned PRDs.
-  const [source, dossiers] = await Promise.all([getOpportunities(), userPrds(client, userId, 1000)]);
-  const slugs = new Set([...source.opportunities.map((row) => row.slug), ...dossiers.flatMap((row) => row.opportunity_slug ? [row.opportunity_slug] : [])]);
-  const publicProjects = await Promise.all([...slugs].map(async (key) => {
-    const dossier = dossiers.find((row) => row.opportunity_slug === key);
-    if (!await supervisorProject(client, userId, key) && !dossier) return [];
-    // resolveProjectKey checks that even a saved slug is still a published opportunity.
-    if (!await resolveProjectKey(client, userId, key)) return [];
-    return [{ key, title: dossier?.title || source.opportunities.find((row) => row.slug === key)?.name || key, updatedAt: dossier?.updated_at }];
-  }));
-  const candidates = [...publicProjects.flat(), ...dossiers.map((row) => ({ key: `prd:${row.id}`, title: row.title, updatedAt: row.updated_at }))];
+  // Only real supervisor projects (a locked goal, memory or a connected repo), not every saved PRD or public opportunity.
+  const projects = await userSupervisorProjects(client, userId);
+  if (!projects.length) return [];
+  const needsPrd = projects.some((row) => row.projectKey.startsWith('prd:'));
+  const needsSource = projects.some((row) => !row.projectKey.startsWith('prd:'));
+  const [dossiers, source] = await Promise.all([needsPrd ? userPrds(client, userId, 1000) : [], needsSource ? getOpportunities() : null]);
+  // Same rule as the detail page: a deleted PRD or an unpublished opportunity would open a 404, so it is not listed.
+  const candidates = projects.flatMap((row) => {
+    const key = row.projectKey;
+    if (key.startsWith('prd:')) {
+      const dossier = dossiers.find((item) => `prd:${item.id}` === key);
+      return dossier ? [{ key, title: dossier.title || key, updatedAt: row.updatedAt }] : [];
+    }
+    const published = source?.opportunities.find((item) => item.slug === key);
+    if (!published) return [];
+    return [{ key, title: dossiers.find((item) => item.opportunity_slug === key)?.title || published.name || key, updatedAt: row.updatedAt }];
+  });
   const rows = await Promise.all(candidates.map(async ({ key, title, updatedAt }) => {
     const [goal, memory, progress, commits] = await Promise.all([
       currentProjectGoal(client, userId, key), projectMemory(client, userId, key),

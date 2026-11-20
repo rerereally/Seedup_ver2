@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isAdminUser } from '@/lib/auth/admin';
 import { fixturesOn } from '@/lib/llm-fixtures';
 
 /**
@@ -13,7 +14,7 @@ export function usageLimitFailsOpen(env: Record<string, string | undefined> = pr
   return env.NODE_ENV !== 'production';
 }
 
-/** Counts one use of a paid-for feature. Returns false once today's limit is used up. */
+/** Counts one use of a paid-for feature. Returns false once today's limit is used up, except for admins (still counted). */
 export async function consumeDailyUsage(supabase: SupabaseClient, feature: string, dailyLimit: number) {
   // Fixture runs (e2e, LLM_FIXTURES=1) call no model, so they spend nothing; counting them let a busy CI day use up the
   // test account's real limit and fail every later run.
@@ -24,7 +25,9 @@ export async function consumeDailyUsage(supabase: SupabaseClient, feature: strin
     console.error(`Usage limit check failed (${open ? 'allowing' : 'blocking'} the call)`, feature, error.message);
     return open;
   }
-  return data === true;
+  if (data === true) return true;
+  const { data: auth } = await supabase.auth.getUser();
+  return isAdminUser(auth.user);
 }
 
 /** Gives back one use when the model call behind it failed, so an outage does not eat the user's limit. */

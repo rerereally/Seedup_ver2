@@ -4,9 +4,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { consumeDailyUsage, releaseDailyUsage, usageLimitFailsOpen } from '../lib/usage-limit';
 import { consumeUsageFor, releaseUsageFor } from '../lib/mcp/auth';
 
-function fakeClient(result: { data?: unknown; error?: { message: string } | null }) {
+function fakeClient(result: { data?: unknown; error?: { message: string } | null }, user: { email?: string; app_metadata?: Record<string, unknown> } | null = null) {
   const calls: Array<{ name: string; args: unknown }> = [];
-  const client = { rpc: async (name: string, args: unknown) => { calls.push({ name, args }); return { data: result.data ?? null, error: result.error ?? null }; } };
+  const client = {
+    rpc: async (name: string, args: unknown) => { calls.push({ name, args }); return { data: result.data ?? null, error: result.error ?? null }; },
+    auth: { getUser: async () => ({ data: { user } }), admin: { getUserById: async () => ({ data: { user } }) } },
+  };
   return { client: client as unknown as SupabaseClient, calls };
 }
 
@@ -30,6 +33,15 @@ test('a refund error is logged, never thrown, so the user still gets the 503 mes
 test('the limit is only reported as used up when the database says so', async () => {
   assert.equal(await consumeDailyUsage(fakeClient({ data: true }).client, 'prd', 5), true);
   assert.equal(await consumeDailyUsage(fakeClient({ data: false }).client, 'prd', 5), false);
+});
+
+test('admins are still counted but never stopped by the daily limit, on the website and over MCP', async () => {
+  const admin = { email: 'a@example.com', app_metadata: { role: 'admin' } };
+  assert.equal(await consumeDailyUsage(fakeClient({ data: false }, admin).client, 'prd', 5), true);
+  assert.equal(await consumeDailyUsage(fakeClient({ data: false }, { email: 'b@example.com' }).client, 'prd', 5), false);
+  const mcp = fakeClient({ data: false }, admin);
+  assert.equal(await consumeUsageFor(mcp.client, 'user-1', 'mcp_prd', 10), true);
+  assert.equal(mcp.calls.length, 1);
 });
 
 test('a failed limit check blocks the call in production and lets it through locally', () => {
@@ -65,6 +77,7 @@ test('MCP usage is counted by the atomic function with the token owner as the us
 test('MCP usage fallback follows usageLimitFailsOpen when the database fails', async () => {
   const failingClient = (opts: { readError?: string; upsertError?: string }) => ({
     rpc: async () => ({ data: null, error: { message: 'missing rpc' } }),
+    auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
     from: () => ({
       select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: opts.readError ? null : { count: 1 }, error: opts.readError ? { message: opts.readError } : null }) }) }) }) }),
       upsert: async () => ({ error: opts.upsertError ? { message: opts.upsertError } : null }),

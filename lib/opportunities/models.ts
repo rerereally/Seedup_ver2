@@ -6,7 +6,7 @@ import { isFreeOpenRouterModel } from '../llm';
 export const EXAONE_ID = 'exaone';
 
 /** A model the PRD screens may offer. Only ids on this server-side list are ever called. */
-export type PrdModel = { id: string; label: string; note: string; free: boolean; available: boolean; reason?: string };
+export type PrdModel = { id: string; label: string; note: string; free: boolean; available: boolean; reason?: string; base?: true };
 
 type Choice = { id: string; label: string; note: string; usdPerMillion: { input: number; output: number } };
 
@@ -51,16 +51,16 @@ export async function savePrdPolicy(service: SupabaseClient, enabled: string[], 
 
 export const allModelIds = () => [baseModel(), EXAONE_ID, ...PAID.map((row) => row.id)].filter(Boolean);
 
-/** The menu for everyone, free model first (also the default pick). Blocked or unconfigured models stay listed with the reason. */
+/** The menu for everyone, free model first (also the default pick). Models the admin turned off stay listed but cannot be picked. */
 export function prdModels(policy: PrdPolicy): PrdModel[] {
   const on = new Set(policy.enabled);
   const base = baseModel();
   const rows: PrdModel[] = [];
-  if (base) rows.push({ id: base, label: '무료 모델', note: '기본 · 비용 없음, 보통 30초~1분', free: isFreeOpenRouterModel(base), available: true });
+  if (base) rows.push({ id: base, label: '기본 무료 모델', note: '', free: isFreeOpenRouterModel(base), available: true, base: true });
   rows.push({
     id: EXAONE_ID,
     label: 'K-EXAONE 2.5',
-    note: 'LG AI연구원 · 무료, 느림(PRD 한 편에 2분 넘게)',
+    note: 'LG AI연구원 · 무료',
     free: true,
     available: exaoneConfigured() && on.has(EXAONE_ID),
     reason: !exaoneConfigured() ? 'EXAONE 키가 아직 없음' : on.has(EXAONE_ID) ? undefined : '관리자가 막아 둠',
@@ -84,4 +84,4 @@ export function estimateCost(model: string, promptTokens: number, completionToke
   return price ? (promptTokens * price.input + completionTokens * price.output) / 1_000_000 : 0;
 }
 
-export const modelLabel = (id: string) => (id === EXAONE_ID ? 'K-EXAONE 2.5' : id === baseModel() ? '무료 모델' : PAID.find((row) => row.id === id)?.label ?? id);
+export const modelLabel = (id: string) => (id === EXAONE_ID ? 'K-EXAONE 2.5' : id === baseModel() ? '기본 무료 모델' : PAID.find((row) => row.id === id)?.label ?? id);

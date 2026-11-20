@@ -4,6 +4,16 @@ import type { Evidence, Opportunity } from './types';
 
 const MAX_COMPETITORS = 8;
 
+export function competitorNotesFor(supply: readonly Opportunity['supply'][number][]) {
+  const direct = supply.filter((row) => row.relation === 'direct' && row.name.trim());
+  const competitors = [...new Set(direct.map((supply) => supply.name.trim()))].slice(0, MAX_COMPETITORS);
+  const competitorNotes = competitors.map((name) => {
+    const description = direct.find((supply) => supply.name.trim() === name)?.description.trim();
+    return description ? `${name}: ${description}` : name;
+  });
+  return { competitors, competitorNotes };
+}
+
 /**
  * Builds the PRD context from every opportunity the picked evidence belongs to, not just the one with most picks.
  * The opportunity with the most picked quotes leads (its name and problem come first); the others add their
@@ -22,19 +32,13 @@ export function specInputFor(opportunities: Opportunity[], picked: Array<{ evide
   const distinct = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))];
   const relatedProblems = distinct(others.map((item) => item.problem)).filter((problem) => problem !== lead.problem.trim());
   const gaps = distinct([lead.gap, ...others.map((item) => item.gap)]);
-  const direct = involved.flatMap((item) => item.supply.filter((supply) => supply.relation === 'direct'));
-  const competitors = distinct(direct.map((supply) => supply.name)).slice(0, MAX_COMPETITORS);
-  const competitorNotes = competitors.map((name) => {
-    const description = direct.find((supply) => supply.name.trim() === name)?.description.trim();
-    return description ? `${name}: ${description}` : name;
-  });
+  const supply = competitorNotesFor(involved.flatMap((item) => item.supply));
 
   return {
     title: requestedTitle || lead.name,
     problem: relatedProblems.length ? `${lead.problem}\n\n${lang === 'en' ? 'Related problems in this selection' : '함께 담은 관련 문제'}:\n${relatedProblems.map((problem) => `- ${problem}`).join('\n')}` : lead.problem,
     gap: gaps.join('\n'),
     evidence: picked.map((item) => item.evidence),
-    competitors,
-    competitorNotes,
+    ...supply,
   };
 }

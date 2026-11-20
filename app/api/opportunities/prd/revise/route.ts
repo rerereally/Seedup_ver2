@@ -5,6 +5,7 @@ import { inputFromBody } from '@/lib/opportunities/idea';
 import { pickPrdModel } from '@/lib/opportunities/models';
 import { normalizeDifferentiation, normalizeTechnicalDesign } from '@/lib/opportunities/prd-design';
 import { findDifferentiationOverlap, withDifferentiationQuestion } from '@/lib/opportunities/prd-differentiation';
+import { pushbackText } from '@/lib/opportunities/pushback';
 import { generateScreens, reviseSpec } from '@/lib/opportunities/prd';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
 import { normalizeRivals, normalizeSlots, withEvidenceStrength, withPrdReadiness } from '@/lib/opportunities/spec';
@@ -46,6 +47,8 @@ function readSpec(value: unknown, input: SpecInput, draft: boolean): Spec | null
   const differentiation = normalizeDifferentiation(raw.differentiation, input.evidence.length, input.competitorNotes);
   const featureIds = ids(features.map((row) => row.id)).filter((id) => id.startsWith('F-'));
   const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map(featureIds.map((id) => [id, id])));
+  const lang = toLang(typeof raw.lang === 'string' ? raw.lang : null);
+  const reviewNotes = input.pushback?.map((issue) => pushbackText(issue, lang));
   return {
     summary: clip(raw.summary, 400),
     targetUsers: strings('targetUsers', 4),
@@ -65,11 +68,12 @@ function readSpec(value: unknown, input: SpecInput, draft: boolean): Spec | null
     ...(Array.isArray(raw.openQuestions) ? { openQuestions: list(raw.openQuestions, 8).map((item) => clip(item, 760)).filter(Boolean) } : {}),
     ...(raw.beginner === true ? { beginner: true } : {}),
     ...(raw.origin === 'idea' ? { origin: 'idea' as const } : {}),
-    lang: toLang(typeof raw.lang === 'string' ? raw.lang : null),
+    lang,
     // Only rivals the server itself found for these quotes; a name the client adds is dropped, like evidence numbers.
     ...(Array.isArray(raw.rivals) ? { rivals: normalizeRivals(raw.rivals, input.competitors) } : {}),
     ...(differentiation ? { differentiation } : {}),
     ...(technicalDesign ? { technicalDesign } : {}),
+    ...(reviewNotes?.length ? { reviewNotes } : {}),
     ...(Array.isArray(raw.existing) ? { existing: list(raw.existing, 12).map((row) => ({ name: clip((row as Record<string, unknown>)?.name, 80), does: clip((row as Record<string, unknown>)?.does, 240) })).filter((row) => row.name) } : {}),
   };
 }

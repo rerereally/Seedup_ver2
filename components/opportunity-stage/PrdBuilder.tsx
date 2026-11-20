@@ -635,6 +635,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const sections: Array<[string, string, boolean]> = spec && input ? [
     ['overview', t('개요', 'Overview'), true],
     ['problem', t('배경', 'Background'), true],
+    ['review', t('검토 의견', 'Review notes'), Boolean(spec.reviewNotes?.length)],
     ['differentiation', t('차별점', 'Differentiation'), Boolean(spec.differentiation)],
     ['requirements', t('요구사항', 'Requirements'), true],
     ['features', t('기능', 'Features'), spec.features.length > 0],
@@ -908,6 +909,12 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                         </>
                       )}
                     </section>
+                    {spec.reviewNotes?.length ? (
+                      <section>
+                        <h4 id="prd-review" className={h2}>{t('검토 의견', 'Review notes')}</h4>
+                        {bullets(spec.reviewNotes, prose)}
+                      </section>
+                    ) : null}
                     {spec.differentiation && (
                       <section>
                         <h4 id="prd-differentiation" className={h2}>{t('차별점', 'Differentiation')}</h4>

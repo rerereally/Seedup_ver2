@@ -203,6 +203,7 @@ ${options.stack?.length ? `<선호 기술>\n${JSON.stringify(options.stack)}\n</
 ${input.problem}
 </${options.idea ? '문제와 기획자 답변' : '문제'}>
 
+${input.pushback?.length ? `<확인할 가설>\n${JSON.stringify(input.pushback.map((row) => row.claim))}\n</확인할 가설>\n위 항목을 요구사항에 쓰면 원문 번호 없이 가설로 두고, 누구에게 무엇을 물어볼지 적으세요.\n\n` : ''}
 <기존 도구의 빈틈>
 ${input.gap || '알 수 없음'}
 </기존 도구의 빈틈>

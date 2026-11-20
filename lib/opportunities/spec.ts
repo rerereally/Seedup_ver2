@@ -6,6 +6,7 @@ import type { Lang } from '../i18n';
 import { citedQuotes, prdSentenceParts } from './prd-markdown';
 import { normalizeDifferentiation, normalizeTechnicalDesign, renderTechnicalDesign } from './prd-design';
 import type { Differentiation, TechnicalDesign } from './prd-design';
+import { pushbackText, refersToClaim, type Pushback } from './pushback';
 import { isVerbatimQuote } from './rules';
 import { PLATFORM_LABELS } from './types';
 import type { Evidence } from './types';
@@ -98,6 +99,7 @@ export type Spec = {
   rivals?: SpecRival[];
   differentiation?: Differentiation;
   technicalDesign?: TechnicalDesign;
+  reviewNotes?: string[];
   /** Why this is worth building, in prose; [E1]-style tags cite the quotes. */
   background?: string;
   /** One concrete moment of a target user meeting the problem and the product. */
@@ -140,6 +142,7 @@ export type SpecInput = {
   competitors: string[];
   /** "name: what it does" for each competitor, from the product search, so the PRD says what a tool misses from its listing instead of from memory. */
   competitorNotes?: string[];
+  pushback?: Pushback[];
 };
 
 export function evidenceStrengthFor(indices: readonly number[], evidence: readonly Evidence[]): EvidenceStrength {
@@ -186,6 +189,7 @@ export type RawSpec = {
   rivals?: unknown;
   differentiation?: unknown;
   technicalDesign?: unknown;
+  review_notes?: unknown;
   background?: unknown;
   scenario?: unknown;
   goals?: unknown;
@@ -275,16 +279,27 @@ export function withPrdReadiness(original: Spec): Spec {
  * collected; anything else becomes a hypothesis. Features must serve a kept requirement, screens a kept feature,
  * so nothing in the spec floats free of the evidence chain. Indexes in the raw draft are 1-based.
  */
-export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean; competitorNotes?: readonly string[] } = {}): Spec {
+export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence[], draft = false, options: { idea?: boolean; competitorNotes?: readonly string[]; pushback?: readonly Pushback[]; lang?: Lang } = {}): Spec {
   const evidenceCount = typeof evidence === 'number' ? evidence : evidence.length;
+  const pushback = options.pushback ?? [];
+  const lang = options.lang ?? 'ko';
+  const t = translator(lang);
+  const checkClaim = t(
+    '첫 사용자에게 지금 겪는 상황과 이 기능이나 대상이 필요한 이유를 확인하세요.',
+    'Ask the first users about their current situation and why this feature or audience belongs in the first release.',
+  );
+  const findings = new Set<Pushback>();
   const rows = (Array.isArray(raw.requirements) ? raw.requirements : []).slice(0, 12).flatMap((row) => {
     const record = (row ?? {}) as RawRow;
     const title = text(record.title, 120);
     if (!title) return [];
     const priority = typeof record.priority === 'string' && /^P[012]$/.test(record.priority) ? (record.priority as Priority) : undefined;
     const acceptance = stringList(record.acceptance, 4, 240);
-    const check = text(record.check, 300);
-    return [{ title, detail: text(record.detail, 600), evidence: numbers(record.evidence, evidenceCount), ...(priority ? { priority } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
+    const detail = text(record.detail, 600);
+    const flagged = pushback.filter((issue) => refersToClaim(issue.claim, `${title} ${detail}`));
+    flagged.forEach((issue) => findings.add(issue));
+    const check = text(record.check, 300) || (flagged.length ? checkClaim : '');
+    return [{ title, detail, evidence: flagged.length ? [] : numbers(record.evidence, evidenceCount), ...(priority ? { priority } : {}), ...(acceptance.length ? { acceptance } : {}), ...(check ? { check } : {}) }];
   });
   // Raw requirement position (1-based) -> kept requirement id, for features that cite requirements by number.
   const requirementId = new Map<number, string>();
@@ -302,6 +317,18 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
       if (options.idea) requirementId.set(index + 1, kept.id);
     }
   });
+  for (const issue of pushback) {
+    if (findings.has(issue)) continue;
+    const claim = text(issue.claim, 120);
+    hypotheses.push({
+      id: id('H', hypotheses.length),
+      title: issue.kind === 'audience' ? t(`첫 사용자가 ${claim}입니다`, `The first users are ${claim}`)
+        : issue.kind === 'scope' ? t('첫 버전의 전체 범위가 필요합니다', 'The full first-release scope is needed') : claim,
+      detail: pushbackText({ ...issue, evidence: [] }, lang),
+      evidence: [],
+      check: checkClaim,
+    });
+  }
 
   const featureId = new Map<number, string>();
   const features: SpecFeature[] = [];
@@ -325,6 +352,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
 
   const differentiation = normalizeDifferentiation(raw.differentiation, evidenceCount, options.competitorNotes);
   const technicalDesign = normalizeTechnicalDesign(raw.technicalDesign, new Map([...featureId].map(([from, to]) => [String(from), to])));
+  const reviewNotes = options.pushback ? pushback.map((issue) => pushbackText(issue, lang)) : stringList(raw.review_notes, 6, 650);
   const spec = withP0({
     summary: text(raw.summary),
     targetUsers: stringList(raw.target_users, 4),
@@ -338,6 +366,7 @@ export function normalizeSpec(raw: RawSpec, evidence: number | readonly Evidence
     draft,
     ...(differentiation ? { differentiation } : {}),
     ...(technicalDesign ? { technicalDesign } : {}),
+    ...(reviewNotes.length ? { reviewNotes } : {}),
     ...(text(raw.background, 1500) ? { background: text(raw.background, 1500) } : {}),
     ...(text(raw.scenario, 1000) ? { scenario: text(raw.scenario, 1000) } : {}),
     ...(stringList(raw.goals, 5).length ? { goals: stringList(raw.goals, 5) } : {}),
@@ -449,6 +478,7 @@ ${input.problem}
 ${input.gap ? `## ${t('기존 도구가 남긴 빈틈', 'Gap left by existing tools')}\n${input.gap}\n\n` : ''}## ${t('대상 사용자', 'Target users')}
 ${bullets(spec.targetUsers.map(citeTags), undefinedText)}
 ${spec.scenario ? `\n## ${t('사용 장면', 'Scenario')}\n${spec.scenario}\n` : ''}${spec.goals?.length ? `\n## ${t('목표', 'Goals')}\n${bullets(spec.goals, undefinedText)}\n` : ''}
+${spec.reviewNotes?.length ? `## ${t('검토 의견', 'Review notes')}\n${bullets(spec.reviewNotes, '')}\n\n` : ''}
 ## ${t('요구사항 (원문 → R)', 'Requirements (evidence → R)')}
 ${requirements || t('근거로 뒷받침되는 요구사항이 없습니다.', 'No requirement is backed by evidence yet.')}
 
@@ -507,7 +537,7 @@ ${bullets(spec.nonGoals, 'Nothing listed yet.')}
 ## Done when
 ${bullets(spec.metrics, 'Agree on a measurable outcome first.')}
 
-${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
+${spec.reviewNotes?.length ? `## Review notes\n${bullets(spec.reviewNotes, '')}\n\n` : ''}${spec.openQuestions?.length ? `## Ask the user before deciding\n${bullets(spec.openQuestions, '')}\n\n` : ''}${renderToolkit(recommendToolkit(spec), 'en', true)}## Rules
 - Ship one feature at a time and keep each change small.
 - For a Seedup opportunity, call ${opportunitySlug ? `get_next_task ${JSON.stringify({ slug: opportunitySlug })}` : 'get_next_task with the opportunity slug'} at the start of each session to pick the feature to work on.
 - For a Seedup opportunity, call update_feature_status when each feature starts (in_progress) and ends (done with checks or blocked).

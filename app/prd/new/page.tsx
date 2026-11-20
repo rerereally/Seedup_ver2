@@ -2,11 +2,12 @@ import { prdPolicy } from '@/lib/db/server';
 import type { Metadata } from 'next';
 import Header from '@/components/Header';
 import IdeaWorkspace from '@/components/IdeaWorkspace';
-import type { PoolItem } from '@/components/IdeaWorkspace';
+import type { WorkspacePoolItem } from '@/components/IdeaWorkspace';
 import { getLang } from '@/lib/i18n-server';
 import { getOpportunities } from '@/lib/opportunities/data';
+import { competitorNotesFor } from '@/lib/opportunities/context';
 import { prdModels } from '@/lib/opportunities/models';
-import { localizedOpportunity } from '@/lib/opportunities/types';
+import { localizedOpportunity, publicEvidence } from '@/lib/opportunities/types';
 import { createClient, getCurrentUser } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: '아이디어로 PRD 만들기' };
@@ -19,14 +20,18 @@ export default async function NewPrdPage({ searchParams }: { searchParams: Promi
   const user = supabase ? await getCurrentUser() : null;
 
   // Only what the chat needs to match quotes in the browser: names, keywords and a few quotes per problem.
-  const pool: PoolItem[] = opportunities.map((item) => {
+  const pool: WorkspacePoolItem[] = opportunities.map((item) => {
     const text = localizedOpportunity(item, lang);
     return {
       slug: item.slug,
       name: text.name,
       problem: text.problem,
+      gap: text.gap,
       keywords: item.keywords,
       qualified: item.qualified,
+      evidenceCount: publicEvidence(item.evidence).length,
+      directCount: item.directCount,
+      competitorNotes: competitorNotesFor(item.supply).competitorNotes,
       quotes: item.evidence.slice(0, QUOTES_PER_PROBLEM).map((row) => ({ id: row.id, platform: row.platform, quote: row.quote, quoteKo: row.quoteKo, url: row.url })),
     };
   });

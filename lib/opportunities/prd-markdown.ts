@@ -4,7 +4,7 @@
 import type { RawSpec } from './spec';
 
 type DesignSection = 'architecture' | 'dataModel' | 'interfaces' | 'stack' | 'milestones';
-type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | DesignSection;
+type Section = 'summary' | 'background' | 'users' | 'scenario' | 'goals' | 'nonGoals' | 'requirements' | 'hypotheses' | 'features' | 'rivals' | 'risks' | 'assumptions' | 'metrics' | 'openQuestions' | 'differentiation' | 'review' | DesignSection;
 
 // Order matters: the first match wins, so "non-goals" is tried before "goals" and "success metrics" before "users".
 const SECTIONS: Array<[Section, RegExp]> = [
@@ -16,6 +16,7 @@ const SECTIONS: Array<[Section, RegExp]> = [
   ['users', /대상|사용자|target|users?/i],
   ['requirements', /요구\s*사항|requirements?/i],
   ['hypotheses', /^(?:검증이 필요한 가설|hypotheses to validate)$/i],
+  ['review', /^(?:검토 의견|review notes)$/i],
   ['differentiation', /^(?:차별점|우리만 하는 한 가지|differentiation|one differentiator)$/i],
   ['rivals', /이미\s*있는\s*도구|경쟁|existing tools|competitors|rivals/i],
   ['features', /기능|features?/i],
@@ -206,6 +207,7 @@ export function parsePrdMarkdown(markdown: string): RawSpec | null {
     assumptions: list(buckets.get('assumptions') ?? []).map((line) => prdSentenceParts(line).join(' ')),
     metrics: list(buckets.get('metrics') ?? []),
     open_questions: list(buckets.get('openQuestions') ?? []),
+    review_notes: list(buckets.get('review') ?? []),
   };
 }
 

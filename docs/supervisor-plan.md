@@ -468,7 +468,17 @@ PR: 연결 2(`setup_project`) **앞**에 별도 PR(이름 정리와 새 도구�
 | P5 | ⑤ 서비스 키 경로 점검 | 정지훈 | MCP는 서비스 키로 DB를 읽어 RLS가 안전망이 아님. MCP가 부르는 `lib/db/*` 함수가 모두 사용자 id로 거르는지 확인하고, 다른 사용자 키(`prd:<남의 id>`)로 부르면 404인지 테스트 하나 추가. 코드 변경은 빠진 곳이 있을 때만 | `lib/db/*`, `tests/mcp-*.test.ts` |
 | P6 | ⑥ 로컬 트리 정리 | 장차희 | 검토 PDF 2개는 `docs/archive/`로 커밋(**완료**). 남은 것: `next-env.d.ts`(next dev가 다시 만드는 변경, AGENTS.md 안내대로 코드 PR에 커밋), `hackathon-judging-2026-11-19.md`는 11절대로 해커톤(2026-11-21 발표) 뒤 `docs/archive/`로 | 루트, `docs/` |
 
-정한 것(2026-11-20, 장차희): P2는 merge queue를 원함. 다만 저장소가 개인 계정(`rerereally`) 소유라 merge queue를 쓸 수 없고(조직 소유 저장소에서만 제공), `main`에는 브랜치 보호가 하나도 없어 CI 통과도 강제되지 않음 → 방식은 결정 대기(status.md 3절). `lib/mcp/server.ts` 나누기는 실제 프로젝트 검증 뒤로 미룸(보류).
+정한 것(2026-11-20, 장차희): P2는 merge queue를 원함. 다만 저장소가 개인 계정(`rerereally`) 소유라 merge queue를 쓸 수 없고(조직 소유 저장소에서만 제공), `main`에는 브랜치 보호가 하나도 없어 CI 통과도 강제되지 않음 → **저장소를 GitHub 조직으로 옮기고 merge queue를 씀**(장차희 결정). 순서는 아래 "P2 조직 이전 순서". `lib/mcp/server.ts` 나누기는 실제 프로젝트 검증 뒤로 미룸(보류).
+
+**P2 조직 이전 순서** (실행: 정지훈, 저장소 관리자만 가능. 해커톤 발표(2026-11-21) 뒤에)
+
+1. `merge_group` 트리거 PR(#194) 머지. merge queue를 켜기 전에 있어야 큐가 필수 검사를 기다리다 멈추지 않음
+2. GitHub 조직 만들기(무료, 공개 저장소면 merge queue 사용 가능), 장차희를 멤버로 초대
+3. 저장소 Settings → Transfer로 조직에 이전. 옛 주소(`rerereally/Seedup_ver2`)는 GitHub이 새 주소로 넘겨 줌
+4. 이전 뒤 확인: Actions Secrets · Variables(`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SITE_URL`, Supabase · OpenRouter 키 등)가 그대로인지, 예약 워크플로(수집 · 엔진 · 사이트 점검)가 다음 실행에서 도는지, Cloudflare 배포는 API 토큰 방식이라 영향 없는지 main CI 한 번으로 확인
+5. ruleset(`main`): PR 필수, 필수 검사 `check` · `migrations` · `e2e`, merge queue 켜기, 강제 push · 삭제 막기
+6. 저장소 주소를 직접 적은 곳 고치기(작은 PR): `app/about/page.tsx`, `app/guide/page.tsx`의 이슈 · 확장 링크, `README.md` 클론 명령. 각자 로컬은 `git remote set-url origin <새 주소>`
+7. 머지 세션은 이후 "머지" 대신 "merge queue에 넣기"로 머지
 
 받아들인 위험(지금은 고치지 않음): PR 미리보기가 운영 DB를 그대로 씀(CONTRIBUTING 9절), `/api/mcp/<토큰>` 경로는 토큰이 URL에 들어감(헤더를 못 넣는 클라이언트용).
 

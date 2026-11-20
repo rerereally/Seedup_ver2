@@ -234,17 +234,19 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
   const keptPlatforms = new Set(keptQuotes.map((row) => row.platform)).size;
   const passes = keptQuotes.length >= MIN_EVIDENCE && keptPlatforms >= MIN_PLATFORMS;
 
-  // Show fixed questions right away while waiting for the model. Once tailored questions arrive, switch to them only if
-  // the person has not answered any fixed question yet; otherwise keep the fixed list so their answers never disappear.
+  // Wait for the model's questions (about 15s) instead of showing the fixed list at once: an answer to a fixed question
+  // used to throw the tailored ones away, so most people never saw them. The fixed list stays as the fallback when the
+  // model fails, and for answers saved before questions were tailored, so those never disappear.
   const audience = useMemo(() => ideaAudience(idea, lang), [idea, lang]);
+  const waitingForPlan = Boolean(idea) && !planFailed && plan?.idea !== idea && Object.keys(answers).length === 0;
   const useTailored = Boolean(
     !planFailed
     && plan?.idea === idea
     && !Object.keys(answers).some((key) => !plan.questions.some((q) => q.key === key) && key !== EXTRA.key),
   );
   const questions = useMemo<Question[]>(
-    () => (useTailored && plan ? [...plan.questions, fixedQuestion(EXTRA, en)] : QUESTIONS.map((row) => fixedQuestion(row, en, audience))),
-    [useTailored, plan, en, audience],
+    () => (waitingForPlan ? [] : useTailored && plan ? [...plan.questions, fixedQuestion(EXTRA, en)] : QUESTIONS.map((row) => fixedQuestion(row, en, audience))),
+    [waitingForPlan, useTailored, plan, en, audience],
   );
   const planning = Boolean(idea) && !questions.length;
   const step = questions.findIndex((question) => !(question.key in answers));
@@ -649,7 +651,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         </section>
 
         <section aria-label={t('PRD 문서', 'PRD document')} className={`${pane === 'doc' ? 'block' : 'hidden'} min-w-0 bg-white px-5 pb-28 pt-6 [scrollbar-width:thin] lg:order-2 lg:block lg:overflow-y-auto lg:px-10 lg:pb-10`}>
-          {generated && spec && <GoalLock key={idea} spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
+          {generated && spec && <GoalLock key={`goal:${idea}`}spec={spec} idea={idea} projectKey={projectKey} onLocked={setGoalLocked} />}
           <PrdBuilder
             key={idea}
             title={idea}

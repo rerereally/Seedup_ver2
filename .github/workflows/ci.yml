@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue runs the required checks (check, migrations, e2e) again on main plus the queued PRs before merging.
+  merge_group:
   push:
     branches: [main]
 

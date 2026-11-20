@@ -228,3 +228,14 @@ test('a null phrase answer returns an empty result and never searches', async ()
   assert.deepEqual(result, { phrases: [], quotes: [], reused: 0, sites: [] });
   assert.equal(calls.demand.length, 0);
 });
+
+test('the default sources skip App Store reviews unless APP_REVIEW_EVIDENCE=true', async () => {
+  const { ideaEvidenceSources } = await import('../lib/opportunities/idea-evidence');
+  const before = process.env.APP_REVIEW_EVIDENCE;
+  delete process.env.APP_REVIEW_EVIDENCE;
+  try {
+    assert.deepEqual(await ideaEvidenceSources.reviews('budget app'), []);
+  } finally {
+    if (before !== undefined) process.env.APP_REVIEW_EVIDENCE = before;
+  }
+});

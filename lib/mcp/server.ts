@@ -312,7 +312,7 @@ export const TOOLS = [
   },
   {
     name: 'validate_idea',
-    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites and app reviews too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Takes about a minute; 3 a day.',
+    description: '[기획] Should I build this? A report for one idea: real quotes from GitHub issues, Hacker News and Stack Overflow (kept only when they match the source word for word), the tools that already solve it, how big a first version is for one person, where the first users are, and a verdict on the 3-quotes-from-2-sites bar. Searches everyday Q&A sites too when the idea is not for developers, and tries other words when the first ones find too little. The quotes are saved as your project (prd:<id>); call generate_verified_prd with that key to make its PRD. Takes about a minute; 3 a day.',
     inputSchema: { type: 'object', properties: { idea: { type: 'string', description: 'The idea in one sentence, any language' } }, required: ['idea'] },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },

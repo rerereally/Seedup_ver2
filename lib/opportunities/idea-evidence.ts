@@ -36,7 +36,9 @@ export type IdeaEvidenceOptions = {
 export const ideaEvidenceSources = {
   ask: <T>(prompt: string, options: { maxTokens: number; timeoutMs: number; deadline?: number; model?: string; onUsage?: (usage: ModelUsage) => void }) => callJsonModel<T>(prompt, options),
   demand: (phrase: string, sites: string[]) => searchDemand(phrase, sites),
-  reviews: (phrase: string) => searchAppReviews(phrase),
+  // Off unless APP_REVIEW_EVIDENCE=true: reuse rights for the App Store review feed are not confirmed (plan 3-10),
+  // and a kept quote is stored for good in the user's PRD and the shared store.
+  reviews: (phrase: string) => (process.env.APP_REVIEW_EVIDENCE?.trim() === 'true' ? searchAppReviews(phrase) : Promise.resolve([])),
   stored: (terms: string[]) => storedEvidence(terms, MAX_STORED),
   save: (quotes: Evidence[], terms: string[]) => saveFoundEvidence(quotes, terms),
 };

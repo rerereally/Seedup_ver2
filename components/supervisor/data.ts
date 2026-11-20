@@ -43,9 +43,26 @@ export async function supervisorDetail(client: SupabaseClient, userId: string, r
     // Only until a goal is locked: the dashboard drafts the goal from it (a PRD made over MCP has no other lock screen).
     lockSpec: goal ? null : spec,
     drift: driftForProject(commits, spec, goal, progress), decisions: memory.decisions,
+    // The rest of what MCP tools left behind, so the web shows it too: the PRD, its quotes, the repository and commits.
+    prd: { markdown: dossier?.prd_markdown ?? null, quotes: dossierQuotes(dossier?.evidence) },
+    repo: project?.repo ?? null, track: project?.track ?? null, strict: project?.strict ?? false,
+    commits: commits.slice(-30).reverse().map((row) => ({ sha: row.sha, message: row.message, featureId: row.feature_id, files: row.files.length, at: row.created_at, dismissed: Boolean(row.dismissed_at) })),
+    facts: memory.facts,
     files: goal ? hookBundle(key, goal).map((file) => file.path === '.claude/settings.json'
       ? { ...file, content: `${JSON.stringify(hookSettings(), null, 2)}\n` } : file) : [],
   };
+}
+
+/** Quotes saved with a PRD (evidence_dossiers.evidence), kept only when they have text and a link. */
+function dossierQuotes(evidence: unknown) {
+  return (Array.isArray(evidence) ? evidence : []).flatMap((row: { quote?: unknown; url?: unknown; platform?: unknown }) =>
+    typeof row?.quote === 'string' && typeof row.url === 'string' ? [{ quote: row.quote, url: row.url, platform: typeof row.platform === 'string' ? row.platform : '' }] : []).slice(0, 30);
+}
+
+/** Every saved PRD and idea draft, for the supervisor's PRD tab: MCP ones without a locked goal are not projects yet. */
+export async function supervisorPrds(client: SupabaseClient, userId: string) {
+  const rows = await userPrds(client, userId, 100);
+  return rows.map((row) => ({ key: `prd:${row.id}`, title: row.title || row.id, hasPrd: Boolean(row.prd_markdown), quotes: row.evidence_ids.length, updatedAt: row.updated_at }));
 }
 
 export type SupervisorDetail = NonNullable<Awaited<ReturnType<typeof supervisorDetail>>>;

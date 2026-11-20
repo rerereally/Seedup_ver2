@@ -256,14 +256,25 @@ test('MCP compares the exported brief against the project, locked goal version a
   }
 });
 
-test('a personal PRD with a related opportunity includes its hypothesis features in the brief version', async () => {
-  const prdMarkdown = '## Hypotheses to validate\n### H-01. Archive notes\n## Features\n### F-01. Archive notes (H-01)\nMove notes.\n';
+test('setup_project exports hypothesis links and acceptance for a personal PRD with a related opportunity', async () => {
+  const prdMarkdown = `## Hypotheses to validate
+### H-01. [P0] Archive notes
+- [ ] Acceptance: A user can reopen an archived note.
+## Features
+### F-01. Archive notes (H-01)
+Move notes.
+`;
   const project = (markdown: string) => deps({ myPrd: async () => ({ ...SAVED, opportunitySlug: 'related-opportunity', prdMarkdown: markdown }) });
   const setup = await call('setup_project', { project: PROJECT }, project(prdMarkdown));
   const agents = setup.structuredContent?.files?.find((file) => file.path === 'AGENTS.md')?.content ?? '';
   assert.match(agents, /F-01 Archive notes/);
+  assert.match(agents, /Serves: H-01 Archive notes \(hypothesis, no source evidence\)/);
+  assert.match(agents, /Acceptance: A user can reopen an archived note\./);
+  assert.match(agents, /out of scope until validated: H-01 Archive notes/);
   const brief = agents.match(/^<!-- Seedup brief: .* -->$/m)?.[0];
   assert.ok(brief);
+  const legacyBrief = `<!-- Seedup brief: project=${PROJECT} goal=2 prd=e18f84ec34505141 -->`;
+  assert.match((await call('resume_project', { project: PROJECT, brief: legacyBrief }, project(prdMarkdown))).body, /^AGENTS\.md is out of date\./);
 
   const revised = project(prdMarkdown + '\n### F-02. Search notes (H-01)\nFind archived notes.');
   assert.match((await call('resume_project', { project: PROJECT, brief }, revised)).body, /^AGENTS\.md is out of date\./);
@@ -334,6 +345,7 @@ test('setup_project returns AGENTS.md, CLAUDE.md, and hookBundle without tokens,
   assert.ok(agentsMd.includes(`## Project key\n\`${PROJECT}\``));
   assert.ok(agentsMd.includes(`## Locked goal (v2)\n${GOAL.statement}`));
   assert.match(agentsMd, /G-1 Schedule reminders \(measure: Deliver within one minute\)/);
+  assert.match(agentsMd, /Serves: R-01 Archive notes \(evidence E-1\)/);
   assert.match(agentsMd, /## Do not build\n- Paid plans/);
   assert.doesNotMatch(agentsMd, /Recent decisions/);
   assert.match(byPath.get('CLAUDE.md') ?? '', /AGENTS\.md/);
@@ -428,6 +440,33 @@ test('connect_repo checks GitHub with the server token and only persists public 
   assert.match((await tool('connect_repo', { project: PROJECT, repo: 'seedup/public' })).body, /Connected Seedup\/Public/);
   assert.equal(checked, 2);
   assert.equal(writes.length, 2);
+});
+
+test('connect_repo distinguishes missing or rejected server credentials from a missing repository', async (t) => {
+  let checked = 0;
+  const { tool, writes } = mockEndpoint(t, (url) => {
+    checked++;
+    if (url.pathname === '/repos/seedup/rejected') {
+      return Response.json({ message: 'Bad credentials fixture-github-token' }, { status: 401 });
+    }
+    return Response.json({ message: 'Not found' }, { status: 404 });
+  });
+
+  const rejected = await tool('connect_repo', { project: PROJECT, repo: 'seedup/rejected' });
+  assert.equal(rejected.isError, true);
+  assert.match(rejected.body, /GitHub rejected Seedup’s server GITHUB_TOKEN/);
+  assert.doesNotMatch(rejected.body, /fixture-github-token/);
+
+  const missingRepo = await tool('connect_repo', { project: PROJECT, repo: 'seedup/missing' });
+  assert.equal(missingRepo.isError, true);
+  assert.match(missingRepo.body, /Could not verify a public GitHub repository/);
+
+  delete process.env.GITHUB_TOKEN;
+  const missingToken = await tool('connect_repo', { project: PROJECT, repo: 'seedup/public' });
+  assert.equal(missingToken.isError, true);
+  assert.match(missingToken.body, /Seedup’s server GITHUB_TOKEN is not configured/);
+  assert.equal(checked, 2);
+  assert.deepEqual(writes, []);
 });
 
 test('get_next_task puts person-only setup for that feature first, with key names and no values', () => {

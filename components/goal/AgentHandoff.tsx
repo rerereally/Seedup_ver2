@@ -14,9 +14,11 @@ export const supervisorHref = (projectKey: string) => `/supervisor/${encodeURICo
 
 export function agentStartPrompt(projectKey: string, lang: Lang) {
   const args = JSON.stringify({ project: projectKey });
+  // Server verification (verify_feature) reads the connected repo, so the agent must connect one before its first check.
+  const repoArgs = JSON.stringify({ project: projectKey, repo: 'owner/repo' });
   return translator(lang)(
-    `Seedup 프로젝트 ${projectKey}를 이어서 진행해. resume_project ${args}로 잠긴 목표와 사람이 먼저 할 일을 확인하고, get_next_task ${args}로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 나에게 물어봐.`,
-    `Continue Seedup project ${projectKey}. Use resume_project ${args} to check the locked goal and the things the person must do first, then get_next_task ${args} to pick up one next feature and start. Ask me before making decisions that change the goal or scope.`,
+    `Seedup 프로젝트 ${projectKey}를 이어서 진행해. resume_project ${args}로 잠긴 목표와 사람이 먼저 할 일을 확인하고, 연결된 저장소가 없으면 공개 GitHub 저장소를 만들거나 고른 뒤 connect_repo ${repoArgs}로 연결해. 그다음 get_next_task ${args}로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 나에게 물어봐.`,
+    `Continue Seedup project ${projectKey}. Use resume_project ${args} to check the locked goal and the things the person must do first. If no repository is connected, create or pick a public GitHub repository and connect it with connect_repo ${repoArgs}. Then use get_next_task ${args} to pick up one next feature and start. Ask me before making decisions that change the goal or scope.`,
   );
 }
 

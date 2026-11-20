@@ -21,10 +21,12 @@ const goal: ProjectGoal = {
 };
 
 test('the start prompt is exact, bilingual, and contains project calls without credentials', () => {
-  assert.equal(agentStartPrompt(key, 'ko'), `Seedup 프로젝트 ${key}를 이어서 진행해. resume_project {"project":"${key}"}로 잠긴 목표와 사람이 먼저 할 일을 확인하고, get_next_task {"project":"${key}"}로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 나에게 물어봐.`);
+  assert.equal(agentStartPrompt(key, 'ko'), `Seedup 프로젝트 ${key}를 이어서 진행해. resume_project {"project":"${key}"}로 잠긴 목표와 사람이 먼저 할 일을 확인하고, 연결된 저장소가 없으면 공개 GitHub 저장소를 만들거나 고른 뒤 connect_repo {"project":"${key}","repo":"owner/repo"}로 연결해. 그다음 get_next_task {"project":"${key}"}로 다음 기능 하나를 받아 시작해. 목표나 범위를 바꾸는 결정은 먼저 나에게 물어봐.`);
   for (const lang of ['ko', 'en'] as const) {
     const prompt = agentStartPrompt(key, lang);
     assert.ok(prompt.includes(`resume_project ${JSON.stringify({ project: key })}`));
+    assert.ok(prompt.includes(`connect_repo ${JSON.stringify({ project: key, repo: 'owner/repo' })}`));
+    assert.ok(prompt.indexOf('connect_repo') < prompt.indexOf('get_next_task'));
     assert.ok(prompt.includes(`get_next_task ${JSON.stringify({ project: key })}`));
     assert.doesNotMatch(prompt, /https?:|Bearer|token|api[_-]?key|seedup_/i);
   }

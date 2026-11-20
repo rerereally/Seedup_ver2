@@ -11,6 +11,8 @@ const QUESTIONS = {
   ],
 };
 
+const CLARITY = { missing: ['who', 'problem'], suggestion: '온콜 교대 때 인수인계 메모가 흩어져 같은 경고를 다시 조사하는 SRE 팀을 위해, 슬랙 메모를 모아 요약해 주는 봇' };
+
 const PRD = `# 한 줄 요약
 온콜 교대 때 슬랙에 흩어진 메모를 모아, 다음 담당자가 5분 안에 읽을 인수인계 요약을 만들어 주는 슬랙 봇.
 
@@ -65,6 +67,7 @@ const PRD = `# 한 줄 요약
 
 /** The fixed JSON answer for a call, keyed by the caller's title; null makes the caller use its own fallback. */
 export function fixtureJson(title = ''): unknown {
+  if (/idea clarity/i.test(title)) return CLARITY;
   return /planning questions/i.test(title) ? QUESTIONS : null;
 }
 

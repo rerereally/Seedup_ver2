@@ -33,7 +33,7 @@ test('every account picks from one menu; the admin policy decides what runs, and
     process.env.OPENROUTER_MODEL = 'base/model:free';
     delete process.env.EXAONE_API_KEY;
     const policy = defaultPolicy();
-    assert.deepEqual(prdModels(policy).map((row) => row.label), ['무료 모델', 'K-EXAONE 2.5', 'Claude Haiku 5.5', 'DeepSeek V4.1 Flash', 'Claude Sonnet 5.5', 'GPT-6.1 Sol', 'Claude Opus 5.5']);
+    assert.deepEqual(prdModels(policy).map((row) => row.label), ['기본 무료 모델', 'K-EXAONE 2.5', 'Claude Haiku 5.5', 'DeepSeek V4.1 Flash', 'Claude Sonnet 5.5', 'GPT-6.1 Sol', 'Claude Opus 5.5']);
     // By default only the free model runs; paid models are listed but blocked, EXAONE waits for its key.
     assert.equal(pickPrdModel('base/model:free', policy), 'base/model:free');
     assert.equal(pickPrdModel('anthropic/claude-haiku-5.5', policy), undefined);

@@ -8,7 +8,7 @@ import { specInputFor } from '@/lib/opportunities/context';
 import { PRD_MAX_EVIDENCE } from '@/lib/opportunities/prd-cache';
 import { parsePrdMarkdown } from '@/lib/opportunities/prd-markdown';
 import { meetsEvidenceBar } from '@/lib/opportunities/rules';
-import { EXPORT_FILES, normalizeSpec, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, normalizeSpec, OPEN_SLOT_MARKER, renderAgentBrief, renderSpecMarkdown, SLOT_KEYS, SLOT_LABELS_EN, withPrdReadiness } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecInput } from '@/lib/opportunities/spec';
 import type { Evidence, Opportunity } from '@/lib/opportunities/types';
 
@@ -37,8 +37,8 @@ export type McpDeps = {
   /** Fallback pinned PRD for an opportunity slug (user dossier or latest cached PRD) when daily evidence shifts. */
   pinnedSpec?: (slug: string, opportunity: Opportunity) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /**
-   * Fills the six readiness slots of one feature that has none (a PRD made over MCP skips the web step that fills
-   * them) and returns the updated PRD, or null when it could not in time. The result is cached for later calls.
+   * Fills the six readiness slots of one feature that has none and returns the updated PRD, or null when it could
+   * not in time. The result is cached for later calls.
    */
   fillSlots?: (cached: { input: SpecInput; spec: Spec }, featureId: string) => Promise<{ input: SpecInput; spec: Spec } | null>;
   /** Saves this PRD as the user's pinned one for the slug; keeps an existing pin unless `replace`. */
@@ -328,7 +328,7 @@ function describeQuote(item: Evidence, number: number) {
 /** Use the same numbered criteria in the checklist and in the tools that record completion. */
 export function featureCriteria(spec: Spec, feature: Spec['features'][number]) {
   const served = [...spec.requirements, ...spec.hypotheses].filter((row) => feature.requirementIds.includes(row.id));
-  const criteria = [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter(Boolean))];
+  const criteria = [...new Set([...served.flatMap((row) => row.acceptance ?? []), ...(feature.slots?.done ?? [])].map((line) => line.trim()).filter((line) => line && !OPEN_SLOT_MARKER.test(line)))];
   return criteria.length ? criteria : ['Confirm the feature works with a test or command.'];
 }
 
@@ -681,6 +681,7 @@ async function callTool(name: string, args: Record<string, unknown>, deps: McpDe
       }
       result = { input, spec };
     }
+    result = { ...result, spec: withPrdReadiness(result.spec) };
     // The PRD an agent builds from is pinned to this user, so tomorrow's engine run cannot shift its feature numbers.
     await deps.pin?.(slug, result, Boolean(args.fresh)).catch(() => undefined);
     const body = format === 'prd' ? renderSpecMarkdown(result.input, result.spec) : renderAgentBrief(result.input, result.spec, format, slug);

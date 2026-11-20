@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { changedLines } from '@/lib/opportunities/spec-diff';
-import { EXPORT_FILES, SLOT_KEYS, slotLabels, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
+import { EXPORT_FILES, SLOT_KEYS, slotIsOpen, slotLabels, slotsNeedReview, readinessWithQuestions, mermaidFlow, renderAgentBrief, renderSpecMarkdown, traceOf } from '@/lib/opportunities/spec';
 import type { ExportFormat, Spec, SpecFeature, SpecInput } from '@/lib/opportunities/spec';
 import type { BuildProgress, BuildProgressHistory, FeatureStatus } from '@/lib/opportunities/build-progress';
 import type { FeatureCommitSummary } from '@/lib/opportunities/feature-commits';
 import { PLATFORM_LABELS } from '@/lib/opportunities/types';
+import { onboardingAnswers } from '@/lib/db/onboarding';
+import { exportFormatOrder, ONBOARDING_TOOL_STORAGE_KEY, preferredExportFormat } from '@/lib/onboarding';
+import { createClient } from '@/lib/supabase/client';
 import { inBatches } from '@/lib/utils';
 import { useLang } from '@/components/LangProvider';
 import ModelPicker, { usePrdModel } from '@/components/ModelPicker';
@@ -63,7 +66,7 @@ function changedCount(before: Spec, after: Spec) {
   return new Set([...a.keys(), ...b.keys()].filter((id) => a.get(id) !== b.get(id))).size;
 }
 
-export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug }: {
+export default function PrdBuilder({ title, evidenceIds, ready, loginNext, children, endpoint = '/api/opportunities/prd', requestBody, generateLabel, initial, signedIn, generateSignal = 0, onSpec, hideControls = false, externalInstruction, onError, progress, progressHistory, featureCommits, models = [], hideRevise = false, showTitle = true, agentSlug, preferredTool: initialPreferredTool = null }: {
   title: string;
   evidenceIds: string[];
   /** The evidence passes the bar; otherwise the PRD is made as a labeled hypothesis draft. */
@@ -99,6 +102,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   showTitle?: boolean;
   /** An opportunity's slug: the agent menu then also offers the MCP start prompt, which builds from that opportunity. */
   agentSlug?: string;
+  /** Tool format chosen at onboarding, if already resolved on the server. */
+  preferredTool?: ExportFormat | null;
 }) {
   const lang = useLang();
   const t = translator(lang);
@@ -135,7 +140,36 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const [itemInstruction, setItemInstruction] = useState('');
   // The maker's own direction, written before the PRD is made so it shapes the first draft, not a later edit.
   const [notes, setNotes] = useState('');
-  const [format, setFormat] = useState<ExportFormat>('agents');
+  const [pickedTool, setPickedTool] = useState<ExportFormat | null>(initialPreferredTool);
+  const { primary: primaryFormat, others: otherFormats } = useMemo(() => exportFormatOrder(pickedTool), [pickedTool]);
+  const [format, setFormat] = useState<ExportFormat>(initialPreferredTool ?? 'agents');
+  useEffect(() => {
+    if (initialPreferredTool) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from browser storage after mount */
+    try {
+      const savedTool = preferredExportFormat(window.localStorage.getItem(ONBOARDING_TOOL_STORAGE_KEY));
+      if (savedTool) {
+        setPickedTool(savedTool);
+        setFormat(savedTool);
+      }
+    } catch {
+      // Storage blocked.
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    if (signedIn === false) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const answers = await onboardingAnswers(supabase, data.user.id).catch(() => null);
+      const fromDb = preferredExportFormat(answers);
+      if (fromDb) {
+        setPickedTool(fromDb);
+        setFormat(fromDb);
+        try { window.localStorage.setItem(ONBOARDING_TOOL_STORAGE_KEY, fromDb); } catch { /* ignore */ }
+      }
+    }).catch(() => undefined);
+  }, [initialPreferredTool, signedIn]);
   const [message, setMessage] = useState(initial ? t(`같은 원문으로 ${new Date(initial.createdAt).toLocaleDateString('ko-KR')}에 만든 PRD입니다.`, `Made from the same quotes on ${new Date(initial.createdAt).toLocaleDateString('en-US')}.`) : '');
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
@@ -191,6 +225,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setSpec(json.spec as Spec);
     onSpec?.(json.spec as Spec);
     setVersions([{ spec: json.spec as Spec, label: t('처음 만든 PRD', 'First PRD'), at: new Date().toISOString() }]);
+    setView('doc');
     setCompare(null);
     setFocus(null);
     setSaveState('idle');
@@ -299,7 +334,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       const { status: code, ok, json } = await postJson('/api/opportunities/prd/slots', { title, evidenceIds: ids, feature, requirements, lang: spec.lang ?? lang, model, ...ideaBrief });
       if (!ok) fail(code, json, t('슬롯을 채우지 못했습니다.', 'Could not fill the slots.'));
       else {
-        const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: json.slots } : row)) });
+        const fill = (current: Spec) => ({ ...current, features: current.features.map((row) => (row.id === feature.id ? { ...row, slots: readinessWithQuestions(row.slots, current.lang ?? lang, json.slots) } : row)) });
         setSpec((current) => current && fill(current));
         // Filled slots belong to the current version, so a reload brings them back too.
         setVersions((list) => list.length ? [...list.slice(0, -1), { ...list[list.length - 1], spec: fill(list[list.length - 1].spec) }] : list);
@@ -312,7 +347,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   };
 
   // Two at a time keeps the free model under its rate limit; a failed feature just stays empty.
-  const fillAll = () => spec && inBatches(spec.features.filter((row) => !row.slots && !slotPending.includes(row.id)), 2, fillSlots);
+  const fillAll = () => spec && inBatches(spec.features.filter((row) => slotsNeedReview(row.slots) && !slotPending.includes(row.id)), 2, fillSlots);
 
   // `label` names the change in the version list when the sent instruction is longer than what the person typed.
   const revise = async (text = instruction, label = text.trim()) => {
@@ -434,21 +469,27 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       {body}
     </button>
   );
-  // Quote numbers as small chips next to a line; pressing the line lights those quotes in the evidence panel.
-  const cites = (numbers: number[]) => numbers.length > 0 && (
-    <span className="ml-2 inline-flex flex-wrap gap-1 align-[2px]">
-      {numbers.map((n) => <span key={n} className="rounded-md bg-seed-soft px-1.5 py-px text-[12px] font-semibold leading-5 text-seed">E{n}</span>)}
+  // Quote numbers as small chips next to a line; pressing a chip or line lights those quotes in the evidence panel.
+  const cites = (numbers: number[], interactive = false) => numbers.length > 0 && (
+    <span className="ml-1.5 inline-flex flex-wrap gap-1 align-[2px]">
+      {numbers.map((n) => (interactive ? (
+        <button key={n} type="button" aria-pressed={focus === `E-${n}`} onClick={() => pick(`E-${n}`)} className="rounded bg-seed-soft px-1.5 py-px text-[11px] font-semibold leading-4 text-seed hover:underline">
+          E-{n}
+        </button>
+      ) : (
+        <span key={n} className="rounded bg-seed-soft px-1.5 py-px text-[11px] font-semibold leading-4 text-seed">E-{n}</span>
+      )))}
     </span>
   );
-  // Prose keeps the model's [E1] tags; each becomes the same chip a requirement line shows.
-  const prose = (text: string) => text.split(/(\[\s*E\s*-?\s*\d+(?:\s*[,，]\s*E?\s*-?\s*\d+)*\s*\])/gi).map((part, index) => (index % 2 ? <span key={index}>{cites(citedQuotes(part))}</span> : part));
+  // Prose keeps the model's [E1] tags; each becomes a clickable chip that highlights its quote via traceOf.
+  const prose = (text: string) => text.split(/(\[\s*E\s*-?\s*\d+(?:\s*[,，]\s*E?\s*-?\s*\d+)*\s*\])/gi).map((part, index) => (index % 2 ? <span key={index}>{cites(citedQuotes(part), true)}</span> : part));
   const priorityBadge = (priority?: string) => priority && <span className={`mr-2 rounded px-1.5 py-px align-[2px] text-[11.5px] font-semibold ${priority === 'P0' ? 'bg-ink text-white' : 'bg-surface-mid text-tertiary'}`}>{priority}</span>;
   const acceptanceLines = (lines?: string[]) => lines?.length ? lines.map((line) => <span key={line} className="mt-1 block text-[13.5px] leading-6 text-tertiary"><span aria-hidden="true" className="mr-1.5 text-seed">✓</span>{line}</span>) : null;
   // A row of the document that lights up its footnotes when picked, the same way a node does in the trace view.
   const docRow = (id: string, body: React.ReactNode, quiet = false, footer?: React.ReactNode) => (
     <li key={id}>
-      <button type="button" aria-pressed={focus === id} onClick={() => pick(id)} className={`-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 rounded-lg px-3 py-3.5 text-left text-[15px] leading-7 transition-colors hover:bg-surface-low aria-pressed:bg-seed-soft ${quiet ? 'text-muted' : 'text-ink'}`}>
-        <span className="text-[13px] font-semibold text-muted">{id}</span>
+      <button type="button" aria-pressed={focus === id} onClick={() => pick(id)} className={`-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2 rounded-lg px-3 py-3.5 text-left text-[15px] leading-7 transition-colors hover:bg-surface-low aria-pressed:bg-seed-soft ${quiet ? 'text-muted' : 'text-ink'}`}>
+        <span className="text-[11px] font-medium text-muted">{id}</span>
         <span className="min-w-0">{body}</span>
       </button>
       {footer}
@@ -458,7 +499,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
   const busy = status !== 'idle';
   const h2 = 'scroll-mt-24 text-xl font-bold tracking-tight';
   const quietButton = 'btn-quiet w-full justify-start whitespace-nowrap border-0 font-normal';
-  const ready6 = spec ? spec.features.filter((row) => row.slots).length : 0;
+  const ready6 = spec ? spec.features.filter((row) => !slotsNeedReview(row.slots)).length : 0;
 
   // What the right-hand panel shows for the picked node: what it is, and what it connects to.
   const detail = (() => {
@@ -527,20 +568,24 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
         )}
         {feature && (
           <>
-            <h4 className="mt-7 text-[15px] font-semibold">{t('개발 준비', 'Build readiness')}</h4>
+            <h4 className="mt-7 flex flex-wrap items-baseline gap-x-2 text-[15px] font-semibold">
+              <span>{t('개발 준비', 'Build readiness')}</span>
+              <span className="text-[12.5px] font-normal text-muted">{t('에이전트가 먼저 물어볼 것', 'What your agent will ask first')}</span>
+            </h4>
             {feature.slots ? (
               <dl className="rows mt-3 text-sm">
                 {SLOT_KEYS.map((key) => (
                   <div key={key} className="py-3">
                     <div className="flex items-baseline justify-between gap-3">
                       <dt>{slotLabels(lang)[key]}</dt>
-                      <dd className={feature.slots![key].length ? 'font-medium text-seed' : 'text-muted'}>{feature.slots![key].length ? t('채움', 'Filled') : t('비어 있음', 'Empty')}</dd>
+                      <dd className={slotIsOpen(feature.slots![key]) ? 'text-muted' : 'font-medium text-seed'}>{slotIsOpen(feature.slots![key]) ? t('확인 필요', 'Needs review') : t('채움', 'Filled')}</dd>
                     </div>
                     <dd className="mt-1 text-[13px] leading-6 text-muted [overflow-wrap:anywhere]">{feature.slots![key].length ? feature.slots![key].join('; ') : t('정해지지 않음: 먼저 물어볼 것', 'Open question: ask first')}</dd>
                   </div>
                 ))}
               </dl>
-            ) : (
+            ) : null}
+            {slotsNeedReview(feature.slots) && (
               <button type="button" className="btn-quiet mt-3 w-full" disabled={slotPending.includes(feature.id)} onClick={() => void fillSlots(feature)}>
                 {slotPending.includes(feature.id) ? t('빈 칸 채우는 중', 'Filling') : t('빈 칸 채우기', 'Fill the blanks')}
               </button>
@@ -701,15 +746,39 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
               <details className="relative order-first sm:order-none">
                 <summary className="btn h-11 cursor-pointer list-none px-4 [&::-webkit-details-marker]:hidden">{t('에이전트로 보내기', 'Send to agent')}</summary>
                 <div className={menu}>
-                  {agentPrompt && <button type="button" className={quietButton} onClick={() => void copy(t('MCP 시작 문장', 'MCP start prompt'), agentPrompt)}>{t('MCP로 시작하는 문장 복사', 'Copy the MCP start prompt')}</button>}
-                  <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px] text-muted">
-                    {t('에이전트 파일', 'Agent file')}
-                    <select className="h-9 border bg-white px-2 text-sm text-ink" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)}>
-                      {(Object.keys(EXPORT_FILES) as ExportFormat[]).map((key) => <option key={key} value={key}>{key === 'prompt' ? t('Lovable·Bolt·v0 프롬프트', 'Lovable·Bolt·v0 prompt') : EXPORT_FILES[key]}</option>)}
-                    </select>
-                  </label>
-                  <button type="button" className={quietButton} onClick={() => void copy(EXPORT_FILES[format], brief)}>{t(`${EXPORT_FILES[format]} 내용 복사`, `Copy ${EXPORT_FILES[format]}`)}</button>
-                  <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[format].split('/').pop()!, brief)}>{t(`${EXPORT_FILES[format]} 받기`, `Download ${EXPORT_FILES[format]}`)}</button>
+                  {(() => {
+                    const toolLabel = (key: ExportFormat) => (key === 'cursor'
+                      ? `Cursor (${EXPORT_FILES.cursor})`
+                      : key === 'claude'
+                        ? `Claude Code (${EXPORT_FILES.claude})`
+                        : key === 'prompt'
+                          ? t('Lovable·Bolt·v0 프롬프트', 'Lovable·Bolt·v0 prompt')
+                          : EXPORT_FILES.agents);
+                    const primaryBrief = renderAgentBrief(input, spec, primaryFormat, agentSlug);
+                    const primaryLabel = pickedTool ? toolLabel(primaryFormat) : EXPORT_FILES[primaryFormat];
+                    return (
+                      <>
+                        <button type="button" className={quietButton} onClick={() => void copy(primaryLabel, primaryBrief)}>{t(`${primaryLabel} 내용 복사`, `Copy ${primaryLabel}`)}</button>
+                        <button type="button" className={quietButton} onClick={() => downloadText(EXPORT_FILES[primaryFormat].split('/').pop()!, primaryBrief)}>{t(`${primaryLabel} 받기`, `Download ${primaryLabel}`)}</button>
+                        {agentPrompt && <button type="button" className={quietButton} onClick={() => void copy(t('MCP 시작 문장', 'MCP start prompt'), agentPrompt)}>{t('MCP로 시작하는 문장 복사', 'Copy the MCP start prompt')}</button>}
+                        <details className="border-t border-outline-soft pt-1">
+                          <summary className="cursor-pointer px-3 py-1.5 text-[13px] font-medium text-muted hover:text-ink">{t('다른 도구', 'Other tools')}</summary>
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            {otherFormats.map((otherKey) => {
+                              const otherBrief = renderAgentBrief(input, spec, otherKey, agentSlug);
+                              const otherName = toolLabel(otherKey);
+                              return (
+                                <div key={otherKey} className="flex items-center justify-between gap-1">
+                                  <button type="button" className={quietButton} onClick={() => { setFormat(otherKey); void copy(otherName, otherBrief); }}>{t(`${otherName} 복사`, `Copy ${otherName}`)}</button>
+                                  <button type="button" className="shrink-0 rounded px-2 py-1 text-[12px] text-muted hover:bg-surface-low hover:text-ink" onClick={() => { setFormat(otherKey); downloadText(EXPORT_FILES[otherKey].split('/').pop()!, otherBrief); }}>{t('받기', 'Download')}</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      </>
+                    );
+                  })()}
                   <Link href="/agents" className="whitespace-nowrap px-3 py-2 text-[13px] text-muted underline-offset-4 hover:text-ink hover:underline">{t('처음이면 MCP 연동부터', 'First time? Connect your agent')}</Link>
                 </div>
               </details>
@@ -794,18 +863,19 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     <section>
                       <h4 id="prd-requirements" className={h2}>{t('요구사항', 'Requirements')}</h4>
                       {/* Backed and unbacked lines read in one list, as a PRD does; the unbacked ones say so and how to check them. */}
-                      {spec.hypotheses.length > 0 && <p className="mt-1 text-[13px] text-muted">{spec.requirements.length ? t(`원문 번호가 붙은 줄은 원문이 받쳐 주고, "가설" ${spec.hypotheses.length}개는 만들기 전에 확인 방법대로 확인합니다.`, `Lines with quote numbers are backed; the ${spec.hypotheses.length} hypotheses need the check under them first.`) : t('원문이 받쳐 주는 줄이 아직 없어 모두 가설입니다. 줄마다 확인 방법을 따르세요.', 'No line is backed by a quote yet, so all are hypotheses. Follow the check under each.')}</p>}
                       {spec.requirements.length + spec.hypotheses.length ? (
                         <ul className="rows mt-3">
                           {spec.requirements.map((row) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}{cites(row.evidence)}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}</>))}
-                          {spec.hypotheses.map((row) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}<span className="ml-2 rounded border border-dashed border-outline-strong px-1.5 py-px align-[2px] text-[11.5px] font-semibold text-tertiary">{t('가설', 'Hypothesis')}</span>{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}{row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}</>))}
+                          {spec.hypotheses.map((row, index) => docRow(row.id, <>{priorityBadge(row.priority)}{row.title}<span className="ml-2 rounded border border-dashed border-outline-strong px-1.5 py-px align-[2px] text-[11.5px] font-semibold text-tertiary">{t('가설', 'Hypothesis')}</span>{index === 0 && <span className="ml-1.5 text-[12.5px] font-normal text-muted">({t('아직 확인 안 된 것: 원문 근거가 없어 직접 확인이 필요합니다', 'Not verified yet: no source quote, so check this directly')})</span>}{row.detail && <span className="block text-sm leading-6 text-muted">{row.detail}</span>}{acceptanceLines(row.acceptance)}{row.check && <span className="mt-1.5 block rounded-lg bg-surface-low px-2.5 py-1.5 text-[13.5px] leading-6 text-ink"><b className="font-semibold">{t('확인 방법', 'How to check')}</b> {row.check}</span>}</>))}
                         </ul>
                       ) : <p className="mt-3 text-[15px] leading-7 text-muted">{t('요구사항이 없습니다.', 'No requirements.')}</p>}
                     </section>
                     {spec.features.length > 0 && (
                       <section>
                         <h4 id="prd-features" className={h2}>{t('기능', 'Features')}</h4>
-                        <ul className="rows mt-3">{spec.features.map((row) => {
+                        <ul className="rows mt-3">{(() => {
+                          const firstUnbackedFeatureId = spec.hypotheses.length === 0 ? spec.features.find((item) => !backed(item))?.id : null;
+                          return spec.features.map((row) => {
                           const mark = progress?.[row.id];
                           const featureStatus = mark?.status ?? 'todo';
                           const events = progressHistory?.[row.id];
@@ -814,7 +884,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                           const commitLabel = t(`연결된 커밋 ${count}개`, `${count} linked ${count === 1 ? 'commit' : 'commits'}`);
                           return docRow(row.id, <>
                             {row.title}
-                            {!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}</span>}
+                            {!backed(row) && <span className="ml-2 text-[13px] font-normal text-muted">{t('가설', 'Hypothesis')}{row.id === firstUnbackedFeatureId ? ` (${t('아직 확인 안 된 것: 원문 근거가 없어 직접 확인이 필요합니다', 'Not verified yet: no source quote, so check this directly')})` : ''}</span>}
                             {progress && <span className={`ml-2 text-[13px] font-semibold ${featureStatus === 'done' ? 'text-seed' : 'text-muted'}`} title={mark?.note || undefined}>
                               {featureStatus === 'done' && '✓ '}{t(...STATUS_LABELS[featureStatus])}
                             </span>}
@@ -840,7 +910,8 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                               </details>
                             ) : null}
                           </>);
-                        })}</ul>
+                        });
+                        })()}</ul>
                       </section>
                     )}
                     {spec.screens.length > 0 && (
@@ -922,9 +993,9 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
                     <div className={styles.specCol}>
                       <h4>
                         {t('기능', 'Features')}
-                        {spec.features.some((row) => !row.slots) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
+                        {spec.features.some((row) => slotsNeedReview(row.slots)) && <button type="button" className="font-medium text-seed underline-offset-4 hover:underline" onClick={() => void fillAll()}>{t('빈 칸 모두 채우기', 'Fill all blanks')}</button>}
                       </h4>
-                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}, {row.slots ? t('개발 준비 채움', 'readiness filled') : slotPending.includes(row.id) ? t('채우는 중', 'filling') : t('개발 준비 비어 있음', 'readiness empty')}</small></>, backed(row) ? '' : styles.specHypo))}
+                      {spec.features.map((row) => item(row.id, <><span>{row.title}</span><small>{t(`${row.requirementIds.join(', ')} 충족`, `Serves ${row.requirementIds.join(', ')}`)}, {slotPending.includes(row.id) ? t('채우는 중', 'filling') : slotsNeedReview(row.slots) ? t('개발 준비 확인 필요', 'readiness needs review') : t('개발 준비 채움', 'readiness filled')}</small></>, backed(row) ? '' : styles.specHypo))}
                     </div>
                     <div className={styles.specCol}>
                       <h4>{t('화면', 'Screens')}</h4>

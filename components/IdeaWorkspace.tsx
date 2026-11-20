@@ -345,7 +345,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
         {/* Phones see one pane at a time, so the make action also sits here, reachable from the chat. */}
         {!generated && (signedIn
           ? <button type="button" className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden" onClick={generate} disabled={pending !== null}>{t('PRD 만들기', 'Make PRD')}</button>
-          : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden">{t('PRD 만들기', 'Make PRD')}</Link>)}
+          : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-10 shrink-0 whitespace-nowrap px-3.5 lg:hidden">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>)}
         <button type="button" onClick={reset} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted hover:bg-surface-low hover:text-ink">
           <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />{t('새로 시작', 'Start over')}
         </button>
@@ -428,7 +428,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
                     ? <button type="button" className="btn h-11 px-5" onClick={generate} disabled={pending === 'generate'}>{pending === 'generate' ? t('PRD 작성 중', 'Writing the PRD') : t('PRD 만들기', 'Make the PRD')}</button>
                     : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-11 px-5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
                 </div>
-                {!signedIn && <p className="mt-2 text-[13px] text-muted">{t('답변은 이 브라우저에 남아 로그인한 뒤에도 그대로 이어집니다.', 'Your answers stay in this browser and carry over after sign-in.')}</p>}
+                {!signedIn && <p className="mt-2 text-[13px] text-muted">{t('질문 답하기까지는 로그인 없이, PRD는 로그인하면 하루 10개까지 무료입니다. 답변은 이 브라우저에 남아 로그인한 뒤에도 그대로 이어집니다.', 'Answer questions with no account; sign in for 10 free PRDs a day. Your answers stay in this browser and carry over after sign-in.')}</p>}
               </Bubble>
             )}
 
@@ -449,7 +449,7 @@ export default function IdeaWorkspace({ pool, signedIn, initialIdea, models }: {
                 </span>
                 {signedIn
                   ? <button type="button" className="btn h-9 shrink-0 whitespace-nowrap px-3.5" onClick={generate} disabled={pending !== null}>{pending === 'generate' ? t('작성 중', 'Writing') : t('PRD 만들기', 'Make PRD')}</button>
-                  : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-9 shrink-0 whitespace-nowrap px-3.5">{t('로그인하고 만들기', 'Sign in to make')}</Link>}
+                  : <Link href={`/login?next=${encodeURIComponent(loginNext)}`} className="btn h-9 shrink-0 whitespace-nowrap px-3.5">{t('로그인하고 PRD 만들기', 'Sign in to make the PRD')}</Link>}
               </div>
             )}
             <form className="flex items-end gap-2 rounded-xl border border-field bg-white p-2 focus-within:border-ink" onSubmit={(event) => { event.preventDefault(); send(draft); }}>

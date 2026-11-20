@@ -1,10 +1,10 @@
 import { callJsonModel, prdFreeModels } from '../llm';
 import type { ModelUsage } from '../llm';
+import { OPEN_SLOT_MARKER } from './spec';
 import type { ReadinessSlots, Spec, SpecFeature, SpecInput, SpecRequirement } from './spec';
 
 const VAGUE_WORDS = /쉽게|쉬운|빠르게|빠른|효율적|편리|직관적|사용자 친화|원활|다양한|최적화|\b(easy|easily|fast|quick|efficient|intuitive|user-friendly|seamless|various|optimi[sz]e)\b/i;
 const TESTABLE_SIGNAL = /\d|하면|경우|때|이면|반환|출력|보여|표시|차단|실패|통과|저장|거부|리다이렉트|초과|미만|이상|이하|\b(when|if|returns?|renders?|shows?|blocks?|fails?|passes?|saves?|rejects?|must|http|status|json|csv|cli|error|timeout|redirect)\b/i;
-const OPEN_SLOT_MARKER = /^(확인 필요|open question)\s*:/i;
 
 const CRITICAL_SLOTS: Array<{ key: keyof ReadinessSlots; labelKo: string; labelEn: string; promptKo: string; promptEn: string }> = [
   {
@@ -299,7 +299,7 @@ type RawAuditResponse = {
 export async function auditP0Evidence(
   input: SpecInput,
   spec: Spec,
-  options: { model?: string; timeoutMs?: number; onUsage?: (usage: ModelUsage) => void } = {},
+  options: { model?: string; timeoutMs?: number; deadline?: number; onUsage?: (usage: ModelUsage) => void } = {},
 ): Promise<{ spec: Spec; changes: P0AuditChange[]; audited: boolean }> {
   const p0 = spec.requirements.filter((row) => row.priority === 'P0');
   if (!p0.length || !input.evidence.length) {
@@ -336,6 +336,7 @@ ${pairs}
   const raw = await callJsonModel<RawAuditResponse>(prompt, {
     maxTokens: 1_500,
     timeoutMs: options.timeoutMs ?? 30_000,
+    deadline: options.deadline,
     title: 'Seedup P0 evidence critic',
     models,
     reasoning: 'low',

@@ -135,7 +135,7 @@ export default function McpConnect({ siteUrl, connected, lastUsed }: { siteUrl: 
           <p className="mt-2 flex items-start gap-1.5 text-[13px] leading-5 text-muted">
             <KeyRound aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {client.keyUrl
-              ? '이 주소에는 토큰이 들어 있어서 주소 자체가 비밀번호입니다. 다른 사람에게 보여 주지 마세요. 새어 나갔다면 토큰을 새로 만드세요.'
+              ? '이 주소에는 토큰이 들어 있어서 주소 자체가 비밀번호입니다. 다른 사람에게 보여 주지 마세요. 새어 나갔다면 토큰을 새로 만드세요. 이 주소는 서버 로그에 남을 수 있으니, 가능하면 헤더 방식 연결을 쓰세요.'
               : token ? '설정에 내 토큰이 들어 있습니다. 다른 사람에게 보여 주지 마세요.' : '복사하거나 열면 [토큰] 자리에 내 토큰이 채워집니다.'}
           </p>
 

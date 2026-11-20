@@ -2382,5 +2382,58 @@
         "created_at"
       ]
     ]
+  },
+  {
+    "file": "20261120090000_public_prds.sql",
+    "columns": [
+      [
+        "evidence_dossiers",
+        "listed"
+      ]
+    ]
+  },
+  {
+    "file": "20261120123000_prd_reports.sql",
+    "tables": [
+      "prd_reports"
+    ],
+    "columns": [
+      [
+        "prd_reports",
+        "id"
+      ],
+      [
+        "prd_reports",
+        "dossier_id"
+      ],
+      [
+        "prd_reports",
+        "reason"
+      ],
+      [
+        "prd_reports",
+        "note"
+      ],
+      [
+        "prd_reports",
+        "reporter_id"
+      ],
+      [
+        "prd_reports",
+        "reporter_key"
+      ],
+      [
+        "prd_reports",
+        "status"
+      ],
+      [
+        "prd_reports",
+        "created_at"
+      ]
+    ],
+    "functions": [
+      "submit_prd_report",
+      "moderated_listed_prds"
+    ]
   }
 ]

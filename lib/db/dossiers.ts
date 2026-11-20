@@ -49,6 +49,24 @@ export async function builtExampleCounts(slugs: string[]) {
   return new Map(rows.map((row) => [row.opportunity_slug, row.maker_count]));
 }
 
+export type ListedPrd = { id: string; title: string; opportunity_slug: string | null; evidence_ids: string[]; built_url: string | null; updated_at: string };
+
+/** Lists shared, listed PRDs whose reports are below the moderation threshold. */
+export async function listedPrds(limit = 60): Promise<ListedPrd[]> {
+  const service = createAdminClient();
+  if (!service) return [];
+  const moderated = await service.rpc('moderated_listed_prds', { p_limit: limit });
+  if (!moderated.error) return (moderated.data ?? []) as ListedPrd[];
+  if (moderated.error.code !== 'PGRST202') {
+    console.error('Listed PRDs failed', moderated.error.message);
+    return [];
+  }
+  // The gallery can still be read while the report migration has yet to be deployed.
+  const { data, error } = await service.from('evidence_dossiers').select('id,title,opportunity_slug,evidence_ids,built_url,updated_at').eq('shared', true).eq('listed', true).not('prd_markdown', 'is', null).order('updated_at', { ascending: false }).limit(limit);
+  if (error) console.error('Listed PRDs failed', error.message);
+  return error ? [] : ((data ?? []) as ListedPrd[]);
+}
+
 /** A PRD its owner shared, or null. */
 export async function sharedPrd(id: string) {
   const service = createAdminClient();

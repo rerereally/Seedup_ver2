@@ -383,7 +383,7 @@ test('opportunity names get standard casing and known term fixes, nothing else',
   assert.equal(tidyName('Agent guardrails for databases'), 'Agent guardrails for databases');
 });
 
-import { isBeginner } from '../lib/onboarding';
+import { exportFormatOrder, isBeginner, preferredExportFormat } from '../lib/onboarding';
 
 test('the builder prompt carries backed features and quotes, and the Cursor rule has front matter', () => {
   const input = { title: 'T', problem: 'P', gap: '', evidence: [evidence(1), evidence(2)], competitors: [] };
@@ -400,6 +400,26 @@ test('only 입문자 and 초보자 count as beginners', () => {
   assert.equal(isBeginner({ level: ['초보자: 간단한 프로젝트는 만들 수 있어요'] }), true);
   assert.equal(isBeginner({ level: '중급자: 서비스 구조와 배포까지 어느 정도 알아요' }), false);
   assert.equal(isBeginner(null), false);
+});
+
+test('preferredExportFormat maps onboarding tool choices to the primary PRD export button and folds the rest', () => {
+  assert.equal(preferredExportFormat({ preferred_tool: 'Cursor' }), 'cursor');
+  assert.equal(preferredExportFormat({ preferred_tool: 'Claude Code' }), 'claude');
+  assert.equal(preferredExportFormat({ preferred_tool: 'Lovable · Bolt · v0' }), 'prompt');
+  assert.equal(preferredExportFormat({ preferred_tool: 'Codex · Antigravity · VS Code' }), 'agents');
+  assert.equal(preferredExportFormat({ preferred_tool: '아직 없음' }), null);
+  assert.equal(preferredExportFormat(null), null);
+
+  assert.deepEqual(exportFormatOrder(preferredExportFormat({ preferred_tool: 'Cursor' })), {
+    primary: 'cursor',
+    others: ['agents', 'claude', 'prompt'],
+    hasPreference: true,
+  });
+  assert.deepEqual(exportFormatOrder(null), {
+    primary: 'agents',
+    others: ['claude', 'cursor', 'prompt'],
+    hasPreference: false,
+  });
 });
 
 import { normalizeBuild } from '../lib/opportunities/build';

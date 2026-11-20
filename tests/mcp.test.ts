@@ -106,6 +106,8 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
   const answer = await handleRpc(call('generate_verified_prd', { slug: 'memory', format: 'claude' }), d, 'https://x.test') as { result: { content: Array<{ text: string }> } };
   assert.match(answer.result.content[0].text, /Save as CLAUDE\.md/);
   assert.match(answer.result.content[0].text, /F-01\. Store notes/);
+  assert.match(answer.result.content[0].text, /inputs: 확인 필요:/);
+  assert.match(answer.result.content[0].text, /F-01\(Store notes\) 기능은 어떤 화면에서 쓰나요/);
   assert.match(answer.result.content[0].text, /update_feature_status.*in_progress.*done.*blocked/);
   assert.match(answer.result.content[0].text, /Implements F-03/);
   assert.match(answer.result.content[0].text, /link_commit after each commit.*git diff --name-only HEAD~1/);
@@ -116,9 +118,12 @@ test('generate_verified_prd returns the requested export, counts usage, and labe
 });
 
 test('a cached PRD is returned without spending the daily limit; a used-up limit is a tool error', async () => {
-  const cachedSpec = normalizeSpec({ summary: 'cached', requirements: [{ title: 'Old', evidence: [1] }] }, 3);
+  const cachedSpec = normalizeSpec({ summary: 'cached', requirements: [{ title: 'Old', evidence: [1] }], features: [{ title: 'Saved feature', requirements: [1] }] }, 3);
+  delete cachedSpec.requirements[0].priority; // A row cached before auto-priority.
   const cached = deps({ cachedSpec: async () => ({ input: { title: 'T', problem: 'P', gap: '', evidence: list[0].evidence, competitors: [] }, spec: cachedSpec }) });
-  await handleRpc(call('generate_verified_prd', { slug: 'memory' }), cached, '');
+  const answer = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), cached, '') as { result: { content: Array<{ text: string }> } };
+  assert.match(answer.result.content[0].text, /done: 확인 필요:/);
+  assert.equal(cachedSpec.features[0].slots, null);
   assert.deepEqual(cached.calls, []);
   const limited = await handleRpc(call('generate_verified_prd', { slug: 'memory' }), deps({ consume: async () => false }), '') as { result: { isError?: boolean } };
   assert.equal(limited.result.isError, true);
@@ -419,7 +424,7 @@ test('get_kept_items lists what the user kept, filtered by type, with links an a
   assert.match(empty.result.content[0].text, /Nothing kept yet/);
 });
 
-import { derivedToken, hashToken } from '../lib/mcp/auth';
+import { derivedToken, hashToken, mcpTokenSecret } from '../lib/mcp/auth';
 
 test('derived MCP tokens come back the same for one issue time, so a second tool does not cut off the first', () => {
   const issued = new Date('2026-11-18T10:00:00.123Z').getTime();
@@ -431,6 +436,31 @@ test('derived MCP tokens come back the same for one issue time, so a second tool
   assert.notEqual(derivedToken('user-1', issued + 1, 'secret'), token);
   assert.notEqual(derivedToken('user-2', issued, 'secret'), token);
   assert.notEqual(derivedToken('user-1', issued, 'other'), token);
+});
+
+test('mcpTokenSecret prefers MCP_TOKEN_SECRET and falls back to SUPABASE_SECRET_KEY without breaking existing tokens', () => {
+  const issued = new Date('2026-11-18T10:00:00.123Z').getTime();
+  const fallbackKey = mcpTokenSecret({ SUPABASE_SECRET_KEY: 'sb-secret-123' });
+  assert.equal(fallbackKey, 'sb-secret-123');
+  assert.equal(
+    derivedToken('user-1', issued, mcpTokenSecret({ MCP_TOKEN_SECRET: '', SUPABASE_SECRET_KEY: 'sb-secret-123' })),
+    derivedToken('user-1', issued, 'sb-secret-123'),
+  );
+  assert.equal(
+    derivedToken('user-1', issued, mcpTokenSecret({ MCP_TOKEN_SECRET: '   ', SUPABASE_SECRET_KEY: 'sb-secret-123' })),
+    derivedToken('user-1', issued, 'sb-secret-123'),
+  );
+
+  const dedicatedKey = mcpTokenSecret({ MCP_TOKEN_SECRET: 'mcp-dedicated-secret', SUPABASE_SECRET_KEY: 'sb-secret-123' });
+  assert.equal(dedicatedKey, 'mcp-dedicated-secret');
+  assert.equal(
+    derivedToken('user-1', issued, dedicatedKey),
+    derivedToken('user-1', issued, 'mcp-dedicated-secret'),
+  );
+  assert.notEqual(
+    derivedToken('user-1', issued, dedicatedKey),
+    derivedToken('user-1', issued, fallbackKey),
+  );
 });
 
 test('validate_idea checks the daily limit before making a report, and refuses a missing idea', async () => {

@@ -37,7 +37,7 @@ function formatAnswer(value: string | string[] | undefined) {
   return value || '미설정';
 }
 
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ status?: string; tryIdea?: string }> }) {
   const supabase = await createClient();
   if (!supabase) redirect('/login');
 
@@ -57,6 +57,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const dailyResearchSubscribed = onboarding?.daily_research_subscribed === true;
   const onboardingAnswers = (onboarding?.answers ?? {}) as OnboardingAnswers;
   const statusNotice = notice(params.status);
+  const tryIdea = typeof params.tryIdea === 'string' ? params.tryIdea.trim().slice(0, 300) : '';
 
   return (
     <>
@@ -70,7 +71,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <section id="idea-pages" className="scroll-mt-6">
             <h2 className="text-[17px] font-semibold text-ink">아이디어 소개 페이지</h2>
             <p className="mt-2 text-[15px] text-muted">만들기 전에 아이디어를 소개하는 페이지와 대기자 명단을 만들어, 실제로 신청하는 사람이 있는지 셉니다. 신청한 이메일은 나에게만 보입니다.</p>
-            <IdeaPages />
+            <IdeaPages key={tryIdea} initialIdea={tryIdea} />
             <h2 className="mt-10 text-[17px] font-semibold text-ink">지켜보는 아이디어</h2>
             <p className="mt-2 text-[15px] text-muted">매주 한 번 다시 찾아보고, 새 원문이나 경쟁 도구가 생기면 메일로 알려 드립니다.</p>
             <IdeaWatches />

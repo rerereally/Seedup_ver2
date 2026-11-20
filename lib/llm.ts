@@ -44,12 +44,14 @@ export function shouldThrottleModel(model: string) {
   return isFreeOpenRouterModel(model);
 }
 
-async function waitForSlot(model: string) {
-  if (!shouldThrottleModel(model)) return;
+async function waitForSlot(model: string, latestStart = Infinity) {
   const now = Date.now();
+  if (!shouldThrottleModel(model)) return now <= latestStart;
   const startAt = Math.max(now, nextCallAt);
+  if (startAt > latestStart) return false;
   nextCallAt = startAt + MIN_CALL_INTERVAL_MS;
   if (startAt > now) await new Promise((resolve) => setTimeout(resolve, startAt - now));
+  return Date.now() <= latestStart;
 }
 
 function configuredModels() {
@@ -125,9 +127,10 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
     if (!endpoint) continue;
     for (let attempt = 0; attempt < (options?.attempts ?? 2); attempt += 1) {
       // A caller with a deadline (a person waiting) gets an answer or null in time, never a minutes-long retry chain.
-      const left = options?.deadline ? options.deadline - Date.now() : Infinity;
+      const deadline = options?.deadline ?? Infinity;
+      if (!(await waitForSlot(model, deadline - 3_000))) return null;
+      const left = deadline - Date.now();
       if (left < 3_000) return null;
-      await waitForSlot(model);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(options?.timeoutMs ?? CALL_TIMEOUT_MS, left));
       try {
@@ -148,6 +151,7 @@ export async function callJsonModel<T>(prompt: string, options?: { maxTokens?: n
         if (response.status === 429) {
           llmUsage.failures += 1;
           llmUsage.lastFailure = `${model}: rate limited`;
+          if (deadline - Date.now() < 12_000) return null;
           await new Promise((resolve) => setTimeout(resolve, 9_000));
           continue;
         }
@@ -220,8 +224,7 @@ export async function streamText(prompt: string, options: StreamOptions = {}): P
   for (const model of options.models?.length ? options.models : modelChain(options.model)) {
     const endpoint = endpointFor(model, false);
     if (!endpoint) continue;
-    if (deadline - Date.now() < 5_000) break;
-    await waitForSlot(model);
+    if (!(await waitForSlot(model, deadline - 5_000))) continue;
     const controller = new AbortController();
     let text = '';
     let alive = false;

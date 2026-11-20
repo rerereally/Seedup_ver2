@@ -60,7 +60,7 @@ flowchart TB
   end
 
   subgraph C["기술 큐레이션 · RAG 파이프라인"]
-    RAG["pgvector 1536차원 임베딩<br/>맞춤 추천 · 데일리 아티클 · 글 도우미 챗봇"]
+    RAG["pgvector 1536차원 임베딩<br/>아이디어 평가 · MCP 관련 자료 · 맞춤 추천"]
   end
 
   subgraph L["3. Living Spec (/prd)"]
@@ -131,8 +131,8 @@ flowchart TB
 
 ### 4. 아이디어 검증 (`/prd/validate`, `/try/[slug]`)
 - `/prd` 입력창의 토글에서 **아이디어 검증**을 고르면 왼쪽 대화, 오른쪽 평가 결과 화면으로 열립니다(예전 `/ideas`는 이리로 넘어옵니다).
-- **검증 리포트(하루 3건):** 아이디어 하나에 대해 실제 원문, 기존 도구, 첫 사용자 후보, 판정을 한 장으로 줍니다.
-- **AI 평가:** pgvector 하이브리드 RAG로 관련 뉴스 · 논문 · 오픈소스 · AI 제품 근거를 찾아 점수를 매기고, 사용자가 말한 것(`user_stated`)과 AI가 추정한 것(`inferred_assumptions`)을 나눠 보여 줍니다.
+- **검증 리포트(하루 3건):** 원문과 경쟁 도구로 실패할 이유를 먼저 보여 주고, 수요·공급·타이밍·도달·실행 적합을 규칙으로 판단합니다. 첫 사용자 후보와 인터뷰 질문, 대기 신청 페이지로 이어집니다.
+- **저장된 AI 평가:** 기존 평가는 참고로 열 수 있습니다. 관련 뉴스·논문·오픈소스·AI 제품을 찾는 pgvector RAG 평가 API도 계속 제공됩니다.
 - **지켜보기:** 아이디어를 등록하면 매주 새 원문과 새 경쟁 도구를 메일로 알려 줍니다(최대 10개).
 - **검증 실험 키트(`/try/[slug]`):** 아이디어 소개 공개 페이지와 대기자 명단, CSV 내려받기. 프로필에서 관리합니다.
 
@@ -170,7 +170,7 @@ flowchart TB
 
 ### 7. 아티클 · 트렌드 (`/news`, `/papers/[id]`, `/trends`, `/github-trends`, `/ai-products`)
 - 트랙별 데일리 아티클(원문 3개 이상, 소스 종류 2개 이상 모인 묶음만 발행)과 문장별 출처 구분(원문 근거 / 추론 / 배경지식).
-- 글 · 논문 상세 오른쪽의 **글 도우미 챗봇**(`POST /api/articles/ask`).
+- 글 · 논문 상세 오른쪽의 **글 도우미 챗봇**(`POST /api/articles/ask`): 벡터 검색 없이 그 글의 본문을 근거로 답합니다.
 - GitHub 급상승 저장소, AI 제품 레이더(별점 · 리뷰), 모델 리더보드.
 
 ### 8. 알림 · 개인화
@@ -271,6 +271,8 @@ EXAONE_REASONING_EFFORT=low
 # PRD 무료 모델 우선순위 및 라이브 원문 서명 키
 PRD_FREE_MODELS=baidu/ernie-5.5-flash-preview:free,particle-ai/particle-1:free,nvidia/nemotron-3-ultra-550b-a55b:free
 LIVE_EVIDENCE_SECRET=
+# MCP 토큰 서명 키: 없으면 SUPABASE_SECRET_KEY를 씁니다. 한번 정하면 바꾸지 마세요(바꾸면 기존 MCP 연결이 끊김).
+MCP_TOKEN_SECRET=
 
 # 외부 수집 API
 GITHUB_TOKEN=your-github-token

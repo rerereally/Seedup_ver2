@@ -229,6 +229,7 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
     setCompare(null);
     setFocus(null);
     setSaveState('idle');
+    autoSave.current = true;
   };
 
   const showLive = (phase: LivePhase, restarted = false) => {
@@ -448,6 +449,16 @@ export default function PrdBuilder({ title, evidenceIds, ready, loginNext, child
       setSaveState('idle');
     }
   };
+
+  // A newly made PRD goes to the bookmarks on its own, once its markdown has rendered; edits after that still need the button.
+  const autoSave = useRef(false);
+  useEffect(() => {
+    if (!autoSave.current || !markdown) return;
+    autoSave.current = false;
+    void save();
+    // save reads the just-rendered markdown and ids; it must not re-run when its identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markdown]);
 
   const copy = async (label: string, text: string) => {
     try {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { cached } from '@/lib/cache';
 import { isGenericTitle } from '@/lib/ingest/trend-builder';
+import { averagePerDay, baselineSlack, daysBefore, periodState, valuesAt } from '@/lib/popularity';
 import type {
   AIProduct,
   AIProductReview,
@@ -487,3 +488,72 @@ export async function getGitHubTrend(id: string) {
   }
   return data as GitHubTrend | null;
 }
+
+type HistoryTable = 'trend_snapshots' | 'github_repo_snapshots' | 'ai_model_snapshots';
+
+/** The oldest and newest day a history table holds, so a page offers only the periods it can rank. */
+const getHistoryRange = (table: HistoryTable) => cached(`history-range:${table}`, async () => {
+  const supabase = await createClient();
+  if (!supabase) return { oldest: null, newest: null };
+  const edge = (ascending: boolean) => supabase.from(table).select('snapshot_date').order('snapshot_date', { ascending }).limit(1).maybeSingle();
+  const [first, last] = await Promise.all([edge(true), edge(false)]);
+  if (first.error) handleReadError(first.error);
+  return { oldest: (first.data?.snapshot_date as string | undefined) ?? null, newest: (last.data?.snapshot_date as string | undefined) ?? null };
+});
+
+/**
+ * The period a page asked for (if its history reaches that far) and each key's value on that period's first day.
+ * Only a few days around that day are read, so the query stays small however long the history grows.
+ */
+export async function getPeriodBaseline(table: HistoryTable, keyColumn: string, valueColumn: string, keys: string[], requested: string | null | undefined) {
+  const { oldest, newest } = await getHistoryRange(table);
+  const state = periodState(requested, oldest, newest);
+  if (!state.period || !newest || !keys.length) return { state, baseline: new Map<string, number>() };
+  const { days } = state.period;
+  const baseline = await cached(`period-baseline:${table}:${days}:${newest}`, async () => {
+    const supabase = await createClient();
+    if (!supabase) return new Map<string, number>();
+    const day = daysBefore(newest, days);
+    const { data, error } = await supabase
+      .from(table)
+      .select(`${keyColumn},snapshot_date,${valueColumn}`)
+      .in(keyColumn, keys)
+      .lte('snapshot_date', day)
+      .gte('snapshot_date', daysBefore(day, baselineSlack(days)))
+      .order('snapshot_date', { ascending: false })
+      .limit(1000);
+    if (error) {
+      handleReadError(error);
+      return new Map<string, number>();
+    }
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+    return valuesAt(rows.map((row) => ({ key: String(row[keyColumn]), date: String(row.snapshot_date), value: Number(row[valueColumn] ?? 0) })), day);
+  });
+  return { state, baseline };
+}
+
+/** Each trend topic's average daily score over the last `days` days of its history (missing days count as 0). */
+export const getTrendAverages = (keys: string[], days: number) => cached(`trend-average:${days}`, async () => {
+  const supabase = await createClient();
+  const { newest } = await getHistoryRange('trend_snapshots');
+  if (!supabase || !newest || !keys.length) return new Map<string, number>();
+  const rows: Array<{ key: string; date: string; value: number }> = [];
+  // shortcut: pages through every row of the window (about 150 a day), fine up to a month; past that, store daily averages at ingest.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('trend_snapshots')
+      .select('keyword,snapshot_date,score')
+      .in('keyword', keys)
+      .gt('snapshot_date', daysBefore(newest, days))
+      .lte('snapshot_date', newest)
+      .order('snapshot_date', { ascending: false })
+      .range(from, from + 999);
+    if (error) {
+      handleReadError(error);
+      break;
+    }
+    rows.push(...(data ?? []).map((row) => ({ key: String(row.keyword), date: String(row.snapshot_date), value: Number(row.score ?? 0) })));
+    if ((data?.length ?? 0) < 1000) break;
+  }
+  return averagePerDay(rows);
+});

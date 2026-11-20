@@ -5,6 +5,8 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAIProducts, getScrapKeySet } from '@/lib/data';
 import ExploreTabs from '@/components/ExploreTabs';
+import PeriodTabs from '@/components/PeriodTabs';
+import { periodState, productPopularity, withinDays } from '@/lib/popularity';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
 
@@ -19,8 +21,9 @@ function displayRating(average: number | null, ratingCount: number | null) {
   return Math.max(0, Math.min(5, Number(average))).toFixed(1);
 }
 
-function buildHref(params: { q?: string; category?: string; pricing?: string; page?: number }) {
+function buildHref(params: { q?: string; category?: string; pricing?: string; page?: number; period?: string | null }) {
   const query = new URLSearchParams();
+  if (params.period) query.set('period', params.period);
   if (params.q) query.set('q', params.q);
   if (params.category && params.category !== 'all') query.set('category', params.category);
   if (params.pricing && params.pricing !== 'all') query.set('pricing', params.pricing);
@@ -48,7 +51,7 @@ function pricingLabel(pricing?: string | null) {
   return PRICING_LABELS[key] ?? pricing;
 }
 
-export default async function AIProducts({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; category?: string; pricing?: string }> }) {
+export default async function AIProducts({ searchParams }: { searchParams: Promise<{ q?: string; page?: string; category?: string; pricing?: string; period?: string }> }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? '';
   const category = params.category ?? 'all';
@@ -57,14 +60,21 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
   const [products, scrapKeys] = await Promise.all([getAIProducts(), getScrapKeySet()]);
   const categories = Array.from(new Set(products.map((product) => product.category).filter(Boolean) as string[])).slice(0, 6);
   const pricingTypes = Array.from(new Set(products.map((product) => product.pricing_type).filter((value): value is string => Boolean(pricingLabel(value))))).slice(0, 5);
-  const filteredProducts = products.filter((product) => {
+  // Launch dates (or when Seedup first saw a product) set which periods mean something: none older than the oldest one.
+  const launchedAt = (product: (typeof products)[number]) => product.launch_date ?? product.created_at;
+  const oldestLaunch = products.map(launchedAt).filter(Boolean).sort()[0] ?? null;
+  const periodView = periodState(params.period, oldestLaunch, new Date().toISOString());
+  const period = periodView.period;
+  const matched = products.filter((product) => {
     const q = query.toLowerCase();
     const matchesQuery = !q || [product.name, product.description, product.category, product.target_user, ...(product.use_cases ?? [])]
       .some((value) => value?.toLowerCase().includes(q));
     const matchesCategory = category === 'all' || normalized(product.category) === normalized(category);
     const matchesPricing = pricing === 'all' || normalized(product.pricing_type) === normalized(pricing);
-    return matchesQuery && matchesCategory && matchesPricing;
+    return matchesQuery && matchesCategory && matchesPricing && (!period || withinDays(launchedAt(product), period.days));
   });
+  // A period lists what launched in it, most read and best rated first; equal interest keeps the curated order.
+  const filteredProducts = period ? [...matched].sort((left, right) => productPopularity(right) - productPopularity(left)) : matched;
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -74,6 +84,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
       <Header />
       <main id="main-content" className="page-shell page-stack grow">
         <ExploreTabs />
+        {products.length > 0 && <PeriodTabs state={periodView} href={(key) => buildHref({ q: query, category, pricing, period: key })} label="출시 기간" />}
 
           {products.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
@@ -81,19 +92,20 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
                 <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
                 <input name="q" defaultValue={query} aria-label="AI 제품 검색" placeholder="제품 이름이나 쓰임새로 찾기" className="min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-ink placeholder:text-muted" />
                 {category !== 'all' && <input type="hidden" name="category" value={category} />}
+                {period && <input type="hidden" name="period" value={period.key} />}
                 {pricing !== 'all' && <input type="hidden" name="pricing" value={pricing} />}
               </form>
               <nav aria-label="분류" className="seg">
-                <Link href={buildHref({ q: query, pricing })} aria-current={category === 'all' ? 'page' : undefined}>전체</Link>
+                <Link href={buildHref({ q: query, pricing, period: period?.key })} aria-current={category === 'all' ? 'page' : undefined}>전체</Link>
                 {categories.map((item) => (
-                  <Link key={item} href={buildHref({ q: query, category: item, pricing })} aria-current={normalized(category) === normalized(item) ? 'page' : undefined}>{categoryLabel(item)}</Link>
+                  <Link key={item} href={buildHref({ q: query, category: item, pricing, period: period?.key })} aria-current={normalized(category) === normalized(item) ? 'page' : undefined}>{categoryLabel(item)}</Link>
                 ))}
               </nav>
               {pricingTypes.length > 0 && (
                 <nav aria-label="가격" className="seg">
-                  <Link href={buildHref({ q: query, category })} aria-current={pricing === 'all' ? 'page' : undefined}>가격 전체</Link>
+                  <Link href={buildHref({ q: query, category, period: period?.key })} aria-current={pricing === 'all' ? 'page' : undefined}>가격 전체</Link>
                   {pricingTypes.map((item) => (
-                    <Link key={item} href={buildHref({ q: query, category, pricing: item })} aria-current={normalized(pricing) === normalized(item) ? 'page' : undefined}>{pricingLabel(item)}</Link>
+                    <Link key={item} href={buildHref({ q: query, category, pricing: item, period: period?.key })} aria-current={normalized(pricing) === normalized(item) ? 'page' : undefined}>{pricingLabel(item)}</Link>
                   ))}
                 </nav>
               )}
@@ -162,7 +174,7 @@ export default async function AIProducts({ searchParams }: { searchParams: Promi
           {filteredProducts.length > PAGE_SIZE && (
             <nav aria-label="쪽 이동" className="pager">
               {Array.from({ length: totalPages }).slice(0, 8).map((_, index) => (
-                <Link key={index + 1} href={buildHref({ q: query, category, pricing, page: index + 1 })} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
+                <Link key={index + 1} href={buildHref({ q: query, category, pricing, page: index + 1, period: period?.key })} aria-current={currentPage === index + 1 ? 'page' : undefined} className="num">{index + 1}</Link>
               ))}
             </nav>
           )}
